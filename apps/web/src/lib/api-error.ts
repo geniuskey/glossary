@@ -2,6 +2,7 @@ export type ApiErrorCode =
   | "validation_failed"
   | "unauthorized"
   | "forbidden"
+  | "not_found"
   | "term_not_found"
   | "revision_conflict"
   | "payload_too_large"
