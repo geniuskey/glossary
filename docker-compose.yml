@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: grossary
+      POSTGRES_PASSWORD: grossary
+      POSTGRES_DB: grossary
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grossary"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+    name: grossary_pgdata
