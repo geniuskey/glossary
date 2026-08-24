@@ -337,7 +337,7 @@ services:
       POSTGRES_PASSWORD: grossary
       POSTGRES_DB: grossary
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
@@ -362,8 +362,8 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 `.env.example`:
 ```
-DATABASE_URL=postgres://grossary:grossary@localhost:5432/grossary
-DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5432/grossary_test
+DATABASE_URL=postgres://grossary:grossary@localhost:5433/grossary
+DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5433/grossary_test
 POSTGRES_PASSWORD=grossary
 ```
 
@@ -591,9 +591,9 @@ docker compose up -d postgres          # init-db.sql이 pg_trgm과 grossary_test
 pnpm install
 pnpm --filter @grossary/engine build   # db 테스트가 engine의 dist를 import한다
 pnpm --filter @grossary/db db:generate
-DATABASE_URL=postgres://grossary:grossary@localhost:5432/grossary pnpm --filter @grossary/db db:migrate
-DATABASE_URL=postgres://grossary:grossary@localhost:5432/grossary_test pnpm --filter @grossary/db db:migrate
-DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5432/grossary_test pnpm --filter @grossary/db test
+DATABASE_URL=postgres://grossary:grossary@localhost:5433/grossary pnpm --filter @grossary/db db:migrate
+DATABASE_URL=postgres://grossary:grossary@localhost:5433/grossary_test pnpm --filter @grossary/db db:migrate
+DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5433/grossary_test pnpm --filter @grossary/db test
 ```
 Expected: parity 테스트 PASS.
 
@@ -724,9 +724,9 @@ test("모든 신규 테이블에 조회가 가능하다", async () => {
 
 ```bash
 pnpm --filter @grossary/db db:generate
-DATABASE_URL=postgres://grossary:grossary@localhost:5432/grossary pnpm --filter @grossary/db db:migrate
-DATABASE_URL=postgres://grossary:grossary@localhost:5432/grossary_test pnpm --filter @grossary/db db:migrate
-DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5432/grossary_test pnpm --filter @grossary/db test
+DATABASE_URL=postgres://grossary:grossary@localhost:5433/grossary pnpm --filter @grossary/db db:migrate
+DATABASE_URL=postgres://grossary:grossary@localhost:5433/grossary_test pnpm --filter @grossary/db db:migrate
+DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5433/grossary_test pnpm --filter @grossary/db test
 ```
 Expected: 전체 PASS.
 
@@ -3944,7 +3944,7 @@ cron 예시 (매일 03:00):
 pnpm install
 pnpm build
 pnpm typecheck
-DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5432/grossary_test pnpm test
+DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5433/grossary_test pnpm test
 docker compose -f docker-compose.prod.yml build
 ```
 Expected: 타입 검사 통과, 전체 테스트 통과, 이미지 빌드 성공.
