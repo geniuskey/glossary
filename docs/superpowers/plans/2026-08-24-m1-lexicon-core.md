@@ -1262,9 +1262,10 @@ export async function POST() {
 import { createDb, users } from "@grossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 
-const [email, password, name] = process.argv.slice(2);
+const [email, name] = process.argv.slice(2);
+const password = process.env.ADMIN_PASSWORD;
 if (!email || !password) {
-  console.error("usage: tsx scripts/seed-admin.ts <email> <password> [name]");
+  console.error("usage: ADMIN_PASSWORD=<password> tsx scripts/seed-admin.ts <email> [name]");
   process.exit(1);
 }
 
@@ -1330,7 +1331,7 @@ export default function LoginPage() {
 
 ```bash
 pnpm --filter @grossary/web test
-pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts admin@example.com pw-for-local Admin
+ADMIN_PASSWORD=pw-for-local pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts admin@example.com Admin
 curl -s -X POST localhost:3000/api/v1/auth/login -H 'content-type: application/json' \
   -d '{"email":"admin@example.com","password":"pw-for-local"}' -i | head -20
 ```
@@ -3981,10 +3982,13 @@ M1의 스펙은 손으로 유지한다. zod에서 자동 생성하는 파이프�
 `up -d` 하나로 postgres → migrate → app 순서로 기동한다. pg_trgm 확장은
 `scripts/init-prod-db.sql`이 볼륨 최초 생성 시 만들고, 스키마는 migrate 서비스가 적용한다.
 
-관리자 계정은 migrator 이미지에서 한 번 만든다:
+관리자 계정은 migrator 이미지에서 한 번 만든다. 비밀번호는 **argv로 넘기지 않는다** —
+프로세스 목록과 셸 히스토리에 평문이 그대로 남는다. `ADMIN_PASSWORD` 환경변수로만 넘긴다:
 
-    docker compose -f docker-compose.prod.yml run --rm migrate \
-      pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts <email> <password> <name>
+    read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
+    docker compose -f docker-compose.prod.yml run --rm -e ADMIN_PASSWORD migrate \
+      pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts <email> <name>
+    unset ADMIN_PASSWORD
 
 ## 백업
 
