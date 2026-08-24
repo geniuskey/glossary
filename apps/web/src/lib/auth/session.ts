@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 
 export const SESSION_COOKIE = "grossary_session";
 const TTL_MS = 1000 * 60 * 60 * 24 * 14;
+export const SESSION_TTL_SECONDS = TTL_MS / 1000;
 
 /**
  * 쿠키에 담는 토큰 원문과 DB에 남는 값을 분리한다.
