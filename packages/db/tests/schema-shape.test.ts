@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { createDb, apiKeys, sessions, termRevisions, users } from "../src/index.js";
+import { createDb, apiKeys, sessions, termRevisions, users } from "../src/index";
 
 const db = createDb(process.env.DATABASE_URL_TEST!);
 

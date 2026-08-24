@@ -1,8 +1,12 @@
 import { normalizeSurface } from "@grossary/engine";
 
-export * from "./schema/index.js";
-export { createDb } from "./client.js";
-export type { Db } from "./client.js";
+// 상대 임포트에 .js 확장자를 붙이지 않는다. 이 패키지는 dist 없는 소스 전용이라
+// drizzle-kit(CJS 로더)과 Next의 Turbopack이 그대로 읽는데, 둘 다 .js -> .ts 매핑을
+// 못 한다. tsconfig가 moduleResolution: "Bundler"라 확장자 생략이 정식 표기다.
+
+export * from "./schema/index";
+export { createDb } from "./client";
+export type { Db } from "./client";
 
 /**
  * 표기 정규화 컬럼 값을 만든다.
