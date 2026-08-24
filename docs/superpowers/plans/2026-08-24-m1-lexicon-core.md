@@ -1002,13 +1002,14 @@ git commit -m "feat: scaffold next.js app with api error contract and health end
 - Create: `apps/web/src/app/api/v1/auth/login/route.ts`, `apps/web/src/app/api/v1/auth/logout/route.ts`
 - Create: `apps/web/src/app/login/page.tsx`
 - Create: `apps/web/scripts/seed-admin.ts`
-- Test: `apps/web/tests/password.test.ts`
+- Test: `apps/web/tests/password.test.ts`, `apps/web/tests/session.test.ts`
 
 **Interfaces:**
 - Consumes: `users`, `sessions` from `@grossary/db`
 - Produces:
   - `hashPassword(plain): Promise<string>`, `verifyPassword(plain, stored): Promise<boolean>`
-  - `createSession(userId): Promise<{ id: string; expiresAt: Date }>`
+  - `createSession(userId): Promise<{ token: string; expiresAt: Date }>` — `token`은 쿠키에 담는 원문이고, DB에는 그 해시가 들어간다
+  - `deleteSession(token): Promise<void>`, `hashSessionToken(token): string`
   - `getCurrentUser(): Promise<{ id: string; email: string; name: string; role: "admin" | "editor" } | null>`
 
 - [ ] **Step 1: 비밀번호 해시 테스트 작성**
@@ -1038,6 +1039,59 @@ test("손상된 저장값에서 예외 대신 false를 반환한다", async () =
   await expect(verifyPassword("x", "garbage")).resolves.toBe(false);
 });
 ```
+
+`apps/web/tests/session.test.ts`:
+```ts
+import { eq } from "drizzle-orm";
+import { afterAll, expect, test } from "vitest";
+import { createDb, sessions, users } from "@grossary/db";
+import { createSession, deleteSession, hashSessionToken } from "../src/lib/auth/session.js";
+import { hashPassword } from "../src/lib/auth/password.js";
+
+const db = createDb(process.env.DATABASE_URL!);
+const createdUserIds: string[] = [];
+
+async function makeUser() {
+  const [row] = await db
+    .insert(users)
+    .values({
+      email: `session-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`,
+      name: "세션 테스트",
+      passwordHash: await hashPassword("irrelevant"),
+    })
+    .returning();
+  createdUserIds.push(row!.id);
+  return row!;
+}
+
+afterAll(async () => {
+  for (const id of createdUserIds) await db.delete(users).where(eq(users.id, id));
+});
+
+test("쿠키에 담는 토큰 원문은 DB에 남지 않는다", async () => {
+  const user = await makeUser();
+  const { token } = await createSession(user.id);
+
+  const rows = await db.select().from(sessions).where(eq(sessions.userId, user.id));
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.id).not.toBe(token);
+  expect(rows[0]!.id).toBe(hashSessionToken(token));
+});
+
+test("토큰 원문으로 세션을 지운다", async () => {
+  const user = await makeUser();
+  const { token } = await createSession(user.id);
+
+  await deleteSession(token);
+
+  const rows = await db.select().from(sessions).where(eq(sessions.userId, user.id));
+  expect(rows).toHaveLength(0);
+});
+```
+
+첫 번째 테스트가 이 설계의 전부다. `not.toBe(token)`만 있으면 아무 값이나 넣어도 통과하니
+`toBe(hashSessionToken(token))`까지 함께 걸어 실제로 조회 가능한 해시가 저장됐는지 본다.
 
 - [ ] **Step 2: 실패 확인 후 구현**
 
@@ -1078,7 +1132,7 @@ export async function verifyPassword(plain: string, stored: string): Promise<boo
 
 `apps/web/src/lib/auth/session.ts`:
 ```ts
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { eq, lt } from "drizzle-orm";
 import { sessions } from "@grossary/db";
 import { getDb } from "@/lib/db";
@@ -1086,15 +1140,24 @@ import { getDb } from "@/lib/db";
 export const SESSION_COOKIE = "grossary_session";
 const TTL_MS = 1000 * 60 * 60 * 24 * 14;
 
-export async function createSession(userId: string) {
-  const id = randomBytes(32).toString("base64url");
-  const expiresAt = new Date(Date.now() + TTL_MS);
-  await getDb().insert(sessions).values({ id, userId, expiresAt });
-  return { id, expiresAt };
+/**
+ * 쿠키에 담는 토큰 원문과 DB에 남는 값을 분리한다.
+ * 백업 파일이나 덤프 한 벌이 그대로 살아있는 세션 묶음이 되지 않게 하려는 것이다.
+ * 토큰이 이미 256비트 난수라 솔트나 느린 해시가 필요 없다. 조회 때마다 도는 경로다.
+ */
+export function hashSessionToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
 }
 
-export async function deleteSession(id: string) {
-  await getDb().delete(sessions).where(eq(sessions.id, id));
+export async function createSession(userId: string) {
+  const token = randomBytes(32).toString("base64url");
+  const expiresAt = new Date(Date.now() + TTL_MS);
+  await getDb().insert(sessions).values({ id: hashSessionToken(token), userId, expiresAt });
+  return { token, expiresAt };
+}
+
+export async function deleteSession(token: string) {
+  await getDb().delete(sessions).where(eq(sessions.id, hashSessionToken(token)));
 }
 
 export async function purgeExpiredSessions() {
@@ -1102,13 +1165,16 @@ export async function purgeExpiredSessions() {
 }
 ```
 
+`sessions.id`는 스키마 그대로 text PK다. 들어가는 값만 토큰 원문에서 sha256 hex 64자로 바뀐다.
+Task 4의 마이그레이션을 건드릴 이유가 없다.
+
 `apps/web/src/lib/auth/current-user.ts`:
 ```ts
 import { cookies } from "next/headers";
 import { and, eq, gt } from "drizzle-orm";
 import { sessions, users } from "@grossary/db";
 import { getDb } from "@/lib/db";
-import { SESSION_COOKIE } from "./session";
+import { hashSessionToken, SESSION_COOKIE } from "./session";
 
 export interface CurrentUser {
   id: string;
@@ -1119,14 +1185,14 @@ export interface CurrentUser {
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const store = await cookies();
-  const id = store.get(SESSION_COOKIE)?.value;
-  if (!id) return null;
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (!token) return null;
 
   const [row] = await getDb()
     .select({ id: users.id, email: users.email, name: users.name, role: users.role })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
-    .where(and(eq(sessions.id, id), gt(sessions.expiresAt, new Date())))
+    .where(and(eq(sessions.id, hashSessionToken(token)), gt(sessions.expiresAt, new Date())))
     .limit(1);
 
   return row ?? null;
@@ -1164,7 +1230,7 @@ export async function POST(request: Request) {
   const res = Response.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
   res.headers.append(
     "set-cookie",
-    `${SESSION_COOKIE}=${session.id}; HttpOnly; SameSite=Lax; Path=/; Expires=${session.expiresAt.toUTCString()}`,
+    `${SESSION_COOKIE}=${session.token}; HttpOnly; SameSite=Lax; Path=/; Expires=${session.expiresAt.toUTCString()}`,
   );
   return res;
 }
@@ -1179,8 +1245,8 @@ import { deleteSession, SESSION_COOKIE } from "@/lib/auth/session";
 
 export async function POST() {
   const store = await cookies();
-  const id = store.get(SESSION_COOKIE)?.value;
-  if (id) await deleteSession(id);
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (token) await deleteSession(token);
 
   const res = Response.json({ ok: true });
   res.headers.append("set-cookie", `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`);
