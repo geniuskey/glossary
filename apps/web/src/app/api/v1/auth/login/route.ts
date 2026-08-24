@@ -2,14 +2,17 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { users } from "@grossary/db";
 import { getDb } from "@/lib/db";
-import { apiError, methodNotAllowed } from "@/lib/api-error";
+import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { DUMMY_PASSWORD_HASH, verifyPassword } from "@/lib/auth/password";
 import { createSession, purgeExpiredSessions, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/auth/session";
 
 const bodySchema = z.object({ email: z.string().email(), password: z.string().min(1) });
 const ALLOWED_METHODS = ["POST"];
 
-export async function POST(request: Request) {
+const { GET, PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
+export { GET, PUT, PATCH, DELETE, OPTIONS };
+
+export const POST = withApiErrors(async (request: Request) => {
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return apiError("validation_failed", "이메일과 비밀번호가 필요합니다.", 400, parsed.error.flatten());
@@ -31,20 +34,4 @@ export async function POST(request: Request) {
     `${SESSION_COOKIE}=${session.token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_SECONDS}; Expires=${session.expiresAt.toUTCString()}`,
   );
   return res;
-}
-
-export async function GET() {
-  return methodNotAllowed(ALLOWED_METHODS);
-}
-
-export async function PUT() {
-  return methodNotAllowed(ALLOWED_METHODS);
-}
-
-export async function PATCH() {
-  return methodNotAllowed(ALLOWED_METHODS);
-}
-
-export async function DELETE() {
-  return methodNotAllowed(ALLOWED_METHODS);
-}
+});

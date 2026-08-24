@@ -4,6 +4,8 @@ import { GET as unmatchedGet, POST as unmatchedPost } from "../src/app/api/v1/[.
 import { GET as loginGet } from "../src/app/api/v1/auth/login/route.js";
 import { GET as logoutGet } from "../src/app/api/v1/auth/logout/route.js";
 import { POST as healthPost } from "../src/app/api/v1/health/route.js";
+import { PUT as keysPut } from "../src/app/api/v1/keys/route.js";
+import { GET as keyIdGet } from "../src/app/api/v1/keys/[id]/route.js";
 
 test("에러 응답이 규약 형태를 지킨다", async () => {
   const res = apiError("term_not_found", "용어를 찾을 수 없습니다.", 404);
@@ -45,14 +47,45 @@ test("methodNotAllowed가 405와 JSON 에러 규약, Allow 헤더를 함께 반�
   });
 });
 
-test("지원하지 않는 메서드로 실제 라우트를 호출해도 JSON 에러 규약을 지킨다", async () => {
-  for (const handler of [loginGet, logoutGet, healthPost]) {
+// R29(e)(Task 6 잔여): Allow가 "존재만 하면 통과"가 아니라 라우트별 실제 허용
+// 메서드와 정확히 일치하는지 확인한다. methodStubs가 만드는 OPTIONS도 같은
+// 값을 광고해야 하므로(R29(a)) 여기서 함께 검증한다.
+test("지원하지 않는 메서드로 실제 라우트를 호출해도 JSON 에러 규약과 정확한 Allow 헤더를 지킨다", async () => {
+  const cases: Array<[() => Response | Promise<Response>, string]> = [
+    [loginGet, "POST"],
+    [logoutGet, "POST"],
+    [healthPost, "GET"],
+    [keysPut, "GET, POST"],
+    [keyIdGet, "DELETE"],
+  ];
+
+  for (const [handler, allow] of cases) {
     const res = await handler();
     expect(res.status).toBe(405);
     expect(res.headers.get("content-type")).toContain("application/json");
-    expect(res.headers.get("allow")).not.toBeNull();
+    expect(res.headers.get("allow")).toBe(allow);
     await expect(res.json()).resolves.toEqual({
       error: { code: "method_not_allowed", message: "지원하지 않는 메서드입니다." },
     });
+  }
+});
+
+test("methodStubs가 만드는 OPTIONS는 204와 함께 실제 허용 메서드만 정확히 광고한다", async () => {
+  const { OPTIONS: loginOptions } = await import("../src/app/api/v1/auth/login/route.js");
+  const { OPTIONS: healthOptions } = await import("../src/app/api/v1/health/route.js");
+  const { OPTIONS: keysOptions } = await import("../src/app/api/v1/keys/route.js");
+  const { OPTIONS: keyIdOptions } = await import("../src/app/api/v1/keys/[id]/route.js");
+
+  const cases: Array<[() => Response, string]> = [
+    [loginOptions, "POST"],
+    [healthOptions, "GET"],
+    [keysOptions, "GET, POST"],
+    [keyIdOptions, "DELETE"],
+  ];
+
+  for (const [handler, allow] of cases) {
+    const res = handler();
+    expect(res.status).toBe(204);
+    expect(res.headers.get("allow")).toBe(allow);
   }
 });
