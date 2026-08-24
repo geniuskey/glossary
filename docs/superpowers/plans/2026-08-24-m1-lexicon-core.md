@@ -47,8 +47,7 @@
   "scripts": {
     "build": "turbo run build",
     "test": "turbo run test",
-    "typecheck": "turbo run typecheck",
-    "lint": "turbo run lint"
+    "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
     "turbo": "^2.3.0",
@@ -72,8 +71,7 @@ packages:
   "tasks": {
     "build": { "dependsOn": ["^build"], "outputs": ["dist/**", ".next/**", "!.next/cache/**"] },
     "test": { "dependsOn": ["^build"] },
-    "typecheck": { "dependsOn": ["^build"] },
-    "lint": {}
+    "typecheck": { "dependsOn": ["^build"] }
   }
 }
 ```
@@ -933,7 +931,6 @@ export type ApiErrorCode =
   | "unauthorized"
   | "forbidden"
   | "term_not_found"
-  | "slug_conflict"
   | "revision_conflict"
   | "payload_too_large"
   | "internal_error";
@@ -1569,7 +1566,7 @@ git commit -m "feat: add api key issuance and scoped auth"
 ### Task 8: 용어 생성 API + 중복 경고 + 리비전
 
 **Files:**
-- Create: `apps/web/src/lib/terms/schema.ts`, `apps/web/src/lib/terms/slug.ts`, `apps/web/src/lib/terms/create.ts`
+- Create: `apps/web/src/lib/terms/schema.ts`, `apps/web/src/lib/terms/slug.ts`, `apps/web/src/lib/terms/surfaces.ts`, `apps/web/src/lib/terms/create.ts`
 - Create: `apps/web/src/app/api/v1/terms/route.ts`
 - Test: `apps/web/tests/slug.test.ts`, `apps/web/tests/terms-create.test.ts`
 
@@ -1577,9 +1574,15 @@ git commit -m "feat: add api key issuance and scoped auth"
 - Consumes: `terms`, `termSurfaces`, `termRevisions`, `surfaceKeys` from `@grossary/db`; `requireAuth`
 - Produces:
   - `slugify(input: string): string`
-  - `termInputSchema` (zod) — `{ termType, nameEn?, nameKo?, fullNameEn?, fullNameKo?, domain[], status, definitionMd?, surfaces[], force? }`
-  - `createTerm(input, authorId): Promise<{ term; warnings: DuplicateWarning[] }>`
+  - `termInputBaseSchema` / `termInputSchema` / `termPatchSchema` (zod) — `{ termType, nameEn?, nameKo?, fullNameEn?, fullNameKo?, domain[], status, definitionMd?, surfaces[] }`
+  - `deriveSurfaces(names: CanonicalNames, explicit: SurfaceInput[]): SurfaceInput[]`
+  - `defaultCaseSensitive(text: string): boolean`
+  - `createTerm(input, authorId): Promise<{ term; surfaces; warnings: DuplicateWarning[] }>`
+  - `findDuplicates(surfaces: SurfaceInput[]): Promise<DuplicateWarning[]>`
   - `interface DuplicateWarning { normLoose: string; conflictingTermId: string; conflictingSlug: string; surfaceText: string }`
+
+  Task 10의 `updateTerm`도 `deriveSurfaces`/`defaultCaseSensitive`를 그대로 import한다.
+  생성과 수정이 같은 파생 규칙을 써야 표기 집합이 갈라지지 않는다. 복사하지 말 것.
 
 - [ ] **Step 1: slug 테스트 작성**
 
@@ -1714,7 +1717,6 @@ export const termInputBaseSchema = z.object({
   status: z.enum(["draft", "approved", "deprecated", "forbidden"]).default("draft"),
   definitionMd: z.string().optional(),
   surfaces: z.array(surfaceInputSchema).default([]),
-  force: z.boolean().optional(),
 });
 
 /** 생성용. 표준 표기가 최소 하나는 있어야 한다. */
@@ -1736,12 +1738,57 @@ export type TermInput = z.infer<typeof termInputBaseSchema>;
 export type SurfaceInput = z.infer<typeof surfaceInputSchema>;
 ```
 
+`apps/web/src/lib/terms/surfaces.ts` — 생성(Task 8)과 수정(Task 10)이 공유하는 파생 규칙:
+```ts
+import { surfaceKeys } from "@grossary/db";
+import type { SurfaceInput } from "./schema";
+
+/** 표준 표기 필드만 추린 공통 형태. TermInput과 terms 테이블 row 양쪽이 만족한다. */
+export interface CanonicalNames {
+  termType: string;
+  nameEn?: string | null;
+  nameKo?: string | null;
+  fullNameEn?: string | null;
+  fullNameKo?: string | null;
+}
+
+/** 짧은 전대문자 표기는 대소문자를 구분해야 노이즈가 생기지 않는다. */
+export function defaultCaseSensitive(text: string): boolean {
+  return /^[A-Z0-9]{2,6}$/.test(text);
+}
+
+/**
+ * 표준 표기에서 파생된 표기와 사용자가 직접 넣은 표기를 합친다.
+ * 정규화 키와 kind가 같으면 먼저 온 쪽을 남긴다.
+ */
+export function deriveSurfaces(names: CanonicalNames, explicit: SurfaceInput[]): SurfaceInput[] {
+  const derived: SurfaceInput[] = [];
+  const isAbbrev = names.termType === "abbreviation";
+
+  if (names.nameEn) {
+    derived.push({ text: names.nameEn, lang: "en", kind: isAbbrev ? "abbreviation" : "canonical" });
+  }
+  if (names.nameKo) derived.push({ text: names.nameKo, lang: "ko", kind: "canonical" });
+  if (names.fullNameEn) derived.push({ text: names.fullNameEn, lang: "en", kind: "full_name" });
+  if (names.fullNameKo) derived.push({ text: names.fullNameKo, lang: "ko", kind: "full_name" });
+
+  const seen = new Set<string>();
+  return [...derived, ...explicit].filter((s) => {
+    const key = `${surfaceKeys(s.text).normLoose}:${s.kind}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+```
+
 `apps/web/src/lib/terms/create.ts`:
 ```ts
 import { eq, inArray, like } from "drizzle-orm";
 import { surfaceKeys, terms, termRevisions, termSurfaces } from "@grossary/db";
 import { getDb } from "@/lib/db";
 import { slugify } from "./slug";
+import { defaultCaseSensitive, deriveSurfaces } from "./surfaces";
 import type { SurfaceInput, TermInput } from "./schema";
 
 export interface DuplicateWarning {
@@ -1749,30 +1796,6 @@ export interface DuplicateWarning {
   surfaceText: string;
   conflictingTermId: string;
   conflictingSlug: string;
-}
-
-/** 짧은 전대문자 표기는 대소문자를 구분해야 노이즈가 생기지 않는다. */
-function defaultCaseSensitive(text: string): boolean {
-  return /^[A-Z0-9]{2,6}$/.test(text);
-}
-
-function collectSurfaces(input: TermInput): SurfaceInput[] {
-  const derived: SurfaceInput[] = [];
-  const isAbbrev = input.termType === "abbreviation";
-
-  if (input.nameEn) derived.push({ text: input.nameEn, lang: "en", kind: isAbbrev ? "abbreviation" : "canonical" });
-  if (input.nameKo) derived.push({ text: input.nameKo, lang: "ko", kind: "canonical" });
-  if (input.fullNameEn) derived.push({ text: input.fullNameEn, lang: "en", kind: "full_name" });
-  if (input.fullNameKo) derived.push({ text: input.fullNameKo, lang: "ko", kind: "full_name" });
-
-  const merged = [...derived, ...input.surfaces];
-  const seen = new Set<string>();
-  return merged.filter((s) => {
-    const key = `${surfaceKeys(s.text).normLoose}:${s.kind}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 }
 
 async function uniqueSlug(base: string): Promise<string> {
@@ -1816,7 +1839,7 @@ export async function findDuplicates(surfaces: SurfaceInput[]): Promise<Duplicat
 
 export async function createTerm(input: TermInput, authorId: string | null) {
   const db = getDb();
-  const surfaces = collectSurfaces(input);
+  const surfaces = deriveSurfaces(input, input.surfaces);
   const warnings = await findDuplicates(surfaces);
   const slug = await uniqueSlug(slugify(input.nameEn ?? input.nameKo ?? ""));
 
@@ -2170,7 +2193,7 @@ git commit -m "feat: add term detail and surface-based list search"
 - Test: `apps/web/tests/terms-update.test.ts`
 
 **Interfaces:**
-- Consumes: Task 8의 `createTerm`, `collectSurfaces` 규칙; Task 9의 `getTermByIdOrSlug`
+- Consumes: Task 8의 `findDuplicates`, `deriveSurfaces`, `defaultCaseSensitive`; Task 9의 `getTermByIdOrSlug`
 - Produces:
   - `updateTerm(termId, input, authorId, expectedRevision?): Promise<{ term; surfaces; warnings } | { conflict: true; currentRevision: number }>`
   - `listRevisions(termId): Promise<RevisionRow[]>`
@@ -2252,35 +2275,14 @@ import { desc, eq, sql } from "drizzle-orm";
 import { surfaceKeys, terms, termRevisions, termSurfaces } from "@grossary/db";
 import { getDb } from "@/lib/db";
 import { findDuplicates, type DuplicateWarning } from "./create";
-import type { SurfaceInput, TermInput } from "./schema";
+import { defaultCaseSensitive, deriveSurfaces } from "./surfaces";
+import type { TermInput } from "./schema";
 
-export type TermUpdate = Partial<Omit<TermInput, "force">>;
+export type TermUpdate = Partial<TermInput>;
 
 export interface RevisionRow {
   id: string; revisionNumber: number; message: string | null;
   authorId: string | null; createdAt: Date;
-}
-
-function defaultCaseSensitive(text: string): boolean {
-  return /^[A-Z0-9]{2,6}$/.test(text);
-}
-
-function derivedSurfaces(row: typeof terms.$inferSelect, explicit: SurfaceInput[]): SurfaceInput[] {
-  const derived: SurfaceInput[] = [];
-  const isAbbrev = row.termType === "abbreviation";
-
-  if (row.nameEn) derived.push({ text: row.nameEn, lang: "en", kind: isAbbrev ? "abbreviation" : "canonical" });
-  if (row.nameKo) derived.push({ text: row.nameKo, lang: "ko", kind: "canonical" });
-  if (row.fullNameEn) derived.push({ text: row.fullNameEn, lang: "en", kind: "full_name" });
-  if (row.fullNameKo) derived.push({ text: row.fullNameKo, lang: "ko", kind: "full_name" });
-
-  const seen = new Set<string>();
-  return [...derived, ...explicit].filter((s) => {
-    const key = `${surfaceKeys(s.text).normLoose}:${s.kind}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 }
 
 export async function listRevisions(termId: string): Promise<RevisionRow[]> {
@@ -2338,7 +2340,7 @@ export async function updateTerm(
   if (!updated) return { conflict: true, currentRevision };
 
   const explicit = input.surfaces ?? [];
-  const nextSurfaces = derivedSurfaces(updated, explicit);
+  const nextSurfaces = deriveSurfaces(updated, explicit);
   const warnings = await findDuplicates(explicit);
 
   await db.delete(termSurfaces).where(eq(termSurfaces.termId, termId));
@@ -2371,6 +2373,9 @@ export async function updateTerm(
 ```
 
 표기를 통째로 지우고 다시 넣는다. 부분 갱신보다 단순하고, 리비전 스냅샷이 항상 완전한 상태를 담게 된다.
+
+파생 규칙은 Task 8의 `surfaces.ts`에서 그대로 가져다 쓴다. 여기에 복사해두면 생성과 수정이
+서로 다른 표기 집합을 만들기 시작하고, 그 차이는 테스트가 아니라 검색 실패로만 드러난다.
 
 - [ ] **Step 3: 라우트 추가**
 
@@ -3208,7 +3213,7 @@ git commit -m "feat: add term create, edit, and history pages"
 - Create: `apps/web/src/lib/import/parse-xlsx.ts`, `apps/web/src/lib/import/apply.ts`
 - Create: `apps/web/src/app/api/v1/import/route.ts`
 - Create: `apps/web/src/app/import/page.tsx`
-- Test: `apps/web/tests/import-parse.test.ts`
+- Test: `apps/web/tests/import-parse.test.ts`, `apps/web/tests/import-dryrun.test.ts`
 
 **Interfaces:**
 - Consumes: `createTerm`, `findDuplicates`, `surfaceKeys`
@@ -3391,7 +3396,68 @@ export async function parseGlossaryWorkbook(
 
 헤더 이름을 한국어와 영어 양쪽으로 받는다. 기존 엑셀 파일이 어떤 헤더를 쓰는지 미리 알 수 없으므로 관대하게 매핑하고, 인식 못 한 헤더는 조용히 무시한다.
 
-- [ ] **Step 3: dry-run과 반영 구현**
+- [ ] **Step 3: dry-run 리포트 테스트 작성**
+
+`apps/web/tests/import-dryrun.test.ts`:
+```ts
+import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, expect, test } from "vitest";
+import { createDb, terms } from "@grossary/db";
+import { createTerm } from "../src/lib/terms/create.js";
+import { dryRunImport } from "../src/lib/import/apply.js";
+import type { ImportRow } from "../src/lib/import/parse-xlsx.js";
+
+const db = createDb(process.env.DATABASE_URL!);
+const createdIds: string[] = [];
+
+function row(rowNumber: number, nameEn: string, aliases: string[] = []): ImportRow {
+  return { rowNumber, termType: "term", nameEn, domain: [], status: "draft", aliases };
+}
+
+beforeAll(async () => {
+  const { term } = await createTerm(
+    { termType: "term", nameEn: "Lens Shading", domain: ["ISP"], status: "approved", surfaces: [] },
+    null,
+  );
+  createdIds.push(term.id);
+});
+
+afterAll(async () => {
+  for (const id of createdIds) await db.delete(terms).where(eq(terms.id, id));
+});
+
+test("이미 등록된 표기와 겹치는 행을 conflicts에 담는다", async () => {
+  const report = await dryRunImport([row(2, "lens-shading")], []);
+
+  expect(report.conflicts).toHaveLength(1);
+  expect(report.conflicts[0]).toMatchObject({ rowNumber: 2, conflictingSlug: "lens-shading" });
+});
+
+test("파일 안에서 중복된 표기를 행 번호와 함께 보고한다", async () => {
+  const report = await dryRunImport([row(2, "Dead Pixel"), row(3, "dead-pixel")], []);
+
+  const dup = report.duplicatesInFile.find((d) => d.key === "deadpixel");
+  expect(dup?.rowNumbers).toEqual([2, 3]);
+});
+
+test("별칭이 기존 용어와 겹쳐도 잡아낸다", async () => {
+  const report = await dryRunImport([row(2, "Vignetting", ["Lens Shading"])], []);
+
+  expect(report.conflicts.map((c) => c.rowNumber)).toContain(2);
+});
+
+test("total은 파싱 실패 행까지 세고 ready는 세지 않는다", async () => {
+  const report = await dryRunImport([row(2, "Gain")], [{ rowNumber: 3, message: "표기 없음" }]);
+
+  expect(report).toMatchObject({ total: 2, ready: 1 });
+  expect(report.errors).toHaveLength(1);
+});
+```
+
+한 행이 여러 표기를 갖기 때문에 `duplicatesInFile`은 행 번호를 중복 제거해야 한다.
+같은 행이 두 번 들어간 목록은 중복이 아니라 그 행이 표기를 여러 개 가졌다는 뜻일 뿐이다.
+
+- [ ] **Step 4: dry-run과 반영 구현**
 
 `apps/web/src/lib/import/apply.ts`:
 ```ts
@@ -3509,7 +3575,7 @@ export async function POST(request: Request) {
 }
 ```
 
-- [ ] **Step 4: 임포트 화면 작성 후 테스트 실행**
+- [ ] **Step 5: 임포트 화면 작성 후 테스트 실행**
 
 `apps/web/src/app/import/page.tsx`:
 ```tsx
@@ -3603,7 +3669,7 @@ export default function ImportPage() {
 Run: `DATABASE_URL_TEST=... pnpm --filter @grossary/web test`
 Expected: import-parse 테스트 5개 PASS.
 
-- [ ] **Step 5: 커밋**
+- [ ] **Step 6: 커밋**
 
 ```bash
 git add -A
