@@ -15,15 +15,29 @@ const scryptAsync = promisify(scrypt) as (
 const KEY_LEN = 64;
 
 // 저장 형식 scrypt$N$r$p$salt$hash에 실제로 쓰이는 현재 비용 파라미터.
-// N=2^15는 128*N*r=32MB로 Node 기본 maxmem(32MB)과 정확히 같아서 예외가 난다(실측 확인).
-// maxmem을 명시적으로 올려야 한다.
+// scrypt의 실제 메모리 요구량은 OpenSSL 기준 128*r*(N+p+2)바이트다(아래 근사식
+// 128*N*r*p는 이를 단순화한 상한 추정치일 뿐 정확한 공식이 아니다 — MAX_COST_PRODUCT
+// 주석 참고). N=2^15, r=8, p=1이면 128*8*(32768+1+2)=33,557,504바이트로 Node 기본
+// maxmem(32MB=33,554,432바이트)을 미세하게 넘어 예외가 난다(실측 확인). maxmem을
+// 명시적으로 올려야 한다.
+//
+// 경고(R30): DUMMY_PASSWORD_HASH는 이 SCRYPT_N을 그대로 박아 넣는다. 나중에 이
+// 상수만 올리고 기존 계정들의 저장된 해시(옛 N)를 재해시하지 않으면, "계정 없음"
+// 경로(DUMMY_PASSWORD_HASH 검증)만 새 N을 쓰고 "계정 있음, 비밀번호 틀림" 경로는
+// 여전히 옛 N을 써서 서로 다른 시간이 걸린다 — 로그인 라우트가 막으려던 타이밍
+// 오라클이 반대 방향으로 재개방된다. 이 상수를 올릴 때는 기존 해시 마이그레이션을
+// 함께 계획해야 한다.
 export const SCRYPT_N = 32768;
 export const SCRYPT_R = 8;
 export const SCRYPT_P = 1;
 const SCRYPT_MAXMEM = 64 * 1024 * 1024;
 
-// N이 커도 128*N*r*p가 SCRYPT_MAXMEM을 넘지 않도록 하는 상한. 저장값에서 파싱한
-// N/r/p로 검증할 때, 손상되거나 악의적인 값이 과도한 메모리 요청으로 이어지지 않게 막는다.
+// N이 커도 저장값에서 파싱한 N/r/p가 SCRYPT_MAXMEM을 과도하게 넘는 메모리를
+// 요구하지 못하게 막는 상한. 정확한 scrypt 공식 128*r*(N+p+2) 대신 곱셈으로
+// 접은 128*N*r*p를 쓰기 때문에 형태가 어긋난다 — p=1 경계에서 실제보다 느슨하다
+// (예: N=65536, r=8은 이 곱셈 가드를 통과하지만 실제로는 SCRYPT_MAXMEM을 넘어
+// scrypt() 호출 자체가 던지고, 아래 try/catch가 그 예외를 받아 false로 처리한다).
+// 즉 가드가 느슨해도 결과는 안전하므로 동작은 바꾸지 않는다.
 const MAX_COST_PRODUCT = SCRYPT_MAXMEM / 128;
 
 /**
