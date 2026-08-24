@@ -19,6 +19,9 @@
 - DB 볼륨은 `name: grossary_pgdata`로 명시 고정. 디렉터리명 파생 금지.
 - 용어 상태는 `draft | approved | deprecated | forbidden`, 표기 종류는 `canonical | abbreviation | full_name | alias | discouraged | forbidden`, 용어 종류는 `term | abbreviation | project | product_id | code | unit`.
 - API 에러는 전 엔드포인트가 `{ error: { code, message, details? } }` 형태로 통일한다.
+- 이 규약에는 예외가 없다. 매칭되지 않는 경로(`[...unmatched]` 캐치올)와 지원하지 않는 HTTP
+  메서드까지 포함한다. Next가 기본 생성하는 405는 본문이 0바이트라 규약을 깨므로, 모든 API
+  라우트는 자기가 처리하지 않는 메서드를 `methodNotAllowed`로 명시 export한다.
 - API Key 형식은 `glk_<prefix>_<secret>`이며 DB에는 해시만 저장한다.
 - 커밋 메시지는 영어 `type: description` 형식.
 
