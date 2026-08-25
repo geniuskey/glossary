@@ -18,13 +18,21 @@ export { PUT, PATCH, DELETE, OPTIONS };
  * 절대 성공하지 않는 영구적으로 잘못된 입력이라, 기계 클라이언트에게 "나중에
  * 다시 시도하라"는 5xx 신호를 주면 안 된다. 여기서 먼저 걸러 400
  * validation_failed로 답한다.
+ *
+ * R64: `?type=`처럼 파라미터가 "존재하지만 값이 빈 문자열"인 경우는 위의
+ * "알 수 없는 값" 케이스와 다르다 — `<select>`를 아무것도 고르지 않은 채
+ * 폼을 querystring으로 직렬화하면 대부분의 헬퍼가 `type=`을 만들어 낸다.
+ * `?q=`/`?domain=`은 이미 listTerms에서 빈 문자열이 falsy로 걸러지므로
+ * 조용히 무시되는데, type/status만 다른 규칙(400)을 적용하면 같은 querystring
+ * 안에서 파라미터마다 규칙이 갈리는 셈이다 — null과 마찬가지로 "지정 안 함"으로
+ * 취급한다.
  */
 function parseEnumParam<T extends string>(
   raw: string | null,
   allowed: readonly T[],
   field: string,
 ): T | undefined | Response {
-  if (raw === null) return undefined;
+  if (raw === null || raw === "") return undefined;
   if ((allowed as readonly string[]).includes(raw)) return raw as T;
   return apiError(
     "validation_failed",
@@ -41,6 +49,12 @@ function parseEnumParam<T extends string>(
  * 입력이므로 500이 아니라 400 validation_failed여야 한다(R41과 같은 이유).
  * 유한하지 않은 값은 여기서 막고, 소수는 내림해서 정수로 정규화한 뒤 min/max로
  * 클램프한다.
+ *
+ * R65: 빈 문자열(`?page=`)과 형식이 잘못된 값(`?page=abc`)은 서로 다른 것이다
+ * — 빈 값은 "지정 안 함"(R64와 같은 규칙, 기본값을 쓴다)이고, 형식이 잘못된
+ * 값은 "잘못 지정함"(재시도해도 절대 성공하지 않으므로 400)이다. 이 둘을
+ * 섞으면(둘 다 기본값으로 조용히 넘기면) 클라이언트의 타이핑 실수가 영원히
+ * 숨겨진다.
  */
 function parsePageParam(
   raw: string | null,
@@ -49,7 +63,7 @@ function parsePageParam(
   min: number,
   max: number,
 ): number | Response {
-  if (raw === null) return fallback;
+  if (raw === null || raw === "") return fallback;
   const n = Number(raw);
   if (!Number.isFinite(n)) {
     return apiError("validation_failed", `${field} 값이 올바르지 않습니다: ${raw}`, 400, { field });

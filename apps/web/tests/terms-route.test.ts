@@ -280,3 +280,42 @@ test("?page=1e999는 500이 아니라 400 validation_failed (R59)", async () => 
   const body = await res.json();
   expect(body.error.code).toBe("validation_failed");
 });
+
+// R64: `?type=`처럼 파라미터가 존재하지만 값이 빈 문자열인 경우는 "알 수 없는
+// 값"(bogus)이 아니라 "지정 안 함"으로 취급해야 한다 — 그렇지 않으면 같은
+// querystring 안에서 파라미터마다 규칙이 갈린다(`?q=`/`?domain=`은 이미
+// listTerms에서 빈 문자열이 falsy로 걸러져 조용히 무시된다). Task 12/13의
+// 필터 바가 선택 안 된 <select>를 `type=`으로 직렬화하면(대부분의 폼 헬퍼의
+// 기본 동작) 이 경로를 실제로 탄다.
+test("?type=&status=&q=&domain=&page=&pageSize=는 400이 아니라 필터 없는 200을 반환한다 (R64)", async () => {
+  const { token } = await makeKeyRow(["write"]);
+  const created = await termsPost(
+    postRequest({ nameEn: "Route Empty Param Probe", domain: [], surfaces: [] }, token),
+  );
+  const createdBody = await created.json();
+  createdTermIds.push(createdBody.term.id);
+
+  const { token: readToken } = await makeKeyRow(["read"]);
+  const res = await termsGet(
+    getRequest("/api/v1/terms?type=&status=&q=&domain=&page=&pageSize=", readToken),
+  );
+  expect(res.status).toBe(200);
+  const body = await res.json();
+  expect(body.page).toBe(1);
+  expect(body.pageSize).toBe(20);
+  expect(body.items.map((t: { id: string }) => t.id)).toContain(createdBody.term.id);
+});
+
+// R65: 빈 값(`?page=`)과 형식이 잘못된 값(`?page=abc`/`?page=1e999`)은 서로 다른
+// 것이다 — 빈 값은 "지정 안 함"(기본값), 형식이 잘못된 값은 "잘못 지정
+// 함"(400, 위의 R59 테스트)이다. 이 테스트를 R59 테스트와 별개의 named test로
+// 유지해야, 나중에 누가 실수로 둘을 하나의 규칙으로 합쳐도(둘 다 기본값이거나
+// 둘 다 400이거나) 최소 하나는 깨진다.
+test("?page=/?pageSize=가 빈 문자열이면 400이 아니라 기본값을 사용한다 (R65)", async () => {
+  const { token } = await makeKeyRow(["read"]);
+  const res = await termsGet(getRequest("/api/v1/terms?page=&pageSize=", token));
+  expect(res.status).toBe(200);
+  const body = await res.json();
+  expect(body.page).toBe(1);
+  expect(body.pageSize).toBe(20);
+});
