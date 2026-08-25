@@ -198,10 +198,15 @@ test("page 2는 1페이지와 다른 결과를 반환한다 (pageSize=1)", async
 });
 
 // R63(F6): updatedAt은 defaultNow() = 트랜잭션 시작 시각이라, 한 트랜잭션 안에서
-// insert된 두 row는 updatedAt이 완전히 같다. orderBy(desc(updatedAt)) 단독으로는
-// 그 동률 아래에서 LIMIT/OFFSET이 안정적이지 않아 같은 행이 여러 페이지에 다시
-// 나올 수 있다 — id를 타이브레이커로 추가해야 페이지마다 다른 행이 나온다.
-test("updatedAt이 같은 두 term도 페이지마다 다른 결과를 반환한다 (R63)", async () => {
+// insert된 두 row는 updatedAt이 완전히 같다. 단순히 "page1과 page2를 각각 한 번씩
+// 조회해서 다른지 비교"하는 테스트는 실제로는 이 버그를 못 잡는다 — 데이터가
+// 바뀌지 않는 한 Postgres는 같은 쿼리를 반복 실행해도 동률의 상대 순서를 매번
+// 동일하게 돌려주는 경향이 있어서, id 타이브레이커를 빼도 여전히 그린이다(직접
+// 확인함). 진짜로 관찰 가능하게 만들려면 두 페이지 조회 "사이"에 물리적 저장
+// 위치가 바뀌는 쓰기를 끼워 넣어야 한다 — updatedAt이 아닌 다른 컬럼을 UPDATE하면
+// Postgres가 새 튜플 버전을 만들어 힙 안에서의 물리적 위치가 바뀌고, id
+// 타이브레이커가 없으면 그 물리적 재배치가 정렬 결과에 새어 나온다.
+test("동률 정렬 중 한 행이 갱신돼도 페이지마다 다른 결과를 반환한다 (R63)", async () => {
   const domain = `f6-tiebreaker-${Date.now()}`;
   const tieIds = await db.transaction(async (tx) => {
     const rows = await tx
@@ -217,7 +222,13 @@ test("updatedAt이 같은 두 term도 페이지마다 다른 결과를 반환한
   expect(tieIds[0]!.updatedAt.getTime()).toBe(tieIds[1]!.updatedAt.getTime());
 
   const page1 = await listTerms({ domain, page: 1, pageSize: 1 });
+  const firstId = page1.items[0]?.id;
+  expect(firstId).toBeDefined();
+
+  // updatedAt은 건드리지 않는 컬럼을 갱신해 물리적 위치만 바꾼다 — 동률은
+  // 그대로 유지된다.
+  await db.update(terms).set({ nameKo: "터치됨" }).where(eq(terms.id, firstId!));
+
   const page2 = await listTerms({ domain, page: 2, pageSize: 1 });
-  expect(page1.total).toBe(2);
-  expect(page1.items[0]?.id).not.toBe(page2.items[0]?.id);
+  expect(page2.items[0]?.id).not.toBe(firstId);
 });
