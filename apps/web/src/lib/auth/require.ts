@@ -24,11 +24,18 @@ function hashesMatch(a: string, b: string): boolean {
   return timingSafeEqual(bufA, bufB);
 }
 
+// R36: RFC 7235에 따라 인증 스킴 토큰("Bearer")은 대소문자를 구분하지 않는다.
+// startsWith("Bearer ")는 "bearer <key>"를 세션 경로로 흘려보내 잘못되고 오해의
+// 소지가 있는 "로그인이 필요합니다"를 반환한다. 스킴만 대소문자 무시로 매칭하고,
+// 토큰 자체는 원래 대소문자 그대로 유지한다(base64url은 대소문자를 구분한다).
+const BEARER_SCHEME = /^bearer\s+/i;
+
 export async function requireAuth(request: Request, scope: Scope): Promise<AuthResult | Response> {
   const header = request.headers.get("authorization");
+  const bearerMatch = header ? BEARER_SCHEME.exec(header) : null;
 
-  if (header?.startsWith("Bearer ")) {
-    const token = header.slice(7).trim();
+  if (bearerMatch) {
+    const token = header!.slice(bearerMatch[0].length).trim();
     const parsed = parseApiKey(token);
     if (!parsed) return apiError("unauthorized", "API 키 형식이 올바르지 않습니다.", 401);
 

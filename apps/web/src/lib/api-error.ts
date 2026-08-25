@@ -54,11 +54,44 @@ type RouteHandler = () => Response;
  *   export const POST = withApiErrors(async (request: Request) => { ... });
  */
 export function methodStubs(allowed: readonly string[]): Record<StubbedMethod, RouteHandler> & { OPTIONS: RouteHandler } {
-  const allowList = [...allowed];
+  // R37: Next는 GET이 있으면 HEAD를 자동으로 파생시켜 200으로 응답하지만, Allow에는
+  // 광고하지 않는다 — "서버가 기계 클라이언트에게 Allow로 거짓말하지 않는다"는
+  // R29(a)와 같은 종류의 문제다. GET을 허용하는 라우트는 항상 HEAD도 함께 광고한다
+  // (HEAD는 GET 바로 뒤에 둔다 — GET에서 파생된 메서드라는 관계를 그대로 보여준다).
+  const allowList: string[] = [];
+  for (const method of allowed) {
+    allowList.push(method);
+    if (method === "GET" && !allowed.includes("HEAD")) allowList.push("HEAD");
+  }
   const stub: RouteHandler = () => methodNotAllowed(allowList);
   const options: RouteHandler = () => new Response(null, { status: 204, headers: { allow: allowList.join(", ") } });
 
   return { GET: stub, POST: stub, PUT: stub, PATCH: stub, DELETE: stub, OPTIONS: options };
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * R38: `[id]` 라우트가 DB에 묻기 전에 id 형식을 검증하는 공용 가드.
+ *
+ * 형식이 잘못된 id를 그대로 쿼리에 넘기면 Postgres가
+ * "invalid input syntax for type uuid"를 던지고, withApiErrors가 이를 500
+ * internal_error로 바꾼다 — 틀린 응답은 아니다(실측: SQL 인젝션·XSS 페이로드를
+ * 포함해 어떤 형태의 잘못된 id를 넣어도 유출이나 인젝션 없이 안전하게 500으로
+ * 막힌다). 그래도 두 가지 이유로 여기서 미리 거른다.
+ *
+ * 1. 5xx는 재시도하는 기계 클라이언트에게 "나중에 다시 시도하라"는 신호다. 하지만
+ *    형식이 잘못된 id는 재시도해도 절대 성공하지 않는 영구적으로 잘못된 입력이다.
+ *    404는 정확한 신호를 준다.
+ * 2. id가 존재하지 않는 경우와 똑같이 404 not_found로 답하므로, 형식 검증
+ *    유무만으로 "그 id가 실제로 존재하는지"를 구분할 수 있는 정보도 새지 않는다.
+ *
+ * Task 9/10의 `/terms/[id]`처럼 앞으로 나올 `[id]` 라우트도 이 헬퍼를 재사용한다
+ * — 라우트마다 이 판단을 매번 다시 내리지 않도록.
+ */
+export function requireUuid(value: string, notFoundMessage: string): string | Response {
+  if (!UUID_RE.test(value)) return apiError("not_found", notFoundMessage, 404);
+  return value;
 }
 
 /**

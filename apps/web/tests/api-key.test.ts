@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, expect, test, vi } from "vitest";
 import { apiKeys, createDb, users } from "@grossary/db";
-import { generateApiKey, hashApiKey } from "../src/lib/auth/api-key.js";
+import { generateApiKey, hashApiKey, parseApiKey } from "../src/lib/auth/api-key.js";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
 
@@ -84,6 +84,27 @@ test("매 발급마다 서로 다른 토큰이 나온다", () => {
   expect(generateApiKey().token).not.toBe(generateApiKey().token);
 });
 
+// R35(b): 브리프 원안의 token.split("_")는 secret에 "_"가 섞이면(base64url이라
+// 흔히 일어난다) 4조각 이상으로 쪼개져 유효한 토큰을 계속 거부한다. 무작위로
+// 생성된 토큰으로만 검증하면 secret이 우연히 "_"를 포함하지 않는 절반의 실행에서
+// 이 회귀를 그냥 통과시켜 버린다(실측: 전체 스위트 6회 중 3회 통과). 그래서 secret에
+// "_"와 "-"를 일부러 박아 넣은 고정 토큰으로, 매 실행 100% 같은 결과가 나오게 한다.
+test("parseApiKey는 secret에 _와 -가 섞여 있어도 고정폭 prefix에 앵커링해 정확히 분리한다", () => {
+  expect(parseApiKey("glk_deadbeef_abc_def-ghi")).toEqual({ prefix: "deadbeef" });
+  expect(parseApiKey("glk_00000000_a-b_c_d-e_f_g")).toEqual({ prefix: "00000000" });
+});
+
+test("parseApiKey는 형식이 틀린 토큰을 거부한다", () => {
+  expect(parseApiKey("not-a-token")).toBeNull();
+  expect(parseApiKey("glk_short_secret")).toBeNull();
+  expect(parseApiKey("glk_deadbeef_")).toBeNull();
+});
+
+test("generateApiKey가 만든 토큰은 parseApiKey로 자기 자신의 prefix를 되돌려준다", () => {
+  const { token, prefix } = generateApiKey();
+  expect(parseApiKey(token)).toEqual({ prefix });
+});
+
 test("Authorization 헤더도 세션 쿠키도 없으면 requireAuth가 401을 반환한다", async () => {
   const res = await requireAuth(new Request("http://x"), "read");
   expect(isResponse(res)).toBe(true);
@@ -107,6 +128,34 @@ test("유효한 키와 scope로 인증되고 lastUsedAt이 갱신된다", async 
 
   const [updated] = await db.select().from(apiKeys).where(eq(apiKeys.id, row.id));
   expect(updated!.lastUsedAt).not.toBeNull();
+});
+
+// R35(a): prefix는 비밀이 아니다 — UI 키 목록과 GET /api/v1/keys 응답에 그대로
+// 노출된다. 그래서 인증은 실제로 secret의 해시 일치에 의존해야 한다. 여기서
+// hashesMatch를 `return true`로 바꾸면(=prefix만 맞으면 통과) 이 테스트가 유일하게
+// 잡아낸다 — prefix는 DB의 실제 행과 맞추고 secret만 다르게 만든 토큰을 보낸다.
+test("prefix는 맞지만 secret이 틀린 토큰은 401", async () => {
+  const { row } = await makeKeyRow();
+  const wrongToken = `glk_${row.prefix}_${"x".repeat(43)}`;
+  const req = new Request("http://x", { headers: { authorization: `Bearer ${wrongToken}` } });
+
+  const res = await requireAuth(req, "read");
+  expect(isResponse(res)).toBe(true);
+  if (isResponse(res)) expect(res.status).toBe(401);
+});
+
+// R36: RFC 7235에 따라 인증 스킴(Bearer)은 대소문자를 구분하지 않는다.
+// startsWith("Bearer ")로 매칭하면 "bearer <key>"가 세션 경로로 흘러 들어가
+// 틀리고 오해의 소지가 있는 "로그인이 필요합니다"(401)를 반환한다.
+test("Authorization 스킴은 대소문자를 구분하지 않는다", async () => {
+  const { token, row } = await makeKeyRow();
+
+  for (const scheme of ["bearer", "BEARER", "BeArEr"]) {
+    const req = new Request("http://x", { headers: { authorization: `${scheme} ${token}` } });
+    const res = await requireAuth(req, "read");
+    expect(isResponse(res), scheme).toBe(false);
+    if (!isResponse(res)) expect(res).toEqual({ kind: "key", keyId: row.id });
+  }
 });
 
 test("scope가 없는 키는 403", async () => {
@@ -194,6 +243,23 @@ test("존재하지 않는 키를 폐기하면 404", async () => {
     params: Promise.resolve({ id: "00000000-0000-0000-0000-000000000000" }),
   });
   expect(res.status).toBe(404);
+});
+
+// R38: 형식이 잘못된 id는 DB 쿼리까지 가지 않고 requireUuid가 먼저 404로 막는다.
+// 이 가드가 없으면 Postgres가 invalid input syntax for type uuid를 던지고
+// withApiErrors가 이를 500 internal_error로 바꾼다 — 응답 자체는 안전하지만(유출
+// 없음), 영구적으로 실패할 요청에 재시도해도 되는 것처럼 5xx로 답하게 된다.
+test("형식이 잘못된 id로 키를 폐기하면 404(DB까지 가지 않는다)", async () => {
+  const user = await makeUser();
+  await loginAs(user);
+
+  const res = await keyDelete(new Request("http://x", { method: "DELETE" }), {
+    params: Promise.resolve({ id: "not-a-uuid" }),
+  });
+  expect(res.status).toBe(404);
+  await expect(res.json()).resolves.toEqual({
+    error: { code: "not_found", message: "API 키를 찾을 수 없습니다." },
+  });
 });
 
 test("키를 폐기하면 revokedAt이 찍히고, 이미 폐기된 키를 다시 폐기해도 성공한다(멱등)", async () => {
