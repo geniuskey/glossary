@@ -7,6 +7,7 @@ import * as healthRoute from "../src/app/api/v1/health/route.js";
 import * as keysRoute from "../src/app/api/v1/keys/route.js";
 import * as keyIdRoute from "../src/app/api/v1/keys/[id]/route.js";
 import * as termsRoute from "../src/app/api/v1/terms/route.js";
+import * as termIdOrSlugRoute from "../src/app/api/v1/terms/[idOrSlug]/route.js";
 
 // 라우트 모듈은 실제 핸들러(GET/POST/...)마다 서로 다른 인자 개수를 요구하므로
 // (예: DELETE는 (request, context)) 여기서는 이름으로 임의 접근한 뒤 405 스텁/
@@ -30,7 +31,14 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   // C1(리뷰): 이 행이 없으면 terms/route.ts에서 PATCH/DELETE 스텁 export가
   // 통째로 빠져도(예: methodStubs 목록에서 실수로 지워짐) 57개 테스트가 전부
   // 그린으로 남는다 — 실측된 회귀.
-  { name: "terms", mod: termsRoute, allowed: ["POST"], allow: "POST" },
+  // R44: Task 9가 GET을 추가하면서 ALLOWED_METHODS도 ["GET", "POST"]로
+  // 바뀌었다. 여기를 갱신하지 않으면 이 표는 여전히 옛 계약("POST"만 허용)을
+  // 검증해 GET 405 스텁이 사라져도 이 스위프는 못 잡는다.
+  { name: "terms", mod: termsRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
+  // R44: terms/[idOrSlug] 라우트는 GET만 처리한다. 이 행이 없으면 POST/PUT/
+  // PATCH/DELETE 스텁이 통째로 빠져도(또는 Allow 헤더가 실제 허용 메서드와
+  // 어긋나도) 아무 테스트도 못 잡는다.
+  { name: "terms/[idOrSlug]", mod: termIdOrSlugRoute, allowed: ["GET"], allow: "GET, HEAD" },
 ];
 
 test("에러 응답이 규약 형태를 지킨다", async () => {

@@ -72,6 +72,15 @@ export function methodStubs(allowed: readonly string[]): Record<StubbedMethod, R
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
+ * R42: UUID 형식 판별은 이 모듈이 유일하게 소유한다. query.ts 등 다른 곳에서
+ * 같은 정규식을 다시 정의하지 말고 이 함수를 가져다 쓴다 — 두 곳의 정규식이
+ * 조용히 갈라지는 것을 막는다.
+ */
+export function isUuid(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
+/**
  * R38: `[id]` 라우트가 DB에 묻기 전에 id 형식을 검증하는 공용 가드.
  *
  * 형식이 잘못된 id를 그대로 쿼리에 넘기면 Postgres가

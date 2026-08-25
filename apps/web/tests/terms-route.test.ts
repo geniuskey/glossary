@@ -17,7 +17,8 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
-const { POST: termsPost } = await import("../src/app/api/v1/terms/route.js");
+const { GET: termsGet, POST: termsPost } = await import("../src/app/api/v1/terms/route.js");
+const { GET: termDetailGet } = await import("../src/app/api/v1/terms/[idOrSlug]/route.js");
 
 const db = createDb(process.env.DATABASE_URL!);
 const createdTermIds: string[] = [];
@@ -60,6 +61,12 @@ function postRequest(body: unknown, token?: string) {
       ...(token ? { authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(body),
+  });
+}
+
+function getRequest(path: string, token?: string) {
+  return new Request(`http://x${path}`, {
+    headers: token ? { authorization: `Bearer ${token}` } : undefined,
   });
 }
 
@@ -146,4 +153,83 @@ test("저장 중 예외가 나도 본문 없는 500이 아니라 JSON 에러 규
   await expect(res.json()).resolves.toEqual({
     error: { code: "internal_error", message: "서버 오류가 발생했습니다." },
   });
+});
+
+// R44: GET도 requireAuth를 거쳐야 한다. 이 테스트가 없으면 GET에서
+// requireAuth 호출을 통째로 지워도 아무 것도 못 잡는다.
+test("인증 없이 목록 조회는 401 (R44)", async () => {
+  const res = await termsGet(getRequest("/api/v1/terms"));
+  expect(res.status).toBe(401);
+});
+
+test("인증 없이 상세 조회는 401 (R44)", async () => {
+  const res = await termDetailGet(getRequest("/api/v1/terms/anything"), {
+    params: Promise.resolve({ idOrSlug: "anything" }),
+  });
+  expect(res.status).toBe(401);
+});
+
+// R41: 알 수 없는 ?type=은 500 internal_error가 아니라 400 validation_failed여야
+// 한다. listTerms의 `eq(terms.termType, params.termType as never)`를 되살리면
+// (검증 없이 그대로 DB에 넘기면) Postgres가 22P02(잘못된 enum 리터럴)를 던지고
+// withApiErrors가 500으로 바꾸는데, 이 값은 재시도해도 절대 성공하지 않는
+// 영구적으로 잘못된 입력이라 500은 틀린 신호다.
+test("알 수 없는 ?type=은 500이 아니라 400 validation_failed (R41)", async () => {
+  const { token } = await makeKeyRow(["read"]);
+  const res = await termsGet(getRequest("/api/v1/terms?type=bogus", token));
+  expect(res.status).toBe(400);
+  const body = await res.json();
+  expect(body.error.code).toBe("validation_failed");
+});
+
+test("알 수 없는 ?status=는 500이 아니라 400 validation_failed (R41)", async () => {
+  const { token } = await makeKeyRow(["read"]);
+  const res = await termsGet(getRequest("/api/v1/terms?status=bogus", token));
+  expect(res.status).toBe(400);
+  const body = await res.json();
+  expect(body.error.code).toBe("validation_failed");
+});
+
+test("유효한 ?type=/?status=는 목록을 정상적으로 반환한다 (R41)", async () => {
+  const { token } = await makeKeyRow(["read"]);
+  const res = await termsGet(getRequest("/api/v1/terms?type=term&status=draft", token));
+  expect(res.status).toBe(200);
+  const body = await res.json();
+  expect(Array.isArray(body.items)).toBe(true);
+  expect(typeof body.total).toBe("number");
+});
+
+test("read scope 키로 목록/상세를 조회할 수 있다", async () => {
+  const { token } = await makeKeyRow(["write"]);
+  const created = await termsPost(
+    postRequest({ nameEn: "Route Get Probe", domain: [], surfaces: [] }, token),
+  );
+  const createdBody = await created.json();
+  createdTermIds.push(createdBody.term.id);
+
+  const { token: readToken } = await makeKeyRow(["read"]);
+
+  const detailRes = await termDetailGet(getRequest(`/api/v1/terms/${createdBody.term.slug}`, readToken), {
+    params: Promise.resolve({ idOrSlug: createdBody.term.slug as string }),
+  });
+  expect(detailRes.status).toBe(200);
+  const detailBody = await detailRes.json();
+  expect(detailBody.term.id).toBe(createdBody.term.id);
+  expect(detailBody.term.slug).toBe(createdBody.term.slug);
+
+  const listRes = await termsGet(getRequest(`/api/v1/terms?q=${encodeURIComponent("Route Get Probe")}`, readToken));
+  expect(listRes.status).toBe(200);
+  const listBody = await listRes.json();
+  expect(listBody.items.map((t: { id: string }) => t.id)).toContain(createdBody.term.id);
+});
+
+// 존재하지 않는 슬러그는 404 term_not_found여야 한다.
+test("존재하지 않는 슬러그로 상세 조회하면 404 term_not_found", async () => {
+  const { token } = await makeKeyRow(["read"]);
+  const res = await termDetailGet(getRequest("/api/v1/terms/does-not-exist-route-probe", token), {
+    params: Promise.resolve({ idOrSlug: "does-not-exist-route-probe" }),
+  });
+  expect(res.status).toBe(404);
+  const body = await res.json();
+  expect(body.error.code).toBe("term_not_found");
 });
