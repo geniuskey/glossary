@@ -34,6 +34,29 @@ function parseEnumParam<T extends string>(
   );
 }
 
+/**
+ * R59: `Number("1e999")`는 `Infinity`다 — 그 값이 그대로 `.offset()`까지
+ * 흘러가면 Postgres가 예외를 던지고 withApiErrors가 500으로 바꾼다. 이 입력도
+ * type/status와 마찬가지로 재시도해도 절대 성공하지 않는 영구적으로 잘못된
+ * 입력이므로 500이 아니라 400 validation_failed여야 한다(R41과 같은 이유).
+ * 유한하지 않은 값은 여기서 막고, 소수는 내림해서 정수로 정규화한 뒤 min/max로
+ * 클램프한다.
+ */
+function parsePageParam(
+  raw: string | null,
+  field: string,
+  fallback: number,
+  min: number,
+  max: number,
+): number | Response {
+  if (raw === null) return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) {
+    return apiError("validation_failed", `${field} 값이 올바르지 않습니다: ${raw}`, 400, { field });
+  }
+  return Math.min(max, Math.max(min, Math.floor(n)));
+}
+
 export const GET = withApiErrors(async (request: Request) => {
   const auth = await requireAuth(request, "read");
   if (isResponse(auth)) return auth;
@@ -46,8 +69,11 @@ export const GET = withApiErrors(async (request: Request) => {
   const status = parseEnumParam<TermStatus>(url.searchParams.get("status"), termStatusEnum.enumValues, "status");
   if (isResponse(status)) return status;
 
-  const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1);
-  const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get("pageSize") ?? 20) || 20));
+  const page = parsePageParam(url.searchParams.get("page"), "page", 1, 1, Number.MAX_SAFE_INTEGER);
+  if (isResponse(page)) return page;
+
+  const pageSize = parsePageParam(url.searchParams.get("pageSize"), "pageSize", 20, 1, 100);
+  if (isResponse(pageSize)) return pageSize;
 
   const result = await listTerms({
     q: url.searchParams.get("q") ?? undefined,

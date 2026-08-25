@@ -36,6 +36,13 @@ export interface TermDetail extends TermSummary {
   homonyms: TermSummary[];
 }
 
+// R62: `Response.json`은 Date를 ISO 문자열로 직렬화한다 — TermDetail.updatedAt은
+// 라이브러리 함수(getTermByIdOrSlug)의 반환 타입으로는 Date가 맞지만, 그 값을
+// 그대로 `Response.json`에 실어 보내면 실제 응답 바디는 string인데 타입은 Date라고
+// 거짓말을 하는 셈이다 — 컴파일은 되지만 Task 12/13이 TermDetail을 fetch 결과
+// 타입으로 재사용하면 런타임에 터진다. 라우트는 이 wire 타입으로 명시 직렬화한다.
+export type TermDetailResponse = Omit<TermDetail, "updatedAt"> & { updatedAt: string };
+
 const summaryColumns = {
   id: terms.id,
   slug: terms.slug,
@@ -144,7 +151,12 @@ export async function listTerms(params: ListParams): Promise<{ items: TermSummar
       .select(summaryColumns)
       .from(terms)
       .where(where)
-      .orderBy(desc(terms.updatedAt))
+      // R63: updatedAt은 defaultNow() = 트랜잭션 시작 시각이라, 한 트랜잭션에서
+      // 만든 여러 row는 updatedAt이 완전히 같을 수 있다. updatedAt 단독 정렬은
+      // 그런 동률 아래에서 LIMIT/OFFSET 페이지네이션에 안정적이지 않다(같은 행이
+      // 두 페이지에 다시 나오거나, 어떤 행은 아예 안 나올 수 있다) — id를
+      // 타이브레이커로 추가해 정렬을 전체 순서로 고정한다.
+      .orderBy(desc(terms.updatedAt), desc(terms.id))
       .limit(params.pageSize)
       .offset((params.page - 1) * params.pageSize),
     db.select({ total: sql<number>`count(*)::int` }).from(terms).where(where),

@@ -233,3 +233,50 @@ test("존재하지 않는 슬러그로 상세 조회하면 404 term_not_found", 
   const body = await res.json();
   expect(body.error.code).toBe("term_not_found");
 });
+
+// R58(F1): 리뷰가 GET route.ts:37에서 withApiErrors를 벗겨내도 98개 테스트가
+// 전부 그린이었다고 지적했다 — GET에서 예외가 던져지는 경로를 아무도 실행하지
+// 않았기 때문이다. P7과 동일한 패턴: 모킹 없이, ?q= 값에 NUL 바이트를 실어
+// termSurfaces.normLoose와의 eq() 바인드 파라미터로 흘려보내면 Postgres가
+// 22021(invalid byte sequence)을 던진다. zod 같은 앞단 검증이 없는 경로이므로
+// 400이 아니라 500으로 가야 하고, 본문 없는 500이 아니라 JSON 에러 규약을
+// 지켜야 한다.
+test("목록 조회 중 예외가 나도 본문 없는 500이 아니라 JSON 에러 규약을 지킨다 (R58)", async () => {
+  const { token } = await makeKeyRow(["read"]);
+  const res = await termsGet(getRequest(`/api/v1/terms?q=${encodeURIComponent("nul\u0000byte")}`, token));
+
+  expect(res.status).toBe(500);
+  expect(res.headers.get("content-type")).toContain("application/json");
+  await expect(res.json()).resolves.toEqual({
+    error: { code: "internal_error", message: "서버 오류가 발생했습니다." },
+  });
+});
+
+// R58(F1): [idOrSlug]/route.ts:12도 같은 구멍이다. idOrSlug는 URL 인코딩을 거치지
+// 않고 ctx.params로 직접 들어올 수 있으므로(라우터가 디코딩해서 넘긴다), NUL
+// 바이트를 담은 문자열을 params로 직접 주입한다 — isUuid가 false이므로 slug
+// eq() 바인드로 흘러가 Postgres가 22021을 던진다.
+test("상세 조회 중 예외가 나도 본문 없는 500이 아니라 JSON 에러 규약을 지킨다 (R58)", async () => {
+  const { token } = await makeKeyRow(["read"]);
+  const res = await termDetailGet(getRequest("/api/v1/terms/nul-byte-probe", token), {
+    params: Promise.resolve({ idOrSlug: "nul\u0000byte" }),
+  });
+
+  expect(res.status).toBe(500);
+  expect(res.headers.get("content-type")).toContain("application/json");
+  await expect(res.json()).resolves.toEqual({
+    error: { code: "internal_error", message: "서버 오류가 발생했습니다." },
+  });
+});
+
+// R59(F2): Number("1e999")는 Infinity다. 그 값이 .offset()까지 그대로 흘러가면
+// Postgres가 예외를 던지고(이전 코드에서는 withApiErrors가 이를 500으로
+// 바꿨다) — 이 입력은 재시도해도 절대 성공하지 않는 영구적으로 잘못된 입력이라
+// 500이 아니라 400 validation_failed여야 한다(R41과 같은 이유).
+test("?page=1e999는 500이 아니라 400 validation_failed (R59)", async () => {
+  const { token } = await makeKeyRow(["read"]);
+  const res = await termsGet(getRequest("/api/v1/terms?page=1e999", token));
+  expect(res.status).toBe(400);
+  const body = await res.json();
+  expect(body.error.code).toBe("validation_failed");
+});

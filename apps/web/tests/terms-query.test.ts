@@ -13,8 +13,9 @@ const ids: string[] = [];
 // "ae-2"를 받고, getTermByIdOrSlug("ae")로 문자열을 고정해 조회하면 남의 stale
 // row를 조용히 읽게 된다. 그래서:
 //   1) beforeAll에서 이 파일이 쓰는 슬러그 패턴을 앵커링된 정규식으로 먼저 지운다
-//      (LIKE 'ae%'는 "ae-algorithm" 같은 무관한 슬러그까지 지우므로 후보만 LIKE로
-//      좁히고 최종 삭제는 JS 정규식으로 재확인한다).
+//      (후보는 정확히 "ae"/"ae-2"/"ae-3" 세 개의 eq로만 좁히고, 최종 삭제는 JS
+//      정규식으로 재확인한다 — LIKE는 쓰지 않는다. F9(리뷰): 이전 버전 주석이
+//      "LIKE 'ae%'로 좁힌다"고 잘못 적혀 있었다).
 //   2) 이후 모든 단언은 literal slug("ae")가 아니라 createTerm이 실제로 반환한
 //      ae.term.slug를 사용한다.
 async function purgeFixtures() {
@@ -55,7 +56,24 @@ beforeAll(async () => {
     },
     null,
   );
-  ids.push(ae.term.id, hw.term.id);
+  // R61(F4): 동음이의어 dedup을 증명하려면 "ae"와 normLoose가 겹치는 표기를
+  // *두 개* 가진 term이 필요하다 — "AE"(-> "ae")와 "Auto Exposure"(-> "autoexposure")
+  // 둘 다 ae.term의 표기 normLoose와 정확히 같다. selectDistinctOn이 없으면 이
+  // term이 homonyms에 두 번 나온다.
+  const dupe = await createTerm(
+    {
+      termType: "term",
+      nameEn: "AE Dedup Probe",
+      domain: ["QA"],
+      status: "approved",
+      surfaces: [
+        { text: "AE", lang: "en", kind: "discouraged" },
+        { text: "Auto Exposure", lang: "en", kind: "discouraged" },
+      ],
+    },
+    null,
+  );
+  ids.push(ae.term.id, hw.term.id, dupe.term.id);
   aeSlug = ae.term.slug;
 });
 
@@ -69,9 +87,30 @@ test("슬러그로 상세를 조회한다", async () => {
   expect(detail?.surfaces.length).toBeGreaterThanOrEqual(3);
 });
 
+// R60(F3): isUuid 분기의 반대쪽(byId)은 아무도 실행하지 않았다 — query.ts:70의
+// 삼항을 뒤집어 UUID도 slug 쪽으로 보내도 그린이었다. term.id로 직접 조회한다.
+test("id로 상세를 조회한다 (R60)", async () => {
+  const detail = await getTermByIdOrSlug(ids[0]!);
+  expect(detail?.slug).toBe(aeSlug);
+  expect(detail?.nameEn).toBe("AE");
+});
+
 test("동음이의어를 상세에 함께 싣는다", async () => {
   const detail = await getTermByIdOrSlug(aeSlug);
   expect(detail?.homonyms.map((h) => h.id)).toContain(ids[1]);
+  // R61(F4): 자기 자신은 동음이의어 목록에 나오면 안 된다 —
+  // ne(terms.id, term.id)를 지워도 이 단언이 없으면 그린으로 남는다.
+  expect(detail?.homonyms.map((h) => h.id)).not.toContain(ids[0]);
+});
+
+// R61(F4): dupe term은 ae의 표기 두 개("ae", "autoexposure")와 동시에 매치되는
+// 표기를 가진다 — selectDistinctOn을 평범한 select로 되돌려도 위의
+// "동음이의어를 상세에 함께 싣는다" 테스트는 여전히 그린이다(toContain은 중복을
+// 못 잡는다). 정확히 한 번만 나오는지 직접 센다.
+test("동음이의어는 표기가 여러 개 겹쳐도 한 번만 나온다 (R61)", async () => {
+  const detail = await getTermByIdOrSlug(aeSlug);
+  const occurrences = detail?.homonyms.filter((h) => h.id === ids[2]) ?? [];
+  expect(occurrences.length).toBe(1);
 });
 
 test("비권장 표기로 검색해도 해당 용어가 나온다", async () => {
@@ -125,7 +164,7 @@ test("상세 응답은 TermDetail 필드만 싣고 원본 테이블의 다른 �
 
 // R41: 알 수 없는 type/status는 listTerms 자체가 아니라 라우트가 400으로
 // 막아야 한다(listTerms는 이미 검증된 값만 받는 내부 함수). 라우트 레벨
-// 동작은 terms-list-route.test.ts에서 별도로 확인한다. 여기서는 listTerms가
+// 동작은 terms-route.test.ts에서 별도로 확인한다(F9: 파일명 오기 수정). 여기서는 listTerms가
 // 유효한 termType/status로 정확히 필터링하는지만 확인한다.
 test("termType으로 필터링한다", async () => {
   const { items } = await listTerms({ termType: "abbreviation", q: "AE", page: 1, pageSize: 20 });
@@ -155,5 +194,30 @@ test("pageSize로 페이지당 개수를 제한해도 total은 전체 매칭 건
 test("page 2는 1페이지와 다른 결과를 반환한다 (pageSize=1)", async () => {
   const page1 = await listTerms({ q: "AE", page: 1, pageSize: 1 });
   const page2 = await listTerms({ q: "AE", page: 2, pageSize: 1 });
+  expect(page1.items[0]?.id).not.toBe(page2.items[0]?.id);
+});
+
+// R63(F6): updatedAt은 defaultNow() = 트랜잭션 시작 시각이라, 한 트랜잭션 안에서
+// insert된 두 row는 updatedAt이 완전히 같다. orderBy(desc(updatedAt)) 단독으로는
+// 그 동률 아래에서 LIMIT/OFFSET이 안정적이지 않아 같은 행이 여러 페이지에 다시
+// 나올 수 있다 — id를 타이브레이커로 추가해야 페이지마다 다른 행이 나온다.
+test("updatedAt이 같은 두 term도 페이지마다 다른 결과를 반환한다 (R63)", async () => {
+  const domain = `f6-tiebreaker-${Date.now()}`;
+  const tieIds = await db.transaction(async (tx) => {
+    const rows = await tx
+      .insert(terms)
+      .values([
+        { slug: `${domain}-a`, domain: [domain] },
+        { slug: `${domain}-b`, domain: [domain] },
+      ])
+      .returning({ id: terms.id, updatedAt: terms.updatedAt });
+    return rows;
+  });
+  for (const row of tieIds) ids.push(row.id);
+  expect(tieIds[0]!.updatedAt.getTime()).toBe(tieIds[1]!.updatedAt.getTime());
+
+  const page1 = await listTerms({ domain, page: 1, pageSize: 1 });
+  const page2 = await listTerms({ domain, page: 2, pageSize: 1 });
+  expect(page1.total).toBe(2);
   expect(page1.items[0]?.id).not.toBe(page2.items[0]?.id);
 });

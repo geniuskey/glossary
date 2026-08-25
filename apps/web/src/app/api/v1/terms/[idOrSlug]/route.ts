@@ -1,6 +1,6 @@
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAuth } from "@/lib/auth/require";
-import { getTermByIdOrSlug } from "@/lib/terms/query";
+import { getTermByIdOrSlug, type TermDetailResponse } from "@/lib/terms/query";
 
 // R44: 이 라우트는 조회만 한다 — GET 외 모든 메서드는 405 스텁이다.
 const ALLOWED_METHODS = ["GET"];
@@ -18,6 +18,9 @@ export const GET = withApiErrors(
     const term = await getTermByIdOrSlug(idOrSlug);
     if (!term) return apiError("term_not_found", "용어를 찾을 수 없습니다.", 404);
 
-    return Response.json({ term });
+    // R62: updatedAt은 Date로 오지만 응답에는 ISO 문자열로 실어야 한다 —
+    // 타입도 그에 맞춰 TermDetailResponse로 명시한다.
+    const body: TermDetailResponse = { ...term, updatedAt: term.updatedAt.toISOString() };
+    return Response.json({ term: body });
   },
 );
