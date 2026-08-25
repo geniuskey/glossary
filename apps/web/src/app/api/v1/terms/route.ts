@@ -22,7 +22,10 @@ export const POST = withApiErrors(async (request: Request) => {
   }
 
   const authorId = auth.kind === "user" ? auth.user.id : null;
-  const { term, surfaces, warnings } = await createTerm(parsed.data, authorId);
+  // R47: API 키로 인증된 요청은 authorId가 항상 null이라, 리비전에 누가 썼는지
+  // 남기려면 authorKeyId를 별도로 넘겨야 한다.
+  const authorKeyId = auth.kind === "key" ? auth.keyId : null;
+  const { term, surfaces, warnings } = await createTerm(parsed.data, authorId, authorKeyId);
 
   return Response.json({ term, surfaces, warnings }, { status: 201 });
 });
