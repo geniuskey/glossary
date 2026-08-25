@@ -232,3 +232,38 @@ test("동률 정렬 중 한 행이 갱신돼도 페이지마다 다른 결과를
   const page2 = await listTerms({ domain, page: 2, pageSize: 1 });
   expect(page2.items[0]?.id).not.toBe(firstId);
 });
+
+// R66(재검토): 위 테스트는 실측 결과 87% 탐지기였다 — desc(terms.id)를 지워도
+// 15번 중 13번만 실패하고 2번은 우연히 통과했다(재검토가 반복 실행으로 확인).
+// page1/page2 비교는 한 번의 동전 던지기와 다를 게 없다. 완전히 결정적으로
+// 만들려면 동률인 행을 5개보다 많이(6개) 만들고, "정확한 전체 순서"가
+// id 내림차순과 완전히 일치하는지 단언한다 — 타이브레이커가 있으면 항상
+// 성립하고, 없으면 우연히 맞을 확률이 1/6! = 1/720 미만이다. 기대값은
+// listTerms/Postgres와 무관하게 JS 쪽에서 독립적으로 계산한다(삽입 직후
+// 받은 id들을 문자열로 정렬해 뒤집는다) — Postgres의 uuid DESC 정렬이 정확히
+// canonical 소문자 하이픈 문자열의 사전식 정렬과 같다는 것은 별도로 실측
+// 확인했다(_probe3, 8개의 무작위 uuid로 100% 일치). 위 UPDATE-끼워넣기
+// 테스트는 그대로 남긴다 — 힙 튜플 버전이 스캔 순서에 새어 나오는 것을 잡는
+// 다른 메커니즘을 검증하므로 둘이 상호 보완적이다.
+test("동률인 행이 6개 이상이면 id 내림차순 전체 순서와 정확히 일치한다 (R66)", async () => {
+  const domain = `f6-deterministic-${Date.now()}`;
+  const COUNT = 6;
+  const rows = await db.transaction(async (tx) =>
+    tx
+      .insert(terms)
+      .values(Array.from({ length: COUNT }, (_, i) => ({ slug: `${domain}-${i}`, domain: [domain] })))
+      .returning({ id: terms.id, updatedAt: terms.updatedAt }),
+  );
+  for (const row of rows) ids.push(row.id);
+
+  // 실제로 동률을 만들었는지부터 확인한다 — 여기서 실패하면 테스트 픽스처
+  // 자체가 잘못된 것이다.
+  const uniqueUpdatedAt = new Set(rows.map((r) => r.updatedAt.getTime()));
+  expect(uniqueUpdatedAt.size).toBe(1);
+
+  // listTerms/Postgres와 무관한, JS 쪽 독립 계산.
+  const expectedOrder = rows.map((r) => r.id).sort().reverse();
+
+  const page = await listTerms({ domain, page: 1, pageSize: COUNT });
+  expect(page.items.map((item) => item.id)).toEqual(expectedOrder);
+});
