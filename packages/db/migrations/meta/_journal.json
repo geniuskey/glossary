@@ -15,6 +15,13 @@
       "when": 1787580993113,
       "tag": "0001_striped_stephen_strange",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787659085741,
+      "tag": "0002_flaky_medusa",
+      "breakpoints": true
     }
   ]
 }
