@@ -127,3 +127,23 @@ test("로그인한 사용자로 생성하면 리비전의 author_key_id는 null�
   expect(rev!.authorId).toBe(user.id);
   expect(rev!.authorKeyId).toBeNull();
 });
+
+// P7(re-review): `withApiErrors`를 라우트에서 벗겨내도 77개 테스트가 전부 그린이었다.
+// 이 라우트에서 예외가 던져지는 경로를 아무도 실행하지 않았기 때문이다. 모킹 대신
+// 실제 코드 경로로 진짜 예외를 만든다 — Postgres의 text 타입은 NUL 바이트를 저장할
+// 수 없어서(22021) insert가 던진다. zod는 통과시키므로 400이 아니라 500으로 가야 한다.
+test("저장 중 예외가 나도 본문 없는 500이 아니라 JSON 에러 규약을 지킨다 (P7)", async () => {
+  const { token } = await makeKeyRow(["write"]);
+  const res = await termsPost(
+    postRequest(
+      { nameEn: "Route Throw Probe", definitionMd: "nul\u0000byte", domain: [], surfaces: [] },
+      token,
+    ),
+  );
+
+  expect(res.status).toBe(500);
+  expect(res.headers.get("content-type")).toContain("application/json");
+  await expect(res.json()).resolves.toEqual({
+    error: { code: "internal_error", message: "서버 오류가 발생했습니다." },
+  });
+});

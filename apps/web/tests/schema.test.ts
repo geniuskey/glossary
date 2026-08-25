@@ -81,3 +81,29 @@ test("기호로만 이루어진 표기는 trim을 통과해도 정규화하면 �
   );
   expect(result.success).toBe(false);
 });
+
+// re-review(Minor): "공백만 있으면 거부된다" 테스트는 `.trim()`을 지워도 통과한다 —
+// checkSurfaceIntegrity의 빈-normLoose 체크가 그 경우를 독립적으로 잡아주기 때문이다.
+// 하지만 `.trim()`에는 그 백스톱이 덮지 못하는 고유한 동작이 있다: 앞뒤 공백이 붙은
+// 정상 값을 **다듬어서** 통과시키는 것. 실측으로 `.trim()`을 지우면 "  Gain Probe  "가
+// terms.name_en과 term_surfaces.text에 공백째로 저장된다(슬러그와 normLoose는 다른
+// 경로가 막아줘서 멀쩡하다). 그 값은 화면과 엑셀 내보내기에 그대로 나온다.
+test("앞뒤 공백이 붙은 정상 값은 거부가 아니라 다듬어져서 통과한다 (R46)", () => {
+  const result = termInputSchema.safeParse(
+    base({
+      nameEn: "  Gain Probe  ",
+      nameKo: "  게인  ",
+      fullNameEn: "  Gain Probe Full  ",
+      domain: ["  ISP  "],
+      surfaces: [{ text: "  GP  ", lang: "en", kind: "alias" }],
+    }),
+  );
+
+  expect(result.success).toBe(true);
+  if (!result.success) return;
+  expect(result.data.nameEn).toBe("Gain Probe");
+  expect(result.data.nameKo).toBe("게인");
+  expect(result.data.fullNameEn).toBe("Gain Probe Full");
+  expect(result.data.domain).toEqual(["ISP"]);
+  expect(result.data.surfaces[0]!.text).toBe("GP");
+});
