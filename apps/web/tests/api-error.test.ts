@@ -6,6 +6,7 @@ import * as logoutRoute from "../src/app/api/v1/auth/logout/route.js";
 import * as healthRoute from "../src/app/api/v1/health/route.js";
 import * as keysRoute from "../src/app/api/v1/keys/route.js";
 import * as keyIdRoute from "../src/app/api/v1/keys/[id]/route.js";
+import * as termsRoute from "../src/app/api/v1/terms/route.js";
 
 // 라우트 모듈은 실제 핸들러(GET/POST/...)마다 서로 다른 인자 개수를 요구하므로
 // (예: DELETE는 (request, context)) 여기서는 이름으로 임의 접근한 뒤 405 스텁/
@@ -26,6 +27,10 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "health", mod: healthRoute, allowed: ["GET"], allow: "GET, HEAD" },
   { name: "keys", mod: keysRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
   { name: "keys/[id]", mod: keyIdRoute, allowed: ["DELETE"], allow: "DELETE" },
+  // C1(리뷰): 이 행이 없으면 terms/route.ts에서 PATCH/DELETE 스텁 export가
+  // 통째로 빠져도(예: methodStubs 목록에서 실수로 지워짐) 57개 테스트가 전부
+  // 그린으로 남는다 — 실측된 회귀.
+  { name: "terms", mod: termsRoute, allowed: ["POST"], allow: "POST" },
 ];
 
 test("에러 응답이 규약 형태를 지킨다", async () => {
