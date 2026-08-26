@@ -508,3 +508,136 @@ test("존재하지 않는 용어의 리비전 조회는 404 term_not_found", asy
   const body = await res.json();
   expect(body.error.code).toBe("term_not_found");
 });
+
+// ----- Fix round 1: R69/R70(a)/R72 -----
+
+// R69(F1): P7/R58와 같은 구멍이 세 번째로 반복됐다 — PATCH/DELETE/revisions GET
+// 어디에서도 withApiErrors를 벗겨낸 채 실행되는 경로가 없었다. 모킹 없이 실제
+// Postgres 22021(text에 NUL 저장 불가)로 예외를 만든다.
+test("patch 중 예외가 나도 본문 없는 500이 아니라 JSON 에러 규약을 지킨다 (R69)", async () => {
+  const term = await seedRouteTerm();
+  const { token } = await makeKeyRow(["write"]);
+  const res = await termPatch(patchRequest({ bodyMd: "nul byte" }, token), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+
+  expect(res.status).toBe(500);
+  expect(res.headers.get("content-type")).toContain("application/json");
+  await expect(res.json()).resolves.toEqual({
+    error: { code: "internal_error", message: "서버 오류가 발생했습니다." },
+  });
+});
+
+// R69(F1): DELETE는 admin 세션으로 role 검사를 통과한 뒤, getTermByIdOrSlug가
+// idOrSlug를 slug eq() 바인드로 흘려보내는 지점에서 예외가 난다.
+test("delete 중 예외가 나도 본문 없는 500이 아니라 JSON 에러 규약을 지킨다 (R69)", async () => {
+  const admin = await makeUser("admin");
+  await loginAs(admin);
+  const res = await termDelete(deleteRequest(), {
+    params: Promise.resolve({ idOrSlug: "nul byte" }),
+  });
+
+  expect(res.status).toBe(500);
+  expect(res.headers.get("content-type")).toContain("application/json");
+  await expect(res.json()).resolves.toEqual({
+    error: { code: "internal_error", message: "서버 오류가 발생했습니다." },
+  });
+});
+
+// R69(F1): revisions GET도 getTermByIdOrSlug를 거치므로 같은 지점에서 예외가 난다.
+test("리비전 조회 중 예외가 나도 본문 없는 500이 아니라 JSON 에러 규약을 지킨다 (R69)", async () => {
+  const { token } = await makeKeyRow(["read"]);
+  const res = await termRevisionsGet(getRequest("/api/v1/terms/nul-byte-probe/revisions", token), {
+    params: Promise.resolve({ idOrSlug: "nul byte" }),
+  });
+
+  expect(res.status).toBe(500);
+  expect(res.headers.get("content-type")).toContain("application/json");
+  await expect(res.json()).resolves.toEqual({
+    error: { code: "internal_error", message: "서버 오류가 발생했습니다." },
+  });
+});
+
+// R70(F2)a: R51의 "surfaces 없으면 명시 표기 유지" 규칙은 라이브러리 테스트만
+// 있고 라우트 테스트가 없었다 — 라우트가 `surfaces: patchInput.surfaces ?? []`로
+// undefined를 []로 바꿔치기해도(P18) 라이브러리 테스트는 못 잡는다. 실제 HTTP
+// 요청 두 번(표기 추가 -> surfaces 없는 patch)으로 라우트를 종단까지 통과시킨다.
+test("surfaces 없이 patch하면 라우트를 통해서도 기존 명시 표기가 유지된다 (R70a)", async () => {
+  const term = await seedRouteTerm();
+  const { token } = await makeKeyRow(["read", "write"]);
+
+  const withAlias = await termPatch(
+    patchRequest({ surfaces: [{ text: "Route Alias Probe", lang: "en", kind: "alias" }] }, token),
+    { params: Promise.resolve({ idOrSlug: term.slug }) },
+  );
+  expect(withAlias.status).toBe(200);
+
+  const statusOnly = await termPatch(patchRequest({ status: "approved" }, token), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+  expect(statusOnly.status).toBe(200);
+
+  const detail = await termDetailGet(getRequest(`/api/v1/terms/${term.slug}`, token), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+  const detailBody = await detail.json();
+  const texts = detailBody.term.surfaces.map((s: { text: string }) => s.text);
+  expect(texts).toContain("Route Alias Probe");
+});
+
+// R72(F4): PATCH의 작성자 배선이 라우트 테스트를 못 받았다 — POST에는 R47이
+// 정확히 이 두 테스트를 갖고 있는데 PATCH는 코드만 받고 테스트를 못 받았다.
+// authorId가 null이면 R55 가드 때문에 updatedBy까지 조용히 건너뛰므로 둘 다
+// 같이 단언한다.
+test("API 키로 patch하면 리비전에 author_key_id가 기록되고 updatedBy는 지워지지 않는다 (R72)", async () => {
+  const term = await seedRouteTerm();
+
+  const user = await makeUser();
+  await loginAs(user);
+  const baseline = await termPatch(patchRequest({ nameKo: "기준값" }), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+  expect(baseline.status).toBe(200);
+  currentCookieValue = undefined;
+
+  const { token, row } = await makeKeyRow(["write"]);
+  const res = await termPatch(patchRequest({ bodyMd: "API 키 patch" }, token), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+  expect(res.status).toBe(200);
+
+  const revs = await db
+    .select()
+    .from(termRevisions)
+    .where(eq(termRevisions.termId, term.id))
+    .orderBy(termRevisions.revisionNumber);
+  const latest = revs[revs.length - 1]!;
+  expect(latest.authorKeyId).toBe(row.id);
+  expect(latest.authorId).toBeNull();
+
+  const [row_] = await db.select().from(terms).where(eq(terms.id, term.id));
+  expect(row_!.updatedBy).toBe(user.id);
+});
+
+test("로그인한 사용자로 patch하면 리비전에 author_id가 기록되고 updatedBy가 갱신된다 (R72)", async () => {
+  const term = await seedRouteTerm();
+  const user = await makeUser();
+  await loginAs(user);
+
+  const res = await termPatch(patchRequest({ nameKo: "사용자패치" }), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+  expect(res.status).toBe(200);
+
+  const revs = await db
+    .select()
+    .from(termRevisions)
+    .where(eq(termRevisions.termId, term.id))
+    .orderBy(termRevisions.revisionNumber);
+  const latest = revs[revs.length - 1]!;
+  expect(latest.authorId).toBe(user.id);
+  expect(latest.authorKeyId).toBeNull();
+
+  const [row] = await db.select().from(terms).where(eq(terms.id, term.id));
+  expect(row!.updatedBy).toBe(user.id);
+});

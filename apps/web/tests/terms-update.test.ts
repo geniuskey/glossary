@@ -278,3 +278,116 @@ test("다른 term과 표기가 겹치면 여전히 경고가 뜬다 (R56)", asyn
   const warningsForOther = result.warnings.filter((w) => w.conflictingTermId === other.term.id);
   expect(warningsForOther).toHaveLength(1);
 });
+
+// ----- Fix round 1 -----
+
+// R70(F2)b: derivedFromOld/derivedKeys의 분류 키는 `normLoose:kind`여야 한다.
+// `:${kind}`를 떼면(P16), normLoose만 같은 명시 alias가 파생 canonical과 같은
+// 키로 묶여 "파생"으로 오분류되고, surfaces 없이 patch할 때 explicitSurfaces에서
+// 조용히 빠진다 — 저장된 표기가 실제로 파괴된다.
+test("normLoose가 같아도 kind가 다른 명시 표기는 파생 표기와 구별된다 (R70b)", async () => {
+  const term = await seed(); // nameEn: "Black Level" -> derived canonical normLoose="blacklevel"
+  const withAlias = expectSaved(
+    await updateTerm(term.id, { surfaces: [{ text: "Black Level", lang: "en", kind: "alias" }] }, null),
+  );
+  expect(withAlias.surfaces.map((s) => s.kind).sort()).toEqual(["alias", "canonical"]);
+
+  const statusOnly = expectSaved(await updateTerm(term.id, { status: "approved" }, null));
+  expect(statusOnly.surfaces.map((s) => s.kind).sort()).toEqual(["alias", "canonical"]);
+});
+
+// R71(F3): 이름을 바꾸면 옛 이름의 파생 표기는 사라지고 새 이름의 표기만 남아야
+// 한다. deriveSurfaces(mergedNames,...)를 deriveSurfaces(oldTerm,...)로 바꾸면(P4)
+// 옛 이름만 남고, derivedFromOld를 oldTerm 대신 병합/새 이름으로 계산하면(P22)
+// 옛 이름 행이 "명시 표기"로 오분류되어 새 이름과 함께 영원히 누적된다.
+test("이름을 바꾸면 이전 이름의 표기는 사라지고 새 이름의 표기만 남는다 (R71)", async () => {
+  const term = await seed();
+  const renamed = expectSaved(await updateTerm(term.id, { nameEn: "White Level" }, null));
+  expect(renamed.surfaces.map((s) => s.text)).toEqual(["White Level"]);
+
+  const surfaces = await db.select().from(termSurfaces).where(eq(termSurfaces.termId, term.id));
+  expect(surfaces.map((s) => s.text)).toEqual(["White Level"]);
+});
+
+// R73(F5): term_revisions.snapshot에 실제 term/surfaces 내용이 담겨야 한다.
+// create.ts에는 이 실패 양상을 이름 붙인 주석이 있는데 update 쪽은 스냅샷
+// 내용을 전혀 단언하지 않아 `snapshot: {}`도 그린이었다.
+test("리비전 스냅샷에 실제 term/surfaces 내용이 담긴다 (R73)", async () => {
+  const term = await seed();
+  expectSaved(
+    await updateTerm(
+      term.id,
+      { nameKo: "블랙레벨", surfaces: [{ text: "BLC", lang: "en", kind: "alias" }] },
+      null,
+    ),
+  );
+
+  const revs = await db
+    .select()
+    .from(termRevisions)
+    .where(eq(termRevisions.termId, term.id))
+    .orderBy(termRevisions.revisionNumber);
+  const snapshot = revs[1]!.snapshot as { term?: { nameKo?: string }; surfaces?: { text: string }[] };
+  expect(snapshot.term?.nameKo).toBe("블랙레벨");
+  // nameKo를 채우면 파생 canonical 표기가 하나 더 생긴다(en canonical + ko
+  // canonical + 명시 alias) — 셋 다 스냅샷에 실제로 담겨야 한다.
+  expect(snapshot.surfaces?.map((s) => s.text).sort()).toEqual(["BLC", "Black Level", "블랙레벨"]);
+});
+
+// R74(F6): R56의 나머지 절반 — 이름 변경으로 새로 생기는 표기도 findDuplicates에
+// 전달된 최종 집합(nextSurfaces)에 포함되어야 경고가 뜬다. findDuplicates가
+// explicitSurfaces만 받거나(P21) nextSurfaces가 옛 이름으로 계산되면(P4) 이
+// 경고가 조용히 사라진다.
+test("이름을 바꿔서 다른 term과 겹쳐도 중복 경고가 뜬다 (R74)", async () => {
+  const term = await seed();
+  const other = await createTerm(
+    { termType: "term", nameEn: "Rename Dup Probe", domain: [], status: "draft", surfaces: [] },
+    null,
+  );
+  created.push(other.term.id);
+
+  const result = expectSaved(await updateTerm(term.id, { nameEn: "Rename Dup Probe" }, null));
+  const warningsForOther = result.warnings.filter((w) => w.conflictingTermId === other.term.id);
+  expect(warningsForOther).toHaveLength(1);
+});
+
+// R75(F7): 존재하지 않는 termId로 호출되는 건 레이스와 무관하게 도달 가능한
+// 정상 상태다(export된 함수를 Task 13이 오래된 id로 부를 수 있다) — 맨 Error를
+// 던지지 않고 판별 유니온으로 알려야 한다.
+test("존재하지 않는 termId로 호출하면 notFound를 반환한다 (R75)", async () => {
+  const result = await updateTerm("00000000-0000-0000-0000-000000000000", { nameKo: "x" }, null);
+  expect(result).toEqual({ notFound: true });
+});
+
+// R76(F8): deleteTerm의 불리언 반환값은 소비자가 아직 없어도 계약이다 — 이미
+// 지워진 termId로 다시 호출하면 false여야 한다(0행 삭제).
+test("이미 지워진 termId로 다시 delete하면 false를 반환한다 (R76)", async () => {
+  const term = await seed();
+  await expect(deleteTerm(term.id)).resolves.toBe(true);
+  await expect(deleteTerm(term.id)).resolves.toBe(false);
+  created.length = 0;
+});
+
+// R79(F11): listRevisions/RevisionRow가 authorKeyId를 노출해야 한다. R47이 그
+// 컬럼을 추가한 이유가 API 키 작성 리비전의 행위자 복원이었는데, 유일한 조회
+// 경로가 숨기면 컬럼을 남긴 이유가 없어진다.
+test("listRevisions 결과에 API 키 리비전의 author_key_id가 포함된다 (R79)", async () => {
+  const term = await seed();
+  const [key] = await db
+    .insert(apiKeys)
+    .values({
+      name: "R79 테스트 키",
+      prefix: `r79${Date.now()}`.slice(0, 12),
+      keyHash: "irrelevant-hash",
+      scopes: ["write"],
+    })
+    .returning();
+  createdKeys.push(key!.id);
+
+  expectSaved(await updateTerm(term.id, { nameKo: "블랙레벨" }, null, undefined, key!.id));
+
+  const revs = await listRevisions(term.id);
+  const latest = revs.find((r) => r.revisionNumber === 2);
+  expect(latest?.authorKeyId).toBe(key!.id);
+  expect(latest?.authorId).toBeNull();
+});
