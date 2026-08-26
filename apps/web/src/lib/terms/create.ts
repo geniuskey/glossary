@@ -1,4 +1,4 @@
-import { eq, inArray, like } from "drizzle-orm";
+import { and, eq, inArray, like, ne } from "drizzle-orm";
 import { surfaceKeys, terms, termRevisions, termSurfaces } from "@grossary/db";
 import { getDb } from "@/lib/db";
 import { slugify } from "./slug";
@@ -28,9 +28,18 @@ async function uniqueSlug(base: string): Promise<string> {
   }
 }
 
-export async function findDuplicates(surfaces: SurfaceInput[]): Promise<DuplicateWarning[]> {
+// R56: 수정 경로(updateTerm)는 term 자신의 기존 표기까지 포함한 "파생 + 명시"
+// 전체 집합을 넘겨 충돌을 검사한다. excludeTermId가 없으면(생성 경로) 걸러낼
+// "자기 자신"이 아직 없으므로 동작이 그대로 유지된다.
+export async function findDuplicates(
+  surfaces: SurfaceInput[],
+  excludeTermId?: string,
+): Promise<DuplicateWarning[]> {
   const keys = surfaces.map((s) => surfaceKeys(s.text).normLoose).filter(Boolean);
   if (keys.length === 0) return [];
+
+  const conditions = [inArray(termSurfaces.normLoose, keys)];
+  if (excludeTermId) conditions.push(ne(termSurfaces.termId, excludeTermId));
 
   const rows = await getDb()
     .select({
@@ -41,7 +50,7 @@ export async function findDuplicates(surfaces: SurfaceInput[]): Promise<Duplicat
     })
     .from(termSurfaces)
     .innerJoin(terms, eq(terms.id, termSurfaces.termId))
-    .where(inArray(termSurfaces.normLoose, keys));
+    .where(and(...conditions));
 
   return rows.map((r) => ({
     normLoose: r.normLoose,

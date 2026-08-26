@@ -18,7 +18,10 @@ vi.mock("next/headers", () => ({
 }));
 
 const { GET: termsGet, POST: termsPost } = await import("../src/app/api/v1/terms/route.js");
-const { GET: termDetailGet } = await import("../src/app/api/v1/terms/[idOrSlug]/route.js");
+const { GET: termDetailGet, PATCH: termPatch, DELETE: termDelete } = await import(
+  "../src/app/api/v1/terms/[idOrSlug]/route.js"
+);
+const { GET: termRevisionsGet } = await import("../src/app/api/v1/terms/[idOrSlug]/revisions/route.js");
 
 const db = createDb(process.env.DATABASE_URL!);
 const createdTermIds: string[] = [];
@@ -35,13 +38,14 @@ async function makeKeyRow(scopes: string[]) {
   return { token, row: row! };
 }
 
-async function makeUser() {
+async function makeUser(role: "admin" | "editor" = "editor") {
   const [row] = await db
     .insert(users)
     .values({
       email: `terms-route-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`,
       name: "라우트 테스트 사용자",
       passwordHash: await hashPassword("irrelevant"),
+      role,
     })
     .returning();
   createdUserIds.push(row!.id);
@@ -61,6 +65,24 @@ function postRequest(body: unknown, token?: string) {
       ...(token ? { authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(body),
+  });
+}
+
+function patchRequest(body: unknown, token?: string) {
+  return new Request("http://x", {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json",
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+function deleteRequest(token?: string) {
+  return new Request("http://x", {
+    method: "DELETE",
+    headers: token ? { authorization: `Bearer ${token}` } : undefined,
   });
 }
 
@@ -318,4 +340,171 @@ test("?page=/?pageSize=가 빈 문자열이면 400이 아니라 기본값을 사
   const body = await res.json();
   expect(body.page).toBe(1);
   expect(body.pageSize).toBe(20);
+});
+
+// ----- Task 10: PATCH / DELETE / revisions -----
+
+async function seedRouteTerm() {
+  const { token } = await makeKeyRow(["write"]);
+  const res = await termsPost(
+    postRequest({ nameEn: `Route Update Probe ${Date.now()}-${Math.random().toString(36).slice(2)}`, domain: [], surfaces: [] }, token),
+  );
+  const body = await res.json();
+  createdTermIds.push(body.term.id);
+  return body.term as { id: string; slug: string };
+}
+
+test("인증 없이 patch는 401", async () => {
+  const term = await seedRouteTerm();
+  const res = await termPatch(patchRequest({ nameKo: "x" }), { params: Promise.resolve({ idOrSlug: term.slug }) });
+  expect(res.status).toBe(401);
+});
+
+test("read scope 키로는 patch가 403", async () => {
+  const term = await seedRouteTerm();
+  const { token } = await makeKeyRow(["read"]);
+  const res = await termPatch(patchRequest({ nameKo: "x" }, token), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+  expect(res.status).toBe(403);
+});
+
+test("존재하지 않는 용어를 patch하면 404 term_not_found", async () => {
+  const { token } = await makeKeyRow(["write"]);
+  const res = await termPatch(patchRequest({ nameKo: "x" }, token), {
+    params: Promise.resolve({ idOrSlug: "route-patch-does-not-exist" }),
+  });
+  expect(res.status).toBe(404);
+  const body = await res.json();
+  expect(body.error.code).toBe("term_not_found");
+});
+
+test("write scope 키로 patch하면 200과 함께 갱신된 term을 반환한다", async () => {
+  const term = await seedRouteTerm();
+  const { token } = await makeKeyRow(["write"]);
+  const res = await termPatch(patchRequest({ nameKo: "라우트패치", bodyMd: "본문" }, token), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+  expect(res.status).toBe(200);
+  const body = await res.json();
+  expect(body.term.nameKo).toBe("라우트패치");
+  expect(body.term.bodyMd).toBe("본문");
+});
+
+// R52: 라우트는 updateTerm의 invalid 결과를 400 validation_failed로 변환해야 한다.
+test("병합된 표기가 모순되면 patch는 400 validation_failed (R52)", async () => {
+  const term = await seedRouteTerm();
+  const { token } = await makeKeyRow(["read", "write"]);
+  const detail = await termDetailGet(getRequest(`/api/v1/terms/${term.slug}`, token), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+  const detailBody = await detail.json();
+  const canonicalText = detailBody.term.surfaces[0].text as string;
+
+  const res = await termPatch(
+    patchRequest({ surfaces: [{ text: canonicalText, lang: "en", kind: "forbidden" }] }, token),
+    { params: Promise.resolve({ idOrSlug: term.slug }) },
+  );
+  expect(res.status).toBe(400);
+  const body = await res.json();
+  expect(body.error.code).toBe("validation_failed");
+});
+
+// R54: updateTerm의 conflict 결과는 409 revision_conflict로 변환되어야 한다.
+test("기대 리비전이 어긋나면 patch는 409 revision_conflict (R54)", async () => {
+  const term = await seedRouteTerm();
+  const { token } = await makeKeyRow(["write"]);
+  const res = await termPatch(patchRequest({ nameKo: "x", expectedRevision: 999 }, token), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+  expect(res.status).toBe(409);
+  const body = await res.json();
+  expect(body.error.code).toBe("revision_conflict");
+  expect(body.error.details.currentRevision).toBe(1);
+});
+
+test("인증 없이 delete는 401", async () => {
+  const term = await seedRouteTerm();
+  const res = await termDelete(deleteRequest(), { params: Promise.resolve({ idOrSlug: term.slug }) });
+  expect(res.status).toBe(401);
+});
+
+// 역할은 admin | editor. DELETE /terms/{id}는 admin 전용 — editor 사용자는 거부되어야 한다.
+test("editor 사용자는 delete가 403", async () => {
+  const term = await seedRouteTerm();
+  const user = await makeUser("editor");
+  await loginAs(user);
+  const res = await termDelete(deleteRequest(), { params: Promise.resolve({ idOrSlug: term.slug }) });
+  expect(res.status).toBe(403);
+});
+
+// API 키에는 역할 개념이 없다 — write scope가 있어도 delete는 거부되어야 한다.
+test("write scope API 키는 delete가 403", async () => {
+  const term = await seedRouteTerm();
+  const { token } = await makeKeyRow(["write"]);
+  const res = await termDelete(deleteRequest(token), { params: Promise.resolve({ idOrSlug: term.slug }) });
+  expect(res.status).toBe(403);
+});
+
+test("admin 사용자는 delete로 용어를 지울 수 있고, 지운 뒤 조회하면 404다", async () => {
+  const term = await seedRouteTerm();
+  const admin = await makeUser("admin");
+  await loginAs(admin);
+
+  const res = await termDelete(deleteRequest(), { params: Promise.resolve({ idOrSlug: term.slug }) });
+  expect(res.status).toBe(204);
+
+  currentCookieValue = undefined;
+  const { token } = await makeKeyRow(["read"]);
+  const after = await termDetailGet(getRequest(`/api/v1/terms/${term.slug}`, token), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+  expect(after.status).toBe(404);
+});
+
+test("존재하지 않는 용어를 delete하면 404 term_not_found", async () => {
+  const admin = await makeUser("admin");
+  await loginAs(admin);
+  const res = await termDelete(deleteRequest(), {
+    params: Promise.resolve({ idOrSlug: "route-delete-does-not-exist" }),
+  });
+  expect(res.status).toBe(404);
+  const body = await res.json();
+  expect(body.error.code).toBe("term_not_found");
+});
+
+test("인증 없이 리비전 조회는 401", async () => {
+  const term = await seedRouteTerm();
+  const res = await termRevisionsGet(getRequest(`/api/v1/terms/${term.slug}/revisions`), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+  expect(res.status).toBe(401);
+});
+
+test("리비전 목록은 최신순이며 createdAt이 ISO 문자열로 직렬화된다", async () => {
+  const term = await seedRouteTerm();
+  const { token } = await makeKeyRow(["write"]);
+  await termPatch(patchRequest({ nameKo: "리비전테스트" }, token), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+
+  const { token: readToken } = await makeKeyRow(["read"]);
+  const res = await termRevisionsGet(getRequest(`/api/v1/terms/${term.slug}/revisions`, readToken), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+  expect(res.status).toBe(200);
+  const body = await res.json();
+  expect(body.revisions.map((r: { revisionNumber: number }) => r.revisionNumber)).toEqual([2, 1]);
+  expect(typeof body.revisions[0].createdAt).toBe("string");
+  expect(Number.isNaN(Date.parse(body.revisions[0].createdAt))).toBe(false);
+});
+
+test("존재하지 않는 용어의 리비전 조회는 404 term_not_found", async () => {
+  const { token } = await makeKeyRow(["read"]);
+  const res = await termRevisionsGet(getRequest("/api/v1/terms/route-revisions-does-not-exist/revisions", token), {
+    params: Promise.resolve({ idOrSlug: "route-revisions-does-not-exist" }),
+  });
+  expect(res.status).toBe(404);
+  const body = await res.json();
+  expect(body.error.code).toBe("term_not_found");
 });
