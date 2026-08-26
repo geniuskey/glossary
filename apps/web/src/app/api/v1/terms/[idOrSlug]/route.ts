@@ -52,6 +52,13 @@ export const PATCH = withApiErrors(
 
     const result = await updateTerm(existing.id, patchInput, authorId, expectedRevision, authorKeyId);
 
+    // R75: 이 라우트는 위에서 이미 idOrSlug를 존재하는 term으로 확인했으므로
+    // 여기서 notFound가 나올 일은 실질적으로 없다 — 그래도 updateTerm은 export된
+    // 함수라 다른 호출자(Task 13 등)가 오래된/잘못된 id로 직접 부를 수 있고,
+    // 그 계약을 지키려면 라우트도 이 분기를 무시하면 안 된다.
+    if ("notFound" in result) {
+      return apiError("term_not_found", "용어를 찾을 수 없습니다.", 404);
+    }
     if ("invalid" in result) {
       return apiError("validation_failed", "표기 구성이 올바르지 않습니다.", 400, { issues: result.issues });
     }
@@ -60,6 +67,12 @@ export const PATCH = withApiErrors(
         currentRevision: result.currentRevision,
       });
     }
+    // R77(F9) — 보류, 변경 없음: 이 응답은 term/surfaces 원시 컬럼(createdBy/
+    // updatedBy/replacedById, normLoose/normSpace 등)을 그대로 흘려보낸다.
+    // POST /terms가 정확히 같은 모양을 반환하므로 PATCH만 wire 타입으로
+    // 고치면 두 쓰기 엔드포인트 응답이 서로 어긋난다 — Task 13이 두 응답을
+    // 모두 소비하니 그때 함께 통일한다. 이 comment는 R77/F9 판정의 근거이지,
+    // 여기가 실수로 빠뜨린 자리가 아니라는 표시다.
     return Response.json(result);
   },
 );

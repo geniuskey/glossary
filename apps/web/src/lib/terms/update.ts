@@ -13,6 +13,10 @@ export interface RevisionRow {
   revisionNumber: number;
   message: string | null;
   authorId: string | null;
+  // R79: API 키로 만든 리비전은 authorId가 항상 null이다 — R47이 authorKeyId를
+  // term_revisions에 남긴 이유가 API 키 작성 리비전의 행위자를 나중에 복원하기
+  // 위해서였는데, 이 목록이 그 컬럼을 숨기면 컬럼을 남긴 이유 자체가 없어진다.
+  authorKeyId: string | null;
   createdAt: Date;
 }
 
@@ -25,7 +29,12 @@ export type RevisionRowResponse = Omit<RevisionRow, "createdAt"> & { createdAt: 
 export type UpdateTermResult =
   | { term: typeof terms.$inferSelect; surfaces: (typeof termSurfaces.$inferSelect)[]; warnings: DuplicateWarning[] }
   | { conflict: true; currentRevision: number }
-  | { invalid: true; issues: string[] };
+  | { invalid: true; issues: string[] }
+  // R75: 존재하지 않는 termId로 호출되는 건 레이스와 무관하게 도달 가능한 정상
+  // 상태다(Task 13이 오래된/잘못된 id로 부를 수 있다) — updateTerm은 export된
+  // 함수이므로 그 경우 맨 Error를 던지지 않고 판별 유니온으로 알려야 호출자가
+  // 계약대로 분기할 수 있다.
+  | { notFound: true };
 
 export async function listRevisions(termId: string): Promise<RevisionRow[]> {
   return getDb()
@@ -34,6 +43,7 @@ export async function listRevisions(termId: string): Promise<RevisionRow[]> {
       revisionNumber: termRevisions.revisionNumber,
       message: termRevisions.message,
       authorId: termRevisions.authorId,
+      authorKeyId: termRevisions.authorKeyId,
       createdAt: termRevisions.createdAt,
     })
     .from(termRevisions)
@@ -74,7 +84,7 @@ export async function updateTerm(
   const db = getDb();
 
   const [oldTerm] = await db.select().from(terms).where(eq(terms.id, termId)).limit(1);
-  if (!oldTerm) throw new Error(`updateTerm: term ${termId}를 찾을 수 없습니다.`);
+  if (!oldTerm) return { notFound: true };
 
   const oldSurfaceRows = await db
     .select({

@@ -26,9 +26,13 @@ async function seed() {
 }
 
 function expectSaved<T extends { term: unknown }>(
-  result: T | { conflict: true; currentRevision: number } | { invalid: true; issues: string[] },
+  result:
+    | T
+    | { conflict: true; currentRevision: number }
+    | { invalid: true; issues: string[] }
+    | { notFound: true },
 ): T {
-  if ("conflict" in result || "invalid" in result) {
+  if ("conflict" in result || "invalid" in result || "notFound" in result) {
     throw new Error(`예상치 못한 결과: ${JSON.stringify(result)}`);
   }
   return result;
