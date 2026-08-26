@@ -46,17 +46,21 @@ const DISALLOWED_KINDS = new Set(["discouraged", "forbidden"]);
  *   이루어져("---") surfaceKeys(...).normLoose가 빈 문자열이 되는 경우를
  *   막는다. `.trim().min(1)`만으로는 못 잡는다 — normalizeSurface의 구분자
  *   집합(공백/–/_/·/・ 등)은 JS의 trim()보다 넓다.
+ *
+ * R52(Task 10): termPatchSchema는 `.partial()`이라 여기 붙는 superRefine을
+ * 재사용할 수 없고(termInputSchema는 이미 ZodEffects라 `.partial()`을 부를 수
+ * 없다), 더 근본적으로 patch의 최종 표기 집합은 "기존 행 + patch"를 병합해야만
+ * 알 수 있어 zod 스키마 시점에는 아예 보이지 않는다. 이 검증 로직 자체를 순수
+ * 함수로 분리해서, updateTerm이 병합된 표기 집합에 대해 직접 호출할 수 있게
+ * 한다. 아래 checkSurfaceIntegrity는 그 함수를 termInputSchema용으로 얇게
+ * 감싼 어댑터일 뿐이다.
  */
-function checkSurfaceIntegrity(v: z.infer<typeof termInputBaseSchema>, ctx: z.RefinementCtx) {
-  const surfaces = deriveSurfaces(v, v.surfaces);
+export function checkSurfaceConflicts(surfaces: SurfaceInput[]): string[] {
+  const issues: string[] = [];
 
   for (const s of surfaces) {
     if (surfaceKeys(s.text).normLoose === "") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `"${s.text}"는 정규화하면 빈 문자열이 되어 표기로 쓸 수 없습니다.`,
-        path: ["surfaces"],
-      });
+      issues.push(`"${s.text}"는 정규화하면 빈 문자열이 되어 표기로 쓸 수 없습니다.`);
     }
   }
 
@@ -73,12 +77,17 @@ function checkSurfaceIntegrity(v: z.infer<typeof termInputBaseSchema>, ctx: z.Re
     const hasDisallowed = [...kinds].some((k) => DISALLOWED_KINDS.has(k));
     const bothDisallowed = kinds.has("discouraged") && kinds.has("forbidden");
     if ((hasApproved && hasDisallowed) || bothDisallowed) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `표기 "${key}"에 서로 모순되는 kind가 함께 지정되었습니다: ${[...kinds].join(", ")}`,
-        path: ["surfaces"],
-      });
+      issues.push(`표기 "${key}"에 서로 모순되는 kind가 함께 지정되었습니다: ${[...kinds].join(", ")}`);
     }
+  }
+
+  return issues;
+}
+
+function checkSurfaceIntegrity(v: z.infer<typeof termInputBaseSchema>, ctx: z.RefinementCtx) {
+  const surfaces = deriveSurfaces(v, v.surfaces);
+  for (const message of checkSurfaceConflicts(surfaces)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["surfaces"] });
   }
 }
 
