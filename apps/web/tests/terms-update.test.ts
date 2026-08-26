@@ -391,3 +391,41 @@ test("listRevisions 결과에 API 키 리비전의 author_key_id가 포함된다
   expect(latest?.authorKeyId).toBe(key!.id);
   expect(latest?.authorId).toBeNull();
 });
+
+// ----- Fix round 2: R80 -----
+
+// R80(A1): R75는 트랜잭션 '앞' 읽기에서 term이 없는 경우를 닫았지만, 트랜잭션
+// '안'의 UPDATE가 0행을 돌려주는 창은 그대로 남아 있었고 그쪽이 더 넓다.
+// 라우트의 존재 확인 → updateTerm의 사전 읽기 → 여기까지 통과한 뒤에도 UPDATE
+// 직전에 삭제가 커밋되면 도달한다. 블로커 트랜잭션이 DELETE를 커밋하지 않은 채
+// 행 잠금을 잡고 있게 해서 결정론적으로 재현한다: updateTerm의 UPDATE가 그
+// 잠금에 걸려 대기하다가, 블로커가 커밋하는 순간 0행을 보게 된다.
+test("UPDATE 직전에 term이 삭제되면 500이 아니라 notFound를 돌려준다 (R80)", async () => {
+  const term = await seed();
+
+  let signalDeleted!: () => void;
+  const deleted = new Promise<void>((resolve) => {
+    signalDeleted = resolve;
+  });
+  let releaseBlocker!: () => void;
+  const blockerReleased = new Promise<void>((resolve) => {
+    releaseBlocker = resolve;
+  });
+
+  const blockerTx = db.transaction(async (tx) => {
+    await tx.delete(terms).where(eq(terms.id, term.id));
+    signalDeleted();
+    await blockerReleased;
+  });
+
+  await deleted;
+
+  const updatePromise = updateTerm(term.id, { nameKo: "블랙레벨" }, null);
+
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  releaseBlocker();
+  await blockerTx;
+
+  await expect(updatePromise).resolves.toEqual({ notFound: true });
+});
+

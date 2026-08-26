@@ -641,3 +641,48 @@ test("로그인한 사용자로 patch하면 리비전에 author_id가 기록되�
   const [row] = await db.select().from(terms).where(eq(terms.id, term.id));
   expect(row!.updatedBy).toBe(user.id);
 });
+
+// ----- Fix round 2: R81 -----
+
+// R81(A3): 라우트의 notFound 분기를 통째로 지워도 tsc는 조용했고 스위트는 그대로
+// 그린이었다. 임의 UUID로 PATCH해봐야 그 분기에 닿지 않는다 — 위쪽
+// getTermByIdOrSlug 존재 확인에서 먼저 404가 나기 때문이다. 분기를 실제로 태우려면
+// "존재 확인은 통과했는데 updateTerm 시점엔 사라진" 상태를 만들어야 한다.
+// 블로커 트랜잭션이 DELETE를 잡고 있다가 커밋하면 그 상태가 결정론적으로 생긴다.
+test("존재 확인 후 삭제되면 patch는 500이 아니라 404 term_not_found (R81)", async () => {
+  const term = await seedRouteTerm();
+  const { token } = await makeKeyRow(["write"]);
+
+  let signalDeleted!: () => void;
+  const deleted = new Promise<void>((resolve) => {
+    signalDeleted = resolve;
+  });
+  let releaseBlocker!: () => void;
+  const blockerReleased = new Promise<void>((resolve) => {
+    releaseBlocker = resolve;
+  });
+
+  const blockerTx = db.transaction(async (tx) => {
+    await tx.delete(terms).where(eq(terms.id, term.id));
+    signalDeleted();
+    await blockerReleased;
+  });
+
+  await deleted;
+
+  const resPromise = termPatch(patchRequest({ nameKo: "블랙레벨" }, token), {
+    params: Promise.resolve({ idOrSlug: term.id }),
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  releaseBlocker();
+  await blockerTx;
+
+  const res = await resPromise;
+  expect(res.status).toBe(404);
+  expect(res.headers.get("content-type")).toContain("application/json");
+  await expect(res.json()).resolves.toEqual({
+    error: { code: "term_not_found", message: "용어를 찾을 수 없습니다." },
+  });
+});
+

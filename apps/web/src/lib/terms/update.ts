@@ -26,8 +26,20 @@ export interface RevisionRow {
 // 문자열로 바꿔주기 때문).
 export type RevisionRowResponse = Omit<RevisionRow, "createdAt"> & { createdAt: string };
 
+export interface UpdateTermSuccess {
+  term: typeof terms.$inferSelect;
+  surfaces: (typeof termSurfaces.$inferSelect)[];
+  warnings: DuplicateWarning[];
+}
+
+// R81: 성공 변형에 이름을 준다. 라우트가 분기 체인 끝에서 `const ok:
+// UpdateTermSuccess = result`로 받으면, 이 유니온에 변형이 추가됐는데 라우트가
+// 분기를 빠뜨렸을 때 tsc 오류가 난다. 이름 없는 인라인 객체 타입이면 그
+// 어긋남을 컴파일러가 볼 수 없다 — 리뷰가 실측한 결과, 5번째 변형을 추가해도
+// 라우트에서는 진단이 하나도 나오지 않았고 런타임에 200 {"notFound":true}가
+// 그대로 나갔다.
 export type UpdateTermResult =
-  | { term: typeof terms.$inferSelect; surfaces: (typeof termSurfaces.$inferSelect)[]; warnings: DuplicateWarning[] }
+  | UpdateTermSuccess
   | { conflict: true; currentRevision: number }
   | { invalid: true; issues: string[] }
   // R75: 존재하지 않는 termId로 호출되는 건 레이스와 무관하게 도달 가능한 정상
@@ -176,7 +188,12 @@ export async function updateTerm(
         .where(eq(terms.id, termId))
         .returning();
 
-      if (!updated) throw new Error(`updateTerm: term ${termId}가 갱신 중 사라졌습니다.`);
+      // R80: 여기는 도달 가능한 정상 상태다. 라우트의 존재 확인과 이 UPDATE
+      // 사이에 term이 삭제되면(블로커 트랜잭션이 잡고 있던 DELETE가 커밋되는
+      // 경우 결정론적으로 재현된다) UPDATE가 0행을 돌려준다. 맨 Error를 던지면
+      // withApiErrors가 500으로 바꾸지만 옳은 답은 404다 — R75가 트랜잭션
+      // '앞' 읽기에 대해 닫은 구멍과 같은 것이고, 이쪽 창이 더 넓다.
+      if (!updated) return { notFound: true };
 
       // 표기를 통째로 지우고 다시 넣는다. 부분 갱신보다 단순하고, 리비전
       // 스냅샷이 항상 완전한 상태를 담게 된다.
