@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 export default function Home() {
-  return <main className="p-8">용어집</main>;
+  redirect("/terms");
 }
