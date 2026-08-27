@@ -10,11 +10,21 @@ const ALLOWED_METHODS = ["POST"];
 const { GET, PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
 export { GET, PUT, PATCH, DELETE, OPTIONS };
 
-// R87: text 자체는 trim()으로 공백뿐인 입력만 걸러낸다 — 응답의 text는 요청
-// 원문을 그대로 돌려줘야 하므로(린터가 문서 안의 원래 토큰과 대조해야 함)
-// 여기서 더 손대지 않는다. 정규화는 lookupTerms 내부의 surfaceKeys가 맡는다.
+// R99/R87: z.string().trim()은 zod 3.25에서 검증이 아니라 변환(transform)이다
+// — safeParse가 돌려주는 parsed.data.texts 자체가 trim된 문자열로 바뀐다.
+// lookupTerms는 그 값을 그대로 응답의 text에 echo하므로, trim()을 쓰면 "응답의
+// text는 요청 원문 그대로"라는 R87을 어기게 된다("  ZDK  " → 응답 text: "ZDK").
+// refine으로 "공백뿐인 문자열"만 거부하고 값 자체는 원문 그대로 통과시킨다.
 const bodySchema = z.object({
-  texts: z.array(z.string().trim().min(1)).min(1).max(500),
+  texts: z
+    .array(
+      z
+        .string()
+        .min(1)
+        .refine((s) => s.trim().length > 0, "공백뿐인 표기는 사용할 수 없습니다."),
+    )
+    .min(1)
+    .max(500),
 });
 
 // 읽기 동작이지만 문서 전체를 훑는 배치 요청이라 본문이 커서 GET 쿼리스트링에
