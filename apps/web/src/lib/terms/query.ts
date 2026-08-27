@@ -6,14 +6,19 @@ import { getDb } from "@/lib/db";
 export type TermType = (typeof termTypeEnum.enumValues)[number];
 export type TermStatus = (typeof termStatusEnum.enumValues)[number];
 
+// F6(review §2 Q1, PROTO C 대안): termType/status를 string으로 넓혀 두면
+// STATUS_LABEL/KIND_LABEL 같은 화면 쪽 lookup 테이블에서 DB enum 값이
+// 빠지거나 드리프트해도 tsc가 잡지 못한다. drizzle의 pgEnum 컬럼은 이미
+// TermType/TermStatus 유니온을 추론하므로, 여기서 그 유니온으로 좁혀 두면
+// 문자열 grep 없이 tsc가 공짜로 enum 드리프트를 잡는다.
 export interface TermSummary {
   id: string;
   slug: string;
-  termType: string;
+  termType: TermType;
   nameEn: string | null;
   nameKo: string | null;
   domain: string[];
-  status: string;
+  status: TermStatus;
 }
 
 export interface SurfaceRow {
