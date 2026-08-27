@@ -7,6 +7,7 @@ import * as healthRoute from "../src/app/api/v1/health/route.js";
 import * as keysRoute from "../src/app/api/v1/keys/route.js";
 import * as keyIdRoute from "../src/app/api/v1/keys/[id]/route.js";
 import * as termsRoute from "../src/app/api/v1/terms/route.js";
+import * as termLookupRoute from "../src/app/api/v1/terms/lookup/route.js";
 import * as termIdOrSlugRoute from "../src/app/api/v1/terms/[idOrSlug]/route.js";
 import * as termRevisionsRoute from "../src/app/api/v1/terms/[idOrSlug]/revisions/route.js";
 
@@ -36,6 +37,10 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   // 바뀌었다. 여기를 갱신하지 않으면 이 표는 여전히 옛 계약("POST"만 허용)을
   // 검증해 GET 405 스텁이 사라져도 이 스위프는 못 잡는다.
   { name: "terms", mod: termsRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
+  // Task 11(R83): terms/lookup은 POST만 처리하는 정적 라우트다. 이 행이 없으면
+  // GET/PUT/PATCH/DELETE의 405 스텁 누락을 아무 테스트도 못 잡는다 — 이 구멍이
+  // 이 저장소에서 네 번째로 반복되는 실수였다(Task 8 P7, Task 9 R58, Task 10 F1).
+  { name: "terms/lookup", mod: termLookupRoute, allowed: ["POST"], allow: "POST" },
   // Task 10: terms/[idOrSlug] 라우트는 이제 GET/PATCH/DELETE를 처리한다. 이 행을
   // 갱신하지 않으면 새로 추가된 PATCH/DELETE의 405 스텁 누락이나 Allow 헤더
   // 불일치를 아무 테스트도 못 잡는다.

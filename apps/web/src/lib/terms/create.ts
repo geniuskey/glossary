@@ -12,6 +12,14 @@ export interface DuplicateWarning {
   conflictingSlug: string;
 }
 
+// R86: `terms/lookup`는 정적 라우트 세그먼트다. Next는 정적 세그먼트를 동적
+// 세그먼트(`terms/[idOrSlug]`)보다 먼저 매칭하므로, 슬러그가 정확히 "lookup"인
+// 용어는 `GET /api/v1/terms/lookup`이 이 정적 라우트로 가로채여 상세 조회가
+// 영원히 불가능해진다(그 라우트는 POST만 허용해 405가 나간다).
+// slugify("Lookup") === "lookup"이라 이런 이름의 용어를 만드는 순간 조용히
+// 발생한다 — 예약어는 uniqueSlug에서 "이미 사용 중"인 것처럼 취급해 피한다.
+const RESERVED_SLUGS = new Set(["lookup"]);
+
 async function uniqueSlug(base: string): Promise<string> {
   const seed = base || "term";
   const existing = await getDb()
@@ -20,7 +28,7 @@ async function uniqueSlug(base: string): Promise<string> {
     .where(like(terms.slug, `${seed}%`));
 
   const taken = new Set(existing.map((r) => r.slug));
-  if (!taken.has(seed)) return seed;
+  if (!taken.has(seed) && !RESERVED_SLUGS.has(seed)) return seed;
 
   for (let n = 2; ; n += 1) {
     const candidate = `${seed}-${n}`;
