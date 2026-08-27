@@ -4042,6 +4042,82 @@ git commit -m "feat: add production docker setup, backup scripts, and openapi sp
 - [ ] 엑셀 파일을 dry-run으로 검사해 충돌·중복·오류 행을 확인한 뒤 실제 등록할 수 있다.
 - [ ] `docker compose -f docker-compose.prod.yml up -d`로 기동되고 `scripts/backup.sh` → `scripts/restore.sh` 왕복이 검증됐다.
 
+### 이 체크리스트를 어디까지 확인했는지 (정직하게)
+
+위 항목 중 **1~7번은 API·라이브러리 레벨 테스트로 확인했다**(총 289개 테스트,
+25개 파일, `turbo run test typecheck build` 9/9). 다만 **브라우저에서 실제로
+클릭해본 적은 없다** — `next dev`를 띄운 수동 확인은 이 개발 세션에서 하지
+않았다. Client Component(`term-form.tsx`)는 jsdom이 없어 렌더·이벤트 테스트도
+불가능하므로(R97), 폼의 실제 동작은 **아직 사람이 한 번 확인해야 한다.**
+
+**8번은 "빌드까지만" 확인했다.** 확인한 것:
+
+- `docker compose -f docker-compose.prod.yml build`가 성공한다(app·migrator 둘 다).
+- runner 이미지에 `apps/web/server.js`와 `.next/static`이 실제로 들어 있고 Node 22다.
+- migrator 이미지에 `drizzle-kit`, `drizzle.config.ts`, 마이그레이션 SQL 3개와
+  `meta/_journal.json`, 그리고 시딩에 필요한 `tsx`가 전부 들어 있다.
+- `.dockerignore`가 실제로 동작한다 — 두 이미지 어디에도 `.env`가 없다.
+- `POSTGRES_PASSWORD` 없이 `docker compose config`를 돌리면 의도한 메시지와 함께
+  실패한다(R128의 주장을 되돌리기가 아니라 직접 시도해서 확인했다).
+
+확인하지 **않은** 것과 그 이유:
+
+- `up -d`로 기동해보지 않았다. `docker-compose.prod.yml`은 개발용 compose와 같은
+  볼륨 이름(`grossary_pgdata`)을 쓰므로 이 개발 머신에서 띄우면 개발 데이터에
+  그대로 붙는다. 운영 호스트에서 첫 기동할 때 확인할 항목이다.
+- `scripts/backup.sh` → `scripts/restore.sh` 왕복을 실행하지 않았다. `restore.sh`는
+  `DROP DATABASE`를 포함하고, 이 머신에는 다른 프로젝트의 컨테이너도 있다. 두
+  스크립트는 `bash -n` 문법 검사만 통과한 상태다.
+  **운영 투입 전에 `restore.sh --rehearse`로 한 번 돌려야 한다** — 그 경로는
+  운영 DB를 건드리지 않고 별도 DB(`grossary_rehearsal`)로 복구해 건수만 확인한다.
+  `docs/operations.md`의 "복구" 절이 이 절차를 가리킨다.
+
 ## M2로 넘기는 것
 
 `packages/engine`의 정규화 함수는 M1에서 완성됐고, M2는 그 위에 Aho-Corasick 매칭·세그먼트 분리·경계 판정·규칙 적용을 얹는다. `/validate`, `/validate/batch`, `/lexicon`, `/candidates`, `/check` 화면이 M2 범위다. 마크다운 본문·이미지·diff/revert·병합 UI는 M3다.
+
+### M1에서 알고 남긴 구멍
+
+아래는 M1을 진행하며 실제로 확인했고, 고치지 않기로 판단한 것들이다. "나중에 보면
+알겠지"에 맡기지 않기 위해 근거와 확인 방법을 함께 적는다.
+
+**보안**
+
+- **레이트 리밋·계정 잠금·감사 로그가 없다(R23/F4).** `apps/web/src/app/api/v1/auth/login/route.ts`와
+  `lib/auth/` 전체를 grep해도 시도 횟수를 세는 코드가 없다. 로그인은 계정 존재
+  여부가 응답으로 새지 않게 처리돼 있지만 무제한 시도를 막지는 않는다. 사내망
+  접근 통제에 기대고 있는 상태다.
+- **CSRF 방어가 `SameSite=Lax` 쿠키 하나뿐이다(R24).** 그래서 "상태를 바꾸는 GET
+  핸들러를 만들지 않는다"가 코드 전체의 불변식이고 `tests/screen-guards.test.ts`가
+  이를 강제한다. M2에서 토큰 기반 방어를 얹을 때 그 구조 테스트를 먼저 읽어라.
+- **평문 HTTP를 전제로 세션 쿠키에 `Secure`가 없다.** 리버스 프록시로 TLS를 씌우면
+  로그인 라우트에서 직접 붙여야 한다 — 자동으로 붙지 않는다. `docs/operations.md` 참조.
+- **JSON 본문에 크기 상한이 없다(R50).** JSON을 받는 라우트는 전부
+  `await request.json().catch(() => null)`로 본문을 통째로 메모리에 올린다.
+  상한이 없으니 잘못 붙여넣은 거대한 문서 하나로 프로세스가 죽는다.
+  `ApiErrorCode`에는 `payload_too_large`가 처음부터 있는데 **엑셀 임포트
+  라우트만** 이걸 쓴다(`app/api/v1/import/route.ts`의 Content-Length 선검사와
+  `file.size` 검사). 같은 방식을 JSON 라우트에도 넣어야 한다 — M1에서는
+  범위를 넓히지 않으려고 남겼다.
+
+**기능**
+
+- **`term_surfaces.caseSensitive`가 저장만 되고 매칭에 쓰이지 않는다(F7).**
+  `create.ts`/`update.ts`가 값을 쓰고 `query.ts`가 돌려주지만, grep해보면 이 값을
+  읽어 비교 방식을 바꾸는 코드가 어디에도 없다. M2 매칭 엔진이 이 값을 소비하는
+  첫 지점이 된다. 그때까지는 스키마에만 있는 약속이다.
+- **리비전 목록에 페이지네이션이 없다.** `GET /terms/{idOrSlug}/revisions`는
+  `listRevisions(term.id)`로 전부 가져온다. 자주 고치는 용어 하나가 커지면 그대로
+  드러난다.
+
+**테스트**
+
+- **용어 상세 화면에 실제로 그려지는 값(예: `fullNameKo`, `updatedAt`)에는
+  여전히 테스트가 없다(R97).** jsdom을 쓰지 않기로 한 결정의 대가였다. 다만
+  Task 13에서 길이 하나 열렸다: Server Component는 그냥 async 함수라
+  **직접 호출해서 반환된 React 엘리먼트 트리를 순회하면 jsdom 없이도 검사할 수
+  있다**(`tests/term-edit-page.test.ts`, `vitest.config.ts`의
+  `esbuild.jsx: "automatic"`). 상세 페이지도 Server Component이므로 같은 방법이
+  그대로 통한다 — M2에서 이 패턴으로 메우면 된다. 여전히 못 하는 것은
+  Client Component(`term-form.tsx`)의 렌더·이벤트뿐이고, 그쪽은
+  `tests/term-form-guards.test.ts`의 소스 구조 검사로 버티고 있다.

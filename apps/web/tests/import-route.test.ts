@@ -173,3 +173,57 @@ test("dryRun=false 요청은 실제로 term을 생성한다", async () => {
   expect(rows).toHaveLength(1);
   createdTermIds.push(rows[0]!.id);
 });
+
+// P3(검증 라운드): 위 두 테스트는 dryRun을 항상 명시적으로 보낸다. 그래서
+// 기본값 자체가 뒤집혀도(`!== "false"` -> `=== "true"`) 전체 스위트가 통과했다
+// - 실측했다. 그 회귀의 결과는 "dryRun 필드를 빠뜨린 클라이언트가 실수로
+// 실제 임포트를 실행하는 것"이라 조용하고 되돌리기 어렵다. 안전한 기본값은
+// 그 자체로 계약이므로 따로 고정한다.
+test("P3: dryRun 필드를 아예 보내지 않으면 dry-run으로 처리하고 DB에 쓰지 않는다", async () => {
+  const token = await makeWriteKey();
+  const buf = await buildXlsx("ID14Route Default");
+  const form = new FormData();
+  form.set("file", new File([buf], "t.xlsx"));
+  // dryRun을 의도적으로 넣지 않는다.
+
+  const res = await importPost(
+    new Request("http://x/api/v1/import", {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+      body: form,
+    }),
+  );
+
+  expect(res.status).toBe(200);
+  const parsed = await res.json();
+  expect(parsed.dryRun).toBe(true);
+
+  const rows = await db.select().from(terms).where(eq(terms.nameEn, "ID14Route Default"));
+  expect(rows).toEqual([]);
+});
+
+// R134(검증 라운드): route.ts 주석은 "Content-Length가 없거나 거짓이면
+// file.size 검사가 두 번째 방어선"이라고 주장한다. 주장은 되돌리기 교란이
+// 아니라 실제로 시도해서 확인한다 - 헤더 검사를 통과하는 요청으로 상한을
+// 넘겨본다. (FormData 본문은 undici가 실제 크기로 content-length를 채우므로,
+// 10MB를 살짝 넘는 파일은 헤더 검사(MAX_BYTES + 64KB 여유)를 통과해
+// file.size 검사에 도달한다.)
+test("R134: Content-Length 검사를 통과한 요청도 file.size가 10MB를 넘으면 413이다", async () => {
+  const token = await makeWriteKey();
+  const oversized = new Uint8Array(10 * 1024 * 1024 + 1);
+  const form = new FormData();
+  form.set("file", new File([oversized], "big.xlsx"));
+  form.set("dryRun", "true");
+
+  const res = await importPost(
+    new Request("http://x/api/v1/import", {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+      body: form,
+    }),
+  );
+
+  expect(res.status).toBe(413);
+  const parsed = await res.json();
+  expect(parsed.error.code).toBe("payload_too_large");
+});
