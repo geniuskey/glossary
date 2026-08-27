@@ -485,22 +485,19 @@ test("R107: app/api/v1/terms/ 밑 정적 세그먼트는 전부 RESERVED_SLUGS�
   }
 });
 
-// R107: 페이지 쪽은 Task 12 시점에는 정적 자식이 없다(`app/terms/new/`는
-// Task 13이 만든다 — AppShell이 지금 그리로 링크해도 404인 게 맞고, 결함이
-// 아니다). "new"를 포함하는지로 vacuity를 가드하면 이 파일이 Task 12에서부터
-// 실패한다. 대신 staticChildDirNames의 catch-빈배열 반환과 "정적 자식이 진짜
-// 없음"을 구분한다 — 경로 자체가 잘못돼(오타 등) staticChildDirNames가 조용히
-// []를 반환하는 것과, app/terms/가 실제로 존재하는데 정적 자식이 아직 없는
-// 것은 다르다. existsSync로 전자를 먼저 배제해야, 후자(현재 상태)에서 아래
-// for 루프가 "0회 순회해서 통과"하는 게 진짜로 검사할 게 없어서이지 경로가
-// 깨져서가 아님을 보장한다. Task 13이 app/terms/new/를 추가하면 이 루프가
-// "new"를 실제로 검사하기 시작한다.
+// R107/Task 13: `app/terms/new/`가 이제 실제로 존재한다(용어 생성 폼).
+// `app/terms/[slug]/edit`, `app/terms/[slug]/history`는 동적 세그먼트
+// `[slug]`의 자식이라 staticChildDirNames(app/terms/)에는 잡히지 않는다 —
+// "new"만 app/terms/ 바로 밑의 정적 자식이다. "new"를 포함하는지로 vacuity를
+// 가드해서, staticChildDirNames가 조용히 []를 반환하는 경로 오타와 "정적
+// 자식이 진짜 없음"을 구분한다.
 test("R107: app/terms/ 디렉터리는 존재하고, 그 밑 정적 세그먼트는 전부 RESERVED_SLUGS에 있다", () => {
   const testDir = path.dirname(fileURLToPath(import.meta.url));
   const pageTermsDir = path.join(testDir, "..", "src", "app", "terms");
 
   expect(existsSync(pageTermsDir)).toBe(true);
   const pageSegments = staticChildDirNames(pageTermsDir);
+  expect(pageSegments).toContain("new"); // vacuity 가드: Task 13이 만든 정적 세그먼트.
   for (const seg of pageSegments) {
     expect(RESERVED_SLUGS.has(seg)).toBe(true);
   }

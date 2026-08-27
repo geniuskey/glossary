@@ -3,6 +3,7 @@ import { isResponse, requireAuth } from "@/lib/auth/require";
 import { getTermByIdOrSlug, type TermDetailResponse } from "@/lib/terms/query";
 import { termPatchSchema } from "@/lib/terms/schema";
 import { deleteTerm, updateTerm, type UpdateTermSuccess } from "@/lib/terms/update";
+import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
 
 // Task 10: GET/PATCH/DELETE 세 메서드를 처리한다. 나머지는 405 스텁이다.
 const ALLOWED_METHODS = ["GET", "PATCH", "DELETE"];
@@ -72,13 +73,16 @@ export const PATCH = withApiErrors(
     // 위 분기를 빠뜨리면 여기서 컴파일 오류가 난다 — 그렇지 않으면 내부 판별자가
     // 200 성공 응답으로 클라이언트에 그대로 새어 나간다(리뷰가 실측한 회귀).
     const ok: UpdateTermSuccess = result;
-    // R77(F9) — 보류, 변경 없음: 이 응답은 term/surfaces 원시 컬럼(createdBy/
-    // updatedBy/replacedById, normLoose/normSpace 등)을 그대로 흘려보낸다.
-    // POST /terms가 정확히 같은 모양을 반환하므로 PATCH만 wire 타입으로
-    // 고치면 두 쓰기 엔드포인트 응답이 서로 어긋난다 — Task 13이 두 응답을
-    // 모두 소비하니 그때 함께 통일한다. 이 comment는 R77/F9 판정의 근거이지,
-    // 여기가 실수로 빠뜨린 자리가 아니라는 표시다.
-    return Response.json(ok);
+    // R77(F9) — 해소됨(R112, Task 13): POST/PATCH 양쪽을 wire.ts의
+    // TermWriteResponse/toTermWire/toSurfaceWire/toWarningWire로 통일해
+    // createdBy/updatedBy/replacedById/normLoose/normSpace 같은 내부 컬럼이
+    // 새지 않게 한다. POST(../route.ts)와 정확히 같은 변환을 쓴다.
+    const body: TermWriteResponse = {
+      term: toTermWire(ok.term),
+      surfaces: ok.surfaces.map(toSurfaceWire),
+      warnings: ok.warnings.map(toWarningWire),
+    };
+    return Response.json(body);
   },
 );
 

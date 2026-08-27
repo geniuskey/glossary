@@ -686,3 +686,87 @@ test("존재 확인 후 삭제되면 patch는 500이 아니라 404 term_not_foun
   });
 });
 
+// ----- Task 13: R112 -----
+
+// R112: POST/PATCH 응답이 wire.ts(toTermWire/toSurfaceWire/toWarningWire)를
+// 거치지 않고 DB row를 그대로 JSON.stringify하면, createdBy/updatedBy/
+// replacedById 같은 내부 컬럼과 surfaces의 normLoose/normSpace, warnings의
+// conflictingTermId/normLoose가 그대로 새어나간다 — 클라이언트가 필요로 하지
+// 않는 내부 표현이 API 계약의 일부가 돼버린다. 실제 HTTP 핸들러가 돌려주는
+// JSON을 직접 파싱해서 금지된 키가 전혀 없는지 확인한다(허용 목록이 아니라
+// 금지 목록 방식 — 나중에 필드가 추가돼도 이 테스트는 여전히 유효하다).
+test("POST 응답의 term/surfaces에는 내부 전용 컬럼이 없다 (R112)", async () => {
+  const { token } = await makeKeyRow(["write"]);
+  const res = await termsPost(
+    postRequest(
+      { nameEn: "Wire Probe A", domain: [], surfaces: [{ text: "WPA", lang: "en", kind: "alias" }] },
+      token,
+    ),
+  );
+  expect(res.status).toBe(201);
+  const body = await res.json();
+  createdTermIds.push(body.term.id);
+
+  expect(body.term).not.toHaveProperty("createdBy");
+  expect(body.term).not.toHaveProperty("updatedBy");
+  expect(body.term).not.toHaveProperty("replacedById");
+  expect(body.term).not.toHaveProperty("createdAt");
+  for (const s of body.surfaces) {
+    expect(s).not.toHaveProperty("normLoose");
+    expect(s).not.toHaveProperty("normSpace");
+  }
+});
+
+// PATCH 쪽도 동일한 변환을 거치는지 별도로 확인한다 — route.ts와
+// [idOrSlug]/route.ts는 서로 다른 파일이라 한쪽만 고치고 다른 쪽을 빠뜨리는
+// 회귀가 가능하다(R112 도입 당시 실제로 두 파일을 각각 수정했다).
+test("PATCH 응답의 term/surfaces에도 내부 전용 컬럼이 없다 (R112)", async () => {
+  const term = await seedRouteTerm();
+  const { token } = await makeKeyRow(["write"]);
+  const res = await termPatch(
+    patchRequest({ nameKo: "와이어패치", surfaces: [{ text: "WPB", lang: "en", kind: "alias" }] }, token),
+    { params: Promise.resolve({ idOrSlug: term.slug }) },
+  );
+  expect(res.status).toBe(200);
+  const body = await res.json();
+
+  expect(body.term).not.toHaveProperty("createdBy");
+  expect(body.term).not.toHaveProperty("updatedBy");
+  expect(body.term).not.toHaveProperty("replacedById");
+  for (const s of body.surfaces) {
+    expect(s).not.toHaveProperty("normLoose");
+    expect(s).not.toHaveProperty("normSpace");
+  }
+});
+
+// warnings는 실제로 중복이 나야 채워진다 — 같은 표기를 가진 두 번째 term을
+// 만들어서 warnings 배열 자체를 실제로 태운 뒤에도 conflictingTermId/normLoose가
+// 새어나오지 않는지 확인한다(둘 다 비어 있는 배열만 테스트하면 이 필드들이
+// 존재하는지 여부를 검증한 게 아니다).
+test("POST 응답의 warnings에는 conflictingTermId/normLoose가 없다 (R112)", async () => {
+  const { token } = await makeKeyRow(["write"]);
+  const first = await termsPost(
+    postRequest({ nameEn: "Wire Warning Probe", domain: [], surfaces: [] }, token),
+  );
+  const firstBody = await first.json();
+  createdTermIds.push(firstBody.term.id);
+
+  const second = await termsPost(
+    postRequest(
+      { nameEn: "Wire Warning Probe Two", domain: [], surfaces: [{ text: "Wire Warning Probe", lang: "en", kind: "alias" }] },
+      token,
+    ),
+  );
+  expect(second.status).toBe(201);
+  const secondBody = await second.json();
+  createdTermIds.push(secondBody.term.id);
+
+  expect(secondBody.warnings.length).toBeGreaterThan(0);
+  for (const w of secondBody.warnings) {
+    expect(w).not.toHaveProperty("conflictingTermId");
+    expect(w).not.toHaveProperty("normLoose");
+    expect(w).toHaveProperty("surfaceText");
+    expect(w).toHaveProperty("conflictingSlug");
+  }
+});
+

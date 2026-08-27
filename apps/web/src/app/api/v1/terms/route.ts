@@ -4,6 +4,7 @@ import { requireAuth, isResponse } from "@/lib/auth/require";
 import { termInputSchema } from "@/lib/terms/schema";
 import { createTerm } from "@/lib/terms/create";
 import { listTerms, type TermStatus, type TermType } from "@/lib/terms/query";
+import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
 
 // R25: 새 라우트도 처리하지 않는 메서드를 명시 export한다.
 const ALLOWED_METHODS = ["GET", "POST"];
@@ -118,5 +119,13 @@ export const POST = withApiErrors(async (request: Request) => {
   const authorKeyId = auth.kind === "key" ? auth.keyId : null;
   const { term, surfaces, warnings } = await createTerm(parsed.data, authorId, authorKeyId);
 
-  return Response.json({ term, surfaces, warnings }, { status: 201 });
+  // R112: createTerm이 돌려주는 term/surfaces는 DB 원시 행이다 — 명시 wire
+  // 타입으로 변환해 createdBy/updatedBy/normLoose 같은 내부 컬럼이 새지 않게
+  // 한다. PATCH(아래 [idOrSlug]/route.ts)도 정확히 같은 타입을 쓴다.
+  const body: TermWriteResponse = {
+    term: toTermWire(term),
+    surfaces: surfaces.map(toSurfaceWire),
+    warnings: warnings.map(toWarningWire),
+  };
+  return Response.json(body, { status: 201 });
 });

@@ -429,3 +429,63 @@ test("UPDATE 직전에 term이 삭제되면 500이 아니라 notFound를 돌려�
   await expect(updatePromise).resolves.toEqual({ notFound: true });
 });
 
+// ----- Task 13: R115 -----
+
+// R115: listRevisions는 이제 users/api_keys를 LEFT JOIN해서 authorName/
+// authorKeyName을 함께 내려준다(history 화면이 UUID 대신 사람이 읽을 이름을
+// 보여주기 위함, R115). 사용자 저작 리비전은 authorName만, API 키 저작
+// 리비전은 authorKeyName만 채워지고 나머지는 null이어야 한다 — 둘 다 채우거나
+// 둘 다 비우면 화면이 잘못된 이름을 보여주거나 "알 수 없음"으로 잘못 뭉갠다.
+test("listRevisions는 사용자 저작 리비전에 authorName을 채우고 authorKeyName은 null이다 (R115)", async () => {
+  const term = await seed();
+
+  const [user] = await db
+    .insert(users)
+    .values({
+      email: `terms-update-r115-${Date.now()}@example.com`,
+      name: "R115 테스트 사용자",
+      passwordHash: await hashPassword("irrelevant"),
+    })
+    .returning();
+  createdUsers.push(user!.id);
+
+  expectSaved(await updateTerm(term.id, { nameKo: "블랙레벨" }, user!.id));
+
+  const revs = await listRevisions(term.id);
+  const latest = revs.find((r) => r.revisionNumber === 2);
+  expect(latest?.authorName).toBe("R115 테스트 사용자");
+  expect(latest?.authorKeyName).toBeNull();
+});
+
+test("listRevisions는 API 키 저작 리비전에 authorKeyName을 채우고 authorName은 null이다 (R115)", async () => {
+  const term = await seed();
+
+  const [key] = await db
+    .insert(apiKeys)
+    .values({
+      name: "R115 테스트 키",
+      prefix: `r115${Date.now()}`.slice(0, 12),
+      keyHash: "irrelevant-hash",
+      scopes: ["write"],
+    })
+    .returning();
+  createdKeys.push(key!.id);
+
+  expectSaved(await updateTerm(term.id, { nameKo: "블랙레벨" }, null, undefined, key!.id));
+
+  const revs = await listRevisions(term.id);
+  const latest = revs.find((r) => r.revisionNumber === 2);
+  expect(latest?.authorKeyName).toBe("R115 테스트 키");
+  expect(latest?.authorName).toBeNull();
+});
+
+// 생성 시점(authorId=null, authorKeyId 없음)의 리비전은 둘 다 null이어야 한다
+// — 화면(history/page.tsx)이 이 경우를 "알 수 없음"으로 표시하는 근거다.
+test("작성자 정보가 전혀 없는 리비전은 authorName/authorKeyName 모두 null이다 (R115)", async () => {
+  const term = await seed();
+  const revs = await listRevisions(term.id);
+  const initial = revs.find((r) => r.revisionNumber === 1);
+  expect(initial?.authorName).toBeNull();
+  expect(initial?.authorKeyName).toBeNull();
+});
+

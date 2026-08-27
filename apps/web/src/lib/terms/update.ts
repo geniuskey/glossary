@@ -1,9 +1,9 @@
 import { desc, eq, sql } from "drizzle-orm";
-import { surfaceKeys, terms, termRevisions, termSurfaces } from "@grossary/db";
+import { apiKeys, surfaceKeys, terms, termRevisions, termSurfaces, users } from "@grossary/db";
 import { getDb } from "@/lib/db";
 import { checkSurfaceConflicts } from "./schema";
 import { findDuplicates, type DuplicateWarning } from "./create";
-import { defaultCaseSensitive, deriveSurfaces, type CanonicalNames } from "./surfaces";
+import { defaultCaseSensitive, deriveSurfaces, pickExplicitSurfaces, type CanonicalNames } from "./surfaces";
 import type { SurfaceInput, TermInput } from "./schema";
 
 export type TermUpdate = Partial<TermInput>;
@@ -17,6 +17,11 @@ export interface RevisionRow {
   // term_revisions에 남긴 이유가 API 키 작성 리비전의 행위자를 나중에 복원하기
   // 위해서였는데, 이 목록이 그 컬럼을 숨기면 컬럼을 남긴 이유 자체가 없어진다.
   authorKeyId: string | null;
+  // R115: id만으로는 이력 화면이 "누가"를 사람이 읽을 수 있는 이름으로 보여줄
+  // 수 없다 — users/api_keys를 조인해 이름을 함께 싣는다. 사용자가 지워졌으면
+  // (ON DELETE SET NULL) authorId는 남아도 authorName은 null일 수 있다.
+  authorName: string | null;
+  authorKeyName: string | null;
   createdAt: Date;
 }
 
@@ -56,9 +61,16 @@ export async function listRevisions(termId: string): Promise<RevisionRow[]> {
       message: termRevisions.message,
       authorId: termRevisions.authorId,
       authorKeyId: termRevisions.authorKeyId,
+      // R115: authorId/authorKeyId 둘 다 nullable FK라 INNER JOIN이면 그
+      // 리비전 자체가 결과에서 통째로 빠진다(예: 작성자가 나중에 삭제된 경우).
+      // LEFT JOIN + coalesce 없이 그대로 두면 두 이름 다 null인 행도 정상이다.
+      authorName: users.name,
+      authorKeyName: apiKeys.name,
       createdAt: termRevisions.createdAt,
     })
     .from(termRevisions)
+    .leftJoin(users, eq(users.id, termRevisions.authorId))
+    .leftJoin(apiKeys, eq(apiKeys.id, termRevisions.authorKeyId))
     .where(eq(termRevisions.termId, termId))
     .orderBy(desc(termRevisions.revisionNumber));
 }
@@ -109,16 +121,17 @@ export async function updateTerm(
     .from(termSurfaces)
     .where(eq(termSurfaces.termId, termId));
 
-  // R51: PATCH에 surfaces가 없다고 표기를 통째로 지우면 안 된다. "이 term의 이름
-  // 필드만으로(명시 표기 없이) 다시 파생시켰을 때 나오는 정규화 키:kind 집합"과
-  // 저장된 행을 비교해서, 그 집합 밖에 있는 저장 행만 사용자가 직접 추가한
-  // 명시 표기로 취급한다. deriveSurfaces의 dedup 키(`normLoose:kind`)와 정확히
-  // 같은 규칙을 써야 파생/명시 판정이 create 경로와 어긋나지 않는다.
-  const derivedFromOld = deriveSurfaces(oldTerm, []);
-  const derivedKeys = new Set(derivedFromOld.map((s) => `${surfaceKeys(s.text).normLoose}:${s.kind}`));
-  const storedExplicit: SurfaceInput[] = oldSurfaceRows
-    .filter((r) => !derivedKeys.has(`${r.normLoose}:${r.kind}`))
-    .map((r) => ({ text: r.text, lang: r.lang, kind: r.kind, caseSensitive: r.caseSensitive }));
+  // R51/R110: PATCH에 surfaces가 없다고 표기를 통째로 지우면 안 된다. "이 term의
+  // 이름 필드만으로(명시 표기 없이) 다시 파생시켰을 때 나오는 정규화 키:kind
+  // 집합"과 저장된 행을 비교해서, 그 집합 밖에 있는 저장 행만 사용자가 직접
+  // 추가한 명시 표기로 취급한다. 이 판정은 편집 폼(Task 13)의 초기값 계산과도
+  // 정확히 같아야 하므로 pickExplicitSurfaces로 소유권을 공유한다.
+  const storedExplicit: SurfaceInput[] = pickExplicitSurfaces(oldTerm, oldSurfaceRows).map((r) => ({
+    text: r.text,
+    lang: r.lang,
+    kind: r.kind,
+    caseSensitive: r.caseSensitive,
+  }));
 
   // surfaces가 요청에 명시되면(빈 배열이라도) 그 값으로 명시 표기 전체를
   // 교체한다. undefined일 때만 기존 명시 표기를 그대로 이어간다.
