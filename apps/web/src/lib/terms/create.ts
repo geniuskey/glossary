@@ -18,7 +18,10 @@ export interface DuplicateWarning {
 // 영원히 불가능해진다(그 라우트는 POST만 허용해 405가 나간다).
 // slugify("Lookup") === "lookup"이라 이런 이름의 용어를 만드는 순간 조용히
 // 발생한다 — 예약어는 uniqueSlug에서 "이미 사용 중"인 것처럼 취급해 피한다.
-const RESERVED_SLUGS = new Set(["lookup"]);
+// R105: 손으로 유지되는 리터럴이라 라우트 파일시스템과 연결이 없다 — export해서
+// "app/api/v1/terms/ 밑 정적 세그먼트가 전부 여기 있는가"를 구조 테스트로
+// 잠근다(테스트: apps/web/tests/terms-lookup.test.ts).
+export const RESERVED_SLUGS = new Set(["lookup"]);
 
 async function uniqueSlug(base: string): Promise<string> {
   const seed = base || "term";

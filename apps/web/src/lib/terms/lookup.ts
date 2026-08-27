@@ -21,8 +21,11 @@ type SurfaceKind = (typeof surfaceKindEnum.enumValues)[number];
  * full_name > alias. Record<SurfaceKind, number>로 선언해서, surfaceKindEnum에
  * kind가 추가/변경되는데 이 표를 갱신하지 않으면 타입 검사가 실패한다(리터럴이
  * SurfaceKind의 키를 전부 포함해야 함) — "6종이 모두 있는지 타입으로 강제".
+ *
+ * R100: 우선순위는 구현 세부사항이 아니라 제품 규칙이다(R85) — export해서
+ * 단위 테스트가 표 전체(인접 쌍 5개 + 셔플)를 직접 고정할 수 있게 한다.
  */
-const MATCH_KIND_PRIORITY: Record<SurfaceKind, number> = {
+export const MATCH_KIND_PRIORITY: Record<SurfaceKind, number> = {
   forbidden: 0,
   discouraged: 1,
   canonical: 2,
@@ -31,7 +34,7 @@ const MATCH_KIND_PRIORITY: Record<SurfaceKind, number> = {
   alias: 5,
 };
 
-function pickMatchKind(kinds: SurfaceKind[]): SurfaceKind {
+export function pickMatchKind(kinds: SurfaceKind[]): SurfaceKind {
   return kinds.reduce((best, k) => (MATCH_KIND_PRIORITY[k] < MATCH_KIND_PRIORITY[best] ? k : best));
 }
 
