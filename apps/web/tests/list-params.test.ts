@@ -73,6 +73,16 @@ test("parsePage: 유효한 양의 정수 문자열은 그대로 통과한다", (
   expect(parsePage("3")).toBe(3);
 });
 
+// F1: "1e999"는 Number.isFinite 게이트에 걸려 1이 되지만(위 테스트), "1e20"은
+// 유한하면서 거대한 값이라 그 게이트를 그냥 통과한다. 상한 클램프가 없으면
+// listTerms의 offset 계산이 bigint 범위를 넘겨 실제 DB 호출에서
+// "invalid input syntax for type bigint"가 던져진다(review §3 F1). API
+// 라우트가 이미 쓰는 것과 같은 상한(Number.MAX_SAFE_INTEGER)으로 클램프됨을
+// 확인한다.
+test("parsePage: page=1e20(유한하지만 거대한 값)은 MAX_SAFE_INTEGER로 클램프된다 (F1)", () => {
+  expect(parsePage("1e20")).toBe(Number.MAX_SAFE_INTEGER);
+});
+
 // R93: 페이지네이션 계산 — totalPages, 이전/다음 존재 여부, 경계.
 test("paginationInfo: total=0이면 totalPages=0이고 이전/다음 모두 없다", () => {
   const info = paginationInfo(1, 0, 20);
@@ -107,6 +117,10 @@ test("paginationInfo: page가 totalPages를 넘어가도(빈 결과 페이지) �
   expect(info.totalPages).toBe(2);
   expect(info.hasPrev).toBe(true);
   expect(info.hasNext).toBe(false);
+  // F5: page가 인자 그대로 돌아오는지 아무도 단언하지 않았다 — paginationInfo가
+  // page를 1로 고정해도(회귀) 위 세 단언은 전부 그대로 통과했다. page=1이 아닌
+  // 입력에서 확인해야 하드코딩 회귀를 실제로 잡는다.
+  expect(info.page).toBe(5);
 });
 
 // R93/R94: 쿼리스트링 보존 — 현재 필터가 그대로 실리고 page만 바뀌는지. 이

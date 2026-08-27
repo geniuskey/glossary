@@ -37,12 +37,20 @@ function narrowEnum<T extends string>(raw: string | string[] | undefined, allowe
 // R90: `Number("1e999")`는 Infinity, `Number("abc")`는 NaN이다 — 둘 다
 // Number.isFinite로 걸러 기본값 1로 되돌린다. 0/음수/소수는 정수로 내림한 뒤
 // 최소 1로 클램프한다.
+// F1(수정 라운드): 유한하지만 거대한 값(예: "1e20")은 위 게이트를 그냥
+// 통과해서 listTerms의 `(page-1)*pageSize`가 bigint 범위를 넘겨 Postgres가
+// "invalid input syntax for type bigint"를 던지고, Server Component에는
+// withApiErrors 같은 그물이 없어 그대로 Next 에러 페이지가 된다 — R90이
+// 막으려던 바로 그 결과다. API 라우트(app/api/v1/terms/route.ts)가 이미
+// parsePageParam(..., Number.MAX_SAFE_INTEGER)로 상한을 두는 것과 같은 값으로
+// 클램프한다. R91은 실패 신호(400 vs 무시)만 갈라지라고 했지, 범위 클램프까지
+// 갈라지라고 하지 않았다.
 export function parsePage(raw: string | string[] | undefined): number {
   const value = firstValue(raw);
   if (value === undefined) return 1;
   const n = Number(value);
   if (!Number.isFinite(n)) return 1;
-  return Math.max(1, Math.floor(n));
+  return Math.min(Number.MAX_SAFE_INTEGER, Math.max(1, Math.floor(n)));
 }
 
 export function parseListParams(raw: RawSearchParams): ParsedListParams {
