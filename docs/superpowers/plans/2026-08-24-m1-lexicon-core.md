@@ -19,6 +19,9 @@
 - DB 볼륨은 `name: grossary_pgdata`로 명시 고정. 디렉터리명 파생 금지.
 - 용어 상태는 `draft | approved | deprecated | forbidden`, 표기 종류는 `canonical | abbreviation | full_name | alias | discouraged | forbidden`, 용어 종류는 `term | abbreviation | project | product_id | code | unit`.
 - API 에러는 전 엔드포인트가 `{ error: { code, message, details? } }` 형태로 통일한다.
+- 이 규약에는 예외가 없다. 매칭되지 않는 경로(`[...unmatched]` 캐치올)와 지원하지 않는 HTTP
+  메서드까지 포함한다. Next가 기본 생성하는 405는 본문이 0바이트라 규약을 깨므로, 모든 API
+  라우트는 자기가 처리하지 않는 메서드를 `methodNotAllowed`로 명시 export한다.
 - API Key 형식은 `glk_<prefix>_<secret>`이며 DB에는 해시만 저장한다.
 - 커밋 메시지는 영어 `type: description` 형식.
 
@@ -47,8 +50,7 @@
   "scripts": {
     "build": "turbo run build",
     "test": "turbo run test",
-    "typecheck": "turbo run typecheck",
-    "lint": "turbo run lint"
+    "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
     "turbo": "^2.3.0",
@@ -72,8 +74,7 @@ packages:
   "tasks": {
     "build": { "dependsOn": ["^build"], "outputs": ["dist/**", ".next/**", "!.next/cache/**"] },
     "test": { "dependsOn": ["^build"] },
-    "typecheck": { "dependsOn": ["^build"] },
-    "lint": {}
+    "typecheck": { "dependsOn": ["^build"] }
   }
 }
 ```
@@ -339,7 +340,7 @@ services:
       POSTGRES_PASSWORD: grossary
       POSTGRES_DB: grossary
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
@@ -364,8 +365,8 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 `.env.example`:
 ```
-DATABASE_URL=postgres://grossary:grossary@localhost:5432/grossary
-DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5432/grossary_test
+DATABASE_URL=postgres://grossary:grossary@localhost:5434/grossary
+DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5434/grossary_test
 POSTGRES_PASSWORD=grossary
 ```
 
@@ -593,9 +594,9 @@ docker compose up -d postgres          # init-db.sql이 pg_trgm과 grossary_test
 pnpm install
 pnpm --filter @grossary/engine build   # db 테스트가 engine의 dist를 import한다
 pnpm --filter @grossary/db db:generate
-DATABASE_URL=postgres://grossary:grossary@localhost:5432/grossary pnpm --filter @grossary/db db:migrate
-DATABASE_URL=postgres://grossary:grossary@localhost:5432/grossary_test pnpm --filter @grossary/db db:migrate
-DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5432/grossary_test pnpm --filter @grossary/db test
+DATABASE_URL=postgres://grossary:grossary@localhost:5434/grossary pnpm --filter @grossary/db db:migrate
+DATABASE_URL=postgres://grossary:grossary@localhost:5434/grossary_test pnpm --filter @grossary/db db:migrate
+DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5434/grossary_test pnpm --filter @grossary/db test
 ```
 Expected: parity 테스트 PASS.
 
@@ -726,9 +727,9 @@ test("모든 신규 테이블에 조회가 가능하다", async () => {
 
 ```bash
 pnpm --filter @grossary/db db:generate
-DATABASE_URL=postgres://grossary:grossary@localhost:5432/grossary pnpm --filter @grossary/db db:migrate
-DATABASE_URL=postgres://grossary:grossary@localhost:5432/grossary_test pnpm --filter @grossary/db db:migrate
-DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5432/grossary_test pnpm --filter @grossary/db test
+DATABASE_URL=postgres://grossary:grossary@localhost:5434/grossary pnpm --filter @grossary/db db:migrate
+DATABASE_URL=postgres://grossary:grossary@localhost:5434/grossary_test pnpm --filter @grossary/db db:migrate
+DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5434/grossary_test pnpm --filter @grossary/db test
 ```
 Expected: 전체 PASS.
 
@@ -933,7 +934,6 @@ export type ApiErrorCode =
   | "unauthorized"
   | "forbidden"
   | "term_not_found"
-  | "slug_conflict"
   | "revision_conflict"
   | "payload_too_large"
   | "internal_error";
@@ -1005,13 +1005,14 @@ git commit -m "feat: scaffold next.js app with api error contract and health end
 - Create: `apps/web/src/app/api/v1/auth/login/route.ts`, `apps/web/src/app/api/v1/auth/logout/route.ts`
 - Create: `apps/web/src/app/login/page.tsx`
 - Create: `apps/web/scripts/seed-admin.ts`
-- Test: `apps/web/tests/password.test.ts`
+- Test: `apps/web/tests/password.test.ts`, `apps/web/tests/session.test.ts`
 
 **Interfaces:**
 - Consumes: `users`, `sessions` from `@grossary/db`
 - Produces:
   - `hashPassword(plain): Promise<string>`, `verifyPassword(plain, stored): Promise<boolean>`
-  - `createSession(userId): Promise<{ id: string; expiresAt: Date }>`
+  - `createSession(userId): Promise<{ token: string; expiresAt: Date }>` — `token`은 쿠키에 담는 원문이고, DB에는 그 해시가 들어간다
+  - `deleteSession(token): Promise<void>`, `hashSessionToken(token): string`
   - `getCurrentUser(): Promise<{ id: string; email: string; name: string; role: "admin" | "editor" } | null>`
 
 - [ ] **Step 1: 비밀번호 해시 테스트 작성**
@@ -1041,6 +1042,59 @@ test("손상된 저장값에서 예외 대신 false를 반환한다", async () =
   await expect(verifyPassword("x", "garbage")).resolves.toBe(false);
 });
 ```
+
+`apps/web/tests/session.test.ts`:
+```ts
+import { eq } from "drizzle-orm";
+import { afterAll, expect, test } from "vitest";
+import { createDb, sessions, users } from "@grossary/db";
+import { createSession, deleteSession, hashSessionToken } from "../src/lib/auth/session.js";
+import { hashPassword } from "../src/lib/auth/password.js";
+
+const db = createDb(process.env.DATABASE_URL!);
+const createdUserIds: string[] = [];
+
+async function makeUser() {
+  const [row] = await db
+    .insert(users)
+    .values({
+      email: `session-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`,
+      name: "세션 테스트",
+      passwordHash: await hashPassword("irrelevant"),
+    })
+    .returning();
+  createdUserIds.push(row!.id);
+  return row!;
+}
+
+afterAll(async () => {
+  for (const id of createdUserIds) await db.delete(users).where(eq(users.id, id));
+});
+
+test("쿠키에 담는 토큰 원문은 DB에 남지 않는다", async () => {
+  const user = await makeUser();
+  const { token } = await createSession(user.id);
+
+  const rows = await db.select().from(sessions).where(eq(sessions.userId, user.id));
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.id).not.toBe(token);
+  expect(rows[0]!.id).toBe(hashSessionToken(token));
+});
+
+test("토큰 원문으로 세션을 지운다", async () => {
+  const user = await makeUser();
+  const { token } = await createSession(user.id);
+
+  await deleteSession(token);
+
+  const rows = await db.select().from(sessions).where(eq(sessions.userId, user.id));
+  expect(rows).toHaveLength(0);
+});
+```
+
+첫 번째 테스트가 이 설계의 전부다. `not.toBe(token)`만 있으면 아무 값이나 넣어도 통과하니
+`toBe(hashSessionToken(token))`까지 함께 걸어 실제로 조회 가능한 해시가 저장됐는지 본다.
 
 - [ ] **Step 2: 실패 확인 후 구현**
 
@@ -1081,7 +1135,7 @@ export async function verifyPassword(plain: string, stored: string): Promise<boo
 
 `apps/web/src/lib/auth/session.ts`:
 ```ts
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { eq, lt } from "drizzle-orm";
 import { sessions } from "@grossary/db";
 import { getDb } from "@/lib/db";
@@ -1089,15 +1143,24 @@ import { getDb } from "@/lib/db";
 export const SESSION_COOKIE = "grossary_session";
 const TTL_MS = 1000 * 60 * 60 * 24 * 14;
 
-export async function createSession(userId: string) {
-  const id = randomBytes(32).toString("base64url");
-  const expiresAt = new Date(Date.now() + TTL_MS);
-  await getDb().insert(sessions).values({ id, userId, expiresAt });
-  return { id, expiresAt };
+/**
+ * 쿠키에 담는 토큰 원문과 DB에 남는 값을 분리한다.
+ * 백업 파일이나 덤프 한 벌이 그대로 살아있는 세션 묶음이 되지 않게 하려는 것이다.
+ * 토큰이 이미 256비트 난수라 솔트나 느린 해시가 필요 없다. 조회 때마다 도는 경로다.
+ */
+export function hashSessionToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
 }
 
-export async function deleteSession(id: string) {
-  await getDb().delete(sessions).where(eq(sessions.id, id));
+export async function createSession(userId: string) {
+  const token = randomBytes(32).toString("base64url");
+  const expiresAt = new Date(Date.now() + TTL_MS);
+  await getDb().insert(sessions).values({ id: hashSessionToken(token), userId, expiresAt });
+  return { token, expiresAt };
+}
+
+export async function deleteSession(token: string) {
+  await getDb().delete(sessions).where(eq(sessions.id, hashSessionToken(token)));
 }
 
 export async function purgeExpiredSessions() {
@@ -1105,13 +1168,16 @@ export async function purgeExpiredSessions() {
 }
 ```
 
+`sessions.id`는 스키마 그대로 text PK다. 들어가는 값만 토큰 원문에서 sha256 hex 64자로 바뀐다.
+Task 4의 마이그레이션을 건드릴 이유가 없다.
+
 `apps/web/src/lib/auth/current-user.ts`:
 ```ts
 import { cookies } from "next/headers";
 import { and, eq, gt } from "drizzle-orm";
 import { sessions, users } from "@grossary/db";
 import { getDb } from "@/lib/db";
-import { SESSION_COOKIE } from "./session";
+import { hashSessionToken, SESSION_COOKIE } from "./session";
 
 export interface CurrentUser {
   id: string;
@@ -1122,14 +1188,14 @@ export interface CurrentUser {
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const store = await cookies();
-  const id = store.get(SESSION_COOKIE)?.value;
-  if (!id) return null;
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (!token) return null;
 
   const [row] = await getDb()
     .select({ id: users.id, email: users.email, name: users.name, role: users.role })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
-    .where(and(eq(sessions.id, id), gt(sessions.expiresAt, new Date())))
+    .where(and(eq(sessions.id, hashSessionToken(token)), gt(sessions.expiresAt, new Date())))
     .limit(1);
 
   return row ?? null;
@@ -1167,7 +1233,7 @@ export async function POST(request: Request) {
   const res = Response.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
   res.headers.append(
     "set-cookie",
-    `${SESSION_COOKIE}=${session.id}; HttpOnly; SameSite=Lax; Path=/; Expires=${session.expiresAt.toUTCString()}`,
+    `${SESSION_COOKIE}=${session.token}; HttpOnly; SameSite=Lax; Path=/; Expires=${session.expiresAt.toUTCString()}`,
   );
   return res;
 }
@@ -1182,8 +1248,8 @@ import { deleteSession, SESSION_COOKIE } from "@/lib/auth/session";
 
 export async function POST() {
   const store = await cookies();
-  const id = store.get(SESSION_COOKIE)?.value;
-  if (id) await deleteSession(id);
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (token) await deleteSession(token);
 
   const res = Response.json({ ok: true });
   res.headers.append("set-cookie", `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`);
@@ -1196,9 +1262,10 @@ export async function POST() {
 import { createDb, users } from "@grossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 
-const [email, password, name] = process.argv.slice(2);
+const [email, name] = process.argv.slice(2);
+const password = process.env.ADMIN_PASSWORD;
 if (!email || !password) {
-  console.error("usage: tsx scripts/seed-admin.ts <email> <password> [name]");
+  console.error("usage: ADMIN_PASSWORD=<password> tsx scripts/seed-admin.ts <email> [name]");
   process.exit(1);
 }
 
@@ -1264,7 +1331,7 @@ export default function LoginPage() {
 
 ```bash
 pnpm --filter @grossary/web test
-pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts admin@example.com pw-for-local Admin
+ADMIN_PASSWORD=pw-for-local pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts admin@example.com Admin
 curl -s -X POST localhost:3000/api/v1/auth/login -H 'content-type: application/json' \
   -d '{"email":"admin@example.com","password":"pw-for-local"}' -i | head -20
 ```
@@ -1569,7 +1636,7 @@ git commit -m "feat: add api key issuance and scoped auth"
 ### Task 8: 용어 생성 API + 중복 경고 + 리비전
 
 **Files:**
-- Create: `apps/web/src/lib/terms/schema.ts`, `apps/web/src/lib/terms/slug.ts`, `apps/web/src/lib/terms/create.ts`
+- Create: `apps/web/src/lib/terms/schema.ts`, `apps/web/src/lib/terms/slug.ts`, `apps/web/src/lib/terms/surfaces.ts`, `apps/web/src/lib/terms/create.ts`
 - Create: `apps/web/src/app/api/v1/terms/route.ts`
 - Test: `apps/web/tests/slug.test.ts`, `apps/web/tests/terms-create.test.ts`
 
@@ -1577,9 +1644,15 @@ git commit -m "feat: add api key issuance and scoped auth"
 - Consumes: `terms`, `termSurfaces`, `termRevisions`, `surfaceKeys` from `@grossary/db`; `requireAuth`
 - Produces:
   - `slugify(input: string): string`
-  - `termInputSchema` (zod) — `{ termType, nameEn?, nameKo?, fullNameEn?, fullNameKo?, domain[], status, definitionMd?, surfaces[], force? }`
-  - `createTerm(input, authorId): Promise<{ term; warnings: DuplicateWarning[] }>`
+  - `termInputBaseSchema` / `termInputSchema` / `termPatchSchema` (zod) — `{ termType, nameEn?, nameKo?, fullNameEn?, fullNameKo?, domain[], status, definitionMd?, surfaces[] }`
+  - `deriveSurfaces(names: CanonicalNames, explicit: SurfaceInput[]): SurfaceInput[]`
+  - `defaultCaseSensitive(text: string): boolean`
+  - `createTerm(input, authorId): Promise<{ term; surfaces; warnings: DuplicateWarning[] }>`
+  - `findDuplicates(surfaces: SurfaceInput[]): Promise<DuplicateWarning[]>`
   - `interface DuplicateWarning { normLoose: string; conflictingTermId: string; conflictingSlug: string; surfaceText: string }`
+
+  Task 10의 `updateTerm`도 `deriveSurfaces`/`defaultCaseSensitive`를 그대로 import한다.
+  생성과 수정이 같은 파생 규칙을 써야 표기 집합이 갈라지지 않는다. 복사하지 말 것.
 
 - [ ] **Step 1: slug 테스트 작성**
 
@@ -1714,7 +1787,6 @@ export const termInputBaseSchema = z.object({
   status: z.enum(["draft", "approved", "deprecated", "forbidden"]).default("draft"),
   definitionMd: z.string().optional(),
   surfaces: z.array(surfaceInputSchema).default([]),
-  force: z.boolean().optional(),
 });
 
 /** 생성용. 표준 표기가 최소 하나는 있어야 한다. */
@@ -1736,12 +1808,57 @@ export type TermInput = z.infer<typeof termInputBaseSchema>;
 export type SurfaceInput = z.infer<typeof surfaceInputSchema>;
 ```
 
+`apps/web/src/lib/terms/surfaces.ts` — 생성(Task 8)과 수정(Task 10)이 공유하는 파생 규칙:
+```ts
+import { surfaceKeys } from "@grossary/db";
+import type { SurfaceInput } from "./schema";
+
+/** 표준 표기 필드만 추린 공통 형태. TermInput과 terms 테이블 row 양쪽이 만족한다. */
+export interface CanonicalNames {
+  termType: string;
+  nameEn?: string | null;
+  nameKo?: string | null;
+  fullNameEn?: string | null;
+  fullNameKo?: string | null;
+}
+
+/** 짧은 전대문자 표기는 대소문자를 구분해야 노이즈가 생기지 않는다. */
+export function defaultCaseSensitive(text: string): boolean {
+  return /^[A-Z0-9]{2,6}$/.test(text);
+}
+
+/**
+ * 표준 표기에서 파생된 표기와 사용자가 직접 넣은 표기를 합친다.
+ * 정규화 키와 kind가 같으면 먼저 온 쪽을 남긴다.
+ */
+export function deriveSurfaces(names: CanonicalNames, explicit: SurfaceInput[]): SurfaceInput[] {
+  const derived: SurfaceInput[] = [];
+  const isAbbrev = names.termType === "abbreviation";
+
+  if (names.nameEn) {
+    derived.push({ text: names.nameEn, lang: "en", kind: isAbbrev ? "abbreviation" : "canonical" });
+  }
+  if (names.nameKo) derived.push({ text: names.nameKo, lang: "ko", kind: "canonical" });
+  if (names.fullNameEn) derived.push({ text: names.fullNameEn, lang: "en", kind: "full_name" });
+  if (names.fullNameKo) derived.push({ text: names.fullNameKo, lang: "ko", kind: "full_name" });
+
+  const seen = new Set<string>();
+  return [...derived, ...explicit].filter((s) => {
+    const key = `${surfaceKeys(s.text).normLoose}:${s.kind}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+```
+
 `apps/web/src/lib/terms/create.ts`:
 ```ts
 import { eq, inArray, like } from "drizzle-orm";
 import { surfaceKeys, terms, termRevisions, termSurfaces } from "@grossary/db";
 import { getDb } from "@/lib/db";
 import { slugify } from "./slug";
+import { defaultCaseSensitive, deriveSurfaces } from "./surfaces";
 import type { SurfaceInput, TermInput } from "./schema";
 
 export interface DuplicateWarning {
@@ -1749,30 +1866,6 @@ export interface DuplicateWarning {
   surfaceText: string;
   conflictingTermId: string;
   conflictingSlug: string;
-}
-
-/** 짧은 전대문자 표기는 대소문자를 구분해야 노이즈가 생기지 않는다. */
-function defaultCaseSensitive(text: string): boolean {
-  return /^[A-Z0-9]{2,6}$/.test(text);
-}
-
-function collectSurfaces(input: TermInput): SurfaceInput[] {
-  const derived: SurfaceInput[] = [];
-  const isAbbrev = input.termType === "abbreviation";
-
-  if (input.nameEn) derived.push({ text: input.nameEn, lang: "en", kind: isAbbrev ? "abbreviation" : "canonical" });
-  if (input.nameKo) derived.push({ text: input.nameKo, lang: "ko", kind: "canonical" });
-  if (input.fullNameEn) derived.push({ text: input.fullNameEn, lang: "en", kind: "full_name" });
-  if (input.fullNameKo) derived.push({ text: input.fullNameKo, lang: "ko", kind: "full_name" });
-
-  const merged = [...derived, ...input.surfaces];
-  const seen = new Set<string>();
-  return merged.filter((s) => {
-    const key = `${surfaceKeys(s.text).normLoose}:${s.kind}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 }
 
 async function uniqueSlug(base: string): Promise<string> {
@@ -1816,7 +1909,7 @@ export async function findDuplicates(surfaces: SurfaceInput[]): Promise<Duplicat
 
 export async function createTerm(input: TermInput, authorId: string | null) {
   const db = getDb();
-  const surfaces = collectSurfaces(input);
+  const surfaces = deriveSurfaces(input, input.surfaces);
   const warnings = await findDuplicates(surfaces);
   const slug = await uniqueSlug(slugify(input.nameEn ?? input.nameKo ?? ""));
 
@@ -2170,7 +2263,7 @@ git commit -m "feat: add term detail and surface-based list search"
 - Test: `apps/web/tests/terms-update.test.ts`
 
 **Interfaces:**
-- Consumes: Task 8의 `createTerm`, `collectSurfaces` 규칙; Task 9의 `getTermByIdOrSlug`
+- Consumes: Task 8의 `findDuplicates`, `deriveSurfaces`, `defaultCaseSensitive`; Task 9의 `getTermByIdOrSlug`
 - Produces:
   - `updateTerm(termId, input, authorId, expectedRevision?): Promise<{ term; surfaces; warnings } | { conflict: true; currentRevision: number }>`
   - `listRevisions(termId): Promise<RevisionRow[]>`
@@ -2252,35 +2345,14 @@ import { desc, eq, sql } from "drizzle-orm";
 import { surfaceKeys, terms, termRevisions, termSurfaces } from "@grossary/db";
 import { getDb } from "@/lib/db";
 import { findDuplicates, type DuplicateWarning } from "./create";
-import type { SurfaceInput, TermInput } from "./schema";
+import { defaultCaseSensitive, deriveSurfaces } from "./surfaces";
+import type { TermInput } from "./schema";
 
-export type TermUpdate = Partial<Omit<TermInput, "force">>;
+export type TermUpdate = Partial<TermInput>;
 
 export interface RevisionRow {
   id: string; revisionNumber: number; message: string | null;
   authorId: string | null; createdAt: Date;
-}
-
-function defaultCaseSensitive(text: string): boolean {
-  return /^[A-Z0-9]{2,6}$/.test(text);
-}
-
-function derivedSurfaces(row: typeof terms.$inferSelect, explicit: SurfaceInput[]): SurfaceInput[] {
-  const derived: SurfaceInput[] = [];
-  const isAbbrev = row.termType === "abbreviation";
-
-  if (row.nameEn) derived.push({ text: row.nameEn, lang: "en", kind: isAbbrev ? "abbreviation" : "canonical" });
-  if (row.nameKo) derived.push({ text: row.nameKo, lang: "ko", kind: "canonical" });
-  if (row.fullNameEn) derived.push({ text: row.fullNameEn, lang: "en", kind: "full_name" });
-  if (row.fullNameKo) derived.push({ text: row.fullNameKo, lang: "ko", kind: "full_name" });
-
-  const seen = new Set<string>();
-  return [...derived, ...explicit].filter((s) => {
-    const key = `${surfaceKeys(s.text).normLoose}:${s.kind}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 }
 
 export async function listRevisions(termId: string): Promise<RevisionRow[]> {
@@ -2338,7 +2410,7 @@ export async function updateTerm(
   if (!updated) return { conflict: true, currentRevision };
 
   const explicit = input.surfaces ?? [];
-  const nextSurfaces = derivedSurfaces(updated, explicit);
+  const nextSurfaces = deriveSurfaces(updated, explicit);
   const warnings = await findDuplicates(explicit);
 
   await db.delete(termSurfaces).where(eq(termSurfaces.termId, termId));
@@ -2371,6 +2443,9 @@ export async function updateTerm(
 ```
 
 표기를 통째로 지우고 다시 넣는다. 부분 갱신보다 단순하고, 리비전 스냅샷이 항상 완전한 상태를 담게 된다.
+
+파생 규칙은 Task 8의 `surfaces.ts`에서 그대로 가져다 쓴다. 여기에 복사해두면 생성과 수정이
+서로 다른 표기 집합을 만들기 시작하고, 그 차이는 테스트가 아니라 검색 실패로만 드러난다.
 
 - [ ] **Step 3: 라우트 추가**
 
@@ -3208,7 +3283,7 @@ git commit -m "feat: add term create, edit, and history pages"
 - Create: `apps/web/src/lib/import/parse-xlsx.ts`, `apps/web/src/lib/import/apply.ts`
 - Create: `apps/web/src/app/api/v1/import/route.ts`
 - Create: `apps/web/src/app/import/page.tsx`
-- Test: `apps/web/tests/import-parse.test.ts`
+- Test: `apps/web/tests/import-parse.test.ts`, `apps/web/tests/import-dryrun.test.ts`
 
 **Interfaces:**
 - Consumes: `createTerm`, `findDuplicates`, `surfaceKeys`
@@ -3391,7 +3466,68 @@ export async function parseGlossaryWorkbook(
 
 헤더 이름을 한국어와 영어 양쪽으로 받는다. 기존 엑셀 파일이 어떤 헤더를 쓰는지 미리 알 수 없으므로 관대하게 매핑하고, 인식 못 한 헤더는 조용히 무시한다.
 
-- [ ] **Step 3: dry-run과 반영 구현**
+- [ ] **Step 3: dry-run 리포트 테스트 작성**
+
+`apps/web/tests/import-dryrun.test.ts`:
+```ts
+import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, expect, test } from "vitest";
+import { createDb, terms } from "@grossary/db";
+import { createTerm } from "../src/lib/terms/create.js";
+import { dryRunImport } from "../src/lib/import/apply.js";
+import type { ImportRow } from "../src/lib/import/parse-xlsx.js";
+
+const db = createDb(process.env.DATABASE_URL!);
+const createdIds: string[] = [];
+
+function row(rowNumber: number, nameEn: string, aliases: string[] = []): ImportRow {
+  return { rowNumber, termType: "term", nameEn, domain: [], status: "draft", aliases };
+}
+
+beforeAll(async () => {
+  const { term } = await createTerm(
+    { termType: "term", nameEn: "Lens Shading", domain: ["ISP"], status: "approved", surfaces: [] },
+    null,
+  );
+  createdIds.push(term.id);
+});
+
+afterAll(async () => {
+  for (const id of createdIds) await db.delete(terms).where(eq(terms.id, id));
+});
+
+test("이미 등록된 표기와 겹치는 행을 conflicts에 담는다", async () => {
+  const report = await dryRunImport([row(2, "lens-shading")], []);
+
+  expect(report.conflicts).toHaveLength(1);
+  expect(report.conflicts[0]).toMatchObject({ rowNumber: 2, conflictingSlug: "lens-shading" });
+});
+
+test("파일 안에서 중복된 표기를 행 번호와 함께 보고한다", async () => {
+  const report = await dryRunImport([row(2, "Dead Pixel"), row(3, "dead-pixel")], []);
+
+  const dup = report.duplicatesInFile.find((d) => d.key === "deadpixel");
+  expect(dup?.rowNumbers).toEqual([2, 3]);
+});
+
+test("별칭이 기존 용어와 겹쳐도 잡아낸다", async () => {
+  const report = await dryRunImport([row(2, "Vignetting", ["Lens Shading"])], []);
+
+  expect(report.conflicts.map((c) => c.rowNumber)).toContain(2);
+});
+
+test("total은 파싱 실패 행까지 세고 ready는 세지 않는다", async () => {
+  const report = await dryRunImport([row(2, "Gain")], [{ rowNumber: 3, message: "표기 없음" }]);
+
+  expect(report).toMatchObject({ total: 2, ready: 1 });
+  expect(report.errors).toHaveLength(1);
+});
+```
+
+한 행이 여러 표기를 갖기 때문에 `duplicatesInFile`은 행 번호를 중복 제거해야 한다.
+같은 행이 두 번 들어간 목록은 중복이 아니라 그 행이 표기를 여러 개 가졌다는 뜻일 뿐이다.
+
+- [ ] **Step 4: dry-run과 반영 구현**
 
 `apps/web/src/lib/import/apply.ts`:
 ```ts
@@ -3509,7 +3645,7 @@ export async function POST(request: Request) {
 }
 ```
 
-- [ ] **Step 4: 임포트 화면 작성 후 테스트 실행**
+- [ ] **Step 5: 임포트 화면 작성 후 테스트 실행**
 
 `apps/web/src/app/import/page.tsx`:
 ```tsx
@@ -3603,7 +3739,7 @@ export default function ImportPage() {
 Run: `DATABASE_URL_TEST=... pnpm --filter @grossary/web test`
 Expected: import-parse 테스트 5개 PASS.
 
-- [ ] **Step 5: 커밋**
+- [ ] **Step 6: 커밋**
 
 ```bash
 git add -A
@@ -3846,10 +3982,13 @@ M1의 스펙은 손으로 유지한다. zod에서 자동 생성하는 파이프�
 `up -d` 하나로 postgres → migrate → app 순서로 기동한다. pg_trgm 확장은
 `scripts/init-prod-db.sql`이 볼륨 최초 생성 시 만들고, 스키마는 migrate 서비스가 적용한다.
 
-관리자 계정은 migrator 이미지에서 한 번 만든다:
+관리자 계정은 migrator 이미지에서 한 번 만든다. 비밀번호는 **argv로 넘기지 않는다** —
+프로세스 목록과 셸 히스토리에 평문이 그대로 남는다. `ADMIN_PASSWORD` 환경변수로만 넘긴다:
 
-    docker compose -f docker-compose.prod.yml run --rm migrate \
-      pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts <email> <password> <name>
+    read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
+    docker compose -f docker-compose.prod.yml run --rm -e ADMIN_PASSWORD migrate \
+      pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts <email> <name>
+    unset ADMIN_PASSWORD
 
 ## 백업
 
@@ -3878,7 +4017,7 @@ cron 예시 (매일 03:00):
 pnpm install
 pnpm build
 pnpm typecheck
-DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5432/grossary_test pnpm test
+DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5434/grossary_test pnpm test
 docker compose -f docker-compose.prod.yml build
 ```
 Expected: 타입 검사 통과, 전체 테스트 통과, 이미지 빌드 성공.
@@ -3903,6 +4042,82 @@ git commit -m "feat: add production docker setup, backup scripts, and openapi sp
 - [ ] 엑셀 파일을 dry-run으로 검사해 충돌·중복·오류 행을 확인한 뒤 실제 등록할 수 있다.
 - [ ] `docker compose -f docker-compose.prod.yml up -d`로 기동되고 `scripts/backup.sh` → `scripts/restore.sh` 왕복이 검증됐다.
 
+### 이 체크리스트를 어디까지 확인했는지 (정직하게)
+
+위 항목 중 **1~7번은 API·라이브러리 레벨 테스트로 확인했다**(총 289개 테스트,
+25개 파일, `turbo run test typecheck build` 9/9). 다만 **브라우저에서 실제로
+클릭해본 적은 없다** — `next dev`를 띄운 수동 확인은 이 개발 세션에서 하지
+않았다. Client Component(`term-form.tsx`)는 jsdom이 없어 렌더·이벤트 테스트도
+불가능하므로(R97), 폼의 실제 동작은 **아직 사람이 한 번 확인해야 한다.**
+
+**8번은 "빌드까지만" 확인했다.** 확인한 것:
+
+- `docker compose -f docker-compose.prod.yml build`가 성공한다(app·migrator 둘 다).
+- runner 이미지에 `apps/web/server.js`와 `.next/static`이 실제로 들어 있고 Node 22다.
+- migrator 이미지에 `drizzle-kit`, `drizzle.config.ts`, 마이그레이션 SQL 3개와
+  `meta/_journal.json`, 그리고 시딩에 필요한 `tsx`가 전부 들어 있다.
+- `.dockerignore`가 실제로 동작한다 — 두 이미지 어디에도 `.env`가 없다.
+- `POSTGRES_PASSWORD` 없이 `docker compose config`를 돌리면 의도한 메시지와 함께
+  실패한다(R128의 주장을 되돌리기가 아니라 직접 시도해서 확인했다).
+
+확인하지 **않은** 것과 그 이유:
+
+- `up -d`로 기동해보지 않았다. `docker-compose.prod.yml`은 개발용 compose와 같은
+  볼륨 이름(`grossary_pgdata`)을 쓰므로 이 개발 머신에서 띄우면 개발 데이터에
+  그대로 붙는다. 운영 호스트에서 첫 기동할 때 확인할 항목이다.
+- `scripts/backup.sh` → `scripts/restore.sh` 왕복을 실행하지 않았다. `restore.sh`는
+  `DROP DATABASE`를 포함하고, 이 머신에는 다른 프로젝트의 컨테이너도 있다. 두
+  스크립트는 `bash -n` 문법 검사만 통과한 상태다.
+  **운영 투입 전에 `restore.sh --rehearse`로 한 번 돌려야 한다** — 그 경로는
+  운영 DB를 건드리지 않고 별도 DB(`grossary_rehearsal`)로 복구해 건수만 확인한다.
+  `docs/operations.md`의 "복구" 절이 이 절차를 가리킨다.
+
 ## M2로 넘기는 것
 
 `packages/engine`의 정규화 함수는 M1에서 완성됐고, M2는 그 위에 Aho-Corasick 매칭·세그먼트 분리·경계 판정·규칙 적용을 얹는다. `/validate`, `/validate/batch`, `/lexicon`, `/candidates`, `/check` 화면이 M2 범위다. 마크다운 본문·이미지·diff/revert·병합 UI는 M3다.
+
+### M1에서 알고 남긴 구멍
+
+아래는 M1을 진행하며 실제로 확인했고, 고치지 않기로 판단한 것들이다. "나중에 보면
+알겠지"에 맡기지 않기 위해 근거와 확인 방법을 함께 적는다.
+
+**보안**
+
+- **레이트 리밋·계정 잠금·감사 로그가 없다(R23/F4).** `apps/web/src/app/api/v1/auth/login/route.ts`와
+  `lib/auth/` 전체를 grep해도 시도 횟수를 세는 코드가 없다. 로그인은 계정 존재
+  여부가 응답으로 새지 않게 처리돼 있지만 무제한 시도를 막지는 않는다. 사내망
+  접근 통제에 기대고 있는 상태다.
+- **CSRF 방어가 `SameSite=Lax` 쿠키 하나뿐이다(R24).** 그래서 "상태를 바꾸는 GET
+  핸들러를 만들지 않는다"가 코드 전체의 불변식이고 `tests/screen-guards.test.ts`가
+  이를 강제한다. M2에서 토큰 기반 방어를 얹을 때 그 구조 테스트를 먼저 읽어라.
+- **평문 HTTP를 전제로 세션 쿠키에 `Secure`가 없다.** 리버스 프록시로 TLS를 씌우면
+  로그인 라우트에서 직접 붙여야 한다 — 자동으로 붙지 않는다. `docs/operations.md` 참조.
+- **JSON 본문에 크기 상한이 없다(R50).** JSON을 받는 라우트는 전부
+  `await request.json().catch(() => null)`로 본문을 통째로 메모리에 올린다.
+  상한이 없으니 잘못 붙여넣은 거대한 문서 하나로 프로세스가 죽는다.
+  `ApiErrorCode`에는 `payload_too_large`가 처음부터 있는데 **엑셀 임포트
+  라우트만** 이걸 쓴다(`app/api/v1/import/route.ts`의 Content-Length 선검사와
+  `file.size` 검사). 같은 방식을 JSON 라우트에도 넣어야 한다 — M1에서는
+  범위를 넓히지 않으려고 남겼다.
+
+**기능**
+
+- **`term_surfaces.caseSensitive`가 저장만 되고 매칭에 쓰이지 않는다(F7).**
+  `create.ts`/`update.ts`가 값을 쓰고 `query.ts`가 돌려주지만, grep해보면 이 값을
+  읽어 비교 방식을 바꾸는 코드가 어디에도 없다. M2 매칭 엔진이 이 값을 소비하는
+  첫 지점이 된다. 그때까지는 스키마에만 있는 약속이다.
+- **리비전 목록에 페이지네이션이 없다.** `GET /terms/{idOrSlug}/revisions`는
+  `listRevisions(term.id)`로 전부 가져온다. 자주 고치는 용어 하나가 커지면 그대로
+  드러난다.
+
+**테스트**
+
+- **용어 상세 화면에 실제로 그려지는 값(예: `fullNameKo`, `updatedAt`)에는
+  여전히 테스트가 없다(R97).** jsdom을 쓰지 않기로 한 결정의 대가였다. 다만
+  Task 13에서 길이 하나 열렸다: Server Component는 그냥 async 함수라
+  **직접 호출해서 반환된 React 엘리먼트 트리를 순회하면 jsdom 없이도 검사할 수
+  있다**(`tests/term-edit-page.test.ts`, `vitest.config.ts`의
+  `esbuild.jsx: "automatic"`). 상세 페이지도 Server Component이므로 같은 방법이
+  그대로 통한다 — M2에서 이 패턴으로 메우면 된다. 여전히 못 하는 것은
+  Client Component(`term-form.tsx`)의 렌더·이벤트뿐이고, 그쪽은
+  `tests/term-form-guards.test.ts`의 소스 구조 검사로 버티고 있다.
