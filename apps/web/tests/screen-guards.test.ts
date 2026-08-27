@@ -28,18 +28,45 @@ function walk(dir: string, filter: (name: string) => boolean, acc: string[] = []
 // PROTO A는 주석을 먼저 제거해야 한다 — logout-button.tsx의 주석 안에 정확히
 // `<Link href="/api/v1/auth/logout">` 문자열이 그대로 들어 있어서, 주석을
 // 지우지 않은 단순 grep은 깨끗한 트리에서도 실패한다.
+//
+// 줄 맨 앞(들여쓰기 제외)에서 시작하는 `//`만 지운다. 처음에는 `//`가 어디에
+// 나오든 그 뒤를 다 지웠는데, 그러면 문자열 리터럴 안의 `//`까지 주석으로
+// 보고 같은 줄 뒷부분을 통째로 날려 실제 위반을 가린다 — 수정 라운드 검증
+// P4에서 `<Link title="https://x" href="/api/v1/auth/logout">`가 정확히 그렇게
+// 빠져나갔다(exit 0). 이 저장소의 주석은 전부 줄 단위라 이 좁힘으로 충분하다.
 function stripComments(src: string): string {
-  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
 }
 
-// PROTO A: src/app·src/components의 .tsx 어디에도 상태를 바꾸는 GET 링크
-// (href="/api/...")가 없다 — R95(보안 불변식)가 걸린 CSRF 방어의 전부다.
-test("PROTO A: src/app·src/components의 .tsx에 href=\"/api/...\"가 하나도 없다 (R95)", () => {
+// PROTO A: src/app·src/components의 .tsx 어디에도 /api/로 직접 향하는
+// href/action이 없다 — R95(보안 불변식)가 걸린 CSRF 방어의 전부다.
+//
+// href만 보면 안 된다. `<form action="/api/...">`는 method를 생략하면 GET이라
+// 링크와 정확히 같은 CSRF 벡터인데, href만 검사하던 판은 이걸 통째로 놓쳤다
+// (수정 라운드 검증 P3: exit 0). 중괄호 표현식 `href={"/api/..."}`도 마찬가지로
+// 빠져나갔다(P2). 두 경우를 모두 덮도록 속성 이름과 `{`를 함께 허용한다.
+const API_ATTR = /(?:href|action)\s*=\s*\{?\s*["'`]\/api\//;
+
+test("PROTO A: src/app·src/components의 .tsx에 /api/로 향하는 href/action이 하나도 없다 (R95)", () => {
   const files = [...walk(appDir, (n) => n.endsWith(".tsx")), ...walk(componentsDir, (n) => n.endsWith(".tsx"))];
   expect(files.length).toBeGreaterThan(0); // vacuity 가드
 
-  const offenders = files.filter((f) => /href\s*=\s*["'`]\/api\//.test(stripComments(readFileSync(f, "utf8"))));
+  const offenders = files.filter((f) => API_ATTR.test(stripComments(readFileSync(f, "utf8"))));
   expect(offenders).toEqual([]);
+});
+
+// PROTO A의 자기검사: 위 정규식이 실제로 세 형태를 모두 잡는지 확인한다.
+// 정규식이 조용히 아무것도 못 잡게 바뀌어도 위 테스트는 깨끗한 트리에서
+// 그대로 통과하므로(빈 offenders), 판별식 자체를 따로 단언해야 한다.
+test("PROTO A 자기검사: href/action·중괄호·문자열 속 // 세 형태를 모두 잡는다", () => {
+  expect(API_ATTR.test(stripComments('<a href="/api/v1/auth/logout">x</a>'))).toBe(true);
+  expect(API_ATTR.test(stripComments('<Link href={"/api/v1/auth/logout"}>x</Link>'))).toBe(true);
+  expect(API_ATTR.test(stripComments('<form action="/api/v1/auth/logout" />'))).toBe(true);
+  expect(API_ATTR.test(stripComments('<a title="https://x" href="/api/v1/auth/logout">x</a>'))).toBe(true);
+  // 줄 앞 주석은 여전히 지워진다(logout-button.tsx:6이 깨끗한 트리를 통과하는 이유).
+  expect(API_ATTR.test(stripComments('// `<Link href="/api/v1/auth/logout">` 같은 GET'))).toBe(false);
+  // 내부 화면 링크는 위반이 아니다.
+  expect(API_ATTR.test(stripComments('<Link href="/terms/new">새 용어</Link>'))).toBe(false);
 });
 
 // PROTO B: 허용목록 밖의 모든 page.tsx는 getCurrentUser(와 redirect("/login")를

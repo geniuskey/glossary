@@ -1,16 +1,23 @@
 import { and, arrayContains, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
-import { surfaceKeys, terms, termSurfaces, termStatusEnum, termTypeEnum } from "@grossary/db";
+import { surfaceKeys, surfaceKindEnum, terms, termSurfaces, termStatusEnum, termTypeEnum } from "@grossary/db";
 import { isUuid } from "@/lib/api-error";
 import { getDb } from "@/lib/db";
 
 export type TermType = (typeof termTypeEnum.enumValues)[number];
 export type TermStatus = (typeof termStatusEnum.enumValues)[number];
+export type SurfaceKind = (typeof surfaceKindEnum.enumValues)[number];
 
-// F6(review §2 Q1, PROTO C 대안): termType/status를 string으로 넓혀 두면
-// STATUS_LABEL/KIND_LABEL 같은 화면 쪽 lookup 테이블에서 DB enum 값이
-// 빠지거나 드리프트해도 tsc가 잡지 못한다. drizzle의 pgEnum 컬럼은 이미
-// TermType/TermStatus 유니온을 추론하므로, 여기서 그 유니온으로 좁혀 두면
-// 문자열 grep 없이 tsc가 공짜로 enum 드리프트를 잡는다.
+// F6(review §2 Q1, PROTO C 대안): termType/status/kind를 string으로 두면
+// 화면 쪽 lookup 테이블이 DB enum과 드리프트해도 tsc가 못 잡는다.
+// drizzle의 pgEnum 컬럼은 이미 이 유니온을 추론하므로 여기서 좁혀 둔다.
+//
+// 단, 이 좁힘 하나만으로는 드리프트가 안 잡힌다 — 수정 라운드 검증에서
+// 직접 확인했다(P1: STATUS_LABEL에서 forbidden을 지워도 tsc exit 0).
+// 받는 쪽이 `Record<string, string>` + `?? 폴백`이면 좁힌 타입이 그대로
+// 다시 넓어지기 때문이다. 짝이 되는 규약은 lookup.ts의
+// MATCH_KIND_PRIORITY처럼 **모든 lookup 테이블을 `Record<유니온, T>`로
+// 선언하고 폴백을 두지 않는 것**이다(term-badges.tsx,
+// app/terms/[slug]/page.tsx가 그렇게 되어 있다).
 export interface TermSummary {
   id: string;
   slug: string;
@@ -25,7 +32,7 @@ export interface SurfaceRow {
   id: string;
   text: string;
   lang: string;
-  kind: string;
+  kind: SurfaceKind;
   caseSensitive: boolean;
 }
 

@@ -1,7 +1,7 @@
 import { eq, inArray, sql } from "drizzle-orm";
-import { surfaceKeys, surfaceKindEnum, terms, termSurfaces, type Db } from "@grossary/db";
+import { surfaceKeys, terms, termSurfaces, type Db } from "@grossary/db";
 import { getDb } from "@/lib/db";
-import type { TermStatus, TermSummary, TermType } from "./query";
+import type { SurfaceKind, TermStatus, TermSummary, TermType } from "./query";
 
 export interface LookupResult {
   text: string;
@@ -11,7 +11,6 @@ export interface LookupResult {
   similar: { slug: string; score: number }[];
 }
 
-type SurfaceKind = (typeof surfaceKindEnum.enumValues)[number];
 
 /**
  * R85: `matches[0]?.kind`(계획서 스케치)는 ORDER BY 없는 행 순서에 의존해
