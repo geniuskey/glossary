@@ -1,0 +1,9 @@
+# 셸 스크립트와 컨테이너 안에서 읽히는 파일은 항상 LF여야 한다.
+# 이 저장소는 Windows에서 개발되고 core.autocrlf가 켜져 있어서, 지정하지 않으면
+# 체크아웃 시 CRLF로 바뀐다. `#!/usr/bin/env bash\r`는 리눅스에서
+# "bad interpreter: No such file or directory"로 죽는다 — 배포 직전에야 드러나는
+# 종류의 고장이다.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
