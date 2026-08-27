@@ -1,6 +1,7 @@
 import { eq, inArray, like, or, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
 import { createDb, terms, termRevisions, termSurfaces } from "@grossary/db";
+import { isUuid } from "../src/lib/api-error.js";
 import { createTerm, isSlugConflict, RESERVED_SLUGS } from "../src/lib/terms/create.js";
 
 const db = createDb(process.env.DATABASE_URL_TEST!);
@@ -232,4 +233,24 @@ test("R92: 이름이 New인 용어는 슬러그가 new가 되지 않는다", asy
   );
   created.push(term.id);
   expect(term.slug).not.toBe("new");
+});
+
+// F2(review §3): slugify는 하이픈과 16진 문자를 보존하므로 이름이 UUID
+// 모양이면 slug도 UUID 모양이 될 수 있다. getTermByIdOrSlug는 isUuid(idOrSlug)
+// 이면 id로만 조회하므로, 그런 slug는 자기 자신으로는 영원히 조회되지 않는다
+// (목록에는 링크가 뜨지만 클릭하면 404) — uniqueSlug가 그 모양을 "이미 사용
+// 중"으로 취급해 접미사를 붙여야 한다.
+test("F2: UUID 모양의 이름으로 만든 용어는 slug가 UUID 모양이 되지 않는다", async () => {
+  const { term } = await createTerm(
+    {
+      termType: "product_id",
+      nameEn: "550e8400 e29b 41d4 a716 446655440000",
+      domain: [],
+      status: "draft",
+      surfaces: [],
+    },
+    null,
+  );
+  created.push(term.id);
+  expect(isUuid(term.slug)).toBe(false);
 });

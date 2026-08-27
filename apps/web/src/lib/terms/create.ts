@@ -1,5 +1,6 @@
 import { and, eq, inArray, like, ne } from "drizzle-orm";
 import { surfaceKeys, terms, termRevisions, termSurfaces } from "@grossary/db";
+import { isUuid } from "@/lib/api-error";
 import { getDb } from "@/lib/db";
 import { slugify } from "./slug";
 import { defaultCaseSensitive, deriveSurfaces } from "./surfaces";
@@ -29,6 +30,13 @@ export interface DuplicateWarning {
 // 것이다. uniqueSlug가 이미 사용 중인 것처럼 취급해 피한다.
 export const RESERVED_SLUGS = new Set(["lookup", "new"]);
 
+// F2(수정 라운드, R86/R92와 같은 계열): slugify는 하이픈과 16진 문자를 모두
+// 보존하므로 "550e8400 e29b 41d4 a716 446655440000" 같은 이름이 UUID 모양
+// slug("550e8400-e29b-41d4-a716-446655440000")를 만들 수 있다.
+// getTermByIdOrSlug(query.ts)는 isUuid(idOrSlug)면 id로만 조회하므로, 그런
+// slug는 자기 자신으로는 절대 조회되지 않는다 — 목록 화면은 그 slug로 링크를
+// 렌더하는데 클릭하면 404가 되는, R92와 같은 형태의 조용한 도달 불가다.
+// RESERVED_SLUGS와 같은 자리에서 "이미 사용 중"으로 취급해 접미사를 붙인다.
 async function uniqueSlug(base: string): Promise<string> {
   const seed = base || "term";
   const existing = await getDb()
@@ -37,7 +45,7 @@ async function uniqueSlug(base: string): Promise<string> {
     .where(like(terms.slug, `${seed}%`));
 
   const taken = new Set(existing.map((r) => r.slug));
-  if (!taken.has(seed) && !RESERVED_SLUGS.has(seed)) return seed;
+  if (!taken.has(seed) && !RESERVED_SLUGS.has(seed) && !isUuid(seed)) return seed;
 
   for (let n = 2; ; n += 1) {
     const candidate = `${seed}-${n}`;
