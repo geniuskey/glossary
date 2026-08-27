@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq, sql } from "drizzle-orm";
@@ -465,14 +465,43 @@ function staticChildDirNames(dir: string): string[] {
   }
 }
 
-test("R105: app/api/v1/terms/·app/terms/ 밑 정적 세그먼트는 전부 RESERVED_SLUGS에 있다", () => {
+// R107: 원래 이 테스트는 두 디렉터리를 합친 배열 하나의 길이만 0보다 큰지
+// 봤다. `app/terms/`가 없던 동안은 그게 안전했다 — API 쪽 경로가 잘못돼도
+// (예: 오타로 diff 세그먼트를 만들거나 staticChildDirNames가 잘못된 경로를
+// 봐도) 합계가 0이 되어 가드가 울렸을 것이다. Task 12가 `app/terms/`를 만드는
+// 순간 그 안전장치는 사라진다 — 페이지 쪽 세그먼트("new")가 하나만 있어도
+// 합계가 0보다 커져서, API 쪽 경로가 완전히 잘못돼(staticChildDirNames가 [])
+// 있어도 가드가 조용히 통과해버린다. 두 디렉터리를 각각 검사해서, 한쪽
+// 디렉터리 전체가 비면(경로 오타 등으로 readdirSync가 실패하면) 그 디렉터리의
+// 기대 세그먼트가 없다는 게 바로 드러나게 한다.
+test("R107: app/api/v1/terms/ 밑 정적 세그먼트는 전부 RESERVED_SLUGS에 있다", () => {
   const testDir = path.dirname(fileURLToPath(import.meta.url));
   const apiTermsDir = path.join(testDir, "..", "src", "app", "api", "v1", "terms");
+
+  const apiSegments = staticChildDirNames(apiTermsDir);
+  expect(apiSegments).toContain("lookup"); // vacuity 가드: 최소 "lookup"은 항상 존재해야 한다.
+  for (const seg of apiSegments) {
+    expect(RESERVED_SLUGS.has(seg)).toBe(true);
+  }
+});
+
+// R107: 페이지 쪽은 Task 12 시점에는 정적 자식이 없다(`app/terms/new/`는
+// Task 13이 만든다 — AppShell이 지금 그리로 링크해도 404인 게 맞고, 결함이
+// 아니다). "new"를 포함하는지로 vacuity를 가드하면 이 파일이 Task 12에서부터
+// 실패한다. 대신 staticChildDirNames의 catch-빈배열 반환과 "정적 자식이 진짜
+// 없음"을 구분한다 — 경로 자체가 잘못돼(오타 등) staticChildDirNames가 조용히
+// []를 반환하는 것과, app/terms/가 실제로 존재하는데 정적 자식이 아직 없는
+// 것은 다르다. existsSync로 전자를 먼저 배제해야, 후자(현재 상태)에서 아래
+// for 루프가 "0회 순회해서 통과"하는 게 진짜로 검사할 게 없어서이지 경로가
+// 깨져서가 아님을 보장한다. Task 13이 app/terms/new/를 추가하면 이 루프가
+// "new"를 실제로 검사하기 시작한다.
+test("R107: app/terms/ 디렉터리는 존재하고, 그 밑 정적 세그먼트는 전부 RESERVED_SLUGS에 있다", () => {
+  const testDir = path.dirname(fileURLToPath(import.meta.url));
   const pageTermsDir = path.join(testDir, "..", "src", "app", "terms");
 
-  const staticSegments = [...staticChildDirNames(apiTermsDir), ...staticChildDirNames(pageTermsDir)];
-  expect(staticSegments.length).toBeGreaterThan(0); // 최소 "lookup"은 항상 존재해야 한다.
-  for (const seg of staticSegments) {
+  expect(existsSync(pageTermsDir)).toBe(true);
+  const pageSegments = staticChildDirNames(pageTermsDir);
+  for (const seg of pageSegments) {
     expect(RESERVED_SLUGS.has(seg)).toBe(true);
   }
 });

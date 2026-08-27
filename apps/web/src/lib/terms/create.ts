@@ -21,7 +21,13 @@ export interface DuplicateWarning {
 // R105: 손으로 유지되는 리터럴이라 라우트 파일시스템과 연결이 없다 — export해서
 // "app/api/v1/terms/ 밑 정적 세그먼트가 전부 여기 있는가"를 구조 테스트로
 // 잠근다(테스트: apps/web/tests/terms-lookup.test.ts).
-export const RESERVED_SLUGS = new Set(["lookup"]);
+//
+// R92: "new"는 app/terms/ 밑 정적 세그먼트다(Task 13의 `/terms/new` 폼). Next는
+// 정적 세그먼트를 동적 세그먼트(`app/terms/[slug]`)보다 먼저 매칭하므로,
+// slugify("New") === "new"인 용어는 상세 페이지에 영원히 도달할 수 없고 대신
+// "새 용어" 폼이 뜬다 — R86과 정확히 같은 결함이 한 마일스톤 뒤에 반복되는
+// 것이다. uniqueSlug가 이미 사용 중인 것처럼 취급해 피한다.
+export const RESERVED_SLUGS = new Set(["lookup", "new"]);
 
 async function uniqueSlug(base: string): Promise<string> {
   const seed = base || "term";
