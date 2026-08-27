@@ -101,6 +101,10 @@ test("등록된 표기를 찾는다", async () => {
   expect(result!.found).toBe(true);
   expect(result!.matchKind).toBe("abbreviation");
   expect(result!.terms[0]!.nameEn).toBe("AE");
+  // 이미 정확히 매치된 표기에는 굳이 유사어 후보를 얹지 않는다 — 매치가
+  // 있는데도 similar를 채우면(회귀: matchedTerms.length > 0 조건이 빠지면)
+  // 응답이 쓸데없이 커지고, "정확히 찾았다"는 신호를 흐린다.
+  expect(result!.similar).toEqual([]);
 });
 
 test("표기 변형도 같은 용어로 해석한다", async () => {
