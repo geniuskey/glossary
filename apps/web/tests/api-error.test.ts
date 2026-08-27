@@ -10,6 +10,7 @@ import * as termsRoute from "../src/app/api/v1/terms/route.js";
 import * as termLookupRoute from "../src/app/api/v1/terms/lookup/route.js";
 import * as termIdOrSlugRoute from "../src/app/api/v1/terms/[idOrSlug]/route.js";
 import * as termRevisionsRoute from "../src/app/api/v1/terms/[idOrSlug]/revisions/route.js";
+import * as importRoute from "../src/app/api/v1/import/route.js";
 
 // 라우트 모듈은 실제 핸들러(GET/POST/...)마다 서로 다른 인자 개수를 요구하므로
 // (예: DELETE는 (request, context)) 여기서는 이름으로 임의 접근한 뒤 405 스텁/
@@ -48,6 +49,10 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   // Task 10: 리비전 이력 라우트는 GET만 처리한다. 이 행이 없으면 POST/PUT/
   // PATCH/DELETE 스텁이 통째로 빠져도 아무 테스트도 못 잡는다.
   { name: "terms/[idOrSlug]/revisions", mod: termRevisionsRoute, allowed: ["GET"], allow: "GET, HEAD" },
+  // Task 14(R118): import 라우트는 POST만 처리한다. 이 행이 없으면 이
+  // 저장소에서 다섯 번째로 반복된 405 스텁 누락(R83이 네 번째)이 아무 테스트도
+  // 못 잡는 채로 남는다.
+  { name: "import", mod: importRoute, allowed: ["POST"], allow: "POST" },
 ];
 
 test("에러 응답이 규약 형태를 지킨다", async () => {

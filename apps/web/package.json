@@ -14,6 +14,7 @@
     "@grossary/db": "workspace:*",
     "@grossary/engine": "workspace:*",
     "drizzle-orm": "^0.36.0",
+    "exceljs": "^4.4.0",
     "next": "^16.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
