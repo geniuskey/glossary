@@ -35,10 +35,21 @@ export default async function TermDetailPage({ params }: { params: Promise<{ slu
           <h1 className="text-2xl font-semibold">{term.nameEn ?? term.nameKo}</h1>
           {term.nameEn && term.nameKo && <p className="mt-1 text-slate-600">{term.nameKo}</p>}
           {term.fullNameEn && <p className="mt-1 text-sm text-slate-500">{term.fullNameEn}</p>}
+          {/* F3: fullNameKo는 스키마·생성·수정·API 응답에 전부 있는데 화면에는
+              없었다 — R96이 bodyMd에 편 논리("저장만 되고 화면 어디에도 없으면
+              사용자는 자기가 쓴 값이 유실됐다고 믿는다")가 그대로 적용된다. */}
+          {term.fullNameKo && <p className="mt-1 text-sm text-slate-500">{term.fullNameKo}</p>}
           <div className="mt-2 flex items-center gap-2">
             <DomainBadges domain={term.domain} />
             <StatusBadge status={term.status} />
           </div>
+          {/* F4: R40이 updatedAt을 TermDetail에 정식으로 추가한 이유가 "위키
+              상세 페이지는 최근 수정을 보여줘야 한다"였는데, 그 화면이 지금
+              한 번도 쓰지 않고 있었다. 날짜 라이브러리·상대 시간 포맷 없이
+              ISO 날짜만 보여준다(M2에서 필요하면 다듬는다). */}
+          <p className="mt-1 text-xs text-slate-400">
+            최근 수정: {term.updatedAt.toISOString().slice(0, 10)}
+          </p>
         </div>
         <div className="flex gap-3 text-sm">
           <Link href={`/terms/${term.slug}/edit`} className="text-slate-600 hover:text-slate-900">
