@@ -12,11 +12,13 @@ export default async function ImportPage() {
   if (!user) redirect("/login");
 
   return (
-    <AppShell user={user}>
-      <h1 className="mb-2 text-xl font-semibold">엑셀 임포트</h1>
-      <p className="mb-6 text-sm text-slate-600">
-        xlsx 파일을 올려 미리보기(dry-run)로 충돌/중복을 먼저 확인한 뒤 실제로 반영하세요.
-      </p>
+    <AppShell user={user} current="import">
+      <header className="mb-7 border-b border-line pb-5">
+        <h1 className="text-xl font-semibold tracking-tight">엑셀 가져오기</h1>
+        <p className="mt-1.5 max-w-xl text-sm text-ink-2">
+          xlsx 파일 하나로 용어를 한꺼번에 올립니다. 먼저 검사만 실행해 충돌과 중복을 확인한 뒤 반영하세요.
+        </p>
+      </header>
       <ImportForm />
     </AppShell>
   );

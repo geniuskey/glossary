@@ -145,6 +145,16 @@ export async function updateTerm(
     fullNameKo: input.fullNameKo !== undefined ? input.fullNameKo : oldTerm.fullNameKo,
   };
 
+  // R117: nameEn/nameKo가 nullable이 되면서(표에서 셀을 비울 수 있게) 두 표준명을
+  // 모두 지우는 PATCH가 표현 가능해졌다. 그렇게 되면 그 용어는 어떤 이름으로도
+  // 불릴 수 없고 파생 표기가 0개라 검색에서 영원히 사라진다 — 생성 경로는
+  // termInputSchema의 refine이 이미 막고 있으므로, 수정 경로도 같은 불변식을
+  // 지켜야 한다. patch 단독으로는 판정할 수 없고(둘 중 하나만 보내면 나머지는
+  // 기존 값이다) 병합된 이름에 대해서만 판정할 수 있어 zod가 아니라 여기 있다.
+  if (!mergedNames.nameEn && !mergedNames.nameKo) {
+    return { invalid: true, issues: ["nameEn 또는 nameKo 중 최소 하나는 남아 있어야 합니다."] };
+  }
+
   const nextSurfaces = deriveSurfaces(mergedNames, explicitSurfaces);
 
   // R52: termInputSchema의 superRefine은 생성 시점 표기 집합에만 적용된다. patch의

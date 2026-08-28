@@ -26,18 +26,46 @@ export function LoginForm() {
   }
 
   return (
-    <main className="mx-auto mt-24 w-full max-w-sm px-6">
-      <h1 className="mb-6 text-xl font-semibold">로그인</h1>
-      <form onSubmit={onSubmit} className="space-y-3">
-        <input name="email" type="email" required placeholder="이메일"
-          className="w-full rounded border border-slate-300 px-3 py-2" />
-        <input name="password" type="password" required placeholder="비밀번호"
-          className="w-full rounded border border-slate-300 px-3 py-2" />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button type="submit" className="w-full rounded bg-slate-900 px-3 py-2 text-white">
-          로그인
-        </button>
-      </form>
-    </main>
+    <form onSubmit={onSubmit} className="mt-5 space-y-4">
+      <div>
+        <label htmlFor="login-email" className="label">
+          이메일
+        </label>
+        <input
+          id="login-email"
+          name="email"
+          type="email"
+          required
+          autoComplete="email"
+          placeholder="name@example.com"
+          className="field"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="login-password" className="label">
+          비밀번호
+        </label>
+        <input
+          id="login-password"
+          name="password"
+          type="password"
+          required
+          autoComplete="current-password"
+          className="field"
+        />
+      </div>
+
+      {/* 실패 사유는 서버가 고른 문구 그대로 보여준다(계정 존재 여부를 흘리지 않는다). */}
+      {error && (
+        <p role="alert" className="note-danger">
+          {error}
+        </p>
+      )}
+
+      <button type="submit" className="btn-primary w-full">
+        로그인
+      </button>
+    </form>
   );
 }

@@ -19,8 +19,12 @@ export function LogoutButton() {
   }
 
   return (
-    <button type="button" onClick={onClick} className="text-slate-600 hover:text-slate-900">
-      로그아웃
+    <button type="button" onClick={onClick} title="로그아웃" aria-label="로그아웃" className="btn-quiet btn-sm">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+        <path d="M6 14H3.5A1.5 1.5 0 0 1 2 12.5v-9A1.5 1.5 0 0 1 3.5 2H6" strokeLinecap="round" />
+        <path d="M10.5 11 14 8l-3.5-3M14 8H6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span className="hidden lg:inline">로그아웃</span>
     </button>
   );
 }

@@ -11,6 +11,7 @@ import {
   TERM_STATUS_LABEL,
   TERM_TYPES,
   TERM_TYPE_LABEL,
+  type SurfaceLangLiteral,
 } from "@/lib/terms/enums";
 import { buildTermPayload, type SurfaceDraft, type TermFormState } from "@/lib/terms/form-payload";
 import { interpretResponse, type FormOutcome } from "@/lib/terms/form-response";
@@ -22,6 +23,14 @@ export interface TermFormInitial extends TermFormState {
   // .extend()로 받는다).
   expectedRevision?: number;
 }
+
+// F6/P1(query.ts의 규약): `Record<유니온, T>` + 폴백 없음. 화면에 "neutral"이
+// 그대로 노출되면 사용자는 그게 언어 코드인지 상태인지 알 수 없다.
+const LANG_LABEL: Record<SurfaceLangLiteral, string> = {
+  en: "영문",
+  ko: "국문",
+  neutral: "공통",
+};
 
 const EMPTY: TermFormState = {
   termType: "term",
@@ -150,23 +159,22 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="max-w-2xl space-y-6">
+    <form onSubmit={onSubmit} className="max-w-3xl space-y-5">
       {conflict && (
-        <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          <p>{conflict.message}</p>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="mt-2 rounded border border-amber-400 px-3 py-1 text-amber-900"
-          >
+        <div className="note note-warn">
+          <p className="font-medium">{conflict.message}</p>
+          {conflict.currentRevision !== null && (
+            <p className="mt-0.5 text-xs opacity-80">서버의 현재 리비전 #{conflict.currentRevision}</p>
+          )}
+          <button type="button" onClick={() => window.location.reload()} className="btn-ghost btn-sm mt-2">
             새로고침
           </button>
         </div>
       )}
 
       {errorMessage && !conflict && (
-        <div className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-900">
-          <p>{errorMessage}</p>
+        <div className="note note-danger">
+          <p className="font-medium">{errorMessage}</p>
           {issues && (
             <ul className="mt-1 list-disc pl-5">
               {issues.map((issue) => (
@@ -187,13 +195,13 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
       )}
 
       {savedSlug && warnings.length > 0 && (
-        <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          <p className="mb-1 font-medium">같은 표기의 다른 용어가 있습니다</p>
+        <div className="note note-warn">
+          <p className="mb-1 font-medium">저장했습니다. 다만 같은 표기의 다른 용어가 있습니다</p>
           <ul className="space-y-0.5">
             {warnings.map((w) => (
               <li key={`${w.surfaceText}:${w.conflictingSlug}`}>
                 {w.surfaceText} →{" "}
-                <Link href={`/terms/${w.conflictingSlug}`} className="underline">
+                <Link href={`/terms/${w.conflictingSlug}`} className="underline underline-offset-2">
                   {w.conflictingSlug}
                 </Link>
               </li>
@@ -202,126 +210,134 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
-        <label className="block text-sm">
-          <span className="mb-1 block text-slate-600">용어 종류</span>
-          <select
-            value={form.termType}
-            onChange={(e) => updateField("termType", e.target.value)}
-            disabled={locked}
-            className="w-full rounded border border-slate-300 px-3 py-2"
-          >
-            {TERM_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {TERM_TYPE_LABEL[t]}
-              </option>
-            ))}
-          </select>
-        </label>
+      <section className="card p-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="label">용어 종류</span>
+            <select
+              value={form.termType}
+              onChange={(e) => updateField("termType", e.target.value)}
+              disabled={locked}
+              className="field"
+            >
+              {TERM_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {TERM_TYPE_LABEL[t]}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label className="block text-sm">
-          <span className="mb-1 block text-slate-600">상태</span>
-          <select
-            value={form.status}
-            onChange={(e) => updateField("status", e.target.value)}
-            disabled={locked}
-            className="w-full rounded border border-slate-300 px-3 py-2"
-          >
-            {TERM_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {TERM_STATUS_LABEL[s]}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label className="block">
+            <span className="label">상태</span>
+            <select
+              value={form.status}
+              onChange={(e) => updateField("status", e.target.value)}
+              disabled={locked}
+              className="field"
+            >
+              {TERM_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {TERM_STATUS_LABEL[s]}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label className="block text-sm">
-          <span className="mb-1 block text-slate-600">영문명</span>
-          <input
-            value={form.nameEn}
-            onChange={(e) => updateField("nameEn", e.target.value)}
+          <label className="block">
+            <span className="label">영문 표준명</span>
+            <input
+              value={form.nameEn}
+              onChange={(e) => updateField("nameEn", e.target.value)}
+              disabled={locked}
+              className="field"
+            />
+          </label>
+
+          <label className="block">
+            <span className="label">국문 표준명</span>
+            <input
+              value={form.nameKo}
+              onChange={(e) => updateField("nameKo", e.target.value)}
+              disabled={locked}
+              className="field"
+            />
+          </label>
+
+          <label className="block">
+            <span className="label">영문 풀네임</span>
+            <input
+              value={form.fullNameEn}
+              onChange={(e) => updateField("fullNameEn", e.target.value)}
+              disabled={locked}
+              className="field"
+            />
+          </label>
+
+          <label className="block">
+            <span className="label">국문 풀네임</span>
+            <input
+              value={form.fullNameKo}
+              onChange={(e) => updateField("fullNameKo", e.target.value)}
+              disabled={locked}
+              className="field"
+            />
+          </label>
+
+          <label className="block sm:col-span-2">
+            <span className="label">도메인 (쉼표로 구분)</span>
+            <input
+              value={form.domain}
+              onChange={(e) => updateField("domain", e.target.value)}
+              disabled={locked}
+              placeholder="ISP, PM"
+              className="field"
+            />
+          </label>
+        </div>
+        <p className="mt-2 text-xs text-ink-3">영문 표준명과 국문 표준명 중 최소 하나는 있어야 합니다.</p>
+      </section>
+
+      <section className="card space-y-3 p-4">
+        <label className="block">
+          <span className="label">정의</span>
+          <textarea
+            value={form.definitionMd}
+            onChange={(e) => updateField("definitionMd", e.target.value)}
             disabled={locked}
-            className="w-full rounded border border-slate-300 px-3 py-2"
+            rows={3}
+            placeholder="한두 문장으로 이 용어가 무엇인지"
+            className="field"
           />
         </label>
 
-        <label className="block text-sm">
-          <span className="mb-1 block text-slate-600">한글명</span>
-          <input
-            value={form.nameKo}
-            onChange={(e) => updateField("nameKo", e.target.value)}
+        {/* R111: bodyMd는 terms.body_md 컬럼에 이미 저장되고(lib/terms/create.ts,
+            update.ts) 상세 화면(app/terms/[slug]/page.tsx, R96)에도 이미 렌더되는데,
+            계획서 스케치의 폼에는 입력란 자체가 없었다 — 상세 화면이 보여주는
+            "본문"을 채울 방법이 폼에 없는 셈이었다. */}
+        <label className="block">
+          <span className="label">본문</span>
+          <textarea
+            value={form.bodyMd}
+            onChange={(e) => updateField("bodyMd", e.target.value)}
             disabled={locked}
-            className="w-full rounded border border-slate-300 px-3 py-2"
+            rows={6}
+            placeholder="배경, 사용 예, 쓰면 안 되는 맥락 등"
+            className="field"
           />
         </label>
+      </section>
 
-        <label className="block text-sm">
-          <span className="mb-1 block text-slate-600">영문 풀네임</span>
-          <input
-            value={form.fullNameEn}
-            onChange={(e) => updateField("fullNameEn", e.target.value)}
-            disabled={locked}
-            className="w-full rounded border border-slate-300 px-3 py-2"
-          />
-        </label>
-
-        <label className="block text-sm">
-          <span className="mb-1 block text-slate-600">한글 풀네임</span>
-          <input
-            value={form.fullNameKo}
-            onChange={(e) => updateField("fullNameKo", e.target.value)}
-            disabled={locked}
-            className="w-full rounded border border-slate-300 px-3 py-2"
-          />
-        </label>
-      </div>
-
-      <label className="block text-sm">
-        <span className="mb-1 block text-slate-600">도메인 (쉼표로 구분)</span>
-        <input
-          value={form.domain}
-          onChange={(e) => updateField("domain", e.target.value)}
-          disabled={locked}
-          placeholder="ISP, PM"
-          className="w-full rounded border border-slate-300 px-3 py-2"
-        />
-      </label>
-
-      <label className="block text-sm">
-        <span className="mb-1 block text-slate-600">정의</span>
-        <textarea
-          value={form.definitionMd}
-          onChange={(e) => updateField("definitionMd", e.target.value)}
-          disabled={locked}
-          rows={3}
-          className="w-full rounded border border-slate-300 px-3 py-2"
-        />
-      </label>
-
-      {/* R111: bodyMd는 terms.body_md 컬럼에 이미 저장되고(lib/terms/create.ts,
-          update.ts) 상세 화면(app/terms/[slug]/page.tsx, R96)에도 이미 렌더되는데,
-          계획서 스케치의 폼에는 입력란 자체가 없었다 — 상세 화면이 보여주는
-          "본문"을 채울 방법이 폼에 없는 셈이었다. */}
-      <label className="block text-sm">
-        <span className="mb-1 block text-slate-600">본문</span>
-        <textarea
-          value={form.bodyMd}
-          onChange={(e) => updateField("bodyMd", e.target.value)}
-          disabled={locked}
-          rows={6}
-          className="w-full rounded border border-slate-300 px-3 py-2"
-        />
-      </label>
-
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-sm text-slate-600">표기</span>
-          <button
-            type="button"
-            onClick={addSurface}
-            disabled={locked}
-            className="rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"
-          >
+      <section className="card p-4">
+        <div className="mb-2 flex items-start justify-between gap-3">
+          <div>
+            <span className="label mb-0">표기</span>
+            {/* 표준명에서 자동으로 파생되는 표기는 여기 나타나지 않는다(R110의
+                pickExplicitSurfaces). 그 사실을 적어두지 않으면 빈 목록을 보고
+                "표기가 하나도 없다"고 오해한다. */}
+            <p className="text-xs text-ink-3">표준명에서 자동으로 만들어지는 표기 외에, 따로 등록할 것만 적습니다.</p>
+          </div>
+          <button type="button" onClick={addSurface} disabled={locked} className="btn-ghost btn-sm shrink-0">
             표기 추가
           </button>
         </div>
@@ -333,17 +349,17 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
                 onChange={(e) => updateSurface(i, { text: e.target.value })}
                 disabled={locked}
                 placeholder="표기"
-                className="flex-1 rounded border border-slate-300 px-2 py-1 text-sm"
+                className="field flex-1 py-1.5"
               />
               <select
                 value={s.lang}
                 onChange={(e) => updateSurface(i, { lang: e.target.value })}
                 disabled={locked}
-                className="rounded border border-slate-300 px-2 py-1 text-sm"
+                className="field w-24 py-1.5"
               >
                 {SURFACE_LANGS.map((l) => (
                   <option key={l} value={l}>
-                    {l}
+                    {LANG_LABEL[l]}
                   </option>
                 ))}
               </select>
@@ -351,7 +367,7 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
                 value={s.kind}
                 onChange={(e) => updateSurface(i, { kind: e.target.value })}
                 disabled={locked}
-                className="rounded border border-slate-300 px-2 py-1 text-sm"
+                className="field w-28 py-1.5"
               >
                 {EXPLICIT_SURFACE_KINDS.map((k) => (
                   <option key={k} value={k}>
@@ -363,24 +379,32 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
                 type="button"
                 onClick={() => removeSurface(i)}
                 disabled={locked}
-                className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 disabled:opacity-50"
+                className="btn-quiet btn-sm text-ink-3 hover:text-danger"
               >
                 삭제
               </button>
             </div>
           ))}
+          {form.surfaces.length === 0 && (
+            <p className="py-2 text-center text-xs text-ink-3">등록된 별칭·약어·금지 표기가 없습니다.</p>
+          )}
         </div>
-      </div>
+      </section>
 
-      {savedSlug ? (
-        <Link href={`/terms/${savedSlug}`} className="inline-block rounded bg-slate-900 px-4 py-2 text-white">
-          저장됨 → {savedSlug}로 이동
+      <div className="flex items-center gap-2">
+        {savedSlug ? (
+          <Link href={`/terms/${savedSlug}`} className="btn-primary">
+            저장됨 → {savedSlug}로 이동
+          </Link>
+        ) : (
+          <button type="submit" disabled={saving} className="btn-primary">
+            {saving ? "저장 중..." : "저장"}
+          </button>
+        )}
+        <Link href={editSlug !== undefined ? `/terms/${editSlug}` : "/terms"} className="btn-quiet">
+          취소
         </Link>
-      ) : (
-        <button type="submit" disabled={saving} className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50">
-          {saving ? "저장 중..." : "저장"}
-        </button>
-      )}
+      </div>
     </form>
   );
 }

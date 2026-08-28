@@ -1,3 +1,193 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   디자인 토큰.
+   색은 전부 여기서만 정의하고, 화면 코드는 tailwind.config.ts가 매핑한
+   의미 이름(paper/panel/line/ink/brand/ok/warn/danger)만 쓴다. 하드코딩된
+   slate-300 같은 값이 화면에 흩어지면 테마(다크 모드)가 구조적으로 불가능해진다.
+
+   테마는 세 상태다 — data-theme="light" | data-theme="dark" | (없음: 시스템).
+   그래서 다크 값은 두 번 쓴다: 시스템 다크(명시 light가 아닐 때)와 명시 dark.
+--------------------------------------------------------------------------- */
+:root {
+  --paper: 250 249 247;
+  --panel: 255 255 255;
+  --panel-2: 246 245 242;
+  --line: 231 227 220;
+  --line-strong: 214 209 200;
+  --ink: 27 29 34;
+  --ink-2: 88 93 102;
+  --ink-3: 138 143 152;
+  --brand: 67 56 202;
+  --brand-2: 99 87 226;
+  --brand-soft: 238 236 253;
+  --brand-on: 255 255 255;
+  --ok: 21 128 61;
+  --ok-soft: 226 244 232;
+  --warn: 180 111 8;
+  --warn-soft: 252 242 219;
+  --danger: 190 40 40;
+  --danger-soft: 253 232 232;
+  --grid-line: 227 223 215;
+  --selection: 67 56 202;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: 19 21 25;
+    --panel: 26 29 34;
+    --panel-2: 33 37 43;
+    --line: 45 50 58;
+    --line-strong: 62 68 78;
+    --ink: 232 230 226;
+    --ink-2: 165 170 179;
+    --ink-3: 122 128 138;
+    --brand: 141 133 246;
+    --brand-2: 165 158 250;
+    --brand-soft: 39 38 66;
+    --brand-on: 17 17 26;
+    --ok: 74 194 118;
+    --ok-soft: 26 48 36;
+    --warn: 226 168 62;
+    --warn-soft: 52 42 22;
+    --danger: 246 118 118;
+    --danger-soft: 56 30 32;
+    --grid-line: 43 48 56;
+    --selection: 141 133 246;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: 19 21 25;
+  --panel: 26 29 34;
+  --panel-2: 33 37 43;
+  --line: 45 50 58;
+  --line-strong: 62 68 78;
+  --ink: 232 230 226;
+  --ink-2: 165 170 179;
+  --ink-3: 122 128 138;
+  --brand: 141 133 246;
+  --brand-2: 165 158 250;
+  --brand-soft: 39 38 66;
+  --brand-on: 17 17 26;
+  --ok: 74 194 118;
+  --ok-soft: 26 48 36;
+  --warn: 226 168 62;
+  --warn-soft: 52 42 22;
+  --danger: 246 118 118;
+  --danger-soft: 56 30 32;
+  --grid-line: 43 48 56;
+  --selection: 141 133 246;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-paper text-ink antialiased;
+    /* 종이 질감: 이미지 없이 그라디언트 두 겹으로만 만든다(요청 0건). */
+    background-image:
+      radial-gradient(rgb(var(--ink) / 0.022) 1px, transparent 1px),
+      radial-gradient(rgb(var(--ink) / 0.014) 1px, transparent 1px);
+    background-size: 22px 22px, 22px 22px;
+    background-position: 0 0, 11px 11px;
+  }
+
+  ::selection {
+    background: rgb(var(--selection) / 0.22);
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--brand));
+    outline-offset: 2px;
+  }
+
+  /* 그리드가 화면 대부분을 차지하므로 스크롤바가 두껍고 밝으면 눈에 거슬린다. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--line-strong)) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: rgb(var(--line-strong));
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-line bg-panel;
+  }
+
+  .field {
+    @apply w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink
+      placeholder:text-ink-3 focus:border-brand focus:outline-none
+      focus:ring-2 focus:ring-brand/25 disabled:opacity-55;
+  }
+
+  .label {
+    @apply mb-1.5 block text-xs font-medium tracking-wide text-ink-2;
+  }
+
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-1.5 rounded-lg border
+      border-transparent px-3 py-1.5 text-sm font-medium transition
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-brand text-brand-on hover:bg-brand-2;
+  }
+  .btn-ghost {
+    @apply btn border-line bg-panel text-ink-2 hover:bg-panel-2 hover:text-ink;
+  }
+  .btn-quiet {
+    @apply btn text-ink-2 hover:bg-panel-2 hover:text-ink;
+  }
+  .btn-danger {
+    @apply btn border-danger/35 bg-danger-soft text-danger hover:border-danger/60;
+  }
+  .btn-sm {
+    @apply px-2 py-1 text-xs;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-panel
+      px-2.5 py-1 text-xs text-ink-2 transition hover:border-line-strong hover:text-ink;
+  }
+  .chip-on {
+    @apply border-brand/45 bg-brand-soft text-brand;
+  }
+
+  .kbd {
+    @apply inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border
+      border-line bg-panel-2 px-1 font-mono text-[10px] text-ink-3;
+  }
+
+  .link {
+    @apply text-ink underline decoration-line-strong underline-offset-[3px]
+      transition hover:decoration-brand;
+  }
+
+  /* 안내 배너 3종. 색만 다르고 구조는 같아서 한 자리에 모은다. */
+  .note {
+    @apply rounded-lg border px-3 py-2.5 text-sm;
+  }
+  .note-warn {
+    @apply note border-warn/35 bg-warn-soft text-warn;
+  }
+  .note-danger {
+    @apply note border-danger/35 bg-danger-soft text-danger;
+  }
+  .note-ok {
+    @apply note border-ok/35 bg-ok-soft text-ok;
+  }
+}

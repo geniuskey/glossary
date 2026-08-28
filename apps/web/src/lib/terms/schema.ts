@@ -14,12 +14,17 @@ export const surfaceInputSchema = z.object({
   caseSensitive: z.boolean().optional(),
 });
 
+// R117: 표준명/풀네임은 nullable이다. `.min(1).optional()`만으로는 "값을
+// 지운다"를 표현할 방법이 없다 — 빈 문자열은 400이고, 필드를 빼면 PATCH에서는
+// "안 건드림"을 뜻하기 때문이다. 표에서 셀을 비우는 동작(엑셀에서 Delete)이
+// 바로 이 경우라서, 명시적인 null을 "지운다"로 받는다. 공백만 남은 값도
+// 여전히 400이다(R46 — trim 후 min(1)).
 export const termInputBaseSchema = z.object({
   termType: z.enum(["term", "abbreviation", "project", "product_id", "code", "unit"]).default("term"),
-  nameEn: z.string().trim().min(1).optional(),
-  nameKo: z.string().trim().min(1).optional(),
-  fullNameEn: z.string().trim().min(1).optional(),
-  fullNameKo: z.string().trim().min(1).optional(),
+  nameEn: z.string().trim().min(1).nullable().optional(),
+  nameKo: z.string().trim().min(1).nullable().optional(),
+  fullNameEn: z.string().trim().min(1).nullable().optional(),
+  fullNameKo: z.string().trim().min(1).nullable().optional(),
   domain: z.array(z.string().trim().min(1)).default([]),
   status: z.enum(["draft", "approved", "deprecated", "forbidden"]).default("draft"),
   definitionMd: z.string().optional(),

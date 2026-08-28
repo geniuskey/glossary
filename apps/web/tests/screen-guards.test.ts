@@ -76,7 +76,6 @@ const PROTO_B_ALLOWLIST = new Set<string>([
   "page.tsx", // app/page.tsx: 무조건 /terms로 redirect한다 — 인증 게이트는 그 화면 몫이다.
   path.join("setup", "page.tsx"), // 최초 설정 화면 — 아직 계정이 없을 때만 열린다(needsSetup으로 스스로 막는다).
   path.join("login", "page.tsx"), // 로그인 화면 자신 — 인증 게이트의 대상이 아니다.
-  path.join("settings", "api-keys", "page.tsx"), // Task 8 산물, "use client" 전용. 호출하는 /api/v1/keys*가 requireAuth로 막혀 있어 데이터 유출은 아니다(review §2 Q1).
 ]);
 
 test('PROTO B: 허용목록 밖의 모든 page.tsx는 getCurrentUser(와 redirect("/login")를 모두 포함한다 (R3/R6)', () => {

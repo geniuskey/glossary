@@ -1,11 +1,15 @@
 import { expect, test } from "vitest";
 import {
   activeFilters,
+  activeParams,
+  buildFilterHref,
   buildPageHref,
+  buildSortHref,
   hiddenSearchFields,
   paginationInfo,
   parseListParams,
   parsePage,
+  sortStateOf,
 } from "../src/lib/terms/list-params.js";
 
 // R97: "구현을 지워도 통과하는 테스트는 없느니만 못하다" — /terms 화면 자체는
@@ -170,4 +174,96 @@ test("activeFilters: 지정된 필터만, 지정 순서(q/type/domain/status)로
     { name: "type", value: "term" },
     { name: "status", value: "draft" },
   ]);
+});
+
+// --- 정렬 -----------------------------------------------------------------
+// 정렬은 필터와 달리 "보는 방식"이지만 주소에 실려야 한다 — 열 머리글을 눌러
+// 정렬한 뒤 새로고침하거나 링크를 공유했을 때 정렬이 풀리면 함께 보는 화면으로
+// 쓸모가 없다. 아래 테스트들이 그 보존을 고정한다.
+
+test("parseListParams: 알 수 없는 sort/dir은 조용히 무시된다", () => {
+  const parsed = parseListParams({ sort: "nameFr", dir: "sideways" });
+  expect(parsed.sort).toBeUndefined();
+  expect(parsed.dir).toBeUndefined();
+});
+
+test("parseListParams: 알려진 sort/dir은 그대로 통과한다", () => {
+  const parsed = parseListParams({ sort: "nameKo", dir: "asc" });
+  expect(parsed.sort).toBe("nameKo");
+  expect(parsed.dir).toBe("asc");
+});
+
+test("buildSortHref: 다른 열을 누르면 그 열의 기본 방향으로 새로 정렬한다", () => {
+  const parsed = parseListParams({ sort: "updatedAt", dir: "desc" });
+  const href = buildSortHref(parsed, "nameEn", "asc");
+  const usp = new URLSearchParams(href.split("?")[1]);
+  expect(usp.get("sort")).toBe("nameEn");
+  expect(usp.get("dir")).toBe("asc");
+});
+
+test("buildSortHref: 같은 열을 다시 누르면 방향만 뒤집힌다", () => {
+  const asc = parseListParams({ sort: "nameEn", dir: "asc" });
+  expect(new URLSearchParams(buildSortHref(asc, "nameEn", "asc").split("?")[1]).get("dir")).toBe("desc");
+
+  const desc = parseListParams({ sort: "nameEn", dir: "desc" });
+  expect(new URLSearchParams(buildSortHref(desc, "nameEn", "asc").split("?")[1]).get("dir")).toBe("asc");
+});
+
+test("buildSortHref: sort/dir이 없으면 기본 정렬(updatedAt desc)을 현재 상태로 본다", () => {
+  const parsed = parseListParams({});
+  // 기본이 updatedAt desc이므로, updatedAt을 누르면 asc로 뒤집혀야 한다.
+  expect(new URLSearchParams(buildSortHref(parsed, "updatedAt", "desc").split("?")[1]).get("dir")).toBe("asc");
+});
+
+test("buildSortHref: 활성 필터를 전부 보존하고 page는 1로 되돌린다", () => {
+  const parsed = parseListParams({ q: "AE", type: "abbreviation", domain: "ISP", status: "approved", page: "7" });
+  const usp = new URLSearchParams(buildSortHref(parsed, "slug", "asc").split("?")[1]);
+  expect(usp.get("q")).toBe("AE");
+  expect(usp.get("type")).toBe("abbreviation");
+  expect(usp.get("domain")).toBe("ISP");
+  expect(usp.get("status")).toBe("approved");
+  // 정렬이 바뀌면 7페이지에 있던 행들은 그 자리에 없다.
+  expect(usp.get("page")).toBe("1");
+});
+
+test("buildPageHref: 정렬도 함께 보존한다(필터만 보존하면 페이지를 넘길 때 정렬이 풀린다)", () => {
+  const parsed = parseListParams({ sort: "nameKo", dir: "asc", type: "term", page: "2" });
+  const usp = new URLSearchParams(buildPageHref(parsed, 3).split("?")[1]);
+  expect(usp.get("sort")).toBe("nameKo");
+  expect(usp.get("dir")).toBe("asc");
+  expect(usp.get("type")).toBe("term");
+  expect(usp.get("page")).toBe("3");
+});
+
+test("buildFilterHref: 지정한 필터 하나만 빠지고 정렬과 나머지 필터는 남는다", () => {
+  const parsed = parseListParams({ q: "AE", type: "abbreviation", sort: "slug", dir: "asc", page: "4" });
+  const usp = new URLSearchParams(buildFilterHref(parsed, "type").split("?")[1]);
+  expect(usp.get("type")).toBeNull();
+  expect(usp.get("q")).toBe("AE");
+  expect(usp.get("sort")).toBe("slug");
+  expect(usp.get("dir")).toBe("asc");
+  // 필터가 바뀌면 결과 집합 자체가 달라진다.
+  expect(usp.get("page")).toBe("1");
+});
+
+test("hiddenSearchFields: 정렬도 hidden으로 실린다(검색 제출 시 정렬이 풀리면 안 된다)", () => {
+  const parsed = parseListParams({ q: "AE", sort: "nameEn", dir: "asc" });
+  const names = hiddenSearchFields(parsed).map((f) => f.name).sort();
+  expect(names).toEqual(["dir", "sort"]);
+});
+
+test("activeParams: q는 빠지지 않는다(hiddenSearchFields만 q를 뺀다)", () => {
+  const parsed = parseListParams({ q: "AE", sort: "nameEn" });
+  expect(activeParams(parsed).map((f) => f.name)).toEqual(["q", "sort"]);
+});
+
+test("sortStateOf: 정렬 중인 열만 방향을 돌려주고 나머지는 null이다", () => {
+  const parsed = parseListParams({ sort: "nameEn", dir: "asc" });
+  expect(sortStateOf(parsed, "nameEn")).toBe("asc");
+  expect(sortStateOf(parsed, "slug")).toBeNull();
+
+  // 지정이 없으면 기본 정렬(updatedAt desc)이 현재 상태다.
+  const bare = parseListParams({});
+  expect(sortStateOf(bare, "updatedAt")).toBe("desc");
+  expect(sortStateOf(bare, "nameEn")).toBeNull();
 });

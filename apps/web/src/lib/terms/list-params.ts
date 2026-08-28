@@ -1,4 +1,5 @@
 import { termStatusEnum, termTypeEnum } from "@grossary/db";
+import { DEFAULT_DIR, DEFAULT_SORT, SORT_DIRS, SORT_KEYS, type SortDir, type SortKey } from "./grid";
 import type { TermStatus, TermType } from "./query";
 
 // R91: `app/api/v1/terms/route.ts`의 parseEnumParam/parsePageParam은 이 모듈과
@@ -17,6 +18,11 @@ export interface ParsedListParams {
   type?: TermType;
   domain?: string;
   status?: TermStatus;
+  // 정렬은 필터가 아니라 "보는 방식"이다. 그래도 주소에 실려야 한다 —
+  // 표에서 열 머리글을 눌러 정렬한 뒤 새로고침하거나 링크를 공유했을 때
+  // 정렬이 풀려 버리면 함께 보는 화면으로서 쓸모가 없다.
+  sort?: SortKey;
+  dir?: SortDir;
   page: number;
 }
 
@@ -59,6 +65,8 @@ export function parseListParams(raw: RawSearchParams): ParsedListParams {
     type: narrowEnum(raw.type, termTypeEnum.enumValues),
     domain: firstValue(raw.domain),
     status: narrowEnum(raw.status, termStatusEnum.enumValues),
+    sort: narrowEnum(raw.sort, SORT_KEYS),
+    dir: narrowEnum(raw.dir, SORT_DIRS),
     page: parsePage(raw.page),
   };
 }
@@ -84,6 +92,7 @@ export function paginationInfo(page: number, total: number, pageSize: number): P
 }
 
 type FilterName = "q" | "type" | "domain" | "status";
+type ParamName = FilterName | "sort" | "dir";
 
 // R93/R94: 현재 활성 필터(빈 값이 아닌 것만)를 이름 붙은 목록으로 뽑는다.
 // buildPageHref(페이지네이션 링크)와 hiddenSearchFields(검색 폼의 hidden
@@ -101,15 +110,60 @@ export function activeFilters(params: ParsedListParams): Array<{ name: FilterNam
 // R94: 검색 폼의 `q` input은 이미 화면에 보이는 입력창 자신이라, hidden으로
 // 다시 실으면 안 된다(값이 두 번 실려 마지막 것이 이기는 것에 우연히 기대게
 // 된다). type/domain/status만 hidden으로 실어 검색 제출 시 사라지지 않게 한다.
-export function hiddenSearchFields(params: ParsedListParams): Array<{ name: FilterName; value: string }> {
-  return activeFilters(params).filter((f) => f.name !== "q");
+export function hiddenSearchFields(params: ParsedListParams): Array<{ name: ParamName; value: string }> {
+  return activeParams(params).filter((f) => f.name !== "q");
+}
+
+// 주소에 실어야 하는 상태 전부 = 필터 + 정렬. 링크를 만드는 자리(페이지네이션,
+// 열 머리글, 검색 폼의 hidden input)가 저마다 목록을 다시 적으면 한 곳만 빠뜨려도
+// 그 링크에서 조용히 정렬이 풀린다 — R93/R94가 필터에 대해 닫은 구멍과 같다.
+export function activeParams(params: ParsedListParams): Array<{ name: ParamName; value: string }> {
+  const out: Array<{ name: ParamName; value: string }> = [...activeFilters(params)];
+  if (params.sort) out.push({ name: "sort", value: params.sort });
+  if (params.dir) out.push({ name: "dir", value: params.dir });
+  return out;
+}
+
+function hrefWith(params: ParsedListParams, overrides: Partial<Record<ParamName | "page", string>>): string {
+  const usp = new URLSearchParams();
+  for (const f of activeParams(params)) usp.set(f.name, f.value);
+  for (const [name, value] of Object.entries(overrides)) usp.set(name, value);
+  return `/terms?${usp.toString()}`;
 }
 
 // R93: 페이지네이션 링크. 현재 활성 필터를 전부 보존하면서 page만 targetPage로
 // 바꾼다.
 export function buildPageHref(params: ParsedListParams, targetPage: number): string {
+  return hrefWith(params, { page: String(targetPage) });
+}
+
+/**
+ * 필터 칩의 "x". 그 필터 하나만 빼고 나머지(정렬 포함)는 유지한다. 필터가
+ * 바뀌면 결과 집합 자체가 달라지므로 page는 1로 되돌린다.
+ */
+export function buildFilterHref(params: ParsedListParams, drop: FilterName): string {
   const usp = new URLSearchParams();
-  for (const f of activeFilters(params)) usp.set(f.name, f.value);
-  usp.set("page", String(targetPage));
+  for (const f of activeParams(params)) {
+    if (f.name !== drop) usp.set(f.name, f.value);
+  }
+  usp.set("page", "1");
   return `/terms?${usp.toString()}`;
+}
+
+/**
+ * 열 머리글 링크. 이미 그 열로 정렬 중이면 방향만 뒤집고, 아니면 그 열의
+ * 기본 방향으로 새로 정렬한다. 정렬이 바뀌면 지금 보던 page 번호는 의미가
+ * 없어지므로(다른 행들이 그 자리에 온다) 항상 1페이지로 돌아간다.
+ */
+export function buildSortHref(params: ParsedListParams, key: SortKey, fallbackDir: SortDir): string {
+  const current = params.sort ?? DEFAULT_SORT;
+  const currentDir = params.dir ?? DEFAULT_DIR;
+  const dir: SortDir = current === key ? (currentDir === "asc" ? "desc" : "asc") : fallbackDir;
+  return hrefWith(params, { sort: key, dir, page: "1" });
+}
+
+/** 지금 이 열로 정렬 중인가 — 머리글의 화살표 방향을 정한다. */
+export function sortStateOf(params: ParsedListParams, key: SortKey): SortDir | null {
+  const current = params.sort ?? DEFAULT_SORT;
+  return current === key ? (params.dir ?? DEFAULT_DIR) : null;
 }

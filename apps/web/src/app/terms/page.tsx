@@ -1,12 +1,40 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { DomainBadges, StatusBadge } from "@/components/term-badges";
+import { TermsGrid } from "@/components/terms-grid";
 import { getCurrentUser } from "@/lib/auth/current-user";
-import { buildPageHref, hiddenSearchFields, paginationInfo, parseListParams } from "@/lib/terms/list-params";
-import { listTerms } from "@/lib/terms/query";
+import { TERM_STATUS_LABEL, TERM_TYPE_LABEL } from "@/lib/terms/enums";
+import { SORT_KEYS, type SortDir, type SortKey } from "@/lib/terms/grid";
+import {
+  activeFilters,
+  buildFilterHref,
+  buildPageHref,
+  buildSortHref,
+  hiddenSearchFields,
+  paginationInfo,
+  parseListParams,
+} from "@/lib/terms/list-params";
+import { listTermRows, termFacets } from "@/lib/terms/query";
+import { cx } from "@/lib/ui/format";
 
-const PAGE_SIZE = 20;
+export const metadata = { title: "용어집" };
+
+// 표는 한 화면에서 훑는 물건이라 20줄은 너무 적다. 그렇다고 무한정 늘리면
+// 첫 페인트가 느려지므로 한 화면 스크롤 두어 번 분량으로 잡는다.
+const PAGE_SIZE = 50;
+
+// 열 머리글을 처음 눌렀을 때의 방향. 이름은 사전처럼 ㄱ→ㅎ이 자연스럽고,
+// 수정 시각만 최신이 위로 오는 게 자연스럽다.
+const SORT_FALLBACK_DIR: Record<SortKey, SortDir> = {
+  updatedAt: "desc",
+  nameEn: "asc",
+  nameKo: "asc",
+  slug: "asc",
+  termType: "asc",
+  status: "asc",
+};
+
+const FILTER_LABEL: Record<string, string> = { q: "검색", type: "종류", domain: "도메인", status: "상태" };
 
 export default async function TermsPage({
   searchParams,
@@ -22,80 +50,137 @@ export default async function TermsPage({
   const raw = await searchParams;
   const parsed = parseListParams(raw);
 
-  const { items, total } = await listTerms({
-    q: parsed.q,
-    termType: parsed.type,
-    domain: parsed.domain,
-    status: parsed.status,
-    page: parsed.page,
-    pageSize: PAGE_SIZE,
-  });
+  const [{ items, total }, facets] = await Promise.all([
+    listTermRows({
+      q: parsed.q,
+      termType: parsed.type,
+      domain: parsed.domain,
+      status: parsed.status,
+      sort: parsed.sort,
+      dir: parsed.dir,
+      page: parsed.page,
+      pageSize: PAGE_SIZE,
+    }),
+    termFacets(),
+  ]);
+
   const pagination = paginationInfo(parsed.page, total, PAGE_SIZE);
+  const filters = activeFilters(parsed);
+
+  // 정렬 링크는 서버에서 만든다 — buildSortHref가 있는 list-params.ts는
+  // @grossary/db를 import하므로 Client Component가 직접 부를 수 없다(R114).
+  const sortHrefs = Object.fromEntries(
+    SORT_KEYS.map((key) => [key, buildSortHref(parsed, key, SORT_FALLBACK_DIR[key])]),
+  ) as Record<SortKey, string>;
 
   return (
-    <AppShell user={user}>
-      {/* R94: q는 이 폼 자신의 보이는 입력이라 hidden으로 다시 싣지 않는다.
-          type/domain/status는 hidden input으로 실어야 검색 제출 시 사라지지
-          않는다(GET 폼은 자기 안의 input만 querystring으로 직렬화한다). */}
-      <form className="mb-6 flex gap-2" method="get">
-        <input
-          name="q"
-          defaultValue={parsed.q ?? ""}
-          placeholder="용어, 약어, 별칭으로 검색"
-          className="w-full rounded border border-slate-300 px-3 py-2"
-        />
-        {hiddenSearchFields(parsed).map((f) => (
-          <input key={f.name} type="hidden" name={f.name} value={f.value} />
-        ))}
-        <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-white">
-          검색
-        </button>
-      </form>
+    <AppShell user={user} current="terms" wide>
+      <header className="shrink-0 border-b border-line bg-panel/70 px-4 py-3 backdrop-blur lg:px-6">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="text-lg font-semibold tracking-tight">용어집</h1>
+          <p className="text-xs text-ink-3">
+            개념 <span className="font-medium text-ink-2">{total}</span>개 · 셀을 눌러 바로 고치면 그대로 저장됩니다
+          </p>
+          <Link href="/terms/new" className="btn-primary btn-sm ml-auto">
+            자세히 추가
+          </Link>
+        </div>
 
-      <p className="mb-3 text-sm text-slate-500">{total}개</p>
+        {/* R94: q는 이 폼 자신의 보이는 입력이라 hidden으로 다시 싣지 않는다.
+            나머지 필터와 정렬은 hidden input으로 실어야 검색 제출 시 사라지지
+            않는다(GET 폼은 자기 안의 input만 querystring으로 직렬화한다). */}
+        <form method="get" className="mt-3 flex flex-wrap items-center gap-1.5">
+          <input
+            name="q"
+            defaultValue={parsed.q ?? ""}
+            placeholder="용어 · 약어 · 별칭 검색"
+            className="field h-8 w-56 py-0"
+          />
+          <FilterSelect name="type" value={parsed.type} placeholder="종류 전체" options={
+            facets.types.map((f) => ({ value: f.value, label: `${TERM_TYPE_LABEL[f.value]} ${f.count}` }))
+          } />
+          <FilterSelect name="status" value={parsed.status} placeholder="상태 전체" options={
+            facets.statuses.map((f) => ({ value: f.value, label: `${TERM_STATUS_LABEL[f.value]} ${f.count}` }))
+          } />
+          <FilterSelect name="domain" value={parsed.domain} placeholder="도메인 전체" options={
+            facets.domains.map((f) => ({ value: f.value, label: `${f.value} ${f.count}` }))
+          } />
+          {hiddenSearchFields(parsed)
+            .filter((f) => f.name === "sort" || f.name === "dir")
+            .map((f) => (
+              <input key={f.name} type="hidden" name={f.name} value={f.value} />
+            ))}
+          <button type="submit" className="btn-ghost btn-sm h-8">
+            적용
+          </button>
 
-      <ul className="divide-y divide-slate-200">
-        {items.map((t) => (
-          <li key={t.id} className="flex items-center justify-between py-3">
-            <div>
-              <Link href={`/terms/${t.slug}`} className="font-medium hover:underline">
-                {t.nameEn ?? t.nameKo}
-              </Link>
-              {t.nameEn && t.nameKo && <span className="ml-2 text-sm text-slate-500">{t.nameKo}</span>}
-            </div>
-            <div className="flex items-center gap-2">
-              <DomainBadges domain={t.domain} />
-              <StatusBadge status={t.status} />
-            </div>
-          </li>
-        ))}
-      </ul>
-
-      {items.length === 0 && <p className="py-8 text-slate-500">결과가 없습니다.</p>}
-
-      {/* R93: 21번째 용어부터는 이 링크 없이는 UI로 영원히 도달 불가능했다.
-          현재 필터를 전부 보존하면서 page만 바꾼다(buildPageHref). */}
-      {pagination.totalPages > 1 && (
-        <nav className="mt-6 flex items-center justify-between text-sm">
-          {pagination.hasPrev ? (
-            <Link href={buildPageHref(parsed, parsed.page - 1)} className="text-slate-600 hover:text-slate-900">
-              이전
-            </Link>
-          ) : (
-            <span />
+          {filters.length > 0 && (
+            <span className="ml-1 flex flex-wrap items-center gap-1">
+              {filters.map((f) => (
+                <Link key={f.name} href={buildFilterHref(parsed, f.name)} className="chip chip-on" title="이 필터 지우기">
+                  {FILTER_LABEL[f.name]}: {f.value}
+                  <span aria-hidden>×</span>
+                </Link>
+              ))}
+            </span>
           )}
-          <span className="text-slate-500">
-            {pagination.page} / {pagination.totalPages}
-          </span>
-          {pagination.hasNext ? (
-            <Link href={buildPageHref(parsed, parsed.page + 1)} className="text-slate-600 hover:text-slate-900">
-              다음
-            </Link>
-          ) : (
-            <span />
-          )}
-        </nav>
-      )}
+        </form>
+      </header>
+
+      <TermsGrid
+        rows={items}
+        viewerName={user.name || user.email}
+        canDelete={user.role === "admin"}
+        rowOffset={(parsed.page - 1) * PAGE_SIZE}
+        sortHrefs={sortHrefs}
+        sortState={{ key: parsed.sort ?? "updatedAt", dir: parsed.dir ?? "desc" }}
+      />
+
+      {/* R93: 51번째 용어부터는 이 링크 없이는 UI로 영원히 도달 불가능하다.
+          현재 필터와 정렬을 전부 보존하면서 page만 바꾼다. */}
+      <nav className="flex shrink-0 items-center justify-center gap-3 border-t border-line bg-panel px-4 py-2 text-xs">
+        <PageLink href={buildPageHref(parsed, parsed.page - 1)} enabled={pagination.hasPrev}>
+          이전
+        </PageLink>
+        <span className="text-ink-3">
+          {pagination.page} / {Math.max(1, pagination.totalPages)}
+        </span>
+        <PageLink href={buildPageHref(parsed, parsed.page + 1)} enabled={pagination.hasNext}>
+          다음
+        </PageLink>
+      </nav>
     </AppShell>
+  );
+}
+
+function FilterSelect({
+  name,
+  value,
+  placeholder,
+  options,
+}: {
+  name: string;
+  value: string | undefined;
+  placeholder: string;
+  options: Array<{ value: string; label: string }>;
+}) {
+  return (
+    <select name={name} defaultValue={value ?? ""} className="field h-8 w-auto py-0 text-xs">
+      <option value="">{placeholder}</option>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function PageLink({ href, enabled, children }: { href: string; enabled: boolean; children: React.ReactNode }) {
+  if (!enabled) return <span className="text-ink-3/50">{children}</span>;
+  return (
+    <Link href={href} className={cx("text-ink-2 hover:text-ink")}>
+      {children}
+    </Link>
   );
 }

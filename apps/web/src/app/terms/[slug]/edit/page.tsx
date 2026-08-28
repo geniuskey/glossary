@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { TermForm, type TermFormInitial } from "@/components/term-form";
@@ -5,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth/current-user";
 import { getTermByIdOrSlug } from "@/lib/terms/query";
 import { pickExplicitSurfaces } from "@/lib/terms/surfaces";
 import { listRevisions } from "@/lib/terms/update";
+import { displayName } from "@/lib/ui/format";
 
 export default async function EditTermPage({ params }: { params: Promise<{ slug: string }> }) {
   const user = await getCurrentUser();
@@ -41,8 +43,31 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
   };
 
   return (
-    <AppShell user={user}>
-      <h1 className="mb-6 text-xl font-semibold">용어 편집</h1>
+    <AppShell user={user} current="terms">
+      <nav className="mb-5 text-xs text-ink-3">
+        <Link href="/terms" className="link">
+          용어집
+        </Link>
+        <span className="mx-1.5">/</span>
+        <Link href={`/terms/${term.slug}`} className="link">
+          {displayName(term)}
+        </Link>
+        <span className="mx-1.5">/</span>
+        <span>편집</span>
+      </nav>
+
+      <header className="mb-5 flex items-end justify-between border-b border-line pb-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">용어 편집</h1>
+          {/* 함께 쓰는 사전이라 "지금 몇 번째 판을 고치는 중인지"가 보여야
+              409(다른 사람이 먼저 저장함)를 만났을 때 상황이 납득된다. */}
+          <p className="mt-0.5 text-xs text-ink-3">리비전 #{expectedRevision} 기준</p>
+        </div>
+        <Link href={`/terms/${term.slug}/history`} className="btn-ghost btn-sm">
+          이력
+        </Link>
+      </header>
+
       <TermForm initial={initial} />
     </AppShell>
   );
