@@ -11,6 +11,33 @@
 스킴 토큰(`Bearer`)은 RFC 7235대로 대소문자를 구분하지 않는다 — `bearer glk_...`도
 API 키 경로로 간다. 토큰 본문은 대소문자를 구분한다.
 
+## 최초 설정
+
+사용자가 하나도 없는 상태(새 배포)에서만 열리는 창구다. 첫 관리자 계정을 만든다.
+
+```http
+POST /api/v1/setup
+Content-Type: application/json
+
+{ "email": "admin@example.com", "name": "Admin", "password": "8자 이상" }
+```
+
+성공하면 로그인과 똑같이 `Set-Cookie: grossary_session=...`을 내려준다 — 만든 즉시
+로그인 상태가 된다. `name`은 생략하면 이메일이 쓰인다.
+
+```
+200  생성 성공 (세션 쿠키 발급)
+400  validation_failed (이메일 형식, 비밀번호 8자 미만 등)
+403  forbidden — 이미 초기 설정이 끝났다
+```
+
+::: warning 먼저 도달한 사람이 관리자다
+`/setup`은 **사용자 테이블이 비어 있을 때만** 동작한다. 첫 관리자가 생기면 이후
+`POST /api/v1/setup`은 항상 403이고, 웹의 `/setup` 화면은 로그인으로 리다이렉트된다.
+동시 요청은 advisory lock으로 직렬화되어 관리자는 한 번만 만들어진다. 다만 설정을
+끝내기 전 창구는 열려 있으므로, 배포 직후 바로 첫 관리자를 만들어야 한다.
+:::
+
 ## 로그인
 
 ```http

@@ -59,23 +59,35 @@ pnpm --filter @grossary/db db:migrate
 pnpm --filter @grossary/db db:generate
 ```
 
-## 5. 관리자 계정 시딩
+## 5. 개발 서버
 
-비밀번호를 명령행 인자로 넘기지 않는다. 프로세스 목록과 셸 히스토리에 평문으로 남는다.
+```bash
+pnpm --filter @grossary/web dev
+```
+
+http://localhost:3000 에서 뜬다.
+
+## 6. 최초 관리자 계정 만들기
+
+계정을 미리 시딩할 필요 없다. 사용자가 하나도 없으면 첫 접속에서 자동으로
+**`/setup`(관리자 만들기)** 화면으로 안내된다. 이메일·이름·비밀번호(8자 이상)를
+입력하면 관리자 계정이 만들어지고 바로 로그인된다.
+
+::: tip
+`/setup`은 **사용자 테이블이 비어 있을 때만** 열린다. 첫 관리자가 생기면 그 뒤로는
+`/setup`이 로그인으로 리다이렉트되고 `POST /api/v1/setup`은 403을 반환한다. 두 요청이
+동시에 들어와도 advisory lock으로 직렬화되어 관리자는 한 번만 만들어진다.
+:::
+
+스크립트로(예: 헤드리스 프로비저닝) 만들고 싶으면 `scripts/seed-admin.ts`도 그대로
+쓸 수 있다. 비밀번호는 명령행 인자로 넘기지 말고 `ADMIN_PASSWORD` 환경변수로 준다
+(프로세스 목록·셸 히스토리에 평문으로 남는다).
 
 ```bash
 read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
 ADMIN_EMAIL=admin@example.com pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts
 unset ADMIN_PASSWORD
 ```
-
-## 6. 개발 서버
-
-```bash
-pnpm --filter @grossary/web dev
-```
-
-http://localhost:3000 에서 뜬다. `/login`으로 들어가 위에서 만든 계정으로 로그인한다.
 
 ## 자주 쓰는 명령
 
@@ -95,7 +107,8 @@ http://localhost:3000 에서 뜬다. `/login`으로 들어가 위에서 만든 �
 
 | 경로 | 역할 |
 |---|---|
-| `/` | `/terms`로 리다이렉트 |
+| `/` | 관리자 없으면 `/setup`, 있으면 `/terms`로 리다이렉트 |
+| `/setup` | 최초 관리자 만들기 (사용자 0명일 때만) |
 | `/login` | 로그인 |
 | `/terms` | 용어 목록 — type/domain/status 필터, 검색, 페이징 |
 | `/terms/new` | 용어 등록 |

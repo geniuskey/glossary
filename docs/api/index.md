@@ -18,6 +18,7 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 |---|---|---|---|
 | GET | `/openapi` | — | 이 스펙 자체 |
 | GET | `/health` | — | DB 연결 포함 상태 확인 |
+| POST | [`/setup`](/api/auth#최초-설정) | — | 최초 관리자 계정 생성 (사용자 0명일 때만) |
 | POST | [`/auth/login`](/api/auth#로그인) | — | 세션 쿠키 발급 |
 | POST | [`/auth/logout`](/api/auth#로그아웃) | 세션 | 세션 폐기 |
 | GET | [`/keys`](/api/auth#키-목록) | 세션 | API 키 목록 |

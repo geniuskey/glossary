@@ -34,12 +34,12 @@ docker compose up -d
 
 pnpm --filter @grossary/db db:migrate
 
-read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
-ADMIN_EMAIL=admin@example.com pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts
-unset ADMIN_PASSWORD
-
 pnpm --filter @grossary/web dev   # http://localhost:3000
 ```
+
+관리자 계정을 미리 만들 필요 없다. **처음 접속하면 관리자 계정을 만드는 화면**으로
+안내된다(`/setup`). 첫 관리자를 만들고 나면 그 화면은 닫히고 로그인으로 바뀐다.
+스크립트로 만들고 싶으면 `scripts/seed-admin.ts`도 여전히 쓸 수 있다.
 
 개발용 Postgres는 호스트 **5434** 포트에 뜬다. 자세한 절차는
 [시작하기](https://geniuskey.github.io/grossary/guide/getting-started)를 본다.

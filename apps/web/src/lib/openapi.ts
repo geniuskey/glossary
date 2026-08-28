@@ -137,6 +137,35 @@ export const openApiSpec = {
         },
       },
     },
+    "/setup": {
+      // 최초 설정 창구다. users 테이블이 비어 있을 때만 관리자 계정을 만든다.
+      // 설정이 끝난 뒤에는 403(forbidden)이다. 인증이 필요 없다(security: []).
+      post: {
+        summary: "최초 관리자 계정 생성 (users가 비어 있을 때만)",
+        security: [],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["email", "password"],
+                properties: {
+                  email: { type: "string", format: "email" },
+                  password: { type: "string", minLength: 8 },
+                  name: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": json("grossary_session 쿠키를 Set-Cookie로 내려준다", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "403": errorResponse("forbidden — 이미 초기 설정이 끝났다"),
+        },
+      },
+    },
     "/auth/login": {
       post: {
         summary: "세션 쿠키 발급",
