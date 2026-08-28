@@ -41,8 +41,8 @@ devDependency라 운영 이미지(`runner`)에 없어 `migrator` 스테이지 �
 ```bash
 read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
 docker compose -f docker-compose.prod.yml run --rm \
-  -e ADMIN_EMAIL=admin@example.com -e ADMIN_PASSWORD \
-  migrator pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts
+  -e ADMIN_PASSWORD \
+  migrator pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts admin@example.com
 unset ADMIN_PASSWORD
 ```
 

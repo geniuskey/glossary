@@ -85,7 +85,7 @@ http://localhost:3000 에서 뜬다.
 
 ```bash
 read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
-ADMIN_EMAIL=admin@example.com pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts
+pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts admin@example.com
 unset ADMIN_PASSWORD
 ```
 
