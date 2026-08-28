@@ -1,0 +1,260 @@
+# 용어 API
+
+`{idOrSlug}`는 UUID와 slug 둘 다 받는다. UUID 형식이 아니면 slug로 조회한다.
+
+## 목록 조회
+
+```http
+GET /api/v1/terms?q=exposure&type=abbreviation&domain=ISP&status=approved&page=1&pageSize=20
+```
+
+| 파라미터 | 기본값 | 설명 |
+|---|---|---|
+| `q` | — | 검색어. **Term이 아니라 Surface를 향한다** |
+| `type` | — | `term` \| `abbreviation` \| `project` \| `product_id` \| `code` \| `unit` |
+| `domain` | — | 도메인 태그 하나 |
+| `status` | — | `draft` \| `approved` \| `deprecated` \| `forbidden` |
+| `page` | 1 | |
+| `pageSize` | 20 | 1~100으로 클램프된다 |
+
+```json
+{ "items": [ /* TermSummary[] */ ], "total": 137, "page": 1, "pageSize": 20 }
+```
+
+`TermSummary`는 `id`, `slug`, `termType`, `nameEn`, `nameKo`, `domain`, `status`다.
+
+::: tip 검색이 Surface를 향하는 이유
+"오토익스포저"나 `auto-exposure`로 검색해도 AE 개념 페이지에 도착해야 한다.
+사람들은 표준 표기를 **모르기 때문에** 용어집을 찾는다. 표준 표기로만 검색되면 도구가
+무용지물이다. `pg_trgm` 유사도로 오타도 흡수한다.
+:::
+
+### 잘못된 파라미터의 처리
+
+- `?type=foo`처럼 **알 수 없는 enum 값** → 400 `validation_failed`.
+  `details`에 `field`와 `allowed`가 실린다.
+- `?type=`처럼 **빈 값** → "지정 안 함"으로 조용히 무시한다. `<select>`를 아무것도
+  고르지 않고 제출한 폼이 이런 쿼리스트링을 만든다.
+- `?page=abc`, `?page=1e999` → 400 `validation_failed`. 재시도해도 성공하지 않는
+  입력이므로 500이 아니다.
+
+같은 규칙이 **화면**(`/terms`)에는 적용되지 않는다. 화면은 알 수 없는 값을 조용히
+무시하고 기본값을 쓴다 — 사람이 주소창을 손으로 고치다 낸 오타 하나로 에러 페이지를
+띄우면 안 되기 때문이다.
+
+## 등록
+
+```http
+POST /api/v1/terms
+Content-Type: application/json
+
+{
+  "termType": "abbreviation",
+  "nameEn": "AE",
+  "nameKo": "자동노출",
+  "fullNameEn": "Auto Exposure",
+  "domain": ["ISP"],
+  "status": "approved",
+  "definitionMd": "장면 밝기에 따라 노출을 자동으로 맞추는 기능.",
+  "surfaces": [
+    { "text": "오토익스포저", "lang": "ko", "kind": "alias" },
+    { "text": "auto exposure control", "lang": "en", "kind": "discouraged" }
+  ]
+}
+```
+
+`nameEn` 또는 `nameKo` 중 **최소 하나**는 있어야 한다.
+
+### 표기는 자동으로 파생된다
+
+`surfaces`에 직접 넣지 않아도 표준 이름에서 표기가 만들어진다.
+
+| 필드 | 파생되는 kind |
+|---|---|
+| `nameEn` | `termType`이 `abbreviation`이면 `abbreviation`, 아니면 `canonical` |
+| `nameKo` | `canonical` |
+| `fullNameEn`, `fullNameKo` | `full_name` |
+
+`caseSensitive`를 주지 않으면 `^[A-Z0-9]{2,6}$`에 맞는 짧은 전대문자 표기만 true가
+된다. `AE`는 대소문자를 구분하고 `Auto Exposure`는 구분하지 않는다.
+
+정규화 키와 kind가 같으면 먼저 온 쪽이 남는다. 파생 표기가 명시 표기보다 앞이다.
+
+### 201, 409가 아니다
+
+```json
+{
+  "term": { "id": "…", "slug": "ae", "updatedAt": "2026-08-28T01:02:03.000Z", "…": "…" },
+  "surfaces": [ { "id": "…", "text": "AE", "lang": "en", "kind": "abbreviation", "caseSensitive": true } ],
+  "warnings": [ { "surfaceText": "AE", "conflictingSlug": "ae-audio-engine" } ]
+}
+```
+
+정규화 키가 기존 용어와 충돌해도 **409를 던지지 않는다.** 동음이의어를 허용하기로 한
+설계이므로 저장은 그대로 진행하고 `warnings`로만 알린다. 등록을 막으면 안 되지만
+"이미 이런 용어가 있다"는 반드시 보여줘야 한다.
+
+`warnings`는 표기 텍스트와 충돌 대상 slug만 담는다. 화면이 "표기 → 기존 용어로 이동"
+링크를 그리는 데 그 둘이면 충분하다.
+
+### 400이 나는 경우
+
+- `nameEn`/`nameKo`가 둘 다 없다.
+- 표기가 trim 후에도 기호뿐이라(`"---"`) 정규화하면 빈 문자열이 된다.
+  `.trim().min(1)`으로는 잡히지 않는다 — 정규화의 구분자 집합이 JS `trim()`보다 넓다.
+- 같은 정규화 키에 **서로 모순되는 kind**가 붙어 있다.
+  승인군(`canonical`/`abbreviation`/`full_name`/`alias`)과
+  비승인군(`discouraged`/`forbidden`)이 같은 키에 함께 올 수 없고,
+  `discouraged`와 `forbidden`이 동시에 붙을 수도 없다.
+
+## 상세
+
+```http
+GET /api/v1/terms/ae
+```
+
+```json
+{
+  "term": {
+    "id": "…", "slug": "ae", "termType": "abbreviation",
+    "nameEn": "AE", "nameKo": "자동노출",
+    "fullNameEn": "Auto Exposure", "fullNameKo": null,
+    "domain": ["ISP"], "status": "approved",
+    "definitionMd": "…", "bodyMd": null,
+    "updatedAt": "2026-08-28T01:02:03.000Z",
+    "surfaces": [ /* SurfaceRow[] */ ],
+    "homonyms": [ /* TermSummary[] — 같은 표기의 다른 용어 */ ]
+  }
+}
+```
+
+`updatedAt`은 항상 ISO 문자열이다. `homonyms`가 비어 있지 않으면 화면이 상단에
+"같은 표기의 다른 용어" 목록을 띄운다.
+
+없으면 404 `term_not_found`.
+
+## 수정
+
+```http
+PATCH /api/v1/terms/ae
+Content-Type: application/json
+
+{ "status": "approved", "definitionMd": "…", "expectedRevision": 6, "message": "정의 보강" }
+```
+
+부분 갱신이라 표준 표기 필수 조건이 걸리지 않는다. 응답 형태는 [등록](#등록)과 같다
+(`{ term, surfaces, warnings }`).
+
+`surfaces`를 아예 보내지 않으면 기존 명시 표기를 유지한다. 보내면 그 배열이 명시 표기
+전체를 대체한다.
+
+### 낙관적 잠금
+
+편집 화면은 자기가 읽은 리비전 번호를 들고 있다가 저장 시점에 `expectedRevision`으로
+되돌려 보낸다. 그 사이 남이 고쳤으면 서버가 덮어쓰지 않고 409로 거절한다.
+
+```json
+{
+  "error": {
+    "code": "revision_conflict",
+    "message": "다른 사람이 먼저 수정했습니다.",
+    "details": { "currentRevision": 8 }
+  }
+}
+```
+
+클라이언트는 `details.currentRevision`으로 상대 변경을 다시 읽어 diff를 보여준 뒤
+병합을 유도한다. 비관적 잠금은 "잠가놓고 퇴근한 사람" 문제를 만들어 쓰지 않는다.
+
+`expectedRevision`을 생략하면 잠금 검사를 건너뛴다 — 도구가 무조건 덮어써야 하는
+경우를 위한 것이므로 사람이 쓰는 편집 경로에서는 항상 실어 보낸다.
+
+## 삭제
+
+```http
+DELETE /api/v1/terms/ae
+```
+
+`admin` 역할이 필요하다. API 키에는 역할 개념이 없으므로 **키로는 호출할 수 없다**
+(403 `forbidden`). 성공하면 204다. 표기와 리비전은 `ON DELETE CASCADE`로 함께 사라진다.
+
+## 수정 이력
+
+```http
+GET /api/v1/terms/ae/revisions
+```
+
+최신순으로 돌려준다.
+
+```json
+{
+  "revisions": [
+    {
+      "id": "…", "revisionNumber": 8, "message": "정의 보강",
+      "authorId": "…", "authorKeyId": null, "authorName": "홍길동",
+      "createdAt": "2026-08-28T01:02:03.000Z"
+    }
+  ]
+}
+```
+
+`authorId`와 `authorKeyId`는 서로 배타적이다 — 세션 요청은 앞쪽, API 키 요청은 뒤쪽에
+찍힌다. `authorName`은 조인해서 실어주므로 화면이 id를 다시 풀 필요가 없다. 사용자가
+삭제됐으면 `authorId`는 남아도 `authorName`이 null일 수 있다.
+
+## 배치 조회 lookup
+
+AI-Lint 통합 지점이다. 실제 호출 패턴이 "이 목록이 다 등록돼 있나?"라서 배치를 기본으로 둔다.
+
+```http
+POST /api/v1/terms/lookup
+Content-Type: application/json
+
+{ "texts": ["AE", "이미지센서", "AutoExposure", "Foobar"] }
+```
+
+`texts`는 1~500개다. 빈 문자열과 공백뿐인 문자열은 400이다.
+
+```json
+{
+  "results": [
+    {
+      "text": "AE",
+      "found": true,
+      "matchKind": "abbreviation",
+      "terms": [
+        { "id": "t_ae", "slug": "ae", "termType": "abbreviation",
+          "nameEn": "AE", "nameKo": "자동노출", "domain": ["ISP"], "status": "approved" }
+      ],
+      "similar": []
+    },
+    {
+      "text": "Foobar",
+      "found": false,
+      "matchKind": null,
+      "terms": [],
+      "similar": [{ "slug": "foobar-mode", "score": 0.72 }]
+    }
+  ]
+}
+```
+
+동작상 알아둘 것.
+
+- **`text`는 요청 원문 그대로 되돌아온다.** `"  ZDK  "`를 보내면 `"  ZDK  "`가 온다.
+  정규화는 내부에서만 일어난다.
+- `results`는 요청한 `texts`와 **같은 길이, 같은 순서**다. 중복 표기를 보내도 그대로
+  각각 응답한다(내부 조회는 한 번만 한다).
+- `matchKind`는 매칭된 표기가 여럿일 때 우선순위로 하나를 고른 것이다.
+  `forbidden > discouraged > canonical > abbreviation > full_name > alias`.
+  행 순서가 아니라 코드에 명시 고정된 표다 — 같은 표기가 alias이자 forbidden으로
+  등록돼 있을 때 alias가 먼저 나오면 린터가 금지 표기를 놓친다.
+- `similar`는 **못 찾았을 때만** 채워진다. `pg_trgm` 유사도 상위 3개이고, 같은 용어가
+  여러 표기로 걸려도 slug 기준으로 이미 중복 제거되어 있다. 정렬은 점수 내림차순,
+  동점이면 slug 오름차순으로 완전히 고정된다.
+- 정규화하면 빈 문자열이 되는 입력(`"---"` 같은 것)은 매칭도 유사도 조회도 대상이
+  되지 않는다.
+
+상태를 바꾸지 않는 읽기 동작인데 POST인 이유는, 문서 전체를 훑는 배치 요청이라 본문이
+GET 쿼리스트링에 담기지 않기 때문이다. "상태를 바꾸는 GET을 만들지 않는다"는 불변식과는
+무관하다.

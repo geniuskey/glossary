@@ -2,15 +2,21 @@
   "name": "grossary",
   "private": true,
   "packageManager": "pnpm@9.12.0",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "turbo run build",
     "test": "turbo run test",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "devDependencies": {
     "turbo": "^2.3.0",
     "typescript": "^5.6.0",
+    "vitepress": "^1.6.4",
     "vitest": "^2.1.0"
   }
 }

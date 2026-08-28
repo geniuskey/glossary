@@ -6,3 +6,5 @@ dist/
 .env
 .env.local
 backups/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
