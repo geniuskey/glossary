@@ -13,6 +13,8 @@ import {
   inversePatch,
   isDensity,
   normalizeRange,
+  opensOnClick,
+  opensUp,
   parseClipboardMatrix,
   patchForCell,
   planCell,
@@ -45,6 +47,7 @@ function row(overrides: Partial<TermRow> = {}): TermRow {
     domain: ["ISP"],
     status: "draft",
     definitionMd: null,
+    bodyMd: null,
     updatedAt: "2026-08-01T00:00:00.000Z",
     editorName: "김테스트",
     revision: 3,
@@ -60,10 +63,11 @@ test("patchForCell: 표준명/풀네임을 비우면 null(지운다)이 된다",
   }
 });
 
-test("patchForCell: 정의를 비우면 빈 문자열이다(null이 아니다)", () => {
-  // termInputBaseSchema에서 definitionMd는 nullable이 아니라 optional string이다.
-  // 여기서 null을 보내면 400이 된다.
+test("patchForCell: 정의·본문을 비우면 빈 문자열이다(null이 아니다)", () => {
+  // termInputBaseSchema에서 definitionMd/bodyMd는 nullable이 아니라 optional
+  // string이다. 여기서 null을 보내면 400이 된다.
   expect(patchForCell("definitionMd", "  ")).toEqual({ patch: { definitionMd: "" } });
+  expect(patchForCell("bodyMd", "  ")).toEqual({ patch: { bodyMd: "" } });
 });
 
 test("patchForCell: 값은 trim된다", () => {
@@ -128,9 +132,68 @@ test("cellText(domain)와 patchForCell(domain)은 왕복해도 값이 그대로�
 });
 
 test("기본 숨김 열은 실제로 hiddenByDefault가 붙은 열들이다", () => {
-  expect(defaultHiddenColumns()).toEqual(["fullNameEn", "fullNameKo"]);
+  // 풀네임은 더 이상 숨기지 않는다 — 안 보이는 열은 표에서 고칠 방법이 없다.
+  // 본문만 접어 둔다(문서 한 편이 들어가는 칸이라 모든 줄이 덩어리가 된다).
+  expect(defaultHiddenColumns()).toEqual(["bodyMd"]);
   // 전부 숨겨지면 표가 빈 화면이 된다.
   expect(defaultHiddenColumns().length).toBeLessThan(GRID_COLUMNS.length);
+});
+
+test("상세 폼에서 고칠 수 있는 필드는 표에도 전부 열이 있다", () => {
+  // "/terms에서도 모두 수정 가능"의 기준을 term-form.tsx가 편집하는 필드 집합에
+  // 맞춰 고정한다. 스키마에 필드가 하나 늘었는데 표만 빠지면 여기서 걸린다.
+  const editable = GRID_COLUMNS.filter((c) => c.kind !== "readonly").map((c) => c.key);
+  expect([...editable].sort()).toEqual(
+    [
+      "bodyMd",
+      "definitionMd",
+      "domain",
+      "fullNameEn",
+      "fullNameKo",
+      "nameEn",
+      "nameKo",
+      "status",
+      "termType",
+    ].sort(),
+  );
+});
+
+test("slug·최근 수정만 읽기 전용이다", () => {
+  // slug는 termPatchSchema에 아예 없고(주소가 곧 신분이라 상세 폼도 안 건드린다),
+  // updatedAt은 저장할 때 서버가 찍는 값이다.
+  const readonly = GRID_COLUMNS.filter((c) => c.kind === "readonly").map((c) => c.key);
+  expect(readonly).toEqual(["slug", "updatedAt"]);
+  for (const key of readonly) {
+    expect(patchForCell(key, "아무 값")).toHaveProperty("error");
+  }
+});
+
+test("클릭 한 번에 열리는 열은 종류·상태·정의·본문뿐이다", () => {
+  // 나머지 열까지 클릭으로 열면 드래그로 범위를 잡을 수 없게 되어
+  // 복사·붙여넣기·아래로 채우기가 통째로 죽는다.
+  const opening = GRID_COLUMNS.filter(opensOnClick).map((c) => c.key);
+  expect(opening).toEqual(["termType", "status", "definitionMd", "bodyMd"]);
+});
+
+// 스크롤 상자가 0~800이고 한 행이 32px일 때의 좌표. 목록은 178px쯤 된다.
+const CLIP = { top: 0, bottom: 800 };
+const LIST = 178;
+
+test("표에 한 행뿐이어도 목록은 아래로 열린다", () => {
+  // 행 번호로 방향을 정하던 시절의 버그: "아래에서 넷째 행부터 위로"라는
+  // 규칙에서 행이 셋 이하면 첫 행도 위로 열렸다. 위는 표 바깥이라 목록이
+  // 통째로 잘려 나가고, 눌러도 회색 그림자만 번지는 화면이 됐다.
+  expect(opensUp(LIST, { top: 40, bottom: 72 }, CLIP)).toBe(false);
+});
+
+test("아래 공간이 모자라면 위로 연다", () => {
+  expect(opensUp(LIST, { top: 700, bottom: 732 }, CLIP)).toBe(true);
+});
+
+test("위아래 둘 다 모자라면 아래로 연다", () => {
+  // 위가 아래보다 넓어도 마찬가지다. 아래로 삐져나온 부분은 표를 굴려서 마저
+  // 볼 수 있지만, 위로 삐져나온 부분은 영영 닿을 수 없다.
+  expect(opensUp(LIST, { top: 40, bottom: 72 }, { top: 0, bottom: 100 })).toBe(false);
 });
 
 test("columnByKey: 모든 GRID_COLUMNS 키가 조회된다", () => {

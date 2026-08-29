@@ -235,6 +235,7 @@ export async function listTermRows(params: ListParams): Promise<{ items: TermRow
         fullNameEn: terms.fullNameEn,
         fullNameKo: terms.fullNameKo,
         definitionMd: terms.definitionMd,
+        bodyMd: terms.bodyMd,
         updatedAt: terms.updatedAt,
         // updatedBy는 nullable FK다(API 키 수정이면 null이고, 사용자가 삭제되면
         // ON DELETE SET NULL로 null이 된다) — INNER JOIN이면 그런 행이 목록에서

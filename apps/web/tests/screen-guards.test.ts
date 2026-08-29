@@ -98,3 +98,26 @@ test("PROTO D: 로그아웃 fetch는 method: \"POST\"다 (R95)", () => {
     /\w+\(\s*["'`]\/api\/v1\/auth\/logout["'`]\s*,\s*\{\s*method:\s*["'`]POST["'`]\s*\}\s*\)/.test(content),
   ).toBe(true);
 });
+
+// PROTO E: 클릭 한 번으로 셀 편집기를 여는 자리에는 e.preventDefault()가 반드시
+// 있어야 한다. 셀(td)은 tabIndex=-1이라 mousedown의 기본 동작이 그 칸으로
+// 포커스를 옮기는데, 그러면 방금 뜬 편집기가 곧바로 blur돼서 종류·상태 목록이
+// 열리는 즉시 닫힌다 — 실제로 그렇게 한 번 나갔다.
+//
+// 더블클릭 경로만 보면 멀쩡해 보인다는 게 이 회귀의 핵심이다(dblclick에는
+// 포커스 기본 동작이 없다). 순수 모듈 테스트로는 잡을 수 없고 렌더 테스트도
+// 없으므로, 소스 문자열 하나로 고정한다.
+const CLICK_TO_EDIT =
+  /if\s*\(\s*!e\.shiftKey\s*&&\s*opensOnClick\(col\)\s*\)\s*\{\s*e\.preventDefault\(\)\s*;\s*beginEdit\(/;
+
+test("PROTO E: 클릭으로 여는 셀 편집기는 mousedown 기본 동작을 막는다", () => {
+  const content = stripComments(readFileSync(path.join(componentsDir, "terms-grid.tsx"), "utf8"));
+  expect(CLICK_TO_EDIT.test(content)).toBe(true);
+});
+
+test("PROTO E 자기검사: preventDefault가 빠진 형태는 통과하지 않는다", () => {
+  expect(CLICK_TO_EDIT.test("if (!e.shiftKey && opensOnClick(col)) { beginEdit(r, c); }")).toBe(false);
+  expect(CLICK_TO_EDIT.test("if (!e.shiftKey && opensOnClick(col)) {\n e.preventDefault();\n beginEdit(r, c); }")).toBe(
+    true,
+  );
+});

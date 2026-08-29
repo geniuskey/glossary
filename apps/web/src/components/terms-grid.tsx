@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { STATUS_TONE } from "@/components/term-badges";
 import {
   TERM_STATUSES,
@@ -23,6 +23,8 @@ import {
   inversePatch,
   isDensity,
   normalizeRange,
+  opensOnClick,
+  opensUp,
   parseClipboardMatrix,
   planCell,
   planClear,
@@ -33,6 +35,7 @@ import {
   rowLabel,
   toCsv,
   toTsv,
+  type Bounds,
   type CellRange,
   type CellRef,
   type ColumnKey,
@@ -163,6 +166,12 @@ export function TermsGrid(props: TermsGridProps) {
   const [menu, setMenu] = useState<"columns" | "density" | "export" | "help" | null>(null);
   const [sel, setSel] = useState<{ anchor: CellRef; focus: CellRef } | null>(null);
   const [editing, setEditing] = useState<{ r: number; c: number; value: string } | null>(null);
+  // 클릭 한 번으로 다음 셀이 열리게 되면서 "편집기가 두 번 겹치는 찰나"가
+  // 생겼다 — 이전 편집기의 blur가 뒤늦게 도착해 방금 연 편집기를 닫아 버리거나,
+  // 반대로 이전 입력이 저장되지 않고 사라진다. 어느 좌표를 편집 중인지는 렌더를
+  // 기다리지 않고 즉시 읽을 수 있어야 해서 ref로도 들고 있는다.
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
   const [failedRows, setFailedRows] = useState<ReadonlySet<string>>(new Set());
@@ -188,6 +197,7 @@ export function TermsGrid(props: TermsGridProps) {
   // 편집 중이던 좌표와 실패 표시는 다른 행을 가리키게 되므로 함께 버린다.
   useEffect(() => {
     setRows(props.rows);
+    editingRef.current = null;
     setEditing(null);
     setSel(null);
     setPicked(new Set());
@@ -470,16 +480,45 @@ export function TermsGrid(props: TermsGridProps) {
     const column = columns[c];
     const row = rows[r];
     if (!column || !row || column.kind === "readonly") return;
-    setEditing({ r, c, value: seed ?? cellText(row, column.key) });
+    const next = { r, c, value: seed ?? cellText(row, column.key) };
+    editingRef.current = next;
+    setEditing(next);
   }
 
-  function commitEdit(value: string, next: "down" | "right" | null) {
-    if (!editing) return;
-    const column = columns[editing.c];
-    const row = rows[editing.r];
-    const { r, c } = editing;
+  function isEditingCell(r: number, c: number): boolean {
+    const cur = editingRef.current;
+    return cur !== null && cur.r === r && cur.c === c;
+  }
+
+  function closeEdit(): void {
+    editingRef.current = null;
     setEditing(null);
+  }
+
+  function saveCell(r: number, c: number, value: string) {
+    const column = columns[c];
+    const row = rows[r];
     if (column && row) void commit(planCell(row, column, value), `${column.label} 수정`);
+  }
+
+  /**
+   * 다른 셀을 열기 직전에 지금 열려 있는 편집기를 저장한다. 편집기는 셀 안에
+   * 렌더되므로 새 셀의 편집을 시작하면 그대로 언마운트되는데, 그때는 blur가
+   * 오지 않아 입력한 값이 통째로 사라진다.
+   */
+  function flushEdit() {
+    const cur = editingRef.current;
+    if (!cur) return;
+    closeEdit();
+    saveCell(cur.r, cur.c, cur.value);
+  }
+
+  function commitEdit(r: number, c: number, value: string, next: "down" | "right" | null) {
+    // 이미 다른 셀로 넘어간 뒤 도착한 blur는 무시한다 — 그대로 처리하면 방금
+    // 연 편집기를 닫고 선택까지 옛 셀로 되돌린다.
+    if (!isEditingCell(r, c)) return;
+    closeEdit();
+    saveCell(r, c, value);
     if (next === "down") selectCell(r + 1, c, false);
     else if (next === "right") selectCell(r, c + 1, false);
     else selectCell(r, c, false);
@@ -765,17 +804,37 @@ export function TermsGrid(props: TermsGridProps) {
                         tabIndex={-1}
                         onMouseDown={(e) => {
                           if (e.button !== 0) return;
+                          // 이 셀의 편집기 안에서 시작한 클릭(도메인 후보 칩)은
+                          // 셀을 누른 게 아니다.
+                          if (isEditingCell(r, c)) return;
+                          flushEdit();
                           selectCell(r, c, e.shiftKey);
+                          // 종류·상태·정의는 여기서 바로 열린다. Shift+클릭은
+                          // 범위 선택이라 예외다.
+                          if (!e.shiftKey && opensOnClick(col)) {
+                            // mousedown의 기본 동작은 누른 칸(tabIndex=-1이라
+                            // 포커스를 받는다)으로 포커스를 옮기는 것이다. 그대로
+                            // 두면 방금 뜬 편집기가 곧바로 blur돼서 목록이 열리는
+                            // 즉시 닫힌다 — 더블클릭이 되던 이유도 dblclick에는
+                            // 포커스 기본 동작이 없어서였다.
+                            e.preventDefault();
+                            beginEdit(r, c);
+                            return;
+                          }
                           setDrag("select");
                         }}
                         onMouseEnter={() => {
                           if (drag === "select") selectCell(r, c, true);
                           else if (drag === "fill" && sel) setSel({ anchor: sel.anchor, focus: { r, c: sel.focus.c } });
                         }}
-                        onDoubleClick={() => beginEdit(r, c)}
+                        onDoubleClick={() => {
+                          // 이미 열린 편집기 안에서의 더블클릭(단어 선택)까지
+                          // 편집 시작으로 받으면 입력하던 값이 되감긴다.
+                          if (!isEditingCell(r, c)) beginEdit(r, c);
+                        }}
                         onKeyDown={(e) => onKeyDown(e, r, c)}
                         className={cx(
-                          "relative border-b border-r border-grid px-2 align-middle outline-none",
+                          "group/cell relative border-b border-r border-grid px-2 align-middle outline-none",
                           frozen && "sticky z-10",
                           // 활성 셀은 이웃 위로 떠야 테두리가 잘리지 않지만,
                           // 고정된 머리글(z-30/40)보다는 낮아야 세로로 스크롤할 때
@@ -797,21 +856,30 @@ export function TermsGrid(props: TermsGridProps) {
                           boxShadow: cellShadow(range, r, c, isActive === true, frozen && scrolledX),
                         }}
                       >
-                        {isEditing ? (
+                        {/* 종류·상태의 편집기는 셀 밖에 뜨는 목록이라 칸 자체는
+                            비어 버린다. 고르는 동안 원래 값이 사라지면 "뭘 바꾸는
+                            중인지"가 화면에서 지워지므로 밑에 그대로 깔아 둔다. */}
+                        {(!isEditing || col.kind === "enum") && (
+                          <CellView row={row} column={col} now={now} query={props.query} />
+                        )}
+
+                        {isEditing && (
                           <CellEditor
                             column={col}
                             value={editing.value}
-                            openUp={r > rows.length - 4}
                             knownDomains={props.knownDomains}
-                            onChange={(v) => setEditing({ r, c, value: v })}
-                            onCommit={commitEdit}
+                            onChange={(v) => {
+                              const next = { r, c, value: v };
+                              editingRef.current = next;
+                              setEditing(next);
+                            }}
+                            onCommit={(value, next) => commitEdit(r, c, value, next)}
                             onCancel={() => {
-                              setEditing(null);
+                              if (!isEditingCell(r, c)) return;
+                              closeEdit();
                               selectCell(r, c, false);
                             }}
                           />
-                        ) : (
-                          <CellView row={row} column={col} now={now} query={props.query} />
                         )}
 
                         {/* 채우기 손잡이. 아래로 끌면 이 값이 그 줄들에 복사된다. */}
@@ -974,7 +1042,8 @@ function cellShadow(
 const SHORTCUTS: Array<[string, string]> = [
   ["↑ ↓ ← →", "셀 이동 (Ctrl+방향키: 끝으로)"],
   ["Shift+방향키", "범위 선택 (드래그도 같음)"],
-  ["Enter · F2", "편집 시작 / 그냥 입력해도 시작"],
+  ["클릭", "종류·상태·정의·본문은 한 번에 편집 시작"],
+  ["Enter · F2", "편집 시작 / 그냥 입력해도 시작 (더블클릭도 같음)"],
   ["Tab", "저장하고 오른쪽 칸으로"],
   ["Esc", "편집 취소"],
   ["Ctrl+C / Ctrl+V", "범위 복사 / 엑셀에서 붙여넣기"],
@@ -1352,14 +1421,20 @@ function CellView({
 
   if (column.key === "status") {
     return (
-      <span className={cx("rounded px-1.5 py-0.5 text-[11px] font-medium", STATUS_TONE[row.status])}>
-        {TERM_STATUS_LABEL[row.status]}
-      </span>
+      <PickCell>
+        <span className={cx("rounded px-1.5 py-0.5 text-[11px] font-medium", STATUS_TONE[row.status])}>
+          {TERM_STATUS_LABEL[row.status]}
+        </span>
+      </PickCell>
     );
   }
 
   if (column.key === "termType") {
-    return <span className="text-[12px] text-ink-2">{TERM_TYPE_LABEL[row.termType]}</span>;
+    return (
+      <PickCell>
+        <span className="text-[12px] text-ink-2">{TERM_TYPE_LABEL[row.termType]}</span>
+      </PickCell>
+    );
   }
 
   if (column.key === "domain") {
@@ -1387,12 +1462,55 @@ function CellView({
   );
 }
 
+/**
+ * 종류·상태 셀. 값 오른쪽에 삼각형이 뜬다 — 마우스를 올리기 전까지 이 칸이
+ * 목록에서 고르는 칸인지 알 방법이 없었고, 몰라서 안 고치는 칸은 없는 칸이다.
+ * 평소에 계속 떠 있으면 표 전체가 양식처럼 보이므로 그 셀에 올렸을 때만 보인다.
+ */
+function PickCell({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="flex items-center gap-1">
+      <span className="min-w-0 truncate">{children}</span>
+      <IconCaret className="ml-auto shrink-0 text-ink-3 opacity-0 transition-opacity group-hover/cell:opacity-100" />
+    </span>
+  );
+}
+
 // --- 편집기 -----------------------------------------------------------------
+
+/**
+ * 셀 밖으로 펼쳐지는 편집기를 어느 쪽으로 열지 실제로 재서 정한다. 판단
+ * 자체는 opensUp에 있고, 여기서는 잴 것만 잰다 — 아래로 편 상태에서의 높이,
+ * 셀의 위치, 그리고 실제로 잘라내는 상자.
+ */
+function useOpensUp(ref: React.RefObject<HTMLElement | null>): boolean {
+  const [up, setUp] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const cell = el?.offsetParent;
+    if (!el || !(cell instanceof HTMLElement)) return;
+    setUp(opensUp(el.getBoundingClientRect().height, cell.getBoundingClientRect(), clipBounds(el)));
+  }, [ref]);
+
+  return up;
+}
+
+/** 편집기를 실제로 잘라내는 상자. 표의 스크롤 영역이거나, 없으면 뷰포트다. */
+function clipBounds(el: HTMLElement): Bounds {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const overflow = getComputedStyle(p).overflowY;
+    if (overflow === "auto" || overflow === "scroll" || overflow === "hidden") {
+      const rect = p.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom };
+    }
+  }
+  return { top: 0, bottom: window.innerHeight };
+}
 
 function CellEditor({
   column,
   value,
-  openUp,
   knownDomains,
   onChange,
   onCommit,
@@ -1400,21 +1518,19 @@ function CellEditor({
 }: {
   column: GridColumn;
   value: string;
-  openUp: boolean;
   knownDomains: string[];
   onChange: (v: string) => void;
   onCommit: (value: string, move: "down" | "right" | null) => void;
   onCancel: () => void;
 }) {
   if (column.kind === "enum") {
-    return <EnumEditor column={column} value={value} openUp={openUp} onPick={(v) => onCommit(v, null)} onCancel={onCancel} />;
+    return <EnumEditor column={column} value={value} onPick={(v) => onCommit(v, null)} onCancel={onCancel} />;
   }
 
   if (column.kind === "list") {
     return (
       <ListEditor
         value={value}
-        openUp={openUp}
         knownDomains={knownDomains}
         onChange={onChange}
         onCommit={onCommit}
@@ -1423,35 +1539,8 @@ function CellEditor({
     );
   }
 
-  // 정의는 한 줄 입력창에 넣으면 앞 30자 말고는 볼 수가 없다. 칸 밖으로 펼쳐지는
-  // 여러 줄 편집기로 띄우고, 줄바꿈은 Shift+Enter로 넣는다(Enter는 저장).
-  if (column.key === "definitionMd") {
-    return (
-      <textarea
-        autoFocus
-        rows={4}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={() => onCommit(value, null)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            onCancel();
-          } else if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            onCommit(e.currentTarget.value, "down");
-          } else if (e.key === "Tab") {
-            e.preventDefault();
-            onCommit(e.currentTarget.value, "right");
-          }
-        }}
-        className={cx(
-          "absolute left-0 z-40 w-[max(100%,24rem)] resize-none rounded-md bg-panel px-2 py-1.5 text-[13px]",
-          "leading-snug text-ink shadow-pop outline-none ring-2 ring-brand",
-          openUp ? "bottom-0" : "top-0",
-        )}
-      />
-    );
+  if (column.kind === "longtext") {
+    return <LongTextEditor value={value} onChange={onChange} onCommit={onCommit} onCancel={onCancel} />;
   }
 
   return (
@@ -1478,6 +1567,53 @@ function CellEditor({
 }
 
 /**
+ * 정의·본문은 한 줄 입력창에 넣으면 앞 30자 말고는 볼 수가 없다. 칸 밖으로
+ * 펼쳐지는 세 줄짜리 상자로 띄우고, 줄바꿈은 Shift+Enter로 넣는다(Enter는 저장).
+ */
+function LongTextEditor({
+  value,
+  onChange,
+  onCommit,
+  onCancel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onCommit: (value: string, move: "down" | "right" | null) => void;
+  onCancel: () => void;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const openUp = useOpensUp(ref);
+
+  return (
+    <textarea
+      ref={ref}
+      autoFocus
+      rows={3}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={() => onCommit(value, null)}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onCancel();
+        } else if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          onCommit(e.currentTarget.value, "down");
+        } else if (e.key === "Tab") {
+          e.preventDefault();
+          onCommit(e.currentTarget.value, "right");
+        }
+      }}
+      className={cx(
+        "absolute left-0 z-40 w-[max(100%,24rem)] resize-none rounded-md bg-panel px-2 py-1.5 text-[13px]",
+        "leading-snug text-ink shadow-pop outline-none ring-2 ring-brand",
+        openUp ? "bottom-0" : "top-0",
+      )}
+    />
+  );
+}
+
+/**
  * 종류·상태는 값이 몇 개 안 되므로 네이티브 select 대신 목록을 직접 그린다 —
  * 상태 색을 후보에도 그대로 보여줄 수 있고, 방향키+Enter로 손이 키보드를
  * 떠나지 않는다(표 편집 중에 마우스로 옮겨가는 게 제일 느리다).
@@ -1485,19 +1621,18 @@ function CellEditor({
 function EnumEditor({
   column,
   value,
-  openUp,
   onPick,
   onCancel,
 }: {
   column: GridColumn;
   value: string;
-  openUp: boolean;
   onPick: (v: string) => void;
   onCancel: () => void;
 }) {
   const options = column.options ?? [];
   const [index, setIndex] = useState(() => Math.max(0, options.findIndex((o) => o.value === value)));
   const ref = useRef<HTMLDivElement>(null);
+  const openUp = useOpensUp(ref);
 
   useEffect(() => ref.current?.focus(), []);
 
@@ -1536,6 +1671,9 @@ function EnumEditor({
             onMouseEnter={() => setIndex(i)}
             onMouseDown={(e) => {
               e.preventDefault();
+              // 이 mousedown이 셀까지 올라가면, 셀이 "클릭했으니 열어라"로 받아
+              // 방금 고른 목록이 곧바로 다시 열린다.
+              e.stopPropagation();
               onPick(option.value);
             }}
             className={cx(
@@ -1556,20 +1694,20 @@ function EnumEditor({
 /** 도메인은 자유 입력이라 오타가 곧 새 도메인이 된다. 쓰던 값을 눌러 넣게 한다. */
 function ListEditor({
   value,
-  openUp,
   knownDomains,
   onChange,
   onCommit,
   onCancel,
 }: {
   value: string;
-  openUp: boolean;
   knownDomains: string[];
   onChange: (v: string) => void;
   onCommit: (value: string, move: "down" | "right" | null) => void;
   onCancel: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const openUp = useOpensUp(popRef);
   const tokens = value
     .split(",")
     .map((s) => s.trim())
@@ -1613,6 +1751,7 @@ function ListEditor({
 
       {knownDomains.length > 0 && (
         <div
+          ref={popRef}
           className={cx(
             "absolute left-0 z-40 flex max-h-32 w-[max(100%,14rem)] flex-wrap gap-1 overflow-auto rounded-lg",
             "border border-line bg-panel p-1.5 shadow-pop",
@@ -1637,6 +1776,14 @@ function ListEditor({
 }
 
 // --- 아이콘 -----------------------------------------------------------------
+
+function IconCaret({ className }: { className?: string }) {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden className={className}>
+      <path d="M2 4h6L5 7.5z" fill="currentColor" />
+    </svg>
+  );
+}
 
 function IconExpand() {
   return (

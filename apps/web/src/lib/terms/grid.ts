@@ -28,6 +28,7 @@ export interface TermRow {
   domain: string[];
   status: TermStatusLiteral;
   definitionMd: string | null;
+  bodyMd: string | null;
   /** ISO 문자열. Server Component에서 Client Component로 Date를 넘길 수 없다. */
   updatedAt: string;
   editorName: string | null;
@@ -53,10 +54,16 @@ export type ColumnKey =
   | "status"
   | "domain"
   | "definitionMd"
+  | "bodyMd"
   | "slug"
   | "updatedAt";
 
-export type CellKind = "text" | "enum" | "list" | "readonly";
+/**
+ * "longtext"는 한 줄 입력창이 아니라 여러 줄 상자로 여는 열이다. 정의·본문을
+ * 한 줄짜리 input에 넣으면 앞 몇 글자 말고는 볼 수가 없어서, 셀에서 고칠 수
+ * 있다는 사실 자체가 무의미해진다.
+ */
+export type CellKind = "text" | "enum" | "list" | "longtext" | "readonly";
 
 export interface GridColumn {
   key: ColumnKey;
@@ -76,12 +83,16 @@ const STATUS_OPTIONS = TERM_STATUSES.map((v) => ({ value: v, label: TERM_STATUS_
 export const GRID_COLUMNS: readonly GridColumn[] = [
   { key: "nameEn", label: "영문 표준명", kind: "text", width: 200, sortKey: "nameEn" },
   { key: "nameKo", label: "국문 표준명", kind: "text", width: 180, sortKey: "nameKo" },
-  { key: "fullNameEn", label: "영문 풀네임", kind: "text", width: 220, hiddenByDefault: true },
-  { key: "fullNameKo", label: "국문 풀네임", kind: "text", width: 200, hiddenByDefault: true },
+  { key: "fullNameEn", label: "영문 풀네임", kind: "text", width: 220 },
+  { key: "fullNameKo", label: "국문 풀네임", kind: "text", width: 200 },
   { key: "termType", label: "종류", kind: "enum", width: 110, options: TYPE_OPTIONS, sortKey: "termType" },
   { key: "status", label: "상태", kind: "enum", width: 100, options: STATUS_OPTIONS, sortKey: "status" },
   { key: "domain", label: "도메인", kind: "list", width: 160 },
-  { key: "definitionMd", label: "정의", kind: "text", width: 300 },
+  { key: "definitionMd", label: "정의", kind: "longtext", width: 300 },
+  // 본문은 문서 한 편이 통째로 들어가는 칸이라 기본으로는 접어 둔다 — 켜 두면
+  // 모든 줄이 마크다운 덩어리가 되어 표를 훑는 일 자체가 안 된다. 열 메뉴에서
+  // 켜면 정의와 같은 여러 줄 상자로 고칠 수 있다.
+  { key: "bodyMd", label: "본문", kind: "longtext", width: 300, hiddenByDefault: true },
   { key: "slug", label: "슬러그", kind: "readonly", width: 170, mono: true, sortKey: "slug" },
   { key: "updatedAt", label: "최근 수정", kind: "readonly", width: 150, sortKey: "updatedAt" },
 ];
@@ -96,6 +107,40 @@ export function defaultHiddenColumns(): ColumnKey[] {
   return GRID_COLUMNS.filter((c) => c.hiddenByDefault).map((c) => c.key);
 }
 
+/**
+ * 클릭 한 번으로 편집기가 열리는 열. 종류·상태는 고를 목록이 있고 정의·본문은
+ * 칸보다 긴 글이라, "선택했다가 다시 눌러야 열린다"는 규칙이 그 세 종류에서는
+ * 그냥 한 번의 헛클릭이다. 나머지 열은 드래그로 범위를 잡아 복사·붙여넣기해야
+ * 하므로 클릭은 선택으로 남겨 둔다.
+ */
+export function opensOnClick(column: GridColumn): boolean {
+  return column.kind === "enum" || column.kind === "longtext";
+}
+
+/** 위아래 경계. 화면 좌표라 top이 작을수록 위다. */
+export interface Bounds {
+  top: number;
+  bottom: number;
+}
+
+/**
+ * 셀 밖으로 펼쳐지는 편집기(목록·도메인 후보·긴 글 상자)를 위로 열지.
+ *
+ * 행 번호로 짐작하면("아래에서 넷째 행부터는 위로") 표가 세 줄뿐일 때 첫 행도
+ * "아래쪽 행"이 되어 위로 열린다. 위에는 공간이 없으니 목록은 스크롤 상자에
+ * 통째로 잘려 나가고 삐져나온 그림자만 회색으로 번져 보인다 — 눌러도 아무 일이
+ * 없는 것처럼 보이는 상태가 된다.
+ *
+ * 아래가 모자랄 때, 그리고 위에는 통째로 들어갈 때만 뒤집는다. 양쪽 다
+ * 모자라면 아래로 연다 — 아래로 삐져나온 부분은 표를 굴려서 마저 볼 수 있지만
+ * 위로 삐져나온 부분은 영영 닿을 수 없다.
+ */
+export function opensUp(height: number, cell: Bounds, clip: Bounds): boolean {
+  const below = clip.bottom - cell.bottom;
+  const above = cell.top - clip.top;
+  return height > below && height <= above;
+}
+
 /** 셀에 보여주는(그리고 편집을 시작할 때 입력창에 채우는) 문자열. */
 export function cellText(row: TermRow, key: ColumnKey): string {
   if (key === "domain") return row.domain.join(", ");
@@ -107,7 +152,15 @@ export function cellText(row: TermRow, key: ColumnKey): string {
 export type CellPatch = Partial<
   Pick<
     TermRow,
-    "nameEn" | "nameKo" | "fullNameEn" | "fullNameKo" | "termType" | "status" | "domain" | "definitionMd"
+    | "nameEn"
+    | "nameKo"
+    | "fullNameEn"
+    | "fullNameKo"
+    | "termType"
+    | "status"
+    | "domain"
+    | "definitionMd"
+    | "bodyMd"
   >
 >;
 
@@ -131,6 +184,9 @@ export function patchForCell(key: ColumnKey, raw: string): { patch: CellPatch } 
 
     case "definitionMd":
       return { patch: { definitionMd: value } };
+
+    case "bodyMd":
+      return { patch: { bodyMd: value } };
 
     case "domain": {
       // 엑셀에서 붙여넣으면 쉼표와 줄바꿈이 섞여 들어온다. 둘 다 구분자로 보고
