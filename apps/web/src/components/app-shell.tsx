@@ -130,15 +130,16 @@ function UserChip({ user }: { user: CurrentUser }) {
   );
 }
 
-/** 색인 카드 세 장이 겹친 모양 — 이 앱이 다루는 것(한 개념 = 표기 여러 장)의 그림.
- *  홈(검색 화면)은 이 셸을 쓰지 않지만 같은 마크를 크게 쓰므로 export한다 —
- *  두 벌을 두면 한쪽만 고쳐져 로고가 화면마다 달라진다. */
-export function BrandMark() {
+/** Grossary의 G와 새로 보탠 지식을 뜻하는 점을 결합한 마크.
+ * 홈·인증 화면·앱 셸이 한 컴포넌트를 공유해 브랜드가 언제나 같게 보인다. */
+export function BrandMark({ size = 30 }: { size?: number }) {
   return (
-    <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden className="shrink-0">
-      <rect x="3" y="6" width="18" height="15" rx="2.5" className="fill-brand/20" />
-      <rect x="4.5" y="3.5" width="18" height="15" rx="2.5" className="fill-panel stroke-brand" strokeWidth="1.5" />
-      <path d="M8.5 8.5h10M8.5 11.5h10M8.5 14.5h6" className="stroke-brand" strokeWidth="1.5" strokeLinecap="round" />
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden className="shrink-0 drop-shadow-sm">
+      <rect width="32" height="32" rx="6.5" className="fill-brand" />
+      <path d="M21.5 10.8a7.2 7.2 0 1 0 .25 9.8" fill="none" className="stroke-brand-on" strokeWidth="3.6" strokeLinecap="round" />
+      <path d="M16.7 17.2h6v5.3" fill="none" className="stroke-brand-on" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="27" cy="5" r="3.85" className="fill-panel" />
+      <circle cx="27" cy="5" r="2.6" className="fill-accent" />
     </svg>
   );
 }

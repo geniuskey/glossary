@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata = {
   title: { default: "Grossary 용어집", template: "%s · Grossary" },
-  description: "센서 제품 개발용 용어집 — 개념 하나에 표기 여럿, 함께 관리하는 사전.",
+  description: "우리가 쓰는 말을 우리의 기준으로. 누구나 찾고, 제안하고, 함께 다듬는 팀 용어집.",
 };
 
 // 첫 페인트 전에 저장된 테마를 <html>에 건다. 여기서 하지 않고 컴포넌트의

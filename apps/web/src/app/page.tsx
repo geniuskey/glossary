@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import type { ReactNode } from "react";
 import { BrandMark } from "@/components/app-shell";
 import { LogoutButton } from "@/components/logout-button";
 import { SearchBox } from "@/components/search-box";
@@ -8,171 +9,168 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { needsSetup } from "@/lib/auth/setup";
 import { SURFACE_KIND_LABEL, TERM_TYPE_LABEL } from "@/lib/terms/enums";
-import { termFacets } from "@/lib/terms/query";
+import { termFacets, type TermFacets } from "@/lib/terms/query";
 import { searchTerms, type SearchHit } from "@/lib/terms/search";
 import { termHref } from "@/lib/terms/search-ui";
-import { cx, displayName, spineHue } from "@/lib/ui/format";
+import { displayName, spineHue } from "@/lib/ui/format";
 
-// needsSetup은 요청 시 DB를 읽는다. 빌드 시(도커 이미지 빌드엔 DB가 없다)
-// 프리렌더로 실행되지 않도록 런타임 렌더로 고정한다.
 export const dynamic = "force-dynamic";
-
-// 결과는 "찾았다"를 확인하는 목록이지 훑는 표가 아니다. 이보다 넓게 봐야 하는
-// 검색이면 필터·정렬·페이징이 있는 시트로 가는 게 맞다.
 const RESULT_LIMIT = 20;
 
-/**
- * R135: 홈은 검색 화면이다. 예전에는 `/terms`(표)로 리다이렉트했는데, 사전을
- * 쓰는 사람은 열에 아홉 "이 말이 뭐였지"를 확인하러 오지 표를 고치러 오지
- * 않는다 — 50줄짜리 스프레드시트가 첫 화면이면 매번 필터부터 찾아야 한다.
- * 표는 `/sheet`에 그대로 있다.
- *
- * R136: 검색창은 SearchBox(Client Component)지만 그 안은 여전히 평범한 GET
- * 폼이다 — 결과가 주소(`/?q=`)에 남아야 공유·뒤로가기·새로고침이 그대로
- * 동작하고, 자바스크립트가 없어도 검색이 된다. 자동완성은 그 위에 얹은 것이라
- * 꺼져도 이 화면은 예전과 똑같이 동작한다.
- */
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   if (await needsSetup()) redirect("/setup");
-
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const raw = await searchParams;
   const rawQ = Array.isArray(raw.q) ? raw.q[0] : raw.q;
   const q = (rawQ ?? "").trim();
-
   const [hits, facets] = await Promise.all([
     q ? searchTerms(q, RESULT_LIMIT) : Promise.resolve<SearchHit[]>([]),
     termFacets(),
   ]);
 
   return (
-    <div className="flex min-h-screen flex-col">
-      {/* 홈은 AppShell(사이드바)을 쓰지 않는다 — 검색창 하나만 남기는 것이 이
-          화면의 전부라, 네비게이션은 구석의 작은 링크로 충분하다. */}
-      <header className="flex items-center justify-end gap-1 px-4 py-3">
-        <span className="mr-1 hidden text-xs text-ink-3 sm:inline">{user.name || user.email}</span>
-        <Link href="/sheet" className="btn-quiet btn-sm">
-          시트
-        </Link>
-        <Link href="/import" className="btn-quiet btn-sm">
-          가져오기
-        </Link>
-        <Link href="/settings/api-keys" className="btn-quiet btn-sm">
-          설정
-        </Link>
-        <ThemeToggle />
-        <LogoutButton />
-      </header>
-
-      <main
-        className={cx(
-          "mx-auto flex w-full max-w-2xl flex-1 flex-col px-5",
-          // 검색 전에는 화면 한가운데, 검색 후에는 위로 붙인다 — 결과가 접히지
-          // 않고 바로 보여야 한다.
-          q ? "pt-4" : "justify-center pb-28",
-        )}
-      >
-        <div className="flex flex-col items-center">
-          <Link href="/" className="flex items-center gap-2.5" aria-label="Grossary 홈">
-            <BrandMark />
-            <span className="text-2xl font-semibold tracking-tight">Grossary</span>
-          </Link>
-          {!q && (
-            <p className="mt-2 text-sm text-ink-3">개념 하나에 표기 여럿 — 어느 표기로 찾아도 같은 곳에 닿습니다.</p>
-          )}
-        </div>
-
-        <SearchBox defaultValue={q} />
-
-        {q ? (
+    <div className="relative min-h-screen overflow-hidden">
+      <HomeBackdrop />
+      <HomeHeader userLabel={user.name || user.email} />
+      {q ? (
+        <main className="relative z-10 mx-auto w-full max-w-3xl px-5 pb-20 pt-10 sm:px-8 sm:pt-16">
+          <div className="animate-fade-up">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">용어 검색</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-ink sm:text-4xl">
+              <span className="text-brand">“{q}”</span>를 찾아봤어요
+            </h1>
+            <p className="mt-3 text-sm text-ink-2">약어와 별칭, 비슷한 표기까지 함께 확인합니다.</p>
+            <div className="mt-7 rounded-[1.4rem] border border-line/80 bg-panel/80 p-2 shadow-sm backdrop-blur">
+              <SearchBox defaultValue={q} />
+            </div>
+          </div>
           <Results q={q} hits={hits} />
-        ) : (
-          <p className="mt-6 text-center text-xs text-ink-3">
-            등록된 개념 <span className="font-medium text-ink-2">{facets.total.toLocaleString("ko-KR")}</span>개
-            <span className="mx-1.5">·</span>
-            <Link href="/new" className="link">
-              새 용어 등록
-            </Link>
-          </p>
-        )}
-      </main>
+        </main>
+      ) : <HomeLanding facets={facets} />}
     </div>
   );
 }
 
-function Results({ q, hits }: { q: string; hits: SearchHit[] }) {
-  if (hits.length === 0) {
-    return (
-      <section className="mt-8 pb-16">
-        <div className="card px-6 py-8 text-center">
-          <p className="text-sm text-ink-2">
-            <span className="font-medium text-ink">{q}</span>와(과) 맞는 표기가 없습니다.
+function HomeHeader({ userLabel }: { userLabel: string }) {
+  return (
+    <header className="relative z-20 mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-5 sm:px-8">
+      <Link href="/" className="group flex items-center gap-3" aria-label="Grossary 홈">
+        <BrandMark size={38} />
+        <span className="flex flex-col leading-none">
+          <span className="text-[17px] font-bold tracking-[-0.035em] text-ink">Grossary</span>
+          <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-ink-3">Shared language</span>
+        </span>
+      </Link>
+      <nav className="flex items-center gap-1" aria-label="주요 메뉴">
+        <span className="mr-2 hidden max-w-40 truncate text-xs text-ink-3 lg:inline">{userLabel}</span>
+        <Link href="/sheet" className="btn-quiet hidden sm:inline-flex">용어 둘러보기</Link>
+        <Link href="/import" className="btn-quiet hidden md:inline-flex">가져오기</Link>
+        <Link href="/settings/api-keys" className="btn-quiet hidden lg:inline-flex">설정</Link>
+        <ThemeToggle />
+        <LogoutButton />
+        <Link href="/new" className="btn-primary ml-1 rounded-full px-4 py-2 shadow-sm">
+          <IconPlus /><span className="hidden sm:inline">용어 제안하기</span><span className="sm:hidden">추가</span>
+        </Link>
+      </nav>
+    </header>
+  );
+}
+
+function HomeLanding({ facets }: { facets: TermFacets }) {
+  const active = facets.statuses.find((status) => status.value === "active")?.count ?? 0;
+  const domains = facets.domains.slice(0, 6);
+  return (
+    <main className="relative z-10 mx-auto w-full max-w-7xl px-5 pb-16 sm:px-8 sm:pb-24">
+      <section className="flex min-h-[calc(100svh-5rem)] items-center justify-center pb-16">
+        <div className="w-full max-w-3xl -translate-y-4 animate-fade-up text-center sm:-translate-y-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">Grossary</p>
+          <h1 className="mt-5 text-[clamp(2.35rem,5vw,4rem)] font-semibold leading-[1.12] tracking-[-0.05em] text-ink">
+            우리가 쓰는 말,<br /><span className="home-gradient-text">우리의 기준으로.</span>
+          </h1>
+          <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-ink-2 sm:text-base">
+            약어, 별칭, 헷갈리는 표현을 검색해 보세요.<br className="hidden sm:block" /> 팀이 함께 정리한 하나의 의미로 연결해 드립니다.
           </p>
-          {/* 오타까지 함께 찾고 있다는 사실을 여기서 말해 줘야, 사용자가 철자만
-              바꿔 가며 같은 검색을 반복하지 않는다. */}
-          <p className="mt-1.5 text-xs text-ink-3">
-            비슷한 표기까지 함께 찾았습니다. 아직 등록되지 않은 말일 수 있습니다.
-          </p>
-          <Link href="/new" className="btn-primary btn-sm mt-5">
-            새 용어로 등록
-          </Link>
+          <div className="mx-auto mt-9 max-w-2xl">
+            <SearchBox defaultValue="" />
+          </div>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm text-ink-2">
+            <Stat value={facets.total} label="개의 개념" /><Stat value={active} label="개의 표준 용어" /><Stat value={facets.domains.length} label="개 분야" />
+          </div>
         </div>
       </section>
-    );
-  }
 
+      <section className="grid items-center gap-10 rounded-[1.75rem] border border-line bg-panel/75 p-6 shadow-[0_24px_80px_-55px_rgb(38_32_99_/_0.28)] backdrop-blur sm:p-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
+        <ConceptMap />
+        <div>
+          <p className="text-xs font-semibold tracking-[0.16em] text-brand">하나의 개념, 여러 표기</p>
+          <h2 className="mt-3 text-2xl font-semibold leading-snug tracking-[-0.035em] text-ink sm:text-3xl">
+            어떤 표현으로 찾아도<br className="hidden sm:block" /> 같은 의미에 닿도록
+          </h2>
+          <p className="mt-4 max-w-lg text-sm leading-7 text-ink-2">
+            표준 이름과 약어, 한국어 표현, 현장에서 쓰는 별칭을 하나로 연결합니다. 한 번 정리해 두면 누구나 같은 맥락으로 이야기할 수 있습니다.
+          </p>
+          {domains.length > 0 && (
+            <div className="mt-6 flex flex-wrap items-center gap-2">
+              <span className="mr-1 text-xs text-ink-3">많이 다루는 분야</span>
+              {domains.map((domain) => <Link key={domain.value} href={`/sheet?domain=${encodeURIComponent(domain.value)}`} className="chip bg-panel">{domain.value}<span className="text-ink-3">{domain.count}</span></Link>)}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="mt-8 rounded-[1.75rem] border border-line/80 bg-panel/65 p-6 backdrop-blur sm:p-9">
+        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
+          <div><p className="text-xs font-semibold tracking-[0.16em] text-brand">함께 만드는 용어집</p><h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-ink sm:text-3xl">알고 있는 한 단어가, 모두의 기준이 됩니다.</h2></div>
+          <Link href="/new" className="btn-primary self-start rounded-full px-5 py-2.5 md:self-auto">첫 용어 제안하기 <IconArrow /></Link>
+        </div>
+        <div className="mt-8 grid gap-3 md:grid-cols-3">
+          <JourneyCard number="01" title="먼저 찾아보고" body="약어, 별칭, 금지 표기까지 한 번에 검색해요." icon={<IconSearch />} />
+          <JourneyCard number="02" title="맥락을 보태고" body="이름과 정의, 실제로 쓰는 표현을 편하게 적어요." icon={<IconPen />} />
+          <JourneyCard number="03" title="함께 다듬어요" body="수정 이력이 남으니 부담 없이 더 좋은 표현을 제안해요." icon={<IconPeople />} />
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function Stat({ value, label }: { value: number; label: string }) {
+  return <span className="flex items-baseline gap-1.5"><strong className="text-lg font-bold tracking-tight text-ink">{value.toLocaleString("ko-KR")}</strong><span className="text-xs text-ink-3">{label}</span></span>;
+}
+
+function ConceptMap() {
   return (
-    <section className="mt-7 pb-16">
-      <p className="mb-2 px-3 text-xs text-ink-3">
-        결과 <span className="font-medium text-ink-2">{hits.length}</span>개{hits.length === RESULT_LIMIT && " 이상"}
-        <span className="mx-1.5">·</span>
-        <Link href={`/sheet?q=${encodeURIComponent(q)}`} className="link">
-          시트에서 보기
-        </Link>
-      </p>
-      <ol>
-        {hits.map((hit) => (
-          <li key={hit.id}>
-            <Link href={termHref(hit)} className="flex gap-3 rounded-xl px-3 py-2.5 transition hover:bg-panel-2">
-              <span
-                aria-hidden
-                className="mt-1 h-8 w-1 shrink-0 rounded-full"
-                style={{ backgroundColor: `hsl(${spineHue(hit.slug)} 62% 55%)` }}
-              />
-              <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <span className="text-[15px] font-medium text-ink">{displayName(hit)}</span>
-                  {hit.nameEn && hit.nameKo && <span className="text-sm text-ink-2">{hit.nameKo}</span>}
-                  {/* canonical은 표준명 자체라 배지가 동어반복이 된다. 그 외 표기로
-                      맞았을 때만 무엇으로 맞았는지 보여준다 — "SoC로 찾았더니
-                      System on Chip이 나온" 이유가 이 배지다. */}
-                  {hit.matchedKind !== "canonical" && (
-                    <span className="chip chip-on px-2 py-0.5 text-[11px]">
-                      {hit.matchedText}
-                      <span className="opacity-70">{SURFACE_KIND_LABEL[hit.matchedKind]}</span>
-                    </span>
-                  )}
-                  {!hit.exact && <span className="text-[11px] text-ink-3">비슷한 표기</span>}
-                </span>
-                {hit.definitionMd && (
-                  <span className="mt-0.5 line-clamp-2 block text-sm text-ink-2">{hit.definitionMd}</span>
-                )}
-                <span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-3">
-                  <span>{TERM_TYPE_LABEL[hit.termType]}</span>
-                  <DomainBadges domain={hit.domain} />
-                  {hit.status !== "active" && <StatusBadge status={hit.status} />}
-                </span>
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ol>
+    <div className="relative mx-auto w-full max-w-[27rem]" aria-label="하나의 개념과 여러 표기가 연결되는 모습">
+      <div className="home-concept-glow absolute inset-[16%] rounded-full blur-3xl" />
+      <div className="relative rounded-2xl border border-line bg-panel p-5 shadow-[0_20px_60px_-38px_rgb(38_32_99_/_0.4)] sm:p-7">
+        <div className="flex items-center justify-between"><span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-3"><span className="h-2 w-2 rounded-full bg-ok" />하나의 개념</span><span className="rounded-full bg-ok-soft px-2.5 py-1 text-[10px] font-semibold text-ok">사용 중</span></div>
+        <div className="mt-7"><p className="text-2xl font-semibold tracking-[-0.035em] text-ink sm:text-3xl">System on Chip</p><p className="mt-2 text-sm font-medium text-ink-2">시스템 온 칩</p><p className="mt-5 border-l-2 border-brand/60 pl-4 text-sm leading-6 text-ink-2">여러 기능을 하나의 집적 회로에 구현한 반도체 시스템</p></div>
+        <div className="mt-7 flex flex-wrap gap-2 border-t border-line pt-5"><span className="rounded-full bg-brand-soft px-3 py-1.5 text-xs font-medium text-brand">SoC · 약어</span><span className="rounded-full bg-panel-2 px-3 py-1.5 text-xs text-ink-2">시스템온칩 · 별칭</span><span className="rounded-full bg-panel-2 px-3 py-1.5 text-xs text-ink-2">반도체 · 분야</span></div>
+      </div>
+    </div>
+  );
+}
+
+function JourneyCard({ number, title, body, icon }: { number: string; title: string; body: string; icon: ReactNode }) {
+  return <div className="rounded-2xl border border-line bg-paper/45 p-5 transition hover:border-line-strong"><div className="flex items-center justify-between"><span className="grid h-10 w-10 place-items-center rounded-xl bg-panel text-brand shadow-sm">{icon}</span><span className="font-mono text-[10px] text-ink-3">{number}</span></div><h3 className="mt-5 text-base font-semibold tracking-tight text-ink">{title}</h3><p className="mt-2 text-sm leading-6 text-ink-2">{body}</p></div>;
+}
+
+function Results({ q, hits }: { q: string; hits: SearchHit[] }) {
+  if (hits.length === 0) return (
+    <section className="mt-8 pb-16"><div className="card px-6 py-10 text-center shadow-sm"><span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-brand-soft text-brand"><IconPen /></span><p className="mt-4 text-sm text-ink-2"><span className="font-semibold text-ink">{q}</span>와(과) 맞는 표기가 아직 없습니다.</p><p className="mt-1.5 text-xs text-ink-3">비슷한 표기까지 찾아봤어요. 첫 번째 작성자가 되어 주세요.</p><Link href="/new" className="btn-primary mt-5 rounded-full px-5 py-2.5">새 용어로 제안하기</Link></div></section>
+  );
+  return (
+    <section className="mt-8 rounded-2xl border border-line bg-panel/70 p-3 pb-5 shadow-sm backdrop-blur sm:p-5">
+      <p className="mb-2 px-3 text-xs text-ink-3">결과 <span className="font-medium text-ink-2">{hits.length}</span>개{hits.length === RESULT_LIMIT && " 이상"}<span className="mx-1.5">·</span><Link href={`/sheet?q=${encodeURIComponent(q)}`} className="link">시트에서 보기</Link></p>
+      <ol>{hits.map((hit) => <li key={hit.id}><Link href={termHref(hit)} className="flex gap-3 rounded-xl px-3 py-3 transition hover:bg-panel-2"><span aria-hidden className="mt-1 h-8 w-1 shrink-0 rounded-full" style={{ backgroundColor: `hsl(${spineHue(hit.slug)} 62% 55%)` }} /><span className="min-w-0 flex-1"><span className="flex flex-wrap items-baseline gap-x-2 gap-y-1"><span className="text-[15px] font-medium text-ink">{displayName(hit)}</span>{hit.nameEn && hit.nameKo && <span className="text-sm text-ink-2">{hit.nameKo}</span>}{hit.matchedKind !== "canonical" && <span className="chip chip-on px-2 py-0.5 text-[11px]">{hit.matchedText}<span className="opacity-70">{SURFACE_KIND_LABEL[hit.matchedKind]}</span></span>}{!hit.exact && <span className="text-[11px] text-ink-3">비슷한 표기</span>}</span>{hit.definitionMd && <span className="mt-0.5 line-clamp-2 block text-sm text-ink-2">{hit.definitionMd}</span>}<span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-3"><span>{TERM_TYPE_LABEL[hit.termType]}</span><DomainBadges domain={hit.domain} />{hit.status !== "active" && <StatusBadge status={hit.status} />}</span></span></Link></li>)}</ol>
     </section>
   );
 }
+
+function HomeBackdrop() { return <div className="pointer-events-none absolute inset-0" aria-hidden><div className="absolute -left-40 top-24 h-[28rem] w-[28rem] rounded-full bg-brand/10 blur-[110px]" /><div className="absolute -right-32 top-0 h-[30rem] w-[30rem] rounded-full bg-accent/10 blur-[120px]" /><div className="home-grid absolute inset-x-0 top-0 h-[46rem] opacity-50" /></div>; }
+function IconPlus() { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden><path d="M8 3v10M3 8h10" strokeLinecap="round" /></svg>; }
+function IconArrow() { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><path d="M3 8h9M9 4.5 12.5 8 9 11.5" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
+function IconSearch() { return <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><circle cx="7.5" cy="7.5" r="4.5" /><path d="m11 11 3.5 3.5" strokeLinecap="round" /></svg>; }
+function IconPen() { return <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><path d="m11.3 3.2 3.5 3.5-8.7 8.7-3.9.4.4-3.9 8.7-8.7Z" strokeLinejoin="round" /><path d="m9.8 4.7 3.5 3.5" /></svg>; }
+function IconPeople() { return <svg width="19" height="19" viewBox="0 0 19 19" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><circle cx="7" cy="6" r="2.5" /><path d="M2.5 15c.3-3 1.8-4.5 4.5-4.5s4.2 1.5 4.5 4.5" strokeLinecap="round" /><path d="M12.5 4.5a2.4 2.4 0 0 1 0 4.7M13 11c2.1.2 3.2 1.5 3.5 4" strokeLinecap="round" /></svg>; }

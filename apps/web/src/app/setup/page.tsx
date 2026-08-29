@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { BrandMark } from "@/components/app-shell";
 import { needsSetup } from "@/lib/auth/setup";
 import { SetupForm } from "./setup-form";
 
@@ -17,7 +18,7 @@ export default async function SetupPage() {
     <main className="flex min-h-screen items-center justify-center px-5 py-14">
       <div className="w-full max-w-sm animate-fade-up">
         <header className="mb-6 flex flex-col items-center text-center">
-          <BrandMark />
+          <BrandMark size={38} />
           <h1 className="mt-3 text-xl font-semibold tracking-tight text-ink">Grossary</h1>
           <p className="mt-2 text-sm text-ink-2">개념 하나에 표기 여럿, 함께 관리하는 사전</p>
         </header>
@@ -35,17 +36,5 @@ export default async function SetupPage() {
         </div>
       </div>
     </main>
-  );
-}
-
-/** app-shell.tsx의 마크와 같은 그림(색인 카드 세 장). 셸이 없는 화면이라
- *  export를 새로 뚫는 대신 같은 SVG를 이 파일에 둔다. */
-function BrandMark() {
-  return (
-    <svg width="34" height="34" viewBox="0 0 26 26" aria-hidden className="shrink-0">
-      <rect x="3" y="6" width="18" height="15" rx="2.5" className="fill-brand/20" />
-      <rect x="4.5" y="3.5" width="18" height="15" rx="2.5" className="fill-panel stroke-brand" strokeWidth="1.5" />
-      <path d="M8.5 8.5h10M8.5 11.5h10M8.5 14.5h6" className="stroke-brand" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
   );
 }

@@ -116,7 +116,7 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
   }
 
   return (
-    <form method="get" action="/" role="search" className="mt-5 w-full">
+    <form method="get" action="/" role="search" className="w-full">
       <label htmlFor={inputId} className="sr-only">
         용어 검색
       </label>
@@ -143,7 +143,7 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
           aria-autocomplete="list"
           aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
           placeholder="용어 · 약어 · 별칭 · 금지 표기"
-          className="field h-12 rounded-full pl-11 pr-4 text-base"
+          className="field h-16 rounded-full border-line-strong bg-panel pl-12 pr-5 text-base shadow-[0_10px_32px_-18px_rgb(38_32_99_/_0.42)] hover:border-brand/35"
         />
 
         {open && (
@@ -186,13 +186,13 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
         )}
       </div>
 
-      <div className="mt-3 flex items-center justify-center gap-2">
-        <button type="submit" className="btn-ghost btn-sm">
+      <div className="mt-4 flex items-center justify-center gap-2 px-1">
+        <button type="submit" className="btn-ghost px-4 py-2 text-xs">
           검색
         </button>
         {/* 같은 입력을 시트의 q 필터로 그대로 넘긴다. formAction은 이 버튼으로
             제출할 때만 action을 바꾸므로 입력값을 두 번 적을 필요가 없다. */}
-        <button type="submit" formAction="/sheet" className="btn-ghost btn-sm">
+        <button type="submit" formAction="/sheet" className="btn-quiet btn-sm">
           시트에서 보기
         </button>
       </div>

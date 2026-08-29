@@ -21,6 +21,7 @@ export default {
           soft: token("brand-soft"),
           on: token("brand-on"),
         },
+        accent: { DEFAULT: token("accent"), soft: token("accent-soft") },
         ok: { DEFAULT: token("ok"), soft: token("ok-soft") },
         warn: { DEFAULT: token("warn"), soft: token("warn-soft") },
         danger: { DEFAULT: token("danger"), soft: token("danger-soft") },
