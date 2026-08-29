@@ -38,7 +38,7 @@ GET /api/v1/terms?q=exposure&type=abbreviation&domain=ISP&status=active&page=1&p
 - `?page=abc`, `?page=1e999` → 400 `validation_failed`. 재시도해도 성공하지 않는
   입력이므로 500이 아니다.
 
-같은 규칙이 **화면**(`/terms`)에는 적용되지 않는다. 화면은 알 수 없는 값을 조용히
+같은 규칙이 **화면**(`/sheet`)에는 적용되지 않는다. 화면은 알 수 없는 값을 조용히
 무시하고 기본값을 쓴다 — 사람이 주소창을 손으로 고치다 낸 오타 하나로 에러 페이지를
 띄우면 안 되기 때문이다.
 
@@ -290,3 +290,37 @@ Content-Type: application/json
 상태를 바꾸지 않는 읽기 동작인데 POST인 이유는, 문서 전체를 훑는 배치 요청이라 본문이
 GET 쿼리스트링에 담기지 않기 때문이다. "상태를 바꾸는 GET을 만들지 않는다"는 불변식과는
 무관하다.
+
+## 자동완성 suggest
+
+홈 검색창이 한 글자마다 부르는 자리다. 응답을 작게 유지한다 — 정의문·도메인·리비전은
+싣지 않는다.
+
+```http
+GET /api/v1/terms/suggest?q=sy
+```
+
+`q`는 필수다. 없거나 공백뿐이면 400 `validation_failed`(`details.field`가 `"q"`).
+
+```json
+{
+  "items": [
+    { "id": "t_soc", "slug": "system-on-chip",
+      "nameEn": "System on Chip", "nameKo": "시스템 온 칩", "status": "active",
+      "matchedText": "SoC", "matchedKind": "abbreviation", "exact": false, "prefix": true }
+  ]
+}
+```
+
+동작상 알아둘 것.
+
+- 후보는 최대 8개다. 개수를 조절하는 파라미터는 없다 — 더 넓게 보려는 요청은
+  [`GET /terms`](#목록-조회)가 받는다.
+- **`prefix`가 자동완성과 오타 교정을 가른다.** 입력이 그 표기의 앞부분이면 `true`,
+  `pg_trgm` 유사도로만 걸렸으면 `false`다. 화면은 이 값으로 목록을 두 묶음으로 나눈다
+  (섞어서 보여주면 사용자가 자기 오타를 끝까지 모른다).
+- 앞부분 판정은 정규화 키(`norm_loose`) 기준이다. `"sysonchip"`으로 `"System on Chip"`이
+  걸릴 수 있으므로, 눈에 보이는 문자열이 입력으로 시작한다는 보장은 없다.
+- 한 용어에 걸린 표기가 여럿이어도 후보는 **용어당 하나**다. 정렬은
+  정확 매치 → 앞부분 매치 → 유사도 → 짧은 표기 순.
+- 정규화하면 빈 문자열이 되는 입력은 빈 `items`를 돌려준다.

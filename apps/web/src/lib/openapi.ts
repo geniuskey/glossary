@@ -489,6 +489,19 @@ export const openApiSpec = {
         },
       },
     },
+    "/terms/suggest": {
+      get: {
+        summary: "검색창 자동완성 — 앞부분이 맞거나 비슷한 표기 (최대 8개)",
+        parameters: [{ name: "q", in: "query", required: true, schema: { type: "string" } }],
+        responses: {
+          // 각 항목의 prefix=true는 "입력이 이 표기의 앞부분"(자동완성),
+          // false는 "비슷하기만 함"(오타 교정 후보)이다.
+          "200": json("{ items: [{ slug, matchedText, matchedKind, exact, prefix, ... }] }", { type: "object" }),
+          "400": errorResponse("validation_failed — q가 없거나 비어 있다"),
+          "401": errorResponse("unauthorized"),
+        },
+      },
+    },
     "/terms/lookup": {
       post: {
         summary: "문서에 쓰인 표기들이 등록된 용어인지 한 번에 확인한다 (AI-Lint 통합 지점)",

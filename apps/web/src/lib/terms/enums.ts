@@ -23,6 +23,11 @@ export const SURFACE_LANGS = ["en", "ko", "neutral"] as const;
 export type TermTypeLiteral = (typeof TERM_TYPES)[number];
 export type TermStatusLiteral = (typeof TERM_STATUSES)[number];
 export type ExplicitSurfaceKindLiteral = (typeof EXPLICIT_SURFACE_KINDS)[number];
+// DB의 surface_kind 전체. canonical은 사용자가 고르지 못할 뿐, 조회 결과에는
+// 그대로 나온다(표준명으로 검색이 맞으면 kind가 canonical이다) — 그래서 읽는
+// 쪽 타입에는 필요하다. 위 배열이 terms-enums.test.ts로 DB enum에 묶여 있으므로
+// 이 합집합도 함께 묶인다.
+export type SurfaceKindLiteral = "canonical" | ExplicitSurfaceKindLiteral;
 export type SurfaceLangLiteral = (typeof SURFACE_LANGS)[number];
 
 export const TERM_TYPE_LABEL: Record<TermTypeLiteral, string> = {

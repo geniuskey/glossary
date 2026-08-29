@@ -122,7 +122,7 @@ JSON 에러 봉투를 쓸 수 없다 — 이 저장소의 "모든 에러는 JSON
 | 경로 | 하는 일 |
 |---|---|
 | `GET /auth/sso/start` | PKCE·state·nonce를 만들어 흐름 쿠키에 담고 IdP로 302 |
-| `GET /auth/sso/callback` | 코드를 토큰으로 바꾸고 세션 쿠키를 발급한 뒤 `/terms`로 302 |
+| `GET /auth/sso/callback` | 코드를 토큰으로 바꾸고 세션 쿠키를 발급한 뒤 `/`로 302 |
 
 둘 다 응답은 302뿐이다. 실패하면 `/login?sso=<코드>`로 돌아온다
 (`disabled` `state` `idp` `token` `no_subject` `no_email` `not_allowed` `no_account`
@@ -222,7 +222,7 @@ Content-Type: application/json
 
 | scope | 허용 |
 |---|---|
-| `read` | `GET /terms`, `GET /terms/{idOrSlug}`, `GET .../revisions`, `POST /terms/lookup` |
+| `read` | `GET /terms`, `GET /terms/{idOrSlug}`, `GET .../revisions`, `POST /terms/lookup`, `GET /terms/suggest` |
 | `write` | `POST /terms`, `PATCH /terms/{idOrSlug}`, `POST /import` |
 | `validate` | (M2) `POST /validate`, `POST /validate/batch` |
 

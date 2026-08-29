@@ -23,12 +23,21 @@ export interface DuplicateWarning {
 // "app/api/v1/terms/ 밑 정적 세그먼트가 전부 여기 있는가"를 구조 테스트로
 // 잠근다(테스트: apps/web/tests/terms-lookup.test.ts).
 //
-// R92: "new"는 app/terms/ 밑 정적 세그먼트다(Task 13의 `/terms/new` 폼). Next는
+// R92: "new"는 원래 app/terms/ 밑 정적 세그먼트였다(`/terms/new` 폼). Next는
 // 정적 세그먼트를 동적 세그먼트(`app/terms/[slug]`)보다 먼저 매칭하므로,
 // slugify("New") === "new"인 용어는 상세 페이지에 영원히 도달할 수 없고 대신
-// "새 용어" 폼이 뜬다 — R86과 정확히 같은 결함이 한 마일스톤 뒤에 반복되는
-// 것이다. uniqueSlug가 이미 사용 중인 것처럼 취급해 피한다.
-export const RESERVED_SLUGS = new Set(["lookup", "new"]);
+// "새 용어" 폼이 떴다 — R86과 정확히 같은 결함이 한 마일스톤 뒤에 반복된 것이다.
+//
+// R135: 화면 주소가 `/w/<slug>`로 옮겨가면서 그 충돌 자체는 사라졌다(슬러그가
+// 사는 곳에는 이제 정적 형제가 없다). 그래도 "new"는 예약어로 남긴다 —
+// next.config.ts의 `/terms/new → /new` 리다이렉트가 파일시스템보다 먼저
+// 검사되므로, 슬러그가 "new"인 용어의 **옛 링크**(`/terms/new`)는 상세 화면이
+// 아니라 생성 폼으로 간다. 끊긴 링크를 살리려고 둔 장치가 도로 같은 종류의
+// 조용한 도달 불가를 만드는 셈이라, 그 슬러그는 계속 피한다.
+// R136: "suggest"도 같은 이유로 추가한다 — `GET /api/v1/terms/suggest`(자동완성)가
+// `terms/[idOrSlug]`보다 먼저 매칭되므로, 슬러그가 "suggest"인 용어는 상세 조회가
+// 영원히 자동완성 응답으로 대체된다.
+export const RESERVED_SLUGS = new Set(["lookup", "new", "suggest"]);
 
 // F2(수정 라운드, R86/R92와 같은 계열): slugify는 하이픈과 16진 문자를 모두
 // 보존하므로 "550e8400 e29b 41d4 a716 446655440000" 같은 이름이 UUID 모양

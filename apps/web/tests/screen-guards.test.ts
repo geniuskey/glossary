@@ -1,9 +1,9 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 
-// F6(review §2 Q1): R97 때문에 /terms 화면 자체는 jsdom/RTL 없이 렌더
+// F6(review §2 Q1): R97 때문에 /sheet 화면 자체는 jsdom/RTL 없이 렌더
 // 테스트를 하지 않지만("구현을 지워도 통과하는 테스트는 없느니만 못하다"가
 // 렌더 테스트 부재를 정당화하지는 않는다), 아래 세 가지는 회귀가 정확히
 // 소스 문자열 하나로 나타나는 종류라 파일을 읽는 것만으로 의미 있게
@@ -66,14 +66,16 @@ test("PROTO A 자기검사: href/action·중괄호·문자열 속 // 세 형태�
   // 줄 앞 주석은 여전히 지워진다(logout-button.tsx:6이 깨끗한 트리를 통과하는 이유).
   expect(API_ATTR.test(stripComments('// `<Link href="/api/v1/auth/logout">` 같은 GET'))).toBe(false);
   // 내부 화면 링크는 위반이 아니다.
-  expect(API_ATTR.test(stripComments('<Link href="/terms/new">새 용어</Link>'))).toBe(false);
+  expect(API_ATTR.test(stripComments('<Link href="/new">새 용어</Link>'))).toBe(false);
 });
 
 // PROTO B: 허용목록 밖의 모든 page.tsx는 getCurrentUser(와 redirect("/login")를
 // 모두 포함한다. getCurrentUser(만 검사하면 "호출은 남기고 redirect만 지우는"
 // 회귀(R3/R6)를 못 잡는다 — 반드시 두 토큰을 함께 요구해야 한다.
+// R135: app/page.tsx는 더 이상 예외가 아니다. 예전에는 무조건 /terms로
+// redirect하는 한 줄이라 인증 게이트가 그 화면 몫이었지만, 이제 홈이 직접 DB를
+// 읽어 검색 결과를 그리는 화면이라 게이트가 여기 있어야 한다.
 const PROTO_B_ALLOWLIST = new Set<string>([
-  "page.tsx", // app/page.tsx: 무조건 /terms로 redirect한다 — 인증 게이트는 그 화면 몫이다.
   path.join("setup", "page.tsx"), // 최초 설정 화면 — 아직 계정이 없을 때만 열린다(needsSetup으로 스스로 막는다).
   path.join("login", "page.tsx"), // 로그인 화면 자신 — 인증 게이트의 대상이 아니다.
   // R131: 가입 화면 — 로그인하지 않은 사람을 위한 화면이라 인증 게이트를 걸 수 없다.
@@ -145,4 +147,53 @@ test("PROTO F 자기검사: 무조건 닫는 형태는 통과하지 않는다", 
   expect(
     MENU_CLOSE_GUARD.test('if (event.target instanceof Element && event.target.closest("[data-menu-root]")) return;'),
   ).toBe(true);
+});
+
+// PROTO G: 붙여넣기 핸들러가 찾는 표식(data-draft-row)과 JSX가 다는 표식은
+// 손으로 맞춰 둔 두 곳이다. 표식이 사라지면 "+" 줄에 붙여넣어도 새 행이 생기지
+// 않고(입력칸으로 취급해 그냥 통과시킨다), 화면에는 아무 오류도 나오지 않는다.
+test("PROTO G: '+' 줄 붙여넣기 표식이 핸들러와 JSX 양쪽에 있다 (R134)", () => {
+  const content = stripComments(readFileSync(path.join(componentsDir, "terms-grid.tsx"), "utf8"));
+
+  expect(/closest\(\s*["'`]\[data-draft-row\]["'`]\s*\)/.test(content)).toBe(true);
+  expect(/<td\s+data-draft-row/.test(content)).toBe(true);
+  // 새 행은 POST로 만들어진다 — 계획만 세우고 보내지 않으면 표에만 잠깐 보였다
+  // 사라진다.
+  expect(/fetch\(\s*["'`]\/api\/v1\/terms["'`]/.test(content)).toBe(true);
+});
+
+// PROTO H: 검색창 자동완성 드롭다운(R136). 이 목록이 조용히 죽는 방식은 두
+// 가지이고, 둘 다 "열리는 것까지는 멀쩡해 보인다"라 눈으로 잡히지 않는다.
+//
+//  (1) 목록의 mousedown 기본 동작을 막지 않으면 포커스가 입력창을 떠나 onBlur가
+//      목록을 지우고, click은 사라진 노드에 도착한다 — 눌러도 아무 일이 없다
+//      (PROTO E/F와 같은 계열의 R133 회귀).
+//  (2) 조합 중(한글 입력) Enter를 걸러내지 않으면 글자를 확정하려는 Enter가
+//      후보 선택으로 잡혀 엉뚱한 용어로 이동한다. 영문 입력으로만 확인하면
+//      끝까지 보이지 않는다.
+const SUGGEST_LIST_MOUSEDOWN = /role="listbox"[\s\S]{0,400}?onMouseDown=\{\s*\(e\)\s*=>\s*e\.preventDefault\(\)\s*\}/;
+const COMPOSING_GUARD = /if\s*\(\s*e\.nativeEvent\.isComposing\s*\)\s*return/;
+
+test("PROTO H: 자동완성 목록은 mousedown 기본 동작을 막고, 조합 중 Enter를 걸러낸다 (R136)", () => {
+  const content = stripComments(readFileSync(path.join(componentsDir, "search-box.tsx"), "utf8"));
+
+  expect(SUGGEST_LIST_MOUSEDOWN.test(content)).toBe(true);
+  expect(COMPOSING_GUARD.test(content)).toBe(true);
+
+  // 드롭다운이 부르는 주소와 실제 라우트 파일은 손으로 맞춰 둔 두 곳이다.
+  // 어긋나면 404가 나지만 fetch 실패는 조용히 삼켜지므로(자동완성은 부가
+  // 기능이다) 화면에는 "후보가 없음"으로만 보인다.
+  const url = content.match(/fetch\(\s*`(\/api\/v1\/[^?`]+)/);
+  expect(url).not.toBeNull();
+  const routeFile = path.join(appDir, "api", ...url![1]!.split("/").filter(Boolean).slice(1), "route.ts");
+  expect(existsSync(routeFile), `${routeFile} 없음`).toBe(true);
+});
+
+test("PROTO H 자기검사: 가드가 빠진 형태는 통과하지 않는다", () => {
+  expect(SUGGEST_LIST_MOUSEDOWN.test('<ul role="listbox" className="card">')).toBe(false);
+  expect(
+    SUGGEST_LIST_MOUSEDOWN.test('<ul role="listbox"\n  onMouseDown={(e) => e.preventDefault()}\n>'),
+  ).toBe(true);
+  expect(COMPOSING_GUARD.test("if (e.key === \"Enter\") select();")).toBe(false);
+  expect(COMPOSING_GUARD.test("if (e.nativeEvent.isComposing) return;")).toBe(true);
 });

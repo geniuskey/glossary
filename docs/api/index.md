@@ -36,6 +36,7 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | GET | [`/terms/{idOrSlug}/revisions`](/api/terms#수정-이력) | `read` | 수정 이력 |
 | POST | [`/terms/{idOrSlug}/revisions/{number}/revert`](/api/terms#되돌리기) | `write` | 그 리비전으로 되돌리기 (새 리비전이 쌓인다) |
 | POST | [`/terms/lookup`](/api/terms#배치-조회-lookup) | `read` | 배치 표기 조회 (AI-Lint 통합 지점) |
+| GET | [`/terms/suggest`](/api/terms#자동완성-suggest) | `read` | 검색창 자동완성 후보 (최대 8개) |
 | POST | [`/import`](/api/import) | `write` | 엑셀 임포트 (dry-run 기본) |
 
 브라우저가 오가는 SSO 창구 두 개(`/auth/sso/start`, `/auth/sso/callback`)는 `/api/v1`

@@ -12,6 +12,7 @@ import * as keysRoute from "../src/app/api/v1/keys/route.js";
 import * as keyIdRoute from "../src/app/api/v1/keys/[id]/route.js";
 import * as termsRoute from "../src/app/api/v1/terms/route.js";
 import * as termLookupRoute from "../src/app/api/v1/terms/lookup/route.js";
+import * as termSuggestRoute from "../src/app/api/v1/terms/suggest/route.js";
 import * as termIdOrSlugRoute from "../src/app/api/v1/terms/[idOrSlug]/route.js";
 import * as termRevisionsRoute from "../src/app/api/v1/terms/[idOrSlug]/revisions/route.js";
 import * as openapiRoute from "../src/app/api/v1/openapi/route.js";
@@ -52,6 +53,8 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   // GET/PUT/PATCH/DELETE의 405 스텁 누락을 아무 테스트도 못 잡는다 — 이 구멍이
   // 이 저장소에서 네 번째로 반복되는 실수였다(Task 8 P7, Task 9 R58, Task 10 F1).
   { name: "terms/lookup", mod: termLookupRoute, allowed: ["POST"], allow: "POST" },
+  // R136: 자동완성 라우트는 GET만 처리한다.
+  { name: "terms/suggest", mod: termSuggestRoute, allowed: ["GET"], allow: "GET, HEAD" },
   // Task 10: terms/[idOrSlug] 라우트는 이제 GET/PATCH/DELETE를 처리한다. 이 행을
   // 갱신하지 않으면 새로 추가된 PATCH/DELETE의 405 스텁 누락이나 Allow 헤더
   // 불일치를 아무 테스트도 못 잡는다.
