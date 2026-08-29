@@ -144,7 +144,7 @@ test("기본 숨김 열은 실제로 hiddenByDefault가 붙은 열들이다", ()
 });
 
 test("상세 폼에서 고칠 수 있는 필드는 표에도 전부 열이 있다", () => {
-  // "/terms에서도 모두 수정 가능"의 기준을 term-form.tsx가 편집하는 필드 집합에
+  // "시트에서도 모두 수정 가능"의 기준을 term-form.tsx가 편집하는 필드 집합에
   // 맞춰 고정한다. 스키마에 필드가 하나 늘었는데 표만 빠지면 여기서 걸린다.
   const editable = GRID_COLUMNS.filter((c) => c.kind !== "readonly").map((c) => c.key);
   expect([...editable].sort()).toEqual(
@@ -296,7 +296,7 @@ test("planPaste: 한 행의 여러 열은 PATCH 하나로 합쳐진다", () => {
   // 행마다 요청이 한 번이어야 리비전이 한 칸만 올라간다 — 열 수만큼 올라가면
   // 같이 쓰는 사람 화면에는 "다섯 번 고침"으로 남고 이력이 쓸모없어진다.
   const rows = pair();
-  const plan = planPaste(rows, NAME_COLUMNS, { r: 0, c: 0 }, [
+  const { plan } = planPaste(rows, NAME_COLUMNS, { r: 0, c: 0 }, [
     ["A", "가"],
     ["B", "나"],
   ]);
@@ -306,30 +306,92 @@ test("planPaste: 한 행의 여러 열은 PATCH 하나로 합쳐진다", () => {
   expect(plan.cells).toBe(4);
 });
 
-test("planPaste: 표에 남은 줄이 모자라면 버린 만큼 알려 준다", () => {
+// R134: 예전에는 표 끝을 넘어간 줄을 버리고 "모자라다"고만 알렸다 — 엑셀에서
+// 50줄을 복사해 오는 것이 이 표의 실제 사용법인데 먼저 빈 줄 50개를 만들 창구가
+// 없었다. 넘어간 줄은 새 행이 된다.
+test("planPaste: 표 끝을 넘어간 줄은 새 행이 된다", () => {
   const rows = pair();
-  const plan = planPaste(rows, NAME_COLUMNS, { r: 1, c: 0 }, [["A"], ["B"], ["C"]]);
+  const { plan, creates } = planPaste(rows, NAME_COLUMNS, { r: 1, c: 0 }, [["A"], ["B"], ["C"]]);
+
   expect(plan.updates).toHaveLength(1);
-  expect(plan.errors.join(" ")).toContain("2줄");
+  expect(plan.errors).toEqual([]);
+  expect(creates).toEqual([
+    { line: 2, values: { nameEn: "B" } },
+    { line: 3, values: { nameEn: "C" } },
+  ]);
+});
+
+test("planPaste: 빈 표에 붙여넣으면 전부 새 행이다", () => {
+  const { plan, creates } = planPaste([], NAME_COLUMNS, { r: 0, c: 0 }, [
+    ["A", "가"],
+    ["B", "나"],
+  ]);
+
+  expect(plan.updates).toEqual([]);
+  expect(creates.map((c) => c.values)).toEqual([
+    { nameEn: "A", nameKo: "가" },
+    { nameEn: "B", nameKo: "나" },
+  ]);
+});
+
+// 엑셀 선택 영역에는 빈 줄이 딸려 오는 일이 흔하다. 오류로 세면 "3줄을 만들지
+// 못했습니다" 같은 거짓 경고가 뜬다.
+test("planPaste: 빈 줄은 새 행도 오류도 아니다", () => {
+  const { plan, creates } = planPaste([], NAME_COLUMNS, { r: 0, c: 0 }, [["A", "가"], ["", ""], ["", "  "]]);
+
+  expect(creates).toHaveLength(1);
+  expect(plan.errors).toEqual([]);
+});
+
+// 이름 없는 행은 서버가 어차피 400으로 거절한다 — 왕복하기 전에, 몇 번째 줄이
+// 문제인지와 함께 알린다.
+test("planPaste: 표준명이 없는 줄은 만들지 않고 줄 번호를 알려 준다", () => {
+  const columns = [columnByKey("fullNameEn"), columnByKey("domain")];
+  const { plan, creates } = planPaste([], columns, { r: 0, c: 0 }, [["Auto Exposure", "ISP"]]);
+
+  expect(creates).toEqual([]);
+  expect(plan.errors.join(" ")).toContain("1번째 줄");
+});
+
+test("planPaste: 새 행의 잘못된 enum 값은 기본값으로 밀지 않고 그 줄을 거른다", () => {
+  const columns = [columnByKey("nameEn"), columnByKey("status")];
+  const { plan, creates } = planPaste([], columns, { r: 0, c: 0 }, [
+    ["A", "존재하지않음"],
+    ["B", "active"],
+  ]);
+
+  expect(creates).toEqual([{ line: 2, values: { nameEn: "B", status: "active" } }]);
+  expect(plan.errors.join(" ")).toContain("1번째 줄");
+});
+
+// 이 표에서 복사한 줄을 그대로 표 끝에 붙여넣는 것(줄 복제)이 가장 흔한
+// 사용법이다. 슬러그·최근 수정은 서버가 정하므로 조용히 버려야 한다 —
+// 경고를 띄우면 정상 동작이 오류처럼 보인다.
+test("planPaste: 새 행에서 읽기 전용 열은 조용히 버린다", () => {
+  const columns = [columnByKey("nameEn"), columnByKey("slug"), columnByKey("updatedAt")];
+  const { plan, creates } = planPaste([], columns, { r: 0, c: 0 }, [["A", "a", "2026-08-29T00:00:00.000Z"]]);
+
+  expect(creates).toEqual([{ line: 1, values: { nameEn: "A" } }]);
+  expect(plan.errors).toEqual([]);
 });
 
 test("planPaste: 열 밖으로 넘치는 값은 조용히 버린다", () => {
   const rows = pair();
-  const plan = planPaste(rows, NAME_COLUMNS, { r: 0, c: 1 }, [["가", "넘침", "더넘침"]]);
+  const { plan } = planPaste(rows, NAME_COLUMNS, { r: 0, c: 1 }, [["가", "넘침", "더넘침"]]);
   expect(plan.updates).toEqual([{ rowId: "a", patch: { nameKo: "가" } }]);
 });
 
 test("planPaste: 읽기 전용 열은 건너뛰고 사유를 남긴다", () => {
   const rows = pair();
   const columns = [columnByKey("nameEn"), columnByKey("slug")];
-  const plan = planPaste(rows, columns, { r: 0, c: 0 }, [["A", "new-slug"]]);
+  const { plan } = planPaste(rows, columns, { r: 0, c: 0 }, [["A", "new-slug"]]);
   expect(plan.updates).toEqual([{ rowId: "a", patch: { nameEn: "A" } }]);
   expect(plan.errors.join(" ")).toContain("읽기 전용");
 });
 
 test("planPaste: 값이 그대로인 셀은 저장 대상이 아니다", () => {
   const rows = pair();
-  const plan = planPaste(rows, NAME_COLUMNS, { r: 0, c: 0 }, [["Alpha", " 알파 "]]);
+  const { plan } = planPaste(rows, NAME_COLUMNS, { r: 0, c: 0 }, [["Alpha", " 알파 "]]);
   expect(plan.updates).toEqual([]);
   expect(plan.cells).toBe(0);
 });
@@ -337,7 +399,7 @@ test("planPaste: 값이 그대로인 셀은 저장 대상이 아니다", () => {
 test("planPaste: 잘못된 값 한 칸이 나머지 칸까지 막지는 않는다", () => {
   const rows = pair();
   const columns = [columnByKey("nameEn"), columnByKey("status")];
-  const plan = planPaste(rows, columns, { r: 0, c: 0 }, [["A", "존재하지않음"]]);
+  const { plan } = planPaste(rows, columns, { r: 0, c: 0 }, [["A", "존재하지않음"]]);
   expect(plan.updates).toEqual([{ rowId: "a", patch: { nameEn: "A" } }]);
   expect(plan.errors).toHaveLength(1);
   expect(plan.errors[0]).toContain("존재하지않음");
@@ -345,7 +407,7 @@ test("planPaste: 잘못된 값 한 칸이 나머지 칸까지 막지는 않는�
 
 test("planPaste: 표준명을 둘 다 비우는 행은 통째로 빠진다", () => {
   const rows = [row({ id: "a", nameEn: "Alpha", nameKo: null })];
-  const plan = planPaste(rows, NAME_COLUMNS, { r: 0, c: 0 }, [[""]]);
+  const { plan } = planPaste(rows, NAME_COLUMNS, { r: 0, c: 0 }, [[""]]);
   expect(plan.updates).toEqual([]);
   expect(plan.errors.join(" ")).toContain("둘 다 비울 수는 없습니다");
 });

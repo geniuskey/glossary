@@ -44,12 +44,16 @@ import {
   type ColumnKey,
   type Density,
   type GridColumn,
+  type PastedRow,
   type RowPatch,
   type SortDir,
   type SortKey,
   type TermRow,
   type WritePlan,
 } from "@/lib/terms/grid";
+// 타입만 가져온다(빌드에서 지워진다) — 새 행 응답의 모양을 여기 다시 적으면
+// 서버가 필드를 바꿔도 이 파일은 조용히 옛 모양을 믿는다.
+import type { TermWriteResponse } from "@/lib/terms/wire";
 import { cx, isoDate, relativeTime } from "@/lib/ui/format";
 
 const HIDDEN_KEY = "grossary.grid.hidden";
@@ -664,21 +668,112 @@ export function TermsGrid(props: TermsGridProps) {
     event.clipboardData.setData("text/plain", rangeToTsv(rows, columns, range));
   }
 
+  /**
+   * R134: clipboard 이벤트는 버블링하므로 이 핸들러에는 표 안의 입력칸에 한
+   * 칸을 붙여넣는 경우까지 올라온다 — 전부 가로채면 셀 편집기나 "새 용어"
+   * 입력칸에 값을 붙여 넣을 방법이 사라진다. 열려 있는 편집기는 손대지 않고,
+   * 맨 아래 "+" 줄에 여러 칸짜리 표를 붙여넣는 것만 예외로 받는다(그건 "이만큼
+   * 새로 만들어 달라"는 뜻이고, 빈 표에서는 그 줄이 유일한 붙여넣기 자리다).
+   */
   function onPaste(event: React.ClipboardEvent) {
-    if (editing || !sel) return;
+    if (editing) return;
     const text = event.clipboardData.getData("text/plain");
     if (!text) return;
-    event.preventDefault();
     const matrix = parseClipboardMatrix(text);
     if (matrix.length === 0) return;
 
-    const anchor = { r: Math.min(sel.anchor.r, sel.focus.r), c: Math.min(sel.anchor.c, sel.focus.c) };
-    const plan = planPaste(rows, columns, anchor, matrix);
-    void commit(plan, `${plan.cells}칸 붙여넣기`);
+    const target = event.target instanceof Element ? event.target : null;
+    const intoDraft = target?.closest("[data-draft-row]") != null;
+    const spansCells = matrix.length > 1 || (matrix[0]?.length ?? 0) > 1;
+    if (intoDraft && !spansCells) return;
+    if (!intoDraft && target?.closest("input, textarea") != null) return;
 
-    const height = Math.min(matrix.length, rows.length - anchor.r) - 1;
+    // "+" 줄에서 온 붙여넣기는 덮어쓸 행이 없다 — 표 맨 끝에 이어 붙인다.
+    const anchor = intoDraft
+      ? { r: rows.length, c: 0 }
+      : sel && { r: Math.min(sel.anchor.r, sel.focus.r), c: Math.min(sel.anchor.c, sel.focus.c) };
+    if (!anchor) return;
+
+    event.preventDefault();
+    const { plan, creates } = planPaste(rows, columns, anchor, matrix);
+    void pasteInto(plan, creates, anchor, matrix);
+  }
+
+  async function pasteInto(
+    plan: WritePlan,
+    creates: readonly PastedRow[],
+    anchor: CellRef,
+    matrix: readonly string[][],
+  ) {
+    const [, added] = await Promise.all([commit(plan, `${plan.cells}칸 붙여넣기`), createRows(creates)]);
+
+    // 선택 영역은 실제로 존재하게 된 만큼만 잡는다 — 만들지 못한 줄까지 잡으면
+    // 포커스가 없는 좌표를 가리킨다. 방금 만든 행은 rowsRef에 아직 안 보일 수
+    // 있어(setRows가 렌더로 반영되기 전이다) 만든 개수로 직접 센다.
+    const rowCount = Math.max(rowsRef.current.length, rows.length + added);
+    if (anchor.r >= rowCount) return;
+    const height = Math.min(matrix.length, rowCount - anchor.r) - 1;
     const width = Math.min(Math.max(...matrix.map((m) => m.length)), columns.length - anchor.c) - 1;
     setSel({ anchor, focus: { r: anchor.r + Math.max(0, height), c: anchor.c + Math.max(0, width) } });
+  }
+
+  /**
+   * 표 끝을 넘어간 줄을 새 용어로 만든다. 한 줄씩 차례로 보낸다 — createTerm은
+   * "지금 커밋된" 슬러그를 보고 다음 후보를 고르고 충돌하면 세 번까지만
+   * 재시도하므로(create.ts R48), 이름이 비슷한 줄 여럿을 동시에 밀어 넣으면 그
+   * 재시도가 서로를 밀어내 멀쩡한 줄이 실패한다. 순서도 클립보드 순서 그대로
+   * 유지된다.
+   */
+  async function createRows(creates: readonly PastedRow[]): Promise<number> {
+    if (creates.length === 0) return 0;
+
+    const made: TermRow[] = [];
+    const failures: string[] = [];
+    let flagged = 0;
+
+    setCreating(true);
+    try {
+      for (const draft of creates) {
+        try {
+          const res = await fetch("/api/v1/terms", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(draft.values),
+          });
+          if (!res.ok) {
+            const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+            failures.push(`${draft.line}번째 줄: ${body?.error?.message ?? `만들지 못했습니다 (${res.status}).`}`);
+            continue;
+          }
+          const body = (await res.json()) as TermWriteResponse;
+          if (body.warnings.length > 0) flagged += 1;
+          // 방금 만든 행의 리비전은 언제나 1이다(createTerm이 리비전 1을 함께 쓴다).
+          made.push({ ...body.term, revision: 1, editorName: props.viewerName });
+        } catch {
+          failures.push(`${draft.line}번째 줄: 네트워크 오류로 만들지 못했습니다.`);
+        }
+      }
+    } finally {
+      setCreating(false);
+    }
+
+    // 현재 검색·필터에 맞지 않는 행이어도 화면에는 남긴다 — 방금 만든 것이
+    // 곧바로 사라지면 만들어졌는지조차 알 수 없다. 새로고침하면 제자리로 간다.
+    if (made.length > 0) {
+      setRows((prev) => [...prev, ...made]);
+      pushToast({ tone: "ok", text: `${made.length}개 행을 새로 만들었습니다.` });
+    }
+    if (flagged > 0) {
+      pushToast({ tone: "conflict", text: `그중 ${flagged}개는 기존 용어와 표기가 겹칩니다.` });
+    }
+    if (failures.length > 0) {
+      // 줄마다 토스트를 띄우면 화면이 오류로 덮인다 — 첫 줄만 보여주고 수를 센다.
+      pushToast({
+        tone: "error",
+        text: failures.length === 1 ? failures[0]! : `${failures.length}줄을 만들지 못했습니다. ${failures[0]}`,
+      });
+    }
+    return made.length;
   }
 
   function togglePick(id: string) {
@@ -820,8 +915,11 @@ export function TermsGrid(props: TermsGridProps) {
                         <span className="h-1.5 w-1.5 rounded-full bg-danger" title="저장 실패" />
                       ) : (
                         <Link
-                          href={`/terms/${row.slug}`}
-                          title="용어 페이지 열기"
+                          // R135: 표에서 용어를 여는 사람은 고치러 온 사람이다
+                          // (읽으러 왔으면 홈에서 검색한다) — 보기 화면을 한 번
+                          // 거치게 하면 매번 "편집"을 한 번 더 눌러야 한다.
+                          href={`/edit/${row.slug}`}
+                          title="편집 페이지 열기"
                           className="text-ink-3 opacity-0 transition hover:text-brand focus-visible:opacity-100 group-hover:opacity-100"
                         >
                           <IconExpand />
@@ -970,7 +1068,7 @@ export function TermsGrid(props: TermsGridProps) {
               >
                 +
               </td>
-              <td colSpan={columns.length + 1} className="border-b border-grid bg-panel-2/40 px-2">
+              <td data-draft-row colSpan={columns.length + 1} className="border-b border-grid bg-panel-2/40 px-2">
                 <span className="flex flex-wrap items-center gap-2">
                   <input
                     ref={draftRef}
@@ -995,7 +1093,7 @@ export function TermsGrid(props: TermsGridProps) {
                   >
                     추가
                   </button>
-                  <span className="text-[11px] text-ink-3">Enter로 계속 추가할 수 있습니다</span>
+                  <span className="text-[11px] text-ink-3">Enter로 계속 추가 · 엑셀에서 여러 줄을 붙여넣으면 그만큼 행이 생깁니다</span>
                 </span>
               </td>
             </tr>
@@ -1105,7 +1203,7 @@ const SHORTCUTS: Array<[string, string]> = [
   ["Enter · F2", "편집 시작 / 그냥 입력해도 시작 (더블클릭도 같음)"],
   ["Tab", "저장하고 오른쪽 칸으로"],
   ["Esc", "편집 취소"],
-  ["Ctrl+C / Ctrl+V", "범위 복사 / 엑셀에서 붙여넣기"],
+  ["Ctrl+C / Ctrl+V", "범위 복사 / 엑셀에서 붙여넣기 (표 끝을 넘어가면 새 행이 생긴다)"],
   ["Ctrl+D", "선택 영역 맨 윗값으로 아래 채우기"],
   ["Delete", "선택 영역 비우기"],
   ["Ctrl+A", "전체 셀 선택"],

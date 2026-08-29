@@ -454,28 +454,93 @@ function buildPlan(entries: readonly PlanEntry[]): WritePlan {
   return { updates, errors, cells };
 }
 
+/** 표 끝을 넘어간 붙여넣기 줄 하나 = 새로 만들 용어 하나. */
+export interface PastedRow {
+  /** 클립보드 기준 줄 번호(1부터). 실패를 알릴 때 어느 줄인지 짚어야 한다. */
+  line: number;
+  /** POST /api/v1/terms 본문에 그대로 실리는 값. */
+  values: CellPatch;
+}
+
+export interface PastePlan {
+  /** 표에 이미 있는 행을 덮어쓰는 부분. */
+  plan: WritePlan;
+  /** 표 끝을 넘어간 부분. 잘라 버리는 대신 새 행으로 만든다. */
+  creates: PastedRow[];
+}
+
 /**
- * 클립보드 격자를 anchor 셀을 왼쪽 위 모서리로 삼아 붙여넣는다. 표 밖으로
- * 넘치는 부분은 조용히 버리는 대신 몇 줄을 버렸는지 알려준다 — 엑셀에서 50줄을
- * 복사해 왔는데 40줄만 들어갔다는 걸 모르면 그대로 사실이 아닌 사전이 된다.
+ * 클립보드 한 줄을 새 용어의 생성 페이로드로 바꾼다.
+ *
+ * 빈 칸은 patch에 넣지 않는다 — 기존 행을 고칠 때의 빈 칸은 "지운다"(null)지만
+ * 새 행에는 지울 값이 없고, null을 실어 보내면 서버 기본값(termType/status)까지
+ * 덮어쓴다.
+ *
+ * 슬러그·최근 수정 같은 읽기 전용 열은 조용히 버린다. 이 표에서 복사한 줄을
+ * 그대로 표 끝에 붙여넣는 것이 가장 흔한 사용법인데(엑셀에서 하듯 줄 복제),
+ * 그때마다 "읽기 전용 열은 건너뛰었다"고 말하면 정상 동작이 경고가 된다.
+ */
+function draftFromLine(
+  columns: readonly GridColumn[],
+  anchorCol: number,
+  line: readonly string[],
+  lineNumber: number,
+): { row: PastedRow } | { error: string | null } {
+  const values: CellPatch = {};
+  let filled = 0;
+
+  for (let j = 0; j < line.length; j += 1) {
+    const column = columns[anchorCol + j];
+    const raw = line[j];
+    if (!column || raw === undefined || column.kind === "readonly") continue;
+    if (raw.trim() === "") continue;
+
+    const parsed = patchForCell(column.key, raw);
+    // 종류·상태가 잘못된 줄은 만들지 않는다. 그 값만 기본값으로 밀어 넣으면
+    // 사용자가 적은 것과 다른 행이 조용히 생긴다.
+    if ("error" in parsed) return { error: `${lineNumber}번째 줄 · ${column.label}: ${parsed.error}` };
+    Object.assign(values, parsed.patch);
+    filled += 1;
+  }
+
+  // 엑셀 선택 영역에는 빈 줄이 딸려 오는 일이 흔하다 — 오류가 아니라 없는 줄이다.
+  if (filled === 0) return { error: null };
+  if (!values.nameEn && !values.nameKo) {
+    return { error: `${lineNumber}번째 줄: 영문·국문 표준명이 없어 새 행을 만들지 않았습니다.` };
+  }
+  return { row: { line: lineNumber, values } };
+}
+
+/**
+ * 클립보드 격자를 anchor 셀을 왼쪽 위 모서리로 삼아 붙여넣는다.
+ *
+ * R134: 표 끝을 넘어간 줄은 버리지 않고 새 행으로 만든다. 엑셀에서 50줄을
+ * 복사해 오는 것이 이 표의 실제 사용법인데, 예전처럼 "남은 줄이 모자라
+ * 버렸다"고만 알리면 사용자는 먼저 빈 줄 50개를 만들어야 했다 — 그런 창구는
+ * 어디에도 없다. 빈 표에 붙여넣는 경우(rows가 0줄)도 같은 경로다.
  */
 export function planPaste(
   rows: readonly TermRow[],
   columns: readonly GridColumn[],
   anchor: CellRef,
   matrix: readonly string[][],
-): WritePlan {
+): PastePlan {
   const entries: PlanEntry[] = [];
-  let clippedRows = 0;
+  const creates: PastedRow[] = [];
+  const createErrors: string[] = [];
 
   for (let i = 0; i < matrix.length; i += 1) {
     const line = matrix[i];
     if (!line) continue;
+
     const row = rows[anchor.r + i];
     if (!row) {
-      clippedRows += 1;
+      const draft = draftFromLine(columns, anchor.c, line, i + 1);
+      if ("row" in draft) creates.push(draft.row);
+      else if (draft.error) createErrors.push(draft.error);
       continue;
     }
+
     for (let j = 0; j < line.length; j += 1) {
       const column = columns[anchor.c + j];
       const raw = line[j];
@@ -485,10 +550,8 @@ export function planPaste(
   }
 
   const plan = buildPlan(entries);
-  if (clippedRows > 0) {
-    plan.errors.push(`표에 남은 줄이 모자라 마지막 ${clippedRows}줄은 붙여넣지 않았습니다.`);
-  }
-  return plan;
+  plan.errors.push(...createErrors);
+  return { plan, creates };
 }
 
 /** 선택 영역의 첫 줄 값을 아래로 복사한다(엑셀의 Ctrl+D). */
