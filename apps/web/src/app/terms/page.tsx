@@ -16,7 +16,7 @@ import {
   parseListParams,
 } from "@/lib/terms/list-params";
 import { listTermRows, termFacets } from "@/lib/terms/query";
-import { cx } from "@/lib/ui/format";
+import { cx, withCount } from "@/lib/ui/format";
 
 export const metadata = { title: "용어집" };
 
@@ -105,15 +105,30 @@ export default async function TermsPage({
             placeholder="용어 · 약어 · 별칭 검색"
             className="field h-8 w-56 py-0"
           />
-          <FilterSelect name="type" value={parsed.type} placeholder="종류 전체" options={
-            facets.types.map((f) => ({ value: f.value, label: `${TERM_TYPE_LABEL[f.value]} ${f.count}` }))
-          } />
-          <FilterSelect name="status" value={parsed.status} placeholder="상태 전체" options={
-            facets.statuses.map((f) => ({ value: f.value, label: `${TERM_STATUS_LABEL[f.value]} ${f.count}` }))
-          } />
-          <FilterSelect name="domain" value={parsed.domain} placeholder="도메인 전체" options={
-            facets.domains.map((f) => ({ value: f.value, label: `${f.value} ${f.count}` }))
-          } />
+          {/* 숫자는 사전 전체 기준이다(termFacets는 현재 필터를 반영하지 않는다) —
+              "전체" 항목에 그 전체 수를 같이 적어야 각 항목의 수가 부분으로 읽힌다.
+              머리글의 "개념 N개"는 검색 결과 수라 이 값과 다를 수 있다. */}
+          <FilterSelect
+            name="type"
+            value={parsed.type}
+            placeholder={withCount("종류 전체", facets.total)}
+            options={facets.types.map((f) => ({ value: f.value, label: withCount(TERM_TYPE_LABEL[f.value], f.count) }))}
+          />
+          <FilterSelect
+            name="status"
+            value={parsed.status}
+            placeholder={withCount("상태 전체", facets.total)}
+            options={facets.statuses.map((f) => ({
+              value: f.value,
+              label: withCount(TERM_STATUS_LABEL[f.value], f.count),
+            }))}
+          />
+          <FilterSelect
+            name="domain"
+            value={parsed.domain}
+            placeholder={withCount("도메인 전체", facets.total)}
+            options={facets.domains.map((f) => ({ value: f.value, label: withCount(f.value, f.count) }))}
+          />
           {hiddenSearchFields(parsed)
             .filter((f) => f.name === "sort" || f.name === "dir")
             .map((f) => (
@@ -179,13 +194,18 @@ function FilterSelect({
   options: Array<{ value: string; label: string }>;
 }) {
   return (
+    // optgroup은 고를 수 없는 머리글로 그려진다 — 숫자가 무엇을 센 것인지
+    // 툴팁이 아니라 숫자 바로 위에서 말해 준다. JS 없이 동작하는 GET 폼이라
+    // 커스텀 드롭다운으로 바꾸지 않고 네이티브 select 안에서 푼다.
     <select name={name} defaultValue={value ?? ""} className="field h-8 w-auto py-0 text-xs">
       <option value="">{placeholder}</option>
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
+      <optgroup label="사전 전체의 개념 수">
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </optgroup>
     </select>
   );
 }

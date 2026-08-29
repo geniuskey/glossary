@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { cx, displayName, isoDate, relativeTime, spineHue } from "../src/lib/ui/format.js";
+import { cx, displayName, isoDate, relativeTime, spineHue, withCount } from "../src/lib/ui/format.js";
 
 // 날짜 라이브러리를 들이지 않고 직접 만든 함수들이라(번들 크기가 제약), 경계는
 // 여기서 고정한다. 특히 relativeTime의 "어제"는 시간 차가 아니라 달력 날짜
@@ -72,4 +72,12 @@ test("displayName: 영문 → 국문 → 슬러그 순으로 물러난다", () =
   expect(displayName({ nameEn: "Point", nameKo: "지점", slug: "point" })).toBe("Point");
   expect(displayName({ nameEn: null, nameKo: "지점", slug: "point" })).toBe("지점");
   expect(displayName({ nameEn: null, nameKo: null, slug: "point" })).toBe("point");
+});
+
+// 필터 드롭다운의 숫자가 개수로 읽히지 않는다는 지적에서 나온 함수다. 단위나
+// 구분자가 빠지면 "반도체 35"로 되돌아가 같은 질문을 다시 받는다.
+test("withCount: 이름과 개수를 구분자·단위와 함께 붙인다", () => {
+  expect(withCount("반도체", 35)).toBe("반도체 · 35개");
+  expect(withCount("도메인 전체", 0)).toBe("도메인 전체 · 0개");
+  expect(withCount("용어", 1234)).toBe("용어 · 1,234개");
 });

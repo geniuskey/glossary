@@ -61,3 +61,12 @@ export function spineHue(seed: string): number {
 export function displayName(term: { nameEn?: string | null; nameKo?: string | null; slug: string }): string {
   return term.nameEn ?? term.nameKo ?? term.slug;
 }
+
+/**
+ * 필터 목록의 "반도체 35" 같은 표기는 그 35가 개수인지 코드인지 순번인지 읽는
+ * 사람이 알 수 없다(실제로 그 질문을 받았다). 구분자와 단위를 붙여 수를 수로
+ * 읽히게 한다. 세 자리 구분도 함께 넣는다 — 1234개는 한눈에 안 들어온다.
+ */
+export function withCount(label: string, count: number): string {
+  return `${label} · ${count.toLocaleString("ko-KR")}개`;
+}

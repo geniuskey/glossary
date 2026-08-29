@@ -271,6 +271,9 @@ export interface TermFacets {
   domains: Facet[];
   types: Facet<TermType>[];
   statuses: Facet<TermStatus>[];
+  /** 필터 UI에서 "전체"가 뜻하는 수. 각 항목의 count와 같은 기준(사전 전체)이라야
+   *  화면의 숫자들이 부분-전체로 읽힌다 — 목록의 total(현재 필터 결과 수)과 다르다. */
+  total: number;
 }
 
 /**
@@ -288,7 +291,7 @@ export async function termFacets(): Promise<TermFacets> {
   // 둘 수 없다(Postgres 10+) — 먼저 펼친 서브쿼리를 만들고 그 결과를 센다.
   const unnested = db.select({ value: sql<string>`unnest(${terms.domain})`.as("value") }).from(terms).as("d");
 
-  const [domains, types, statuses] = await Promise.all([
+  const [domains, types, statuses, [counted]] = await Promise.all([
     db
       .select({ value: unnested.value, count: sql<number>`count(*)::int` })
       .from(unnested)
@@ -303,7 +306,8 @@ export async function termFacets(): Promise<TermFacets> {
       .select({ value: terms.status, count: sql<number>`count(*)::int` })
       .from(terms)
       .groupBy(terms.status),
+    db.select({ total: sql<number>`count(*)::int` }).from(terms),
   ]);
 
-  return { domains, types, statuses };
+  return { domains, types, statuses, total: counted?.total ?? 0 };
 }

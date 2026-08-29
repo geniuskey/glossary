@@ -2,7 +2,7 @@ import { eq, or } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { createDb, terms } from "@grossary/db";
 import { createTerm } from "../src/lib/terms/create.js";
-import { getTermByIdOrSlug, listTerms } from "../src/lib/terms/query.js";
+import { getTermByIdOrSlug, listTerms, termFacets } from "../src/lib/terms/query.js";
 
 const db = createDb(process.env.DATABASE_URL_TEST!);
 const ids: string[] = [];
@@ -266,4 +266,16 @@ test("동률인 행이 6개 이상이면 id 내림차순 전체 순서와 정확
 
   const page = await listTerms({ domain, page: 1, pageSize: COUNT });
   expect(page.items.map((item) => item.id)).toEqual(expectedOrder);
+});
+
+// 필터 드롭다운은 "전체 N개" 옆에 항목별 개수를 늘어놓는다. 두 수의 기준이
+// 어긋나면(예: total만 현재 필터를 반영하면) 부분이 전체보다 커 보이는 화면이
+// 나온다 — 종류·상태는 NOT NULL이라 합이 정확히 total이어야 한다.
+test("termFacets: total은 종류·상태 합과 같은 기준(사전 전체)이다", async () => {
+  const facets = await termFacets();
+
+  const sum = (list: Array<{ count: number }>) => list.reduce((acc, f) => acc + f.count, 0);
+  expect(facets.total).toBeGreaterThan(0);
+  expect(sum(facets.types)).toBe(facets.total);
+  expect(sum(facets.statuses)).toBe(facets.total);
 });
