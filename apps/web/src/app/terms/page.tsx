@@ -9,6 +9,7 @@ import {
   activeFilters,
   buildFilterHref,
   buildPageHref,
+  buildSortDirHref,
   buildSortHref,
   hiddenSearchFields,
   paginationInfo,
@@ -73,6 +74,14 @@ export default async function TermsPage({
     SORT_KEYS.map((key) => [key, buildSortHref(parsed, key, SORT_FALLBACK_DIR[key])]),
   ) as Record<SortKey, string>;
 
+  // 머리글 우클릭 메뉴는 방향을 눌러 고르므로 토글 링크와 별개로 두 방향을 다 넘긴다.
+  const sortDirHrefs = Object.fromEntries(
+    SORT_KEYS.map((key) => [
+      key,
+      { asc: buildSortDirHref(parsed, key, "asc"), desc: buildSortDirHref(parsed, key, "desc") },
+    ]),
+  ) as Record<SortKey, { asc: string; desc: string }>;
+
   return (
     <AppShell user={user} current="terms" wide>
       <header className="shrink-0 border-b border-line bg-panel/70 px-4 py-3 backdrop-blur lg:px-6">
@@ -133,6 +142,7 @@ export default async function TermsPage({
         canDelete={user.role === "admin"}
         rowOffset={(parsed.page - 1) * PAGE_SIZE}
         sortHrefs={sortHrefs}
+        sortDirHrefs={sortDirHrefs}
         sortState={{ key: parsed.sort ?? "updatedAt", dir: parsed.dir ?? "desc" }}
         query={parsed.q}
         // 도메인 후보는 이 페이지의 50줄이 아니라 사전 전체에서 뽑는다 — 표에서

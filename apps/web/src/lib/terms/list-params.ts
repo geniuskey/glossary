@@ -162,6 +162,15 @@ export function buildSortHref(params: ParsedListParams, key: SortKey, fallbackDi
   return hrefWith(params, { sort: key, dir, page: "1" });
 }
 
+/**
+ * 머리글 우클릭 메뉴의 "오름차순 / 내림차순"이 쓰는 링크. buildSortHref와 달리
+ * 방향을 못 박는다 — 두 방향이 나란히 놓인 메뉴에서 누른 쪽과 반대로 정렬되면
+ * 그 메뉴는 거짓말이 된다.
+ */
+export function buildSortDirHref(params: ParsedListParams, key: SortKey, dir: SortDir): string {
+  return hrefWith(params, { sort: key, dir, page: "1" });
+}
+
 /** 지금 이 열로 정렬 중인가 — 머리글의 화살표 방향을 정한다. */
 export function sortStateOf(params: ParsedListParams, key: SortKey): SortDir | null {
   const current = params.sort ?? DEFAULT_SORT;

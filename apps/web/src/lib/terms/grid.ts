@@ -107,6 +107,42 @@ export function defaultHiddenColumns(): ColumnKey[] {
   return GRID_COLUMNS.filter((c) => c.hiddenByDefault).map((c) => c.key);
 }
 
+/** 보이는 열. 순서는 언제나 GRID_COLUMNS의 순서다(숨겼다 켜도 자리가 바뀌지 않는다). */
+export function visibleColumns(hidden: readonly ColumnKey[]): GridColumn[] {
+  return GRID_COLUMNS.filter((c) => !hidden.includes(c.key));
+}
+
+/**
+ * 열 하나를 켜고 끈다. 마지막 한 열까지 끄면 표가 빈 화면이 되는데, 그 설정은
+ * localStorage에 남아 새로고침해도 그대로다 — 되돌릴 창구(머리글 우클릭)까지
+ * 같이 사라진다. 그래서 그 편집은 만들지 않고 null(바뀐 것 없음)로 답한다.
+ */
+export function toggleHiddenColumn(hidden: readonly ColumnKey[], key: ColumnKey): ColumnKey[] | null {
+  const next = hidden.includes(key) ? hidden.filter((k) => k !== key) : [...hidden, key];
+  if (next.length >= GRID_COLUMNS.length) return null;
+  return next;
+}
+
+/** 커서 옆에 여는 메뉴가 화면 끝에 닿았을 때 남길 여백. */
+export const MENU_EDGE_GAP = 8;
+
+/**
+ * 우클릭 메뉴는 커서 자리에서 열리므로 표 오른쪽 끝·아래쪽 머리글에서는 그대로
+ * 두면 화면 밖으로 잘린다(스크롤로도 못 따라간다 — fixed다). 넘치는 쪽만 접는다.
+ * 메뉴가 화면보다 크면 위/왼쪽 끝에 붙인다 — 그쪽이 항목의 시작이라 최소한
+ * 무엇이 열렸는지는 보인다.
+ */
+export function clampMenuPosition(
+  point: { x: number; y: number },
+  size: { w: number; h: number },
+  viewport: { w: number; h: number },
+): { x: number; y: number } {
+  return {
+    x: Math.max(MENU_EDGE_GAP, Math.min(point.x, viewport.w - size.w - MENU_EDGE_GAP)),
+    y: Math.max(MENU_EDGE_GAP, Math.min(point.y, viewport.h - size.h - MENU_EDGE_GAP)),
+  };
+}
+
 /**
  * 클릭 한 번으로 편집기가 열리는 열. 종류·상태는 고를 목록이 있고 정의·본문은
  * 칸보다 긴 글이라, "선택했다가 다시 눌러야 열린다"는 규칙이 그 세 종류에서는

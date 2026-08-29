@@ -124,3 +124,25 @@ test("PROTO E 자기검사: preventDefault가 빠진 형태는 통과하지 않�
     true,
   );
 });
+
+// PROTO F: 메뉴를 닫는 document mousedown 처리기는 메뉴 안에서 시작한 클릭을
+// 반드시 걸러야 한다. 무조건 닫으면 mouseup 전에 항목이 DOM에서 사라져
+// click도 change도 발생하지 않는다 — 열 체크박스를 눌러도 아무 일이 없던
+// R133 회귀가 정확히 이것이었다. 메뉴가 열리는 것까지는 멀쩡해 보여서
+// 눈으로도, 순수 함수 테스트로도 잡히지 않는다.
+const MENU_CLOSE_GUARD = /closest\(\s*["'`]\[data-menu-root\]["'`]\s*\)\s*\)\s*return/;
+
+test("PROTO F: 메뉴 바깥 클릭 판정은 [data-menu-root] 안을 제외한다 (R133)", () => {
+  const content = stripComments(readFileSync(path.join(componentsDir, "terms-grid.tsx"), "utf8"));
+  expect(MENU_CLOSE_GUARD.test(content)).toBe(true);
+  // 판정만 있고 표식이 없으면 모든 메뉴가 바깥 취급을 받는다. 선택자 1개 +
+  // 툴바 메뉴 + 머리글 우클릭 메뉴.
+  expect((content.match(/data-menu-root/g) ?? []).length).toBeGreaterThanOrEqual(3);
+});
+
+test("PROTO F 자기검사: 무조건 닫는 형태는 통과하지 않는다", () => {
+  expect(MENU_CLOSE_GUARD.test("const close = () => setMenu(null);")).toBe(false);
+  expect(
+    MENU_CLOSE_GUARD.test('if (event.target instanceof Element && event.target.closest("[data-menu-root]")) return;'),
+  ).toBe(true);
+});

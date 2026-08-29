@@ -4,6 +4,7 @@ import {
   applyPatch,
   cellText,
   clampColumnWidth,
+  clampMenuPosition,
   columnByKey,
   COLUMN_MAX_WIDTH,
   COLUMN_MIN_WIDTH,
@@ -24,9 +25,12 @@ import {
   rangeCells,
   rangeToTsv,
   rowLabel,
+  MENU_EDGE_GAP,
   rowsToMatrix,
   toCsv,
+  toggleHiddenColumn,
   toTsv,
+  visibleColumns,
   wouldClearBothNames,
   type TermRow,
 } from "../src/lib/terms/grid.js";
@@ -403,4 +407,50 @@ test("rowLabel: 영문 → 국문 → 슬러그 순으로 떨어진다", () => {
   expect(rowLabel(row({ nameEn: "Alpha", nameKo: "알파" }))).toBe("Alpha");
   expect(rowLabel(row({ nameEn: null, nameKo: "알파" }))).toBe("알파");
   expect(rowLabel(row({ nameEn: null, nameKo: null, slug: "alpha" }))).toBe("alpha");
+});
+
+test("toggleHiddenColumn: 켰다 끄면 원래대로 돌아온다", () => {
+  const off = toggleHiddenColumn([], "domain");
+  expect(off).toEqual(["domain"]);
+  expect(toggleHiddenColumn(off!, "domain")).toEqual([]);
+});
+
+// 마지막 한 열까지 숨기면 표가 빈 화면이 되고, 그 설정이 localStorage에 남아
+// 새로고침해도 그대로다 — 되돌릴 창구(머리글 우클릭)까지 같이 사라진다.
+test("toggleHiddenColumn: 마지막 남은 열은 숨기지 못한다", () => {
+  const allButOne = GRID_COLUMNS.slice(1).map((c) => c.key);
+  expect(toggleHiddenColumn(allButOne, GRID_COLUMNS[0]!.key)).toBeNull();
+});
+
+test("toggleHiddenColumn: 원본 배열을 건드리지 않는다", () => {
+  const hidden = ["domain" as const];
+  toggleHiddenColumn(hidden, "slug");
+  expect(hidden).toEqual(["domain"]);
+});
+
+test("visibleColumns: 숨겼다 켜도 열 순서는 GRID_COLUMNS 그대로다", () => {
+  const hidden = toggleHiddenColumn([], "nameKo")!;
+  expect(visibleColumns(hidden).map((c) => c.key)).not.toContain("nameKo");
+  expect(visibleColumns(toggleHiddenColumn(hidden, "nameKo")!).map((c) => c.key)).toEqual(
+    GRID_COLUMNS.map((c) => c.key),
+  );
+});
+
+test("clampMenuPosition: 화면 안이면 커서 자리 그대로다", () => {
+  expect(clampMenuPosition({ x: 300, y: 200 }, { w: 208, h: 300 }, { w: 1280, h: 800 })).toEqual({ x: 300, y: 200 });
+});
+
+// 우클릭 메뉴는 fixed라 잘리면 스크롤로도 못 따라간다. 오른쪽 끝 열·아래쪽
+// 머리글에서 실제로 일어나는 상황이다.
+test("clampMenuPosition: 오른쪽·아래로 넘치면 화면 안으로 접는다", () => {
+  const at = clampMenuPosition({ x: 1200, y: 700 }, { w: 208, h: 300 }, { w: 1280, h: 800 });
+  expect(at.x + 208).toBeLessThanOrEqual(1280 - MENU_EDGE_GAP + 0.001);
+  expect(at.y + 300).toBeLessThanOrEqual(800 - MENU_EDGE_GAP + 0.001);
+});
+
+test("clampMenuPosition: 메뉴가 화면보다 커도 왼쪽 위 여백에 붙인다", () => {
+  expect(clampMenuPosition({ x: 10, y: 10 }, { w: 400, h: 900 }, { w: 320, h: 600 })).toEqual({
+    x: MENU_EDGE_GAP,
+    y: MENU_EDGE_GAP,
+  });
 });

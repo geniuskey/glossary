@@ -14,6 +14,7 @@ import {
   applyPatch,
   cellText,
   clampColumnWidth,
+  clampMenuPosition,
   defaultHiddenColumns,
   DENSITIES,
   DENSITY_LABEL,
@@ -34,7 +35,9 @@ import {
   rangeToTsv,
   rowLabel,
   toCsv,
+  toggleHiddenColumn,
   toTsv,
+  visibleColumns,
   type Bounds,
   type CellRange,
   type CellRef,
@@ -87,6 +90,8 @@ export interface TermsGridProps {
    * @grossary/db를 import하므로 클라이언트 번들로 끌고 올 수 없다(R114).
    */
   sortHrefs: Partial<Record<SortKey, string>>;
+  /** 머리글 우클릭 메뉴는 방향을 눌러 고르므로 토글이 아닌 두 방향의 링크가 필요하다. */
+  sortDirHrefs: Partial<Record<SortKey, { asc: string; desc: string }>>;
   sortState: { key: SortKey; dir: SortDir };
   /** 검색어. 셀 안에서 어디가 걸렸는지 표시하는 데만 쓴다. */
   query?: string;
@@ -164,6 +169,9 @@ export function TermsGrid(props: TermsGridProps) {
   const [density, setDensity] = useStoredPref<Density>(DENSITY_KEY, "normal", readDensity);
 
   const [menu, setMenu] = useState<"columns" | "density" | "export" | "help" | null>(null);
+  // 머리글 우클릭 메뉴. column이 null이면 머리글의 빈 자리를 누른 것이라 열
+  // 목록만 보여준다(정렬·이 열 숨기기는 가리키는 열이 없다).
+  const [headerMenu, setHeaderMenu] = useState<{ column: GridColumn | null; x: number; y: number } | null>(null);
   const [sel, setSel] = useState<{ anchor: CellRef; focus: CellRef } | null>(null);
   const [editing, setEditing] = useState<{ r: number; c: number; value: string } | null>(null);
   // 클릭 한 번으로 다음 셀이 열리게 되면서 "편집기가 두 번 겹치는 찰나"가
@@ -189,7 +197,7 @@ export function TermsGrid(props: TermsGridProps) {
   const draftRef = useRef<HTMLInputElement>(null);
   const toastSeq = useRef(0);
 
-  const columns = useMemo(() => GRID_COLUMNS.filter((c) => !hidden.includes(c.key)), [hidden]);
+  const columns = useMemo(() => visibleColumns(hidden), [hidden]);
   const range: CellRange | null = sel ? normalizeRange(sel.anchor, sel.focus) : null;
   const rowH = DENSITY_ROW_PX[density];
 
@@ -209,12 +217,29 @@ export function TermsGrid(props: TermsGridProps) {
   // 후에만 상대 시간으로 바꾼다.
   useEffect(() => setNow(new Date()), []);
 
+  // R133: 메뉴 안을 눌러도 닫히면 안 된다. mousedown에서 무조건 닫으면 mouseup
+  // 전에 항목이 사라져 click도 change도 아예 발생하지 않는다 — 열 체크박스를
+  // 눌러도 아무 일이 없던 원인이 이것이었다. 메뉴 밖에서 눌렀을 때만 닫는다.
   useEffect(() => {
-    if (!menu) return;
-    const close = () => setMenu(null);
+    if (!menu && !headerMenu) return;
+    const close = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest("[data-menu-root]")) return;
+      setMenu(null);
+      setHeaderMenu(null);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenu(null);
+        setHeaderMenu(null);
+      }
+    };
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [menu]);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menu, headerMenu]);
 
   useEffect(() => {
     if (!drag) return;
@@ -435,11 +460,24 @@ export function TermsGrid(props: TermsGridProps) {
   }
 
   function toggleColumn(key: ColumnKey) {
-    const next = hidden.includes(key) ? hidden.filter((k) => k !== key) : [...hidden, key];
-    // 열을 전부 숨기면 표가 빈 화면이 된다.
-    if (next.length >= GRID_COLUMNS.length) return;
+    const next = toggleHiddenColumn(hidden, key);
+    // 마지막 한 열까지 숨기려는 경우다 — 빈 표가 되므로 그대로 둔다.
+    if (next === null) return;
     setHidden(next);
+    // 열이 사라지면 선택 좌표(열 번호)가 다른 열을 가리키게 된다.
     setSel(null);
+  }
+
+  function openHeaderMenu(event: React.MouseEvent, column: GridColumn | null) {
+    event.preventDefault();
+    setMenu(null);
+    setHeaderMenu({ column, x: event.clientX, y: event.clientY });
+  }
+
+  function autoWidth(key: ColumnKey) {
+    const next = { ...widths };
+    delete next[key];
+    setWidths(next);
   }
 
   function startResize(event: React.MouseEvent, col: GridColumn) {
@@ -702,6 +740,7 @@ export function TermsGrid(props: TermsGridProps) {
           <thead>
             <tr style={{ height: 34 }}>
               <th
+                onContextMenu={(e) => openHeaderMenu(e, null)}
                 className="sticky left-0 top-0 z-40 border-b border-r border-line-strong bg-panel-2 px-2"
                 style={scrolledX ? { boxShadow: "6px 0 8px -8px rgb(0 0 0 / 0.45)" } : undefined}
               >
@@ -724,15 +763,15 @@ export function TermsGrid(props: TermsGridProps) {
                   sortState={props.sortState}
                   resizing={resizing?.key === col.key}
                   onResizeStart={(e) => startResize(e, col)}
-                  onAutoWidth={() => {
-                    const next = { ...widths };
-                    delete next[col.key];
-                    setWidths(next);
-                  }}
+                  onAutoWidth={() => autoWidth(col.key)}
+                  onContextMenu={(e) => openHeaderMenu(e, col)}
                 />
               ))}
 
-              <th className="sticky top-0 z-30 border-b border-grid bg-panel-2" />
+              <th
+                onContextMenu={(e) => openHeaderMenu(e, null)}
+                className="sticky top-0 z-30 border-b border-grid bg-panel-2"
+              />
             </tr>
           </thead>
 
@@ -975,6 +1014,26 @@ export function TermsGrid(props: TermsGridProps) {
         onDelete={() => void deletePicked()}
         onClearPick={() => setPicked(new Set())}
       />
+
+      {headerMenu && (
+        <HeaderMenu
+          column={headerMenu.column}
+          x={headerMenu.x}
+          y={headerMenu.y}
+          hidden={hidden}
+          canHide={columns.length > 1}
+          sortDirHrefs={props.sortDirHrefs}
+          sortState={props.sortState}
+          onToggleColumn={toggleColumn}
+          onAutoWidth={autoWidth}
+          onResetWidths={() => setWidths({})}
+          onShowAll={() => {
+            setHidden([]);
+            setSel(null);
+          }}
+          onClose={() => setHeaderMenu(null)}
+        />
+      )}
 
       {toasts.length > 0 && (
         <div className="pointer-events-none fixed bottom-16 right-5 z-50 flex flex-col items-end gap-2">
@@ -1219,7 +1278,9 @@ function Menu({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative">
+    // data-menu-root: 바깥을 눌렀을 때만 닫히게 하는 표식(R133). 이게 없으면
+    // 메뉴 안의 항목이 mouseup 전에 사라져 눌러도 아무 일이 일어나지 않는다.
+    <div className="relative" data-menu-root>
       <button type="button" className={cx("btn-ghost btn-sm", open && "border-brand/45 text-ink")} onClick={onToggle}>
         {label}
       </button>
@@ -1229,6 +1290,180 @@ function Menu({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * 머리글 우클릭 메뉴. 열 목록은 툴바에도 있지만, 표를 훑다가 "이 열은 치우고
+ * 싶다"고 느끼는 자리는 언제나 그 열의 머리글이다 — 거기서 바로 닿아야 한다.
+ */
+function HeaderMenu({
+  column,
+  x,
+  y,
+  hidden,
+  canHide,
+  sortDirHrefs,
+  sortState,
+  onToggleColumn,
+  onAutoWidth,
+  onResetWidths,
+  onShowAll,
+  onClose,
+}: {
+  column: GridColumn | null;
+  x: number;
+  y: number;
+  hidden: ColumnKey[];
+  canHide: boolean;
+  sortDirHrefs: Partial<Record<SortKey, { asc: string; desc: string }>>;
+  sortState: { key: SortKey; dir: SortDir };
+  onToggleColumn: (key: ColumnKey) => void;
+  onAutoWidth: (key: ColumnKey) => void;
+  onResetWidths: () => void;
+  onShowAll: () => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ x, y });
+
+  // 커서 자리에 그대로 두면 오른쪽 끝 열이나 창 아래쪽에서 잘린다. 항목 수에
+  // 따라 높이가 달라져 상수로는 못 맞추므로 그린 뒤 실제 크기를 재서 접는다.
+  // useLayoutEffect라 페인트 전에 자리가 잡혀 메뉴가 튀어 보이지 않는다.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    setPos(
+      clampMenuPosition(
+        { x, y },
+        { w: box.width, h: box.height },
+        { w: window.innerWidth, h: window.innerHeight },
+      ),
+    );
+  }, [x, y]);
+
+  const sort = column?.sortKey ? sortDirHrefs[column.sortKey] : undefined;
+  const sortedHere = column?.sortKey !== undefined && column.sortKey === sortState.key;
+
+  return (
+    <div
+      ref={ref}
+      data-menu-root
+      role="menu"
+      className="fixed z-50 w-52 rounded-lg border border-line bg-panel p-1 shadow-pop"
+      style={{ left: pos.x, top: pos.y }}
+    >
+      {column && (
+        <>
+          <p className="truncate px-2 pb-1 pt-1.5 text-[11px] font-medium text-ink">{column.label}</p>
+
+          {sort && (
+            <>
+              <Link
+                href={sort.asc}
+                scroll={false}
+                onClick={onClose}
+                className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-ink-2 hover:bg-panel-2"
+              >
+                <span className="w-3 text-brand">{sortedHere && sortState.dir === "asc" ? "•" : ""}</span>
+                오름차순 정렬
+              </Link>
+              <Link
+                href={sort.desc}
+                scroll={false}
+                onClick={onClose}
+                className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-ink-2 hover:bg-panel-2"
+              >
+                <span className="w-3 text-brand">{sortedHere && sortState.dir === "desc" ? "•" : ""}</span>
+                내림차순 정렬
+              </Link>
+            </>
+          )}
+
+          <MenuAction
+            onClick={() => {
+              onToggleColumn(column.key);
+              onClose();
+            }}
+            disabled={!canHide}
+            title={canHide ? undefined : "마지막 남은 열은 숨길 수 없습니다"}
+          >
+            이 열 숨기기
+          </MenuAction>
+          <MenuAction
+            onClick={() => {
+              onAutoWidth(column.key);
+              onClose();
+            }}
+          >
+            열 너비 기본값
+          </MenuAction>
+
+          <span className="my-1 block h-px bg-line" />
+        </>
+      )}
+
+      <p className="px-2 pb-1 pt-1.5 text-[11px] font-medium text-ink">열 보이기</p>
+      {/* 여러 열을 연달아 켜고 끌 수 있어야 하므로 열을 켜고 끄는 자리(체크박스와
+          아래의 "모든 열 보이기")는 메뉴를 닫지 않는다. 어느 열이 켜졌는지
+          그 자리에서 바로 보이기도 한다. */}
+      <div className="max-h-64 overflow-auto">
+        {GRID_COLUMNS.map((col) => (
+          <label
+            key={col.key}
+            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-ink-2 hover:bg-panel-2"
+          >
+            <input
+              type="checkbox"
+              checked={!hidden.includes(col.key)}
+              onChange={() => onToggleColumn(col.key)}
+              className="h-3.5 w-3.5 accent-brand"
+            />
+            <span className="truncate">{col.label}</span>
+          </label>
+        ))}
+      </div>
+
+      <span className="my-1 block h-px bg-line" />
+      <MenuAction onClick={onShowAll} disabled={hidden.length === 0}>
+        모든 열 보이기
+      </MenuAction>
+      <MenuAction
+        onClick={() => {
+          onResetWidths();
+          onClose();
+        }}
+      >
+        열 너비 초기화
+      </MenuAction>
+    </div>
+  );
+}
+
+function MenuAction({
+  onClick,
+  disabled,
+  title,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-ink-2 hover:bg-panel-2 disabled:cursor-not-allowed disabled:text-ink-3 disabled:hover:bg-transparent"
+    >
+      <span className="w-3" />
+      {children}
+    </button>
   );
 }
 
@@ -1314,6 +1549,7 @@ function HeaderCell({
   resizing,
   onResizeStart,
   onAutoWidth,
+  onContextMenu,
 }: {
   column: GridColumn;
   frozen: boolean;
@@ -1323,6 +1559,7 @@ function HeaderCell({
   resizing: boolean;
   onResizeStart: (e: React.MouseEvent) => void;
   onAutoWidth: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
 }) {
   const href = column.sortKey ? sortHrefs[column.sortKey] : undefined;
   const on = column.sortKey !== undefined && column.sortKey === sortState.key;
@@ -1343,6 +1580,7 @@ function HeaderCell({
   return (
     <th
       scope="col"
+      onContextMenu={onContextMenu}
       className={cx(
         "group/th sticky top-0 border-b bg-panel-2 px-2 text-left text-[11px] font-semibold",
         frozen ? "z-40 border-r border-line-strong" : "z-30 border-r border-grid",
@@ -1354,7 +1592,14 @@ function HeaderCell({
       }}
     >
       {href ? (
-        <Link href={href} scroll={false} className="flex items-center gap-1 hover:text-ink">
+        <Link
+          href={href}
+          scroll={false}
+          // 우클릭은 메뉴를 여는 동작이다. 막지 않으면 브라우저에 따라 링크가
+          // 따라가 정렬이 바뀐 채로 메뉴가 열린다.
+          onContextMenu={onContextMenu}
+          className="flex items-center gap-1 hover:text-ink"
+        >
           {inner}
         </Link>
       ) : (
