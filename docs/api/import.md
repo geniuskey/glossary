@@ -24,13 +24,14 @@ Content-Type: multipart/form-data
 ## 인식하는 헤더
 
 첫 행이 헤더다. 기존 엑셀이 어떤 헤더를 쓰는지 미리 알 수 없어 매핑이 관대하다.
+비교 전에 소문자로 바꾸고 공백을 `_`로 치환하므로 `Name EN`과 `name_en`은 같은 열이다.
 
 | 필드 | 인식하는 헤더 |
 |---|---|
 | `nameEn` | `name_en`, `english`, `영문`, `영문명` |
 | `nameKo` | `name_ko`, `korean`, `한글`, `한글명` |
-| `fullNameEn` | `full_name_en`, `풀네임`, `전체명` |
-| `fullNameKo` | `full_name_ko` |
+| `fullNameEn` | `full_name_en`, `영문 풀네임`, `풀네임`, `전체명` |
+| `fullNameKo` | `full_name_ko`, `한글 풀네임` |
 | `termType` | `term_type`, `종류`, `유형` |
 | `domain` | `domain`, `도메인` |
 | `status` | `status`, `상태` |
@@ -134,3 +135,7 @@ curl -s -X POST -H "Authorization: Bearer $KEY" \
 
 `/import`가 같은 흐름을 감싼다. 파일 업로드 → dry-run 리포트 확인 → 충돌 행 중
 "그래도 등록"할 것을 고르고 → 반영.
+
+같은 화면이 위 표와 같은 내용을 설명으로 싣고, `/import/template`에서 채워 넣을
+샘플 xlsx를 내려받게 한다. 열 정의는 `src/lib/import/format.ts` 하나에서 나오므로
+파서·샘플 파일·화면 설명이 따로 놀 수 없다.

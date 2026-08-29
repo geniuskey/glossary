@@ -2,9 +2,6 @@ import { surfaceKeys } from "@grossary/db";
 import { createTerm, findDuplicates } from "@/lib/terms/create";
 import type { ImportRow, RowError } from "./parse-xlsx";
 
-/** R119: 한 번의 임포트 요청이 처리할 수 있는 최대 행 수. */
-export const MAX_IMPORT_ROWS = 5000;
-
 export interface ImportConflict {
   rowNumber: number;
   name: string;

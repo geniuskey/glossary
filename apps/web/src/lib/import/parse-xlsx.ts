@@ -1,14 +1,16 @@
 import ExcelJS from "exceljs";
+import { TERM_STATUSES, TERM_TYPES, type TermStatusLiteral, type TermTypeLiteral } from "@/lib/terms/enums";
+import { HEADER_TO_FIELD, LIST_SEPARATOR, normalizeHeader, type ImportField } from "./format";
 
 export interface ImportRow {
   rowNumber: number;
-  termType: "term" | "abbreviation" | "project" | "product_id" | "code" | "unit";
+  termType: TermTypeLiteral;
   nameEn?: string;
   nameKo?: string;
   fullNameEn?: string;
   fullNameKo?: string;
   domain: string[];
-  status: "draft" | "approved" | "deprecated" | "forbidden";
+  status: TermStatusLiteral;
   definitionMd?: string;
   aliases: string[];
 }
@@ -36,44 +38,18 @@ export interface ParseResult {
   rows: ImportRow[];
   errors: RowError[];
   fileErrors: FileError[];
-  /** R124: HEADER_ALIASES에 없어 무시된 헤더 원문(등장 순서, 중복 제거). */
+  /** R124: 인정하는 헤더가 아니어서 무시된 헤더 원문(등장 순서, 중복 제거). */
   ignoredHeaders: string[];
 }
 
-const TERM_TYPES = new Set(["term", "abbreviation", "project", "product_id", "code", "unit"]);
-const STATUSES = new Set(["draft", "approved", "deprecated", "forbidden"]);
-
-const HEADER_ALIASES: Record<string, keyof ImportRow | "aliases"> = {
-  name_en: "nameEn",
-  영문: "nameEn",
-  영문명: "nameEn",
-  english: "nameEn",
-  name_ko: "nameKo",
-  한글: "nameKo",
-  한글명: "nameKo",
-  korean: "nameKo",
-  full_name_en: "fullNameEn",
-  풀네임: "fullNameEn",
-  전체명: "fullNameEn",
-  full_name_ko: "fullNameKo",
-  term_type: "termType",
-  종류: "termType",
-  유형: "termType",
-  domain: "domain",
-  도메인: "domain",
-  status: "status",
-  상태: "status",
-  definition: "definitionMd",
-  정의: "definitionMd",
-  설명: "definitionMd",
-  aliases: "aliases",
-  별칭: "aliases",
-  약칭: "aliases",
-};
+// 인정하는 값 목록은 enums.ts 하나만 본다 — 여기에 리터럴을 다시 적으면 DB
+// enum과의 드리프트를 막는 tests/terms-enums.test.ts의 사정권 밖에 놓인다.
+const TERM_TYPE_SET = new Set<string>(TERM_TYPES);
+const STATUS_SET = new Set<string>(TERM_STATUSES);
 
 function splitList(value: string): string[] {
   return value
-    .split(",")
+    .split(LIST_SEPARATOR)
     .map((v) => v.trim())
     .filter(Boolean);
 }
@@ -94,13 +70,12 @@ export async function parseGlossaryWorkbook(buffer: ArrayBuffer): Promise<ParseR
     return { rows: [], errors: [], fileErrors: [{ message: "시트를 찾을 수 없습니다." }], ignoredHeaders: [] };
   }
 
-  const columnMap = new Map<number, keyof ImportRow | "aliases">();
+  const columnMap = new Map<number, ImportField>();
   const ignoredHeaders: string[] = [];
   ws.getRow(1).eachCell((cell, col) => {
     const raw = cellText(cell.value);
     if (!raw) return;
-    const key = raw.toLowerCase().replace(/\s+/g, "_");
-    const mapped = HEADER_ALIASES[key];
+    const mapped = HEADER_TO_FIELD[normalizeHeader(raw)];
     if (mapped) columnMap.set(col, mapped);
     // R124: 관대한 매핑 자체는 유지하되(기존 엑셀이 어떤 헤더를 쓰는지 미리
     // 알 수 없다는 근거가 타당하다), 못 알아본 헤더는 조용히 사라지지 않고
@@ -144,8 +119,8 @@ export async function parseGlossaryWorkbook(buffer: ArrayBuffer): Promise<ParseR
       return;
     }
 
-    const termType = TERM_TYPES.has(raw.termType ?? "") ? (raw.termType as ImportRow["termType"]) : "term";
-    const status = STATUSES.has(raw.status ?? "") ? (raw.status as ImportRow["status"]) : "draft";
+    const termType = TERM_TYPE_SET.has(raw.termType ?? "") ? (raw.termType as TermTypeLiteral) : "term";
+    const status = STATUS_SET.has(raw.status ?? "") ? (raw.status as TermStatusLiteral) : "draft";
 
     rows.push({
       rowNumber,
