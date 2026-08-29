@@ -130,7 +130,7 @@ test("paginationInfo: page가 totalPages를 넘어가도(빈 결과 페이지) �
 // R93/R94: 쿼리스트링 보존 — 현재 필터가 그대로 실리고 page만 바뀌는지. 이
 // 저장소 기준으로 R93/R94를 실제로 방어하는 유일한 테스트다.
 test("buildPageHref: 활성 필터(q/type/domain/status)를 전부 보존하며 page만 바뀐다", () => {
-  const parsed = parseListParams({ q: "AE", type: "abbreviation", domain: "ISP", status: "approved", page: "1" });
+  const parsed = parseListParams({ q: "AE", type: "abbreviation", domain: "ISP", status: "active", page: "1" });
   const href = buildPageHref(parsed, 2);
 
   const url = new URL(href, "http://x");
@@ -138,7 +138,7 @@ test("buildPageHref: 활성 필터(q/type/domain/status)를 전부 보존하며 
   expect(url.searchParams.get("q")).toBe("AE");
   expect(url.searchParams.get("type")).toBe("abbreviation");
   expect(url.searchParams.get("domain")).toBe("ISP");
-  expect(url.searchParams.get("status")).toBe("approved");
+  expect(url.searchParams.get("status")).toBe("active");
   expect(url.searchParams.get("page")).toBe("2");
 });
 
@@ -155,7 +155,7 @@ test("buildPageHref: 필터가 없으면 page만 실린다", () => {
 // 1페이지로 가야 하므로 애초에 hiddenSearchFields의 관심사가 아니다(반환값에
 // page라는 이름 자체가 없다).
 test("hiddenSearchFields: q는 제외하고 type/domain/status만 반환한다", () => {
-  const parsed = parseListParams({ q: "AE", type: "abbreviation", domain: "ISP", status: "approved" });
+  const parsed = parseListParams({ q: "AE", type: "abbreviation", domain: "ISP", status: "active" });
   const fields = hiddenSearchFields(parsed);
   const names = fields.map((f) => f.name).sort();
   expect(names).toEqual(["domain", "status", "type"]);
@@ -168,11 +168,11 @@ test("hiddenSearchFields: 활성 필터가 없으면 빈 배열이다", () => {
 });
 
 test("activeFilters: 지정된 필터만, 지정 순서(q/type/domain/status)로 반환한다", () => {
-  const parsed = parseListParams({ status: "draft", q: "gain", type: "term" });
+  const parsed = parseListParams({ status: "active", q: "gain", type: "term" });
   expect(activeFilters(parsed)).toEqual([
     { name: "q", value: "gain" },
     { name: "type", value: "term" },
-    { name: "status", value: "draft" },
+    { name: "status", value: "active" },
   ]);
 });
 
@@ -216,12 +216,12 @@ test("buildSortHref: sort/dir이 없으면 기본 정렬(updatedAt desc)을 현�
 });
 
 test("buildSortHref: 활성 필터를 전부 보존하고 page는 1로 되돌린다", () => {
-  const parsed = parseListParams({ q: "AE", type: "abbreviation", domain: "ISP", status: "approved", page: "7" });
+  const parsed = parseListParams({ q: "AE", type: "abbreviation", domain: "ISP", status: "active", page: "7" });
   const usp = new URLSearchParams(buildSortHref(parsed, "slug", "asc").split("?")[1]);
   expect(usp.get("q")).toBe("AE");
   expect(usp.get("type")).toBe("abbreviation");
   expect(usp.get("domain")).toBe("ISP");
-  expect(usp.get("status")).toBe("approved");
+  expect(usp.get("status")).toBe("active");
   // 정렬이 바뀌면 7페이지에 있던 행들은 그 자리에 없다.
   expect(usp.get("page")).toBe("1");
 });

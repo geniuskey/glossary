@@ -16,7 +16,7 @@ async function workbook(rows: (string | undefined)[][]): Promise<ArrayBuffer> {
 
 test("헤더를 인식하고 행을 파싱한다", async () => {
   const buf = await workbook([
-    ["AE", "자동노출", "Auto Exposure", "abbreviation", "ISP", "approved", "노출 자동 제어", "오토익스포저"],
+    ["AE", "자동노출", "Auto Exposure", "abbreviation", "ISP", "active", "노출 자동 제어", "오토익스포저"],
   ]);
   const { rows, errors } = await parseGlossaryWorkbook(buf);
 
@@ -29,13 +29,13 @@ test("헤더를 인식하고 행을 파싱한다", async () => {
     fullNameEn: "Auto Exposure",
     termType: "abbreviation",
     domain: ["ISP"],
-    status: "approved",
+    status: "active",
     aliases: ["오토익스포저"],
   });
 });
 
 test("도메인과 별칭의 쉼표 구분을 분리한다", async () => {
-  const buf = await workbook([["Gain", "게인", "", "term", "ISP, HW", "approved", "", "gain value, 이득"]]);
+  const buf = await workbook([["Gain", "게인", "", "term", "ISP, HW", "active", "", "gain value, 이득"]]);
   const { rows } = await parseGlossaryWorkbook(buf);
 
   expect(rows[0]!.domain).toEqual(["ISP", "HW"]);
@@ -43,7 +43,7 @@ test("도메인과 별칭의 쉼표 구분을 분리한다", async () => {
 });
 
 test("표준 표기가 둘 다 비면 에러 행으로 분류한다", async () => {
-  const buf = await workbook([["", "", "", "term", "ISP", "approved", "설명만 있음", ""]]);
+  const buf = await workbook([["", "", "", "term", "ISP", "active", "설명만 있음", ""]]);
   const { rows, errors } = await parseGlossaryWorkbook(buf);
 
   expect(rows).toEqual([]);
@@ -51,10 +51,10 @@ test("표준 표기가 둘 다 비면 에러 행으로 분류한다", async () =
   expect(errors[0]!.rowNumber).toBe(2);
 });
 
-test("알 수 없는 status는 draft로 떨어뜨린다", async () => {
+test("알 수 없는 status는 active로 떨어뜨린다", async () => {
   const buf = await workbook([["Gain", "", "", "term", "", "확인중", "", ""]]);
   const { rows } = await parseGlossaryWorkbook(buf);
-  expect(rows[0]!.status).toBe("draft");
+  expect(rows[0]!.status).toBe("active");
 });
 
 // R123: 계획서 원본 그대로("완전히 빈 행은 건너뛴다", ws.addRow([]))도 남겨
@@ -64,7 +64,7 @@ test("알 수 없는 status는 draft로 떨어뜨린다", async () => {
 // 통과한다(아래 "빈 문자열 셀이 채워진 빈 행" 테스트로 실측 확인함 — 이
 // 테스트만 지우면 실패하고, 이 테스트를 지워도 실패하지 않는다).
 test("완전히 빈 행은 건너뛴다 (R123: 이 테스트 자체는 가드를 검증하지 못한다 — 아래 참고)", async () => {
-  const buf = await workbook([[], ["Gain", "", "", "term", "", "approved", "", ""]]);
+  const buf = await workbook([[], ["Gain", "", "", "term", "", "active", "", ""]]);
   const { rows, errors } = await parseGlossaryWorkbook(buf);
   expect(rows).toHaveLength(1);
   expect(errors).toEqual([]);

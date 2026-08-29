@@ -67,6 +67,18 @@ export async function requireAuth(request: Request, scope: Scope): Promise<AuthR
   return { kind: "user", user };
 }
 
+/**
+ * R132: 사람(세션) + 관리자만 통과시킨다. requireAuth와 달리 API 키 경로가 없다 —
+ * SSO 설정 창구는 IdP 클라이언트 시크릿을 다루므로, 어딘가에 적혀 돌아다닐 수 있는
+ * 키가 아니라 그 자리에 로그인한 사람만 열 수 있어야 한다.
+ */
+export async function requireAdminUser(): Promise<CurrentUser | Response> {
+  const user = await getCurrentUser();
+  if (!user) return apiError("unauthorized", "로그인이 필요합니다.", 401);
+  if (user.role !== "admin") return apiError("forbidden", "관리자만 사용할 수 있습니다.", 403);
+  return user;
+}
+
 export function isResponse(value: unknown): value is Response {
   return value instanceof Response;
 }

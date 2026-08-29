@@ -5,7 +5,7 @@
 ## 목록 조회
 
 ```http
-GET /api/v1/terms?q=exposure&type=abbreviation&domain=ISP&status=approved&page=1&pageSize=20
+GET /api/v1/terms?q=exposure&type=abbreviation&domain=ISP&status=active&page=1&pageSize=20
 ```
 
 | 파라미터 | 기본값 | 설명 |
@@ -13,7 +13,7 @@ GET /api/v1/terms?q=exposure&type=abbreviation&domain=ISP&status=approved&page=1
 | `q` | — | 검색어. **Term이 아니라 Surface를 향한다** |
 | `type` | — | `term` \| `abbreviation` \| `project` \| `product_id` \| `code` \| `unit` |
 | `domain` | — | 도메인 태그 하나 |
-| `status` | — | `draft` \| `approved` \| `deprecated` \| `forbidden` |
+| `status` | — | `active` \| `deprecated` \| `forbidden` |
 | `page` | 1 | |
 | `pageSize` | 20 | 1~100으로 클램프된다 |
 
@@ -54,7 +54,7 @@ Content-Type: application/json
   "nameKo": "자동노출",
   "fullNameEn": "Auto Exposure",
   "domain": ["ISP"],
-  "status": "approved",
+  "status": "active",
   "definitionMd": "장면 밝기에 따라 노출을 자동으로 맞추는 기능.",
   "surfaces": [
     { "text": "오토익스포저", "lang": "ko", "kind": "alias" },
@@ -119,7 +119,7 @@ GET /api/v1/terms/ae
     "id": "…", "slug": "ae", "termType": "abbreviation",
     "nameEn": "AE", "nameKo": "자동노출",
     "fullNameEn": "Auto Exposure", "fullNameKo": null,
-    "domain": ["ISP"], "status": "approved",
+    "domain": ["ISP"], "status": "active",
     "definitionMd": "…", "bodyMd": null,
     "updatedAt": "2026-08-28T01:02:03.000Z",
     "surfaces": [ /* SurfaceRow[] */ ],
@@ -139,7 +139,7 @@ GET /api/v1/terms/ae
 PATCH /api/v1/terms/ae
 Content-Type: application/json
 
-{ "status": "approved", "definitionMd": "…", "expectedRevision": 6, "message": "정의 보강" }
+{ "status": "deprecated", "definitionMd": "…", "expectedRevision": 6, "message": "정의 보강" }
 ```
 
 부분 갱신이라 표준 표기 필수 조건이 걸리지 않는다. 응답 형태는 [등록](#등록)과 같다
@@ -202,6 +202,38 @@ GET /api/v1/terms/ae/revisions
 찍힌다. `authorName`은 조인해서 실어주므로 화면이 id를 다시 풀 필요가 없다. 사용자가
 삭제됐으면 `authorId`는 남아도 `authorName`이 null일 수 있다.
 
+## 되돌리기
+
+```http
+POST /api/v1/terms/ae/revisions/6/revert
+Content-Type: application/json
+
+{ "expectedRevision": 8 }
+```
+
+리비전 6의 스냅샷을 지금 상태에 덮어쓴다. 응답 형태는 [수정](#수정)과 같다
+(`{ term, surfaces, warnings }`).
+
+**되돌려도 이력은 지워지지 않는다.** 리비전 6~8이 사라지는 게 아니라, 6의 내용을 담은
+새 리비전 9가 쌓이고 메시지는 `#6으로 되돌림`으로 남는다. 되돌리기를 되돌리는 것도
+그냥 또 한 번의 되돌리기다. 승인 워크플로우가 없는 개방 편집에서 안전판은 라벨이 아니라
+이 이력이므로, 이력을 깎는 방식은 쓰지 않는다.
+
+- 로그인한 사용자면 누구나 호출할 수 있다(`write` scope API 키도 가능). 삭제와 달리
+  `admin`을 요구하지 않는다 — 되돌리기는 파괴적이지 않기 때문이다.
+- `expectedRevision`은 [수정](#낙관적-잠금)과 같은 낙관적 잠금이다. 이력 화면을 열어 둔
+  사이 남이 먼저 고쳤으면 409 `revision_conflict`. 화면의 되돌리기 버튼은 항상 실어
+  보낸다 — 되돌리기가 남의 편집을 조용히 지우는 도구가 되면 안 된다.
+- 본문은 없어도 된다. 그러면 잠금 검사 없이 되돌린다.
+- 대상 리비전 이후에 추가된 표기는 사라지고, 그때 있던 표기가 복원된다. 그 리비전에
+  정의가 없었다면 정의도 비워진다.
+- 없는 리비전 번호는 404 `not_found`, 없는 용어는 404 `term_not_found`다.
+
+::: tip 왜 GET이 아닌가
+되돌리기는 쓰기다. 링크(`GET`)로 만들면 "이 링크 눌러봐" 한 줄로 남의 용어를 되돌릴 수
+있게 되어, `SameSite=Lax` 쿠키뿐인 이 사이트의 CSRF 방어가 그대로 뚫린다.
+:::
+
 ## 배치 조회 lookup
 
 AI-Lint 통합 지점이다. 실제 호출 패턴이 "이 목록이 다 등록돼 있나?"라서 배치를 기본으로 둔다.
@@ -224,7 +256,7 @@ Content-Type: application/json
       "matchKind": "abbreviation",
       "terms": [
         { "id": "t_ae", "slug": "ae", "termType": "abbreviation",
-          "nameEn": "AE", "nameKo": "자동노출", "domain": ["ISP"], "status": "approved" }
+          "nameEn": "AE", "nameKo": "자동노출", "domain": ["ISP"], "status": "active" }
       ],
       "similar": []
     },

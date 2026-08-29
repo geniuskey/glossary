@@ -120,7 +120,7 @@ export async function parseGlossaryWorkbook(buffer: ArrayBuffer): Promise<ParseR
     }
 
     const termType = TERM_TYPE_SET.has(raw.termType ?? "") ? (raw.termType as TermTypeLiteral) : "term";
-    const status = STATUS_SET.has(raw.status ?? "") ? (raw.status as TermStatusLiteral) : "draft";
+    const status = STATUS_SET.has(raw.status ?? "") ? (raw.status as TermStatusLiteral) : "active";
 
     rows.push({
       rowNumber,

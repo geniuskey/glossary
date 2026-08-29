@@ -214,7 +214,7 @@ test("알 수 없는 ?status=는 500이 아니라 400 validation_failed (R41)", 
 
 test("유효한 ?type=/?status=는 목록을 정상적으로 반환한다 (R41)", async () => {
   const { token } = await makeKeyRow(["read"]);
-  const res = await termsGet(getRequest("/api/v1/terms?type=term&status=draft", token));
+  const res = await termsGet(getRequest("/api/v1/terms?type=term&status=active", token));
   expect(res.status).toBe(200);
   const body = await res.json();
   expect(Array.isArray(body.items)).toBe(true);
@@ -572,7 +572,7 @@ test("surfaces 없이 patch하면 라우트를 통해서도 기존 명시 표기
   );
   expect(withAlias.status).toBe(200);
 
-  const statusOnly = await termPatch(patchRequest({ status: "approved" }, token), {
+  const statusOnly = await termPatch(patchRequest({ status: "deprecated" }, token), {
     params: Promise.resolve({ idOrSlug: term.slug }),
   });
   expect(statusOnly.status).toBe(200);

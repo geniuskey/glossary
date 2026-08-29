@@ -104,6 +104,9 @@ export async function updateTerm(
   authorId: string | null,
   expectedRevision?: number,
   authorKeyId: string | null = null,
+  // R130: 되돌리기(revert.ts)가 같은 트랜잭션 규약을 그대로 쓰면서 리비전에만
+  // 다른 메시지를 남길 수 있어야 한다. 이력 화면이 이 문자열을 그대로 보여준다.
+  message = "updated",
 ): Promise<UpdateTermResult> {
   const db = getDb();
 
@@ -241,7 +244,7 @@ export async function updateTerm(
         termId,
         revisionNumber: currentRevision + 1,
         snapshot: { term: updated, surfaces: savedSurfaces },
-        message: "updated",
+        message,
         authorId,
         // R55: API 키로 만든 리비전은 authorId가 항상 null이라, authorKeyId를
         // 지금 기록해야만 나중에 누가 썼는지 복원할 수 있다(R47과 같은 이유).

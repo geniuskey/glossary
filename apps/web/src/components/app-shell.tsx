@@ -5,12 +5,15 @@ import { cx } from "@/lib/ui/format";
 import { LogoutButton } from "./logout-button";
 import { ThemeToggle } from "./theme-toggle";
 
-export type NavKey = "terms" | "import" | "keys";
+export type NavKey = "terms" | "import" | "keys" | "sso";
 
-const NAV: Array<{ key: NavKey; href: string; label: string; hint: string; icon: ReactNode }> = [
+const NAV: Array<{ key: NavKey; href: string; label: string; hint: string; icon: ReactNode; adminOnly?: true }> = [
   { key: "terms", href: "/terms", label: "용어집", hint: "표 편집", icon: <IconGrid /> },
   { key: "import", href: "/import", label: "가져오기", hint: "엑셀", icon: <IconImport /> },
   { key: "keys", href: "/settings/api-keys", label: "API 키", hint: "AI-Lint", icon: <IconKey /> },
+  // R132: SSO 설정은 관리자 전용이다. 편집자에게 보여 봐야 들어가면 /terms로
+  // 되돌려지므로, 링크 자체를 감춰 막힌 문을 두드리게 하지 않는다.
+  { key: "sso", href: "/settings/sso", label: "SSO", hint: "회사 계정", icon: <IconShield />, adminOnly: true },
 ];
 
 const ROLE_LABEL: Record<string, string> = { admin: "관리자", editor: "편집자" };
@@ -54,7 +57,7 @@ export function AppShell({
           </Link>
 
           <nav className="flex flex-1 items-center gap-1 overflow-x-auto lg:flex-none lg:flex-col lg:items-stretch lg:gap-0.5 lg:px-2">
-            {NAV.map((item) => {
+            {NAV.filter((item) => !item.adminOnly || user?.role === "admin").map((item) => {
               const active = item.key === current;
               return (
                 <Link
@@ -148,6 +151,15 @@ function IconImport() {
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
       <path d="M8 1.75v7.5m0 0L5.25 6.5M8 9.25 10.75 6.5" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M2.25 10.5v2a1.5 1.5 0 0 0 1.5 1.5h8.5a1.5 1.5 0 0 0 1.5-1.5v-2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconShield() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <path d="M8 1.75 13 3.5v4.25c0 3-2.1 5.3-5 6.5-2.9-1.2-5-3.5-5-6.5V3.5z" strokeLinejoin="round" />
+      <path d="M5.75 8.1 7.4 9.75l3-3.25" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

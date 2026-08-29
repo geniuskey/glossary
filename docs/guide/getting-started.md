@@ -89,6 +89,19 @@ pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts admin@example.com
 unset ADMIN_PASSWORD
 ```
 
+### 나머지 사람들은 스스로 가입한다
+
+관리자가 계정을 하나씩 발급하지 않는다. 로그인 화면의 **계정 만들기**로 누구나
+`/signup`에서 계정을 만들고 바로 편집할 수 있다. 만들어지는 계정은 언제나 `editor`이고,
+`admin`은 위의 최초 설정과 `seed-admin.ts`로만 생긴다(용어 삭제는 `admin`만 한다).
+
+로그인을 요구하는 이유는 권한을 나누기 위해서가 아니라 **수정 이력에 이름을 남기기**
+위해서다. 승인 절차가 없는 대신 모든 수정이 이력에 남고 언제든 되돌릴 수 있다.
+
+회사 계정(OpenID Connect)으로 로그인하게 하려면 관리자로 **설정 → SSO**에서 붙인다 —
+[SSO 연결](/guide/sso). 재배포 없이 화면에서 고치는 값이고, 이름·그룹을 어떤 claim에서
+읽을지도 거기서 정한다(회사마다 `name` / `displayName` / `preferred_username`으로 갈린다).
+
 ## 7. 예시 용어집 채우기 (선택)
 
 빈 표 앞에서는 무엇을 어떻게 적어야 할지 감이 오지 않는다. 손으로 고른 기본
@@ -118,7 +131,7 @@ pnpm --filter @grossary/web exec tsx scripts/seed-terms.ts it semiconductor
 손으로 먼저 넣어 둔 용어를 덮어쓰지도 않는다.
 :::
 
-용어는 도메인(`일반` / `IT` / `반도체`)이 붙은 채 **승인** 상태로 들어간다.
+용어는 도메인(`일반` / `IT` / `반도체`)이 붙은 채 **사용**(`active`) 상태로 들어간다.
 통째로 지우려면 목록에서 해당 도메인으로 거르면 된다. 작성자는 가장 먼저 만들어진
 관리자 계정으로 기록되며, 관리자가 아직 없으면 작성자 없이 들어간다.
 
@@ -144,6 +157,7 @@ pnpm --filter @grossary/web exec tsx scripts/seed-terms.ts it semiconductor
 | `/` | 관리자 없으면 `/setup`, 있으면 `/terms`로 리다이렉트 |
 | `/setup` | 최초 관리자 만들기 (사용자 0명일 때만) |
 | `/login` | 로그인 |
+| `/signup` | 계정 만들기 (누구나, 역할은 editor 고정) |
 | `/terms` | 용어 목록 — type/domain/status 필터, 검색, 페이징 |
 | `/terms/new` | 용어 등록 |
 | `/terms/[slug]` | 용어 상세 |
@@ -151,3 +165,4 @@ pnpm --filter @grossary/web exec tsx scripts/seed-terms.ts it semiconductor
 | `/terms/[slug]/history` | 수정 이력 |
 | `/import` | 엑셀 업로드 → dry-run 리포트 → 반영 |
 | `/settings/api-keys` | API 키 발급·폐기 |
+| `/settings/sso` | SSO 연결 설정 (관리자 전용) |

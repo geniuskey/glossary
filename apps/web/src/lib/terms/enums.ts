@@ -9,7 +9,7 @@
 // 이 배열들의 정확한 일치를 구조 테스트로 고정한다.
 export const TERM_TYPES = ["term", "abbreviation", "project", "product_id", "code", "unit"] as const;
 
-export const TERM_STATUSES = ["draft", "approved", "deprecated", "forbidden"] as const;
+export const TERM_STATUSES = ["active", "deprecated", "forbidden"] as const;
 
 // canonical은 표준 이름 필드(nameEn/nameKo)에서만 파생되는 kind다 — 사용자가
 // "명시 표기"로 직접 고를 수 있는 kind 목록에는 의도적으로 포함하지 않는다
@@ -35,8 +35,7 @@ export const TERM_TYPE_LABEL: Record<TermTypeLiteral, string> = {
 };
 
 export const TERM_STATUS_LABEL: Record<TermStatusLiteral, string> = {
-  draft: "초안",
-  approved: "승인됨",
+  active: "사용",
   deprecated: "폐기됨",
   forbidden: "금지어",
 };

@@ -19,19 +19,28 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | GET | `/openapi` | — | 이 스펙 자체 |
 | GET | `/health` | — | DB 연결 포함 상태 확인 |
 | POST | [`/setup`](/api/auth#최초-설정) | — | 최초 관리자 계정 생성 (사용자 0명일 때만) |
+| POST | [`/auth/register`](/api/auth#계정-만들기) | — | 계정 만들기 (누구나, 역할은 editor 고정) |
 | POST | [`/auth/login`](/api/auth#로그인) | — | 세션 쿠키 발급 |
 | POST | [`/auth/logout`](/api/auth#로그아웃) | 세션 | 세션 폐기 |
 | GET | [`/keys`](/api/auth#키-목록) | 세션 | API 키 목록 |
 | POST | [`/keys`](/api/auth#키-발급) | 세션 | API 키 발급 |
 | DELETE | [`/keys/{id}`](/api/auth#키-폐기) | 세션 | API 키 폐기 |
+| GET | [`/sso`](/api/auth#sso-openid-connect) | 세션(admin) | SSO 설정 조회 (시크릿 제외) |
+| PUT | [`/sso`](/api/auth#sso-설정) | 세션(admin) | SSO 설정 저장 |
+| POST | [`/sso/discover`](/api/auth#sso-설정) | 세션(admin) | issuer의 발견 문서로 엔드포인트 채우기 |
 | GET | [`/terms`](/api/terms#목록-조회) | `read` | 용어 목록·검색 |
 | POST | [`/terms`](/api/terms#등록) | `write` | 용어 등록 |
 | GET | [`/terms/{idOrSlug}`](/api/terms#상세) | `read` | 용어 상세 |
 | PATCH | [`/terms/{idOrSlug}`](/api/terms#수정) | `write` | 용어 수정 (낙관적 잠금) |
 | DELETE | [`/terms/{idOrSlug}`](/api/terms#삭제) | admin | 용어 삭제 |
 | GET | [`/terms/{idOrSlug}/revisions`](/api/terms#수정-이력) | `read` | 수정 이력 |
+| POST | [`/terms/{idOrSlug}/revisions/{number}/revert`](/api/terms#되돌리기) | `write` | 그 리비전으로 되돌리기 (새 리비전이 쌓인다) |
 | POST | [`/terms/lookup`](/api/terms#배치-조회-lookup) | `read` | 배치 표기 조회 (AI-Lint 통합 지점) |
 | POST | [`/import`](/api/import) | `write` | 엑셀 임포트 (dry-run 기본) |
+
+브라우저가 오가는 SSO 창구 두 개(`/auth/sso/start`, `/auth/sso/callback`)는 `/api/v1`
+바깥에 있다. 화면 이동으로만 답하는 자리라 JSON 에러 봉투를 쓸 수 없기 때문이다 —
+실패는 `/login?sso=<코드>`로 돌아온다. [SSO 연결](/guide/sso)에 코드표가 있다.
 
 ## 인증
 
@@ -78,6 +87,7 @@ API 키는 해시만 저장한다. 평문 토큰은 발급 응답에서만 볼 �
 | `not_found` | 404 | 대상 없음. 형식이 잘못된 id도 여기로 온다 |
 | `term_not_found` | 404 | 용어 대상이 없음 |
 | `revision_conflict` | 409 | 낙관적 잠금 충돌. `details.currentRevision` |
+| `email_taken` | 409 | 가입하려는 이메일이 이미 있음(대소문자 무시) |
 | `payload_too_large` | 413 | 업로드 본문 상한 초과 |
 | `method_not_allowed` | 405 | `Allow` 헤더에 실제 허용 메서드가 실려 온다 |
 | `internal_error` | 500 | 처리되지 않은 예외. 스택은 응답에 노출하지 않는다 |

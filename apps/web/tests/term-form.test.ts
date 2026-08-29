@@ -13,7 +13,7 @@ const BASE_FORM: TermFormState = {
   fullNameEn: "",
   fullNameKo: "",
   domain: "",
-  status: "draft",
+  status: "active",
   definitionMd: "",
   bodyMd: "",
   surfaces: [],
@@ -82,9 +82,9 @@ test("expectedRevision이 0이어도 키가 포함된다 (falsy 값 누락 방�
 });
 
 test("termType/status는 변환 없이 그대로 전달된다(pass-through)", () => {
-  const payload = buildTermPayload({ ...BASE_FORM, termType: "abbreviation", status: "approved" });
+  const payload = buildTermPayload({ ...BASE_FORM, termType: "abbreviation", status: "active" });
   expect(payload.termType).toBe("abbreviation");
-  expect(payload.status).toBe("approved");
+  expect(payload.status).toBe("active");
 });
 
 // --- interpretResponse ---------------------------------------------------

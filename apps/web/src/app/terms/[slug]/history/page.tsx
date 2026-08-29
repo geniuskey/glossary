@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth/current-user";
 import { getTermByIdOrSlug } from "@/lib/terms/query";
 import { listRevisions } from "@/lib/terms/update";
 import { displayName, isoDate, relativeTime } from "@/lib/ui/format";
+import { RevertButton } from "./revert-button";
 
 export default async function TermHistoryPage({ params }: { params: Promise<{ slug: string }> }) {
   const user = await getCurrentUser();
@@ -15,6 +16,10 @@ export default async function TermHistoryPage({ params }: { params: Promise<{ sl
   if (!term) notFound();
 
   const revisions = await listRevisions(term.id);
+  // listRevisions는 최신순이라 맨 앞이 현재 리비전이다. 되돌리기는 이 번호를
+  // expectedRevision으로 보내서, 화면을 열어 둔 사이에 남이 먼저 고쳤으면
+  // 409로 멈추게 한다.
+  const currentRevision = revisions[0]?.revisionNumber ?? 0;
 
   return (
     <AppShell user={user} current="terms">
@@ -33,7 +38,9 @@ export default async function TermHistoryPage({ params }: { params: Promise<{ sl
       <header className="mb-5 flex items-end justify-between border-b border-line pb-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">수정 이력</h1>
-          <p className="mt-0.5 text-xs text-ink-3">리비전 {revisions.length}개 · 최신순</p>
+          <p className="mt-0.5 text-xs text-ink-3">
+            리비전 {revisions.length}개 · 최신순 · 되돌려도 이력은 지워지지 않고 새 리비전이 쌓인다
+          </p>
         </div>
         <Link href={`/terms/${term.slug}/edit`} className="btn-ghost btn-sm">
           편집
@@ -66,6 +73,15 @@ export default async function TermHistoryPage({ params }: { params: Promise<{ sl
               {i === 0 && <span className="chip chip-on">현재</span>}
             </div>
             {r.message && <p className="mt-0.5 text-sm text-ink-2">{r.message}</p>}
+            {i > 0 && currentRevision > 0 && (
+              <div className="mt-1.5">
+                <RevertButton
+                  slug={term.slug}
+                  revisionNumber={r.revisionNumber}
+                  expectedRevision={currentRevision}
+                />
+              </div>
+            )}
           </li>
         ))}
       </ol>

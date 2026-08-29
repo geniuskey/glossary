@@ -26,7 +26,7 @@ export const termInputBaseSchema = z.object({
   fullNameEn: z.string().trim().min(1).nullable().optional(),
   fullNameKo: z.string().trim().min(1).nullable().optional(),
   domain: z.array(z.string().trim().min(1)).default([]),
-  status: z.enum(["draft", "approved", "deprecated", "forbidden"]).default("draft"),
+  status: z.enum(["active", "deprecated", "forbidden"]).default("active"),
   definitionMd: z.string().optional(),
   // R33: terms.body_md 컬럼은 Task 9의 상세 API가 읽어서 그대로 반환하지만, 이
   // 필드가 없으면 어떤 API/폼으로도 채울 방법이 없어 영원히 null로 남는다.

@@ -6,7 +6,7 @@ function base(overrides: Partial<TermInput> = {}): TermInput {
     termType: "term",
     nameEn: "Probe",
     domain: [],
-    status: "draft",
+    status: "active",
     surfaces: [],
     ...overrides,
   };

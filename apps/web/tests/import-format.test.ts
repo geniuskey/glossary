@@ -88,7 +88,7 @@ test("예전부터 인정하던 헤더는 하나도 사라지지 않았다", () 
 });
 
 test("샘플 행의 종류·상태는 실제 enum 값이다", () => {
-  // 빈 값 대신 아무 문자열이나 적어 두면 파서가 조용히 term/draft로 떨어뜨려
+  // 빈 값 대신 아무 문자열이나 적어 두면 파서가 조용히 term/active로 떨어뜨려
   // "샘플대로 적었는데 종류가 안 들어간다"가 된다.
   for (const row of SAMPLE_ROWS) {
     expect(TERM_TYPES).toContain(row.termType);

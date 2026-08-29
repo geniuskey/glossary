@@ -40,7 +40,7 @@ beforeAll(async () => {
       fullNameEn: "Auto Exposure",
       nameKo: "자동노출",
       domain: ["ISP"],
-      status: "approved",
+      status: "active",
       surfaces: [{ text: "오토익스포저", lang: "ko", kind: "discouraged" }],
     },
     null,
@@ -51,7 +51,7 @@ beforeAll(async () => {
       nameEn: "AE",
       fullNameEn: "Application Engineer",
       domain: ["PM"],
-      status: "approved",
+      status: "active",
       surfaces: [],
     },
     null,
@@ -65,7 +65,7 @@ beforeAll(async () => {
       termType: "term",
       nameEn: "AE Dedup Probe",
       domain: ["QA"],
-      status: "approved",
+      status: "active",
       surfaces: [
         { text: "AE", lang: "en", kind: "discouraged" },
         { text: "Auto Exposure", lang: "en", kind: "discouraged" },
@@ -173,7 +173,7 @@ test("termType으로 필터링한다", async () => {
 });
 
 test("status로 필터링한다", async () => {
-  const { items } = await listTerms({ status: "approved", domain: "PM", page: 1, pageSize: 20 });
+  const { items } = await listTerms({ status: "active", domain: "PM", page: 1, pageSize: 20 });
   expect(items.map((t) => t.id)).toContain(ids[1]);
 });
 

@@ -45,7 +45,7 @@ function row(overrides: Partial<TermRow> = {}): TermRow {
     fullNameEn: null,
     fullNameKo: null,
     domain: ["ISP"],
-    status: "draft",
+    status: "active",
     definitionMd: null,
     bodyMd: null,
     updatedAt: "2026-08-01T00:00:00.000Z",
@@ -92,7 +92,7 @@ test("patchForCell: 알려진 enum 값은 그대로 통과한다", () => {
   for (const t of TERM_TYPES) {
     expect(patchForCell("termType", t)).toEqual({ patch: { termType: t } });
   }
-  expect(patchForCell("status", "approved")).toEqual({ patch: { status: "approved" } });
+  expect(patchForCell("status", "deprecated")).toEqual({ patch: { status: "deprecated" } });
 });
 
 test("patchForCell: 읽기 전용 열은 항상 error다", () => {
@@ -108,14 +108,14 @@ test("wouldClearBothNames: 마지막 표준명을 지우는 편집만 참이다"
   expect(wouldClearBothNames(onlyEn, { nameEn: null })).toBe(true);
   expect(wouldClearBothNames(onlyEn, { nameEn: "Other" })).toBe(false);
   // 관계없는 열을 고치는 것만으로 참이 되면 안 된다.
-  expect(wouldClearBothNames(onlyEn, { status: "approved" })).toBe(false);
+  expect(wouldClearBothNames(onlyEn, { status: "deprecated" })).toBe(false);
 });
 
 test("applyPatch는 원본을 건드리지 않는다(실패 시 되돌리기가 이것에 의존한다)", () => {
   const original = row();
-  const next = applyPatch(original, { status: "approved" });
-  expect(next.status).toBe("approved");
-  expect(original.status).toBe("draft");
+  const next = applyPatch(original, { status: "deprecated" });
+  expect(next.status).toBe("deprecated");
+  expect(original.status).toBe("active");
 });
 
 test("cellText: 도메인은 쉼표로 합쳐지고, 값이 없는 열은 빈 문자열이다", () => {
@@ -206,7 +206,7 @@ test("rowsToMatrix: 첫 줄은 열 라벨이고 그 뒤가 행이다", () => {
   const columns = [columnByKey("nameEn"), columnByKey("status")];
   expect(rowsToMatrix([row()], columns)).toEqual([
     ["영문 표준명", "상태"],
-    ["Interstitial Slide Point", "draft"],
+    ["Interstitial Slide Point", "active"],
   ]);
 });
 
@@ -367,16 +367,16 @@ test("planClear: 표준명은 null로 비우고 종류·상태는 손대지 않�
 
 test("planCell: 셀 하나도 붙여넣기와 같은 계획 모양을 낸다", () => {
   const target = row({ id: "a" });
-  const plan = planCell(target, columnByKey("status"), "approved");
-  expect(plan).toEqual({ updates: [{ rowId: "a", patch: { status: "approved" } }], errors: [], cells: 1 });
+  const plan = planCell(target, columnByKey("status"), "deprecated");
+  expect(plan).toEqual({ updates: [{ rowId: "a", patch: { status: "deprecated" } }], errors: [], cells: 1 });
 });
 
 test("inversePatch: 건드린 열만, 지금 값으로 되돌린다", () => {
-  const target = row({ nameEn: "Alpha", status: "draft", domain: ["ISP"] });
-  expect(inversePatch(target, { status: "approved" })).toEqual({ status: "draft" });
-  expect(inversePatch(target, { nameEn: null, status: "approved" })).toEqual({
+  const target = row({ nameEn: "Alpha", status: "active", domain: ["ISP"] });
+  expect(inversePatch(target, { status: "deprecated" })).toEqual({ status: "active" });
+  expect(inversePatch(target, { nameEn: null, status: "deprecated" })).toEqual({
     nameEn: "Alpha",
-    status: "draft",
+    status: "active",
   });
 });
 

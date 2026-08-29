@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
+import { normalizeEmail } from "@/lib/auth/register";
 import { createFirstAdmin, needsSetup } from "@/lib/auth/setup";
 import { createSession, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/auth/session";
 
@@ -27,7 +28,9 @@ export const POST = withApiErrors(async (request: Request) => {
     return apiError("validation_failed", "이메일과 8자 이상의 비밀번호가 필요합니다.", 400, parsed.error.flatten());
   }
 
-  const email = parsed.data.email;
+  // R131: 가입 경로(register.ts)와 같은 형태로 저장한다 — 저장 형태가 창구마다
+  // 다르면 users_email_lower_unique가 잡아내기 전까지 아무도 눈치채지 못한다.
+  const email = normalizeEmail(parsed.data.email);
   const result = await createFirstAdmin({
     email,
     name: parsed.data.name?.trim() || email,

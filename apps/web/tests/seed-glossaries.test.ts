@@ -25,7 +25,7 @@ test("모든 씨앗 용어가 termInputSchema를 통과한다", () => {
       fullNameEn: term.fullNameEn ?? null,
       fullNameKo: term.fullNameKo ?? null,
       domain: [...pack.domain],
-      status: "approved",
+      status: "active",
       definitionMd: term.definitionMd,
       surfaces: (term.aliases ?? []).map((text) => ({ text, kind: "alias" })),
     });
@@ -46,7 +46,7 @@ test("씨앗 용어끼리 표기가 겹치지 않는다", () => {
       fullNameEn: term.fullNameEn ?? null,
       fullNameKo: term.fullNameKo ?? null,
       domain: [...pack.domain],
-      status: "approved",
+      status: "active",
       definitionMd: term.definitionMd,
       surfaces: (term.aliases ?? []).map((text) => ({ text, kind: "alias" })),
     });

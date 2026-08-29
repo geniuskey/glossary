@@ -24,7 +24,7 @@ const createdKeys: string[] = [];
 const NAME_PREFIX = "ID14 ";
 
 function row(rowNumber: number, nameEn: string, aliases: string[] = []): ImportRow {
-  return { rowNumber, termType: "term", nameEn, domain: [], status: "draft", aliases };
+  return { rowNumber, termType: "term", nameEn, domain: [], status: "active", aliases };
 }
 
 async function trackAllByPrefix() {
@@ -37,7 +37,7 @@ let seedSlug = "";
 
 beforeAll(async () => {
   const { term } = await createTerm(
-    { termType: "term", nameEn: `${NAME_PREFIX}Lens Shading`, domain: ["ISP"], status: "approved", surfaces: [] },
+    { termType: "term", nameEn: `${NAME_PREFIX}Lens Shading`, domain: ["ISP"], status: "active", surfaces: [] },
     null,
   );
   seedTermId = term.id;

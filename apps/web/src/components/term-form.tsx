@@ -39,7 +39,7 @@ const EMPTY: TermFormState = {
   fullNameEn: "",
   fullNameKo: "",
   domain: "",
-  status: "draft",
+  status: "active",
   definitionMd: "",
   bodyMd: "",
   surfaces: [],

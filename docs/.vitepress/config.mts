@@ -33,6 +33,7 @@ export default defineConfig({
           { text: "시작하기", link: "/guide/getting-started" },
           { text: "아키텍처", link: "/guide/architecture" },
           { text: "데이터 모델", link: "/guide/data-model" },
+          { text: "SSO 연결", link: "/guide/sso" },
           { text: "테스트", link: "/guide/testing" },
           { text: "로드맵", link: "/guide/roadmap" },
         ],

@@ -77,7 +77,7 @@ test("편집 페이지는 현재 리비전 번호를 expectedRevision으로 Term
   await loginAs(user.id);
 
   const { term } = await createTerm(
-    { termType: "term", nameEn: "Edit Page Probe", domain: [], status: "draft", surfaces: [] },
+    { termType: "term", nameEn: "Edit Page Probe", domain: [], status: "active", surfaces: [] },
     user.id,
   );
   createdTermIds.push(term.id);
@@ -85,7 +85,7 @@ test("편집 페이지는 현재 리비전 번호를 expectedRevision으로 Term
   // 생성 후 두 번 더 patch해서 리비전을 3으로 만든다 — expectedRevision이
   // 하드코딩된 0이나 1이어도 우연히 맞아떨어지지 않도록 한다.
   await updateTerm(term.id, { nameKo: "편집 페이지 테스트" }, user.id);
-  await updateTerm(term.id, { status: "approved" }, user.id);
+  await updateTerm(term.id, { status: "deprecated" }, user.id);
 
   const element = await EditTermPage({ params: Promise.resolve({ slug: term.slug }) });
   const formElement = findElement(element, TermForm);
@@ -109,7 +109,7 @@ test("편집 페이지 초기값의 surfaces에는 파생 가능한 canonical �
       termType: "term",
       nameEn: "Edit Surfaces Probe",
       domain: [],
-      status: "draft",
+      status: "active",
       surfaces: [{ text: "ESP-alias", lang: "en", kind: "alias" }],
     },
     user.id,

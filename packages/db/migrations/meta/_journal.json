@@ -22,6 +22,27 @@
       "when": 1787659085741,
       "tag": "0002_flaky_medusa",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787976438072,
+      "tag": "0003_quick_magus",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787984731394,
+      "tag": "0004_previous_the_twelve",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787992676719,
+      "tag": "0005_modern_madame_web",
+      "breakpoints": true
     }
   ]
 }

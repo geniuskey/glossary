@@ -72,9 +72,7 @@ for (const pack of selected) {
       fullNameEn: seed.fullNameEn ?? null,
       fullNameKo: seed.fullNameKo ?? null,
       domain: [...pack.domain],
-      // 완결된 예시라 승인 상태로 넣는다. draft로 넣으면 켜자마자 검토 대기
-      // 줄이 아흔 개로 시작해 진짜 검토할 것이 그 밑에 묻힌다.
-      status: "approved",
+      status: "active",
       definitionMd: seed.definitionMd,
       surfaces: (seed.aliases ?? []).map((text) => ({ text, kind: "alias" })),
     });

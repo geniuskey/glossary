@@ -12,7 +12,7 @@ let termId: string;
 beforeAll(async () => {
   const [row] = await db
     .insert(terms)
-    .values({ slug: `parity-${Date.now()}`, nameEn: "Auto Exposure", status: "approved" })
+    .values({ slug: `parity-${Date.now()}`, nameEn: "Auto Exposure", status: "active" })
     .returning();
   termId = row!.id;
 });

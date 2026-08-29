@@ -44,7 +44,7 @@ export function ImportGuide() {
         />
         <ValueList
           title="상태"
-          hint="비거나 모르는 값이면 초안"
+          hint="비거나 모르는 값이면 사용"
           items={TERM_STATUSES.map((s) => ({ value: s, label: TERM_STATUS_LABEL[s] }))}
         />
       </div>

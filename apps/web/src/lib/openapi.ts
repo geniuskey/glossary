@@ -45,7 +45,7 @@ const termTypeSchema = {
 };
 const statusSchema = {
   type: "string",
-  enum: ["draft", "approved", "deprecated", "forbidden"],
+  enum: ["active", "deprecated", "forbidden"],
 };
 
 export const openApiSpec = {
@@ -192,6 +192,36 @@ export const openApiSpec = {
         },
       },
     },
+    "/auth/register": {
+      // R131: 개방 가입. security: []는 "인증 없이 부른다"는 뜻이다 — 계정을
+      // 만드는 창구라 세션도 API 키도 없다.
+      post: {
+        summary: "계정 만들기 (누구나)",
+        security: [],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["email", "password"],
+                properties: {
+                  email: { type: "string", format: "email" },
+                  password: { type: "string", minLength: 8 },
+                  name: { type: "string", description: "비우면 이메일이 표시 이름이 된다" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": json("계정을 만들고 grossary_session 쿠키를 Set-Cookie로 내려준다", { type: "object" }),
+          "400": errorResponse("validation_failed — 이메일 형식 또는 8자 미만 비밀번호"),
+          "403": errorResponse("forbidden — 계정이 하나도 없다. /setup으로 관리자를 먼저 만든다"),
+          "409": errorResponse("email_taken — 이미 가입된 이메일(대소문자 무시)"),
+        },
+      },
+    },
     "/auth/logout": {
       // 상태를 바꾸므로 POST다. GET으로 만들면 SameSite=Lax 하나뿐인 CSRF 방어가 무너진다.
       post: {
@@ -217,6 +247,78 @@ export const openApiSpec = {
         summary: "API 키 폐기",
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
         responses: { "204": { description: "폐기됨" }, "404": errorResponse("not_found") },
+      },
+    },
+    // R132: SSO 설정 창구. 관리자 세션만 쓸 수 있고 저장된 클라이언트 시크릿은
+    // 어떤 응답에도 담기지 않는다(hasClientSecret 불리언만 내려간다).
+    "/sso": {
+      get: {
+        summary: "SSO 설정 조회 — 시크릿 대신 hasClientSecret, IdP에 등록할 redirectUri 포함",
+        responses: {
+          "200": json("{ sso, redirectUri }", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만"),
+        },
+      },
+      put: {
+        summary: "SSO 설정 저장 — clientSecret은 빈 문자열이면 유지, null이면 삭제",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  enabled: { type: "boolean" },
+                  buttonLabel: { type: "string" },
+                  issuer: { type: "string" },
+                  authorizationEndpoint: { type: "string" },
+                  tokenEndpoint: { type: "string" },
+                  userinfoEndpoint: { type: "string" },
+                  clientId: { type: "string" },
+                  clientSecret: { type: ["string", "null"] },
+                  scopes: { type: "array", items: { type: "string" } },
+                  tokenAuthMethod: { type: "string", enum: ["client_secret_post", "client_secret_basic"] },
+                  baseUrl: { type: "string" },
+                  // 회사마다 이름이 달라서(name / displayName / preferred_username)
+                  // 후보를 순서대로 받는다 — 값이 있는 첫 후보를 쓴다.
+                  subjectClaims: { type: "array", items: { type: "string" } },
+                  emailClaims: { type: "array", items: { type: "string" } },
+                  nameClaims: { type: "array", items: { type: "string" } },
+                  groupClaims: { type: "array", items: { type: "string" } },
+                  allowedGroups: { type: "array", items: { type: "string" } },
+                  adminGroups: { type: "array", items: { type: "string" } },
+                  autoCreate: { type: "boolean" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": json("{ sso, redirectUri }", { type: "object" }),
+          "400": errorResponse("validation_failed — 켜기에 필요한 값이 비었으면 details.problems"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만"),
+        },
+      },
+    },
+    "/sso/discover": {
+      post: {
+        summary: "issuer의 /.well-known/openid-configuration을 읽어 엔드포인트를 채운다",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { type: "object", required: ["issuer"], properties: { issuer: { type: "string" } } },
+            },
+          },
+        },
+        responses: {
+          "200": json("{ discovery }", { type: "object" }),
+          "400": errorResponse("validation_failed — 발견 문서를 읽지 못함"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만"),
+        },
       },
     },
     "/terms": {
@@ -315,6 +417,35 @@ export const openApiSpec = {
         responses: {
           "200": json("리비전 목록", { type: "array", items: { type: "object" } }),
           "404": errorResponse("not_found"),
+        },
+      },
+    },
+    "/terms/{idOrSlug}/revisions/{number}/revert": {
+      post: {
+        summary: "지정한 리비전의 내용으로 되돌린다",
+        description:
+          "이력을 지우지 않는다 — 대상 리비전의 스냅샷을 현재 상태에 덮어쓰는 새 리비전을 남긴다. " +
+          "expectedRevision을 보내면 PATCH와 같은 낙관적 동시성 제어를 받는다.",
+        parameters: [
+          { name: "idOrSlug", in: "path", required: true, schema: { type: "string" } },
+          { name: "number", in: "path", required: true, schema: { type: "integer" } },
+        ],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: { expectedRevision: { type: "integer", minimum: 1 } },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": json("{ term, surfaces, warnings }", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "404": errorResponse("not_found"),
+          "409": errorResponse("revision_conflict"),
         },
       },
     },
