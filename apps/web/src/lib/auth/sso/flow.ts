@@ -13,7 +13,7 @@ import type { SsoConfig } from "./config";
  */
 export const SSO_FLOW_COOKIE = "grossary_sso";
 const FLOW_TTL_SECONDS = 600;
-// 쿠키를 이 경로에만 보낸다 — /terms 같은 평범한 요청에 로그인 중간 상태가 실려 다닐 이유가 없다.
+// 쿠키를 이 경로에만 보낸다 — /sheet 같은 평범한 요청에 로그인 중간 상태가 실려 다닐 이유가 없다.
 const FLOW_COOKIE_PATH = "/auth/sso";
 
 export interface FlowState {

@@ -118,14 +118,14 @@ test("시작 라우트는 IdP로 302하고 흐름 쿠키를 심는다", async ()
   expect(location(res)).not.toContain("code_verifier");
 });
 
-test("성공하면 세션 쿠키를 주고 용어집으로 보낸다", async () => {
+test("성공하면 세션 쿠키를 주고 홈으로 보낸다", async () => {
   const email = `callback-ok-${Date.now()}@example.com`;
   stubIdp({ sub: `sub-${Date.now()}`, email, name: "김철수", nonce: FLOW.nonce });
 
   const res = await callbackGet(callbackRequest({ code: "code-1", state: FLOW.state }));
 
   expect(res.status).toBe(302);
-  expect(location(res)).toBe(`${BASE}/terms`);
+  expect(location(res)).toBe(`${BASE}/`);
   const cookies = res.headers.getSetCookie();
   expect(cookies.some((c) => c.startsWith(`${SESSION_COOKIE}=`) && c.includes("HttpOnly"))).toBe(true);
   // 흐름 쿠키는 반드시 지운다 — 남으면 같은 state로 콜백을 다시 먹일 수 있다.
@@ -207,7 +207,7 @@ test("그룹이 userinfo에만 있어도 관리자로 올린다", async () => {
 
   const res = await callbackGet(callbackRequest({ code: "c", state: FLOW.state }));
 
-  expect(location(res)).toBe(`${BASE}/terms`);
+  expect(location(res)).toBe(`${BASE}/`);
   const row = await userByEmail(email);
   expect(row?.role).toBe("admin");
 });
@@ -224,7 +224,7 @@ test("userinfo의 sub가 다르면 그 그룹으로 권한을 주지 않는다",
 
   const res = await callbackGet(callbackRequest({ code: "c", state: FLOW.state }));
 
-  expect(location(res)).toBe(`${BASE}/terms`);
+  expect(location(res)).toBe(`${BASE}/`);
   const row = await userByEmail(email);
   expect(row?.role).toBe("editor");
 });

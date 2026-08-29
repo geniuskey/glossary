@@ -129,7 +129,7 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
         setWarnings(outcome.warnings);
         setSavedSlug(outcome.term.slug);
       } else {
-        router.push(`/terms/${outcome.term.slug}`);
+        router.push(`/w/${outcome.term.slug}`);
         router.refresh();
       }
       return;
@@ -201,7 +201,7 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
             {warnings.map((w) => (
               <li key={`${w.surfaceText}:${w.conflictingSlug}`}>
                 {w.surfaceText} →{" "}
-                <Link href={`/terms/${w.conflictingSlug}`} className="underline underline-offset-2">
+                <Link href={`/w/${w.conflictingSlug}`} className="underline underline-offset-2">
                   {w.conflictingSlug}
                 </Link>
               </li>
@@ -312,7 +312,7 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
         </label>
 
         {/* R111: bodyMd는 terms.body_md 컬럼에 이미 저장되고(lib/terms/create.ts,
-            update.ts) 상세 화면(app/terms/[slug]/page.tsx, R96)에도 이미 렌더되는데,
+            update.ts) 상세 화면(app/w/[slug]/page.tsx, R96)에도 이미 렌더되는데,
             계획서 스케치의 폼에는 입력란 자체가 없었다 — 상세 화면이 보여주는
             "본문"을 채울 방법이 폼에 없는 셈이었다. */}
         <label className="block">
@@ -393,7 +393,7 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
 
       <div className="flex items-center gap-2">
         {savedSlug ? (
-          <Link href={`/terms/${savedSlug}`} className="btn-primary">
+          <Link href={`/w/${savedSlug}`} className="btn-primary">
             저장됨 → {savedSlug}로 이동
           </Link>
         ) : (
@@ -401,7 +401,7 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
             {saving ? "저장 중..." : "저장"}
           </button>
         )}
-        <Link href={editSlug !== undefined ? `/terms/${editSlug}` : "/terms"} className="btn-quiet">
+        <Link href={editSlug !== undefined ? `/w/${editSlug}` : "/sheet"} className="btn-quiet">
           취소
         </Link>
       </div>

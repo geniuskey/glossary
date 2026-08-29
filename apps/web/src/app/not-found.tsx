@@ -14,9 +14,14 @@ export default function NotFound() {
       <p className="mt-1 max-w-sm text-sm text-ink-2">
         주소가 바뀌었거나, 다른 사람이 이미 지운 항목일 수 있습니다.
       </p>
-      <Link href="/terms" className="btn-primary mt-5">
-        용어집으로
-      </Link>
+      <div className="mt-5 flex items-center gap-2">
+        <Link href="/" className="btn-primary">
+          검색으로
+        </Link>
+        <Link href="/sheet" className="btn-ghost">
+          시트 열기
+        </Link>
+      </div>
     </main>
   );
 }

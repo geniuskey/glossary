@@ -134,7 +134,7 @@ test("buildPageHref: 활성 필터(q/type/domain/status)를 전부 보존하며 
   const href = buildPageHref(parsed, 2);
 
   const url = new URL(href, "http://x");
-  expect(url.pathname).toBe("/terms");
+  expect(url.pathname).toBe("/sheet");
   expect(url.searchParams.get("q")).toBe("AE");
   expect(url.searchParams.get("type")).toBe("abbreviation");
   expect(url.searchParams.get("domain")).toBe("ISP");

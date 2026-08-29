@@ -17,7 +17,7 @@ export function LoginForm() {
     });
 
     if (res.ok) {
-      router.push("/terms");
+      router.push("/");
       router.refresh();
       return;
     }

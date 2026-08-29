@@ -219,11 +219,12 @@ test("슬러그 경합이 나면 재시도해서 -2로 저장한다 (R48)", asyn
   expect(result.term.slug).toBe("retry-probe-2");
 });
 
-// R92: `app/terms/new`는 정적 세그먼트다(Task 13). Next는 정적 세그먼트를
-// 동적 세그먼트(`app/terms/[slug]`)보다 먼저 매칭하므로, slugify("New") ===
-// "new"인 용어는 상세 페이지에 영원히 도달할 수 없고 "새 용어" 폼이 대신
-// 뜬다 — R86(예약어 "lookup")과 정확히 같은 결함이 한 마일스톤 뒤에
-// 반복되는 것이다. uniqueSlug가 이미 사용 중인 것처럼 취급해 피해야 한다.
+// R92/R135: 예전에는 `app/terms/new`가 `app/terms/[slug]`의 정적 형제라, slugify
+// ("New") === "new"인 용어의 상세 페이지 대신 "새 용어" 폼이 떴다. 화면 주소가
+// `/w/<slug>`로 옮겨가면서 그 충돌은 사라졌지만, next.config.ts의
+// `/terms/new → /new` 리다이렉트가 파일시스템보다 먼저 검사되므로 그 용어의 **옛
+// 링크**는 여전히 생성 폼으로 간다 — R86(예약어 "lookup")과 같은 조용한 도달
+// 불가다. uniqueSlug가 이미 사용 중인 것처럼 취급해 피해야 한다.
 test("R92: 이름이 New인 용어는 슬러그가 new가 되지 않는다", async () => {
   expect(RESERVED_SLUGS.has("new")).toBe(true);
 

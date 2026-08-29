@@ -103,7 +103,7 @@ export async function GET(request: Request): Promise<Response> {
     await purgeExpiredSessions();
     const session = await createSession(result.user.id);
 
-    const headers = new Headers({ location: `${base}/terms` });
+    const headers = new Headers({ location: `${base}/` });
     headers.append(
       "set-cookie",
       `${SESSION_COOKIE}=${session.token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_SECONDS}; Expires=${session.expiresAt.toUTCString()}`,

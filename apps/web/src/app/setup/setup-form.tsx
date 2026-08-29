@@ -35,7 +35,7 @@ export function SetupForm() {
     });
 
     if (res.ok) {
-      router.push("/terms");
+      router.push("/");
       router.refresh();
       return;
     }

@@ -43,13 +43,13 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
   };
 
   return (
-    <AppShell user={user} current="terms">
+    <AppShell user={user} current="sheet">
       <nav className="mb-5 text-xs text-ink-3">
-        <Link href="/terms" className="link">
-          용어집
+        <Link href="/sheet" className="link">
+          시트
         </Link>
         <span className="mx-1.5">/</span>
-        <Link href={`/terms/${term.slug}`} className="link">
+        <Link href={`/w/${term.slug}`} className="link">
           {displayName(term)}
         </Link>
         <span className="mx-1.5">/</span>
@@ -63,9 +63,16 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
               409(다른 사람이 먼저 저장함)를 만났을 때 상황이 납득된다. */}
           <p className="mt-0.5 text-xs text-ink-3">리비전 #{expectedRevision} 기준</p>
         </div>
-        <Link href={`/terms/${term.slug}/history`} className="btn-ghost btn-sm">
-          이력
-        </Link>
+        <div className="flex gap-1.5">
+          {/* R135: 시트에서 용어를 누르면 곧장 이 화면으로 온다(보기 화면을
+              거치지 않는다) — 읽기만 하려던 사람이 되돌아갈 문이 있어야 한다. */}
+          <Link href={`/w/${term.slug}`} className="btn-ghost btn-sm">
+            보기
+          </Link>
+          <Link href={`/history/${term.slug}`} className="btn-ghost btn-sm">
+            이력
+          </Link>
+        </div>
       </header>
 
       <TermForm initial={initial} />

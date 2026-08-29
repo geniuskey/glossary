@@ -6,7 +6,7 @@ import type { TermStatus, TermType } from "./query";
 // 똑같은 문제(알 수 없는 enum 값, 형식이 잘못된 page)를 다루지만 결론은
 // 반대다 — 그 파서는 기계 클라이언트를 상대하므로 알 수 없는 값에 400
 // validation_failed를 돌려준다(R41/R59/R64/R65 테스트가 그 계약을 고정한다).
-// 이 모듈은 사람이 주소창을 손으로 고치는 `/terms` 화면을 상대한다 — 오타 하나로
+// 이 모듈은 사람이 주소창을 손으로 고치는 `/sheet` 화면을 상대한다 — 오타 하나로
 // 에러 페이지를 띄우면 안 되므로, 알 수 없는/잘못된 값은 전부 조용히 "지정
 // 안 함"·기본값으로 무시한다. 그래서 API 라우트의 파서를 재사용하지 않고 이
 // 모듈을 새로 둔다(같은 로직처럼 보여도 실패 시 동작이 달라야 한다).
@@ -124,11 +124,15 @@ export function activeParams(params: ParsedListParams): Array<{ name: ParamName;
   return out;
 }
 
+// R135: 목록 화면의 주소. 링크를 만드는 자리가 세 곳(페이지네이션, 필터 칩,
+// 열 머리글)이라 리터럴을 흩뿌리면 화면 주소를 옮길 때 한 곳이 남는다.
+export const SHEET_PATH = "/sheet";
+
 function hrefWith(params: ParsedListParams, overrides: Partial<Record<ParamName | "page", string>>): string {
   const usp = new URLSearchParams();
   for (const f of activeParams(params)) usp.set(f.name, f.value);
   for (const [name, value] of Object.entries(overrides)) usp.set(name, value);
-  return `/terms?${usp.toString()}`;
+  return `${SHEET_PATH}?${usp.toString()}`;
 }
 
 // R93: 페이지네이션 링크. 현재 활성 필터를 전부 보존하면서 page만 targetPage로
@@ -147,7 +151,7 @@ export function buildFilterHref(params: ParsedListParams, drop: FilterName): str
     if (f.name !== drop) usp.set(f.name, f.value);
   }
   usp.set("page", "1");
-  return `/terms?${usp.toString()}`;
+  return `${SHEET_PATH}?${usp.toString()}`;
 }
 
 /**

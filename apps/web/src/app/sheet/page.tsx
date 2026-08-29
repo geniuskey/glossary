@@ -18,7 +18,7 @@ import {
 import { listTermRows, termFacets } from "@/lib/terms/query";
 import { cx, withCount } from "@/lib/ui/format";
 
-export const metadata = { title: "용어집" };
+export const metadata = { title: "시트" };
 
 // 표는 한 화면에서 훑는 물건이라 20줄은 너무 적다. 그렇다고 무한정 늘리면
 // 첫 페인트가 느려지므로 한 화면 스크롤 두어 번 분량으로 잡는다.
@@ -83,14 +83,14 @@ export default async function TermsPage({
   ) as Record<SortKey, { asc: string; desc: string }>;
 
   return (
-    <AppShell user={user} current="terms" wide>
+    <AppShell user={user} current="sheet" wide>
       <header className="shrink-0 border-b border-line bg-panel/70 px-4 py-3 backdrop-blur lg:px-6">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="text-lg font-semibold tracking-tight">용어집</h1>
+          <h1 className="text-lg font-semibold tracking-tight">시트</h1>
           <p className="text-xs text-ink-3">
             개념 <span className="font-medium text-ink-2">{total}</span>개 · 셀을 눌러 바로 고치면 그대로 저장됩니다
           </p>
-          <Link href="/terms/new" className="btn-primary btn-sm ml-auto">
+          <Link href="/new" className="btn-primary btn-sm ml-auto">
             자세히 추가
           </Link>
         </div>

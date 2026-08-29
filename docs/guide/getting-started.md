@@ -154,15 +154,19 @@ pnpm --filter @grossary/web exec tsx scripts/seed-terms.ts it semiconductor
 
 | 경로 | 역할 |
 |---|---|
-| `/` | 관리자 없으면 `/setup`, 있으면 `/terms`로 리다이렉트 |
+| `/` | 용어 검색 — 표기 하나를 지목해 찾는 홈 화면 |
 | `/setup` | 최초 관리자 만들기 (사용자 0명일 때만) |
 | `/login` | 로그인 |
 | `/signup` | 계정 만들기 (누구나, 역할은 editor 고정) |
-| `/terms` | 용어 목록 — type/domain/status 필터, 검색, 페이징 |
-| `/terms/new` | 용어 등록 |
-| `/terms/[slug]` | 용어 상세 |
-| `/terms/[slug]/edit` | 편집 (낙관적 잠금) |
-| `/terms/[slug]/history` | 수정 이력 |
+| `/sheet` | 시트 — 표 편집, type/domain/status 필터, 검색, 페이징 |
+| `/new` | 용어 등록 |
+| `/w/[slug]` | 용어 상세 (`?from=<표기>`로 어떤 표기에서 왔는지 표시) |
+| `/edit/[slug]` | 편집 (낙관적 잠금) |
+| `/history/[slug]` | 수정 이력 |
 | `/import` | 엑셀 업로드 → dry-run 리포트 → 반영 |
 | `/settings/api-keys` | API 키 발급·폐기 |
 | `/settings/sso` | SSO 연결 설정 (관리자 전용) |
+
+옛 주소(`/terms`, `/terms/new`, `/terms/[slug]`, `/terms/[slug]/edit`,
+`/terms/[slug]/history`)는 `next.config.ts`의 308 리다이렉트로 전부 새 주소에
+연결된다 — 이미 공유된 링크는 그대로 열린다.

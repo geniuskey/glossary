@@ -9,6 +9,7 @@ import { SESSION_COOKIE } from "../src/lib/auth/session.js";
 import { createTerm, RESERVED_SLUGS } from "../src/lib/terms/create.js";
 import { getDb } from "../src/lib/db.js";
 import { lookupTerms, MATCH_KIND_PRIORITY, pickMatchKind } from "../src/lib/terms/lookup.js";
+import { legacyRedirects } from "../next.config.js";
 
 // R83/인증 테스트: 세션 쿠키 경로(getCurrentUser)는 next/headers의 cookies()를
 // 쓴다. 이 파일의 요청은 실제 Next 요청 컨텍스트 밖에서 만들어지므로 모킹 없이
@@ -452,9 +453,8 @@ test("R106: 동음이의 결과는 slug 오름차순으로 고정된다", async 
 
 // R105: RESERVED_SLUGS는 손으로 유지되는 리터럴이다 — app/api/v1/terms/ 밑에
 // 정적 세그먼트가 하나라도 더 생기는데 예약어 목록을 안 갱신하면 R86이 조용히
-// 재발한다. 두 디렉터리(API 라우트, 향후 페이지 라우트)의 정적(비-[..] ) 자식
-// 디렉터리가 전부 RESERVED_SLUGS에 있는지 구조적으로 검증한다. app/terms/는
-// Task 12에서 생기므로 아직 없어도 통과해야 한다.
+// 재발한다. 정적(비-[..]) 자식 디렉터리가 전부 RESERVED_SLUGS에 있는지 구조적으로
+// 검증한다.
 function staticChildDirNames(dir: string): string[] {
   try {
     return readdirSync(dir, { withFileTypes: true })
@@ -465,15 +465,10 @@ function staticChildDirNames(dir: string): string[] {
   }
 }
 
-// R107: 원래 이 테스트는 두 디렉터리를 합친 배열 하나의 길이만 0보다 큰지
-// 봤다. `app/terms/`가 없던 동안은 그게 안전했다 — API 쪽 경로가 잘못돼도
-// (예: 오타로 diff 세그먼트를 만들거나 staticChildDirNames가 잘못된 경로를
-// 봐도) 합계가 0이 되어 가드가 울렸을 것이다. Task 12가 `app/terms/`를 만드는
-// 순간 그 안전장치는 사라진다 — 페이지 쪽 세그먼트("new")가 하나만 있어도
-// 합계가 0보다 커져서, API 쪽 경로가 완전히 잘못돼(staticChildDirNames가 [])
-// 있어도 가드가 조용히 통과해버린다. 두 디렉터리를 각각 검사해서, 한쪽
-// 디렉터리 전체가 비면(경로 오타 등으로 readdirSync가 실패하면) 그 디렉터리의
-// 기대 세그먼트가 없다는 게 바로 드러나게 한다.
+// R107: 이 가드의 핵심은 vacuity다. staticChildDirNames는 readdirSync가 실패하면
+// []를 돌려주므로(경로 오타 등), 길이를 보지 않으면 "정적 세그먼트가 하나도 없다"와
+// "디렉터리를 아예 못 찾았다"가 똑같이 통과한다. 반드시 있어야 하는 세그먼트를
+// 하나 지목해서 둘을 구분한다.
 test("R107: app/api/v1/terms/ 밑 정적 세그먼트는 전부 RESERVED_SLUGS에 있다", () => {
   const testDir = path.dirname(fileURLToPath(import.meta.url));
   const apiTermsDir = path.join(testDir, "..", "src", "app", "api", "v1", "terms");
@@ -485,20 +480,33 @@ test("R107: app/api/v1/terms/ 밑 정적 세그먼트는 전부 RESERVED_SLUGS�
   }
 });
 
-// R107/Task 13: `app/terms/new/`가 이제 실제로 존재한다(용어 생성 폼).
-// `app/terms/[slug]/edit`, `app/terms/[slug]/history`는 동적 세그먼트
-// `[slug]`의 자식이라 staticChildDirNames(app/terms/)에는 잡히지 않는다 —
-// "new"만 app/terms/ 바로 밑의 정적 자식이다. "new"를 포함하는지로 vacuity를
-// 가드해서, staticChildDirNames가 조용히 []를 반환하는 경로 오타와 "정적
-// 자식이 진짜 없음"을 구분한다.
-test("R107: app/terms/ 디렉터리는 존재하고, 그 밑 정적 세그먼트는 전부 RESERVED_SLUGS에 있다", () => {
+// R107/R135: 이 테스트가 원래 지키던 `app/terms/`는 이제 없다. 슬러그는
+// `app/w/[slug]` 한 곳에만 살고 그 옆에 정적 형제가 없으므로, 화면 라우트가
+// 슬러그를 가로채는 R86/R92류 충돌은 구조적으로 사라졌다 — 그 사실 자체를
+// 단언해 둔다(누군가 `app/w/` 밑에 정적 세그먼트를 만들면 곧바로 실패한다).
+test("R135: 슬러그는 app/w/[slug]에만 살고, app/w/ 밑에 정적 형제가 없다", () => {
   const testDir = path.dirname(fileURLToPath(import.meta.url));
-  const pageTermsDir = path.join(testDir, "..", "src", "app", "terms");
+  const wDir = path.join(testDir, "..", "src", "app", "w");
 
-  expect(existsSync(pageTermsDir)).toBe(true);
-  const pageSegments = staticChildDirNames(pageTermsDir);
-  expect(pageSegments).toContain("new"); // vacuity 가드: Task 13이 만든 정적 세그먼트.
-  for (const seg of pageSegments) {
+  expect(existsSync(path.join(wDir, "[slug]", "page.tsx"))).toBe(true); // vacuity 가드
+  expect(staticChildDirNames(wDir)).toEqual([]);
+});
+
+// 다만 예약어가 필요 없어진 건 아니다. 옛 주소를 살리는 next.config.ts의
+// 리다이렉트가 그 자리를 물려받는다 — 리다이렉트는 파일시스템보다 먼저
+// 검사되므로 `/terms/new`는 슬러그가 무엇이든 생성 폼(`/new`)으로 간다. 즉
+// 슬러그가 "new"인 용어의 **옛 링크**는 상세 화면에 영원히 닿지 못한다(R92와
+// 같은 형태의 조용한 도달 불가). 리다이렉트 source의 정적 세그먼트가 전부
+// RESERVED_SLUGS에 있는지로, 손으로 유지되는 두 리터럴을 묶어 둔다.
+test("R135: /terms/* 리다이렉트 source의 정적 세그먼트는 전부 RESERVED_SLUGS에 있다", () => {
+  const staticSegments = legacyRedirects
+    .map((r) => r.source.split("/").filter(Boolean))
+    .filter((segs) => segs[0] === "terms" && segs.length > 1)
+    .map((segs) => segs[1]!)
+    .filter((seg) => !seg.startsWith(":"));
+
+  expect(staticSegments).toContain("new"); // vacuity 가드
+  for (const seg of staticSegments) {
     expect(RESERVED_SLUGS.has(seg)).toBe(true);
   }
 });

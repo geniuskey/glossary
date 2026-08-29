@@ -7,7 +7,7 @@ import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
 import { createTerm } from "../src/lib/terms/create.js";
 import { updateTerm } from "../src/lib/terms/update.js";
 
-// R109: EditTermPage(app/terms/[slug]/edit/page.tsx)는 Server Component라
+// R109: EditTermPage(app/edit/[slug]/page.tsx)는 Server Component라
 // jsdom 없이도(R97) 그냥 async 함수로 직접 호출할 수 있다 — JSX는 React
 // 엘리먼트를 만드는 순수한 React.createElement 호출일 뿐이라, 렌더링(DOM
 // 반영)을 하지 않는 한 자식 컴포넌트의 함수 본문(TermForm의 훅 등)은 전혀
@@ -24,7 +24,7 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
-const { default: EditTermPage } = await import("../src/app/terms/[slug]/edit/page.js");
+const { default: EditTermPage } = await import("../src/app/edit/[slug]/page.js");
 const { TermForm } = await import("../src/components/term-form.js");
 
 const db = createDb(process.env.DATABASE_URL_TEST!);

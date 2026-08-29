@@ -40,7 +40,7 @@ export function SignupForm() {
     });
 
     if (res.ok) {
-      router.push("/terms");
+      router.push("/");
       router.refresh();
       return;
     }

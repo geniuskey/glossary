@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { surfaceKeys } from "@grossary/db";
 import { AppShell } from "@/components/app-shell";
 import { DomainBadges, StatusBadge } from "@/components/term-badges";
 import { isUuid } from "@/lib/api-error";
@@ -31,7 +32,19 @@ const KIND_TONE: Record<SurfaceKind, string> = {
 
 const LANG_LABEL: Record<string, string> = { en: "영문", ko: "국문", neutral: "공통" };
 
-export default async function TermDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+/**
+ * R135: 주소는 `/w/<slug>`다(나무위키식). 짧은 것 말고도 얻는 게 있다 — 슬러그가
+ * `/w/` 아래에만 살게 되면서 `new`·`import` 같은 화면 이름과 슬러그가 같은
+ * 네임스페이스에서 부딪히지 않는다(R86/R92가 두 번 반복해 막았던 결함이
+ * 구조적으로 사라진다).
+ */
+export default async function TermDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
@@ -42,15 +55,30 @@ export default async function TermDetailPage({ params }: { params: Promise<{ slu
   // R98: getTermByIdOrSlug는 UUID도 slug도 받으므로 같은 문서에 URL이 두 개
   // 생긴다. 위키에서 "용어 하나에 페이지 하나"는 링크와 중복 판단의 기반이라,
   // UUID로 들어온 요청은 정식 slug URL로 정규화한다.
-  if (isUuid(slug)) redirect(`/terms/${term.slug}`);
+  if (isUuid(slug)) redirect(`/w/${term.slug}`);
+
+  // R135: `?from=`은 "무슨 말로 찾아 들어왔는가"다(나무위키의 넘어옴 표시).
+  // 이 사전에서는 그게 부가 정보가 아니라 답 자체다 — "SoC"를 친 사람은 자기가
+  // 쓴 말이 이 개념의 **약어**라는 걸 알아야 다음부터 바르게 쓴다.
+  //
+  // 등록된 표기와 맞을 때만 보여준다. 쿼리스트링은 아무나 손으로 고칠 수 있어서,
+  // 그대로 되뇌면 이 사전이 인정한 적 없는 표기를 이 용어의 표기인 것처럼
+  // 보여주게 된다. 비교는 engine의 정규화(surfaceKeys)로 한다 — 화면에서
+  // 소문자 비교 같은 걸 새로 만들면 DB의 norm_loose와 조용히 갈라진다.
+  const fromRaw = (await searchParams).from;
+  const fromText = (Array.isArray(fromRaw) ? fromRaw[0] : fromRaw)?.trim();
+  const fromKey = fromText ? surfaceKeys(fromText).normLoose : "";
+  const fromSurface = fromKey
+    ? term.surfaces.find((s) => s.kind !== "canonical" && surfaceKeys(s.text).normLoose === fromKey)
+    : undefined;
 
   const hue = spineHue(term.slug);
 
   return (
-    <AppShell user={user} current="terms">
+    <AppShell user={user}>
       <nav className="mb-5 text-xs text-ink-3">
-        <Link href="/terms" className="link">
-          용어집
+        <Link href="/" className="link">
+          검색
         </Link>
         <span className="mx-1.5">/</span>
         <span className="font-mono">{term.slug}</span>
@@ -78,14 +106,24 @@ export default async function TermDetailPage({ params }: { params: Promise<{ slu
             )}
           </div>
           <div className="flex shrink-0 gap-1.5">
-            <Link href={`/terms/${term.slug}/edit`} className="btn-primary btn-sm">
+            <Link href={`/edit/${term.slug}`} className="btn-primary btn-sm">
               편집
             </Link>
-            <Link href={`/terms/${term.slug}/history`} className="btn-ghost btn-sm">
+            <Link href={`/history/${term.slug}`} className="btn-ghost btn-sm">
               이력
             </Link>
           </div>
         </div>
+
+        {fromSurface && (
+          <p className="mt-3 flex flex-wrap items-center gap-1.5 text-sm text-ink-2">
+            <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${KIND_TONE[fromSurface.kind]}`}>
+              {KIND_LABEL[fromSurface.kind]}
+            </span>
+            <span className="font-medium text-ink">{fromSurface.text}</span>
+            <span className="text-ink-3">에서 넘어왔습니다</span>
+          </p>
+        )}
 
         <div className="mt-4 flex flex-wrap items-center gap-2 border-b border-line pb-4">
           <StatusBadge status={term.status} />
@@ -106,7 +144,7 @@ export default async function TermDetailPage({ params }: { params: Promise<{ slu
             <ul className="mt-1 space-y-0.5">
               {term.homonyms.map((h) => (
                 <li key={h.id}>
-                  <Link href={`/terms/${h.slug}`} className="underline underline-offset-2">
+                  <Link href={`/w/${h.slug}`} className="underline underline-offset-2">
                     {displayName(h)}
                   </Link>
                   {h.domain.length > 0 && <span className="ml-2 opacity-80">({h.domain.join(", ")})</span>}

@@ -4,7 +4,7 @@ import { ImportForm } from "@/components/import-form";
 import { ImportGuide, TemplateDownloadLink } from "@/components/import-guide";
 import { getCurrentUser } from "@/lib/auth/current-user";
 
-// R121: app/terms/new/page.tsx(R92)와 같은 Server-shell 패턴 —
+// R121: app/new/page.tsx(R92)와 같은 Server-shell 패턴 —
 // getCurrentUser로 미인증 접근을 redirect("/login")로 걷어내고, 실제 폼은
 // "use client" 컴포넌트로 분리한다. /import는 app/terms/ 밑 세그먼트가
 // 아니므로 create.ts의 RESERVED_SLUGS(R107)에는 등록 대상이 아니다.

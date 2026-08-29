@@ -5,10 +5,14 @@ import { cx } from "@/lib/ui/format";
 import { LogoutButton } from "./logout-button";
 import { ThemeToggle } from "./theme-toggle";
 
-export type NavKey = "terms" | "import" | "keys" | "sso";
+export type NavKey = "search" | "sheet" | "import" | "keys" | "sso";
 
 const NAV: Array<{ key: NavKey; href: string; label: string; hint: string; icon: ReactNode; adminOnly?: true }> = [
-  { key: "terms", href: "/terms", label: "용어집", hint: "표 편집", icon: <IconGrid /> },
+  // R135: 홈은 검색 화면이다. 사이드바 첫 자리를 검색이 가져가는 이유는
+  // 이 사전에서 가장 자주 하는 일이 "찾기"이기 때문이다 — 표를 여는 것은
+  // 고칠 때뿐이다.
+  { key: "search", href: "/", label: "검색", hint: "홈", icon: <IconSearch /> },
+  { key: "sheet", href: "/sheet", label: "시트", hint: "표 편집", icon: <IconGrid /> },
   { key: "import", href: "/import", label: "가져오기", hint: "엑셀", icon: <IconImport /> },
   { key: "keys", href: "/settings/api-keys", label: "API 키", hint: "AI-Lint", icon: <IconKey /> },
   // R132: SSO 설정은 관리자 전용이다. 편집자에게 보여 봐야 들어가면 /terms로
@@ -46,7 +50,7 @@ export function AppShell({
           lg:h-screen lg:w-60 lg:border-b-0 lg:border-r"
       >
         <div className="flex h-14 items-center gap-3 px-4 lg:h-auto lg:flex-col lg:items-stretch lg:gap-0 lg:px-0 lg:py-5">
-          <Link href="/terms" className="flex items-center gap-2.5 lg:px-4 lg:pb-6" aria-label="Grossary 홈">
+          <Link href="/" className="flex items-center gap-2.5 lg:px-4 lg:pb-6" aria-label="Grossary 홈">
             <BrandMark />
             <span className="flex flex-col leading-none">
               <span className="text-[15px] font-semibold tracking-tight text-ink">Grossary</span>
@@ -126,13 +130,24 @@ function UserChip({ user }: { user: CurrentUser }) {
   );
 }
 
-/** 색인 카드 세 장이 겹친 모양 — 이 앱이 다루는 것(한 개념 = 표기 여러 장)의 그림. */
-function BrandMark() {
+/** 색인 카드 세 장이 겹친 모양 — 이 앱이 다루는 것(한 개념 = 표기 여러 장)의 그림.
+ *  홈(검색 화면)은 이 셸을 쓰지 않지만 같은 마크를 크게 쓰므로 export한다 —
+ *  두 벌을 두면 한쪽만 고쳐져 로고가 화면마다 달라진다. */
+export function BrandMark() {
   return (
     <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden className="shrink-0">
       <rect x="3" y="6" width="18" height="15" rx="2.5" className="fill-brand/20" />
       <rect x="4.5" y="3.5" width="18" height="15" rx="2.5" className="fill-panel stroke-brand" strokeWidth="1.5" />
       <path d="M8.5 8.5h10M8.5 11.5h10M8.5 14.5h6" className="stroke-brand" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconSearch() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <circle cx="7" cy="7" r="4.5" />
+      <path d="m10.5 10.5 3.25 3.25" strokeLinecap="round" />
     </svg>
   );
 }
