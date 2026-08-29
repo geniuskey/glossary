@@ -89,6 +89,39 @@ pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts admin@example.com
 unset ADMIN_PASSWORD
 ```
 
+## 7. 예시 용어집 채우기 (선택)
+
+빈 표 앞에서는 무엇을 어떻게 적어야 할지 감이 오지 않는다. 손으로 고른 기본
+용어집 세 묶음을 한 번에 넣을 수 있다.
+
+```bash
+pnpm --filter @grossary/web exec tsx scripts/seed-terms.ts all
+```
+
+| 묶음 키 | 용어집 | 담긴 것 |
+|---|---|---|
+| `general` | 일반 용어집 | 회의·문서·일정에서 매일 오가는 업무 공통어 |
+| `it` | IT 용어집 | 개발·운영 기본어와 AI 용어 |
+| `semiconductor` | 반도체 용어집 | 웨이퍼 공정부터 패키징·테스트까지의 현장어 |
+| `all` | 위 전부 | |
+
+원하는 묶음만 골라도 된다.
+
+```bash
+pnpm --filter @grossary/web exec tsx scripts/seed-terms.ts it semiconductor
+```
+
+인자 없이 실행하면 묶음 목록과 각 묶음의 용어 수를 찍고 끝난다.
+
+::: tip
+이미 있는 표기와 겹치는 용어는 건너뛴다. 두 번 실행해도 사본이 생기지 않고,
+손으로 먼저 넣어 둔 용어를 덮어쓰지도 않는다.
+:::
+
+용어는 도메인(`일반` / `IT` / `반도체`)이 붙은 채 **승인** 상태로 들어간다.
+통째로 지우려면 목록에서 해당 도메인으로 거르면 된다. 작성자는 가장 먼저 만들어진
+관리자 계정으로 기록되며, 관리자가 아직 없으면 작성자 없이 들어간다.
+
 ## 자주 쓰는 명령
 
 | 명령 | 하는 일 |
@@ -98,6 +131,7 @@ unset ADMIN_PASSWORD
 | `pnpm typecheck` | 전체 타입 검사 |
 | `pnpm docs:dev` | 이 문서 사이트를 로컬에서 띄운다 |
 | `pnpm docs:build` | 문서 정적 빌드 (`docs/.vitepress/dist`) |
+| `pnpm --filter @grossary/web exec tsx scripts/seed-terms.ts all` | 예시 용어집 세 묶음 넣기 |
 | `pnpm --filter @grossary/engine test` | 정규화 엔진만 테스트 |
 | `pnpm --filter @grossary/db test` | DB 통합 테스트 (Postgres 필요) |
 
