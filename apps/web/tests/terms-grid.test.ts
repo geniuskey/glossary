@@ -3,10 +3,25 @@ import { TERM_TYPES } from "../src/lib/terms/enums.js";
 import {
   applyPatch,
   cellText,
+  clampColumnWidth,
   columnByKey,
+  COLUMN_MAX_WIDTH,
+  COLUMN_MIN_WIDTH,
   defaultHiddenColumns,
   GRID_COLUMNS,
+  inRange,
+  inversePatch,
+  isDensity,
+  normalizeRange,
+  parseClipboardMatrix,
   patchForCell,
+  planCell,
+  planClear,
+  planFill,
+  planPaste,
+  rangeCells,
+  rangeToTsv,
+  rowLabel,
   rowsToMatrix,
   toCsv,
   toTsv,
@@ -152,4 +167,177 @@ test("toCsv: 모든 값을 따옴표로 감싸고 값 안의 따옴표는 두 �
 test("자기검사: 판별식이 아무 값에나 참이 되지 않는다", () => {
   expect(patchForCell("nameEn", "x")).not.toHaveProperty("error");
   expect(defaultHiddenColumns()).not.toContain("nameEn");
+});
+
+// --- 범위 선택 / 붙여넣기 ---------------------------------------------------
+
+const NAME_COLUMNS = [columnByKey("nameEn"), columnByKey("nameKo")];
+
+function pair(): TermRow[] {
+  return [
+    row({ id: "a", slug: "alpha", nameEn: "Alpha", nameKo: "알파" }),
+    row({ id: "b", slug: "beta", nameEn: "Beta", nameKo: "베타" }),
+  ];
+}
+
+test("normalizeRange: 어느 모서리에서 끌었든 같은 직사각형이 된다", () => {
+  const forward = normalizeRange({ r: 1, c: 0 }, { r: 3, c: 2 });
+  const backward = normalizeRange({ r: 3, c: 2 }, { r: 1, c: 0 });
+  expect(forward).toEqual({ r0: 1, r1: 3, c0: 0, c1: 2 });
+  expect(backward).toEqual(forward);
+});
+
+test("inRange/rangeCells: 경계를 포함해서 센다", () => {
+  const range = normalizeRange({ r: 1, c: 1 }, { r: 2, c: 3 });
+  expect(rangeCells(range)).toBe(6);
+  expect(inRange(range, 1, 1)).toBe(true);
+  expect(inRange(range, 2, 3)).toBe(true);
+  expect(inRange(range, 0, 1)).toBe(false);
+  expect(inRange(range, 2, 4)).toBe(false);
+});
+
+test("parseClipboardMatrix: 줄바꿈 종류와 끝의 빈 줄에 흔들리지 않는다", () => {
+  // 엑셀은 보통 마지막 셀 뒤에도 줄바꿈을 붙여 준다. 그걸 한 행으로 세면
+  // 표 맨 끝 줄을 빈 값으로 덮어쓰게 된다.
+  expect(parseClipboardMatrix("a\tb\r\nc\td\r\n")).toEqual([
+    ["a", "b"],
+    ["c", "d"],
+  ]);
+  expect(parseClipboardMatrix("a\rb")).toEqual([["a"], ["b"]]);
+  expect(parseClipboardMatrix("")).toEqual([]);
+  expect(parseClipboardMatrix("\n\n")).toEqual([]);
+});
+
+test("parseClipboardMatrix: 가운데 빈 칸은 빈 문자열로 남는다", () => {
+  // 빈 칸을 버리면 열이 하나씩 밀려서 엉뚱한 열에 값이 들어간다.
+  expect(parseClipboardMatrix("a\t\tc")).toEqual([["a", "", "c"]]);
+});
+
+test("rangeToTsv: 선택한 직사각형만, 머리글 없이 내보낸다", () => {
+  const rows = pair();
+  const range = normalizeRange({ r: 0, c: 1 }, { r: 1, c: 1 });
+  expect(rangeToTsv(rows, NAME_COLUMNS, range)).toBe("알파\n베타");
+});
+
+test("rangeToTsv: 값 안의 탭·줄바꿈은 구분자와 섞이지 않게 공백이 된다", () => {
+  const rows = [row({ definitionMd: "첫 줄\n둘째\t줄" })];
+  const columns = [columnByKey("definitionMd")];
+  expect(rangeToTsv(rows, columns, { r0: 0, r1: 0, c0: 0, c1: 0 })).toBe("첫 줄 둘째 줄");
+});
+
+test("planPaste: 한 행의 여러 열은 PATCH 하나로 합쳐진다", () => {
+  // 행마다 요청이 한 번이어야 리비전이 한 칸만 올라간다 — 열 수만큼 올라가면
+  // 같이 쓰는 사람 화면에는 "다섯 번 고침"으로 남고 이력이 쓸모없어진다.
+  const rows = pair();
+  const plan = planPaste(rows, NAME_COLUMNS, { r: 0, c: 0 }, [
+    ["A", "가"],
+    ["B", "나"],
+  ]);
+  expect(plan.errors).toEqual([]);
+  expect(plan.updates).toHaveLength(2);
+  expect(plan.updates[0]).toEqual({ rowId: "a", patch: { nameEn: "A", nameKo: "가" } });
+  expect(plan.cells).toBe(4);
+});
+
+test("planPaste: 표에 남은 줄이 모자라면 버린 만큼 알려 준다", () => {
+  const rows = pair();
+  const plan = planPaste(rows, NAME_COLUMNS, { r: 1, c: 0 }, [["A"], ["B"], ["C"]]);
+  expect(plan.updates).toHaveLength(1);
+  expect(plan.errors.join(" ")).toContain("2줄");
+});
+
+test("planPaste: 열 밖으로 넘치는 값은 조용히 버린다", () => {
+  const rows = pair();
+  const plan = planPaste(rows, NAME_COLUMNS, { r: 0, c: 1 }, [["가", "넘침", "더넘침"]]);
+  expect(plan.updates).toEqual([{ rowId: "a", patch: { nameKo: "가" } }]);
+});
+
+test("planPaste: 읽기 전용 열은 건너뛰고 사유를 남긴다", () => {
+  const rows = pair();
+  const columns = [columnByKey("nameEn"), columnByKey("slug")];
+  const plan = planPaste(rows, columns, { r: 0, c: 0 }, [["A", "new-slug"]]);
+  expect(plan.updates).toEqual([{ rowId: "a", patch: { nameEn: "A" } }]);
+  expect(plan.errors.join(" ")).toContain("읽기 전용");
+});
+
+test("planPaste: 값이 그대로인 셀은 저장 대상이 아니다", () => {
+  const rows = pair();
+  const plan = planPaste(rows, NAME_COLUMNS, { r: 0, c: 0 }, [["Alpha", " 알파 "]]);
+  expect(plan.updates).toEqual([]);
+  expect(plan.cells).toBe(0);
+});
+
+test("planPaste: 잘못된 값 한 칸이 나머지 칸까지 막지는 않는다", () => {
+  const rows = pair();
+  const columns = [columnByKey("nameEn"), columnByKey("status")];
+  const plan = planPaste(rows, columns, { r: 0, c: 0 }, [["A", "존재하지않음"]]);
+  expect(plan.updates).toEqual([{ rowId: "a", patch: { nameEn: "A" } }]);
+  expect(plan.errors).toHaveLength(1);
+  expect(plan.errors[0]).toContain("존재하지않음");
+});
+
+test("planPaste: 표준명을 둘 다 비우는 행은 통째로 빠진다", () => {
+  const rows = [row({ id: "a", nameEn: "Alpha", nameKo: null })];
+  const plan = planPaste(rows, NAME_COLUMNS, { r: 0, c: 0 }, [[""]]);
+  expect(plan.updates).toEqual([]);
+  expect(plan.errors.join(" ")).toContain("둘 다 비울 수는 없습니다");
+});
+
+test("planFill: 첫 줄 값을 아래로만 복사한다(원본 줄은 건드리지 않는다)", () => {
+  const rows = pair();
+  const plan = planFill(rows, NAME_COLUMNS, { r0: 0, r1: 1, c0: 0, c1: 0 });
+  expect(plan.updates).toEqual([{ rowId: "b", patch: { nameEn: "Alpha" } }]);
+});
+
+test("planFill: 한 줄만 선택했으면 아무것도 하지 않는다", () => {
+  const plan = planFill(pair(), NAME_COLUMNS, { r0: 0, r1: 0, c0: 0, c1: 1 });
+  expect(plan.updates).toEqual([]);
+});
+
+test("planClear: 표준명은 null로 비우고 종류·상태는 손대지 않는다", () => {
+  const rows = [row({ id: "a", nameEn: "Alpha", nameKo: "알파" })];
+  const columns = [columnByKey("nameEn"), columnByKey("status")];
+  const plan = planClear(rows, columns, { r0: 0, r1: 0, c0: 0, c1: 1 });
+  expect(plan.updates).toEqual([{ rowId: "a", patch: { nameEn: null } }]);
+  expect(plan.errors.join(" ")).toContain("비울 수 없어");
+});
+
+test("planCell: 셀 하나도 붙여넣기와 같은 계획 모양을 낸다", () => {
+  const target = row({ id: "a" });
+  const plan = planCell(target, columnByKey("status"), "approved");
+  expect(plan).toEqual({ updates: [{ rowId: "a", patch: { status: "approved" } }], errors: [], cells: 1 });
+});
+
+test("inversePatch: 건드린 열만, 지금 값으로 되돌린다", () => {
+  const target = row({ nameEn: "Alpha", status: "draft", domain: ["ISP"] });
+  expect(inversePatch(target, { status: "approved" })).toEqual({ status: "draft" });
+  expect(inversePatch(target, { nameEn: null, status: "approved" })).toEqual({
+    nameEn: "Alpha",
+    status: "draft",
+  });
+});
+
+test("inversePatch: domain은 복사본이라 원본이 바뀌어도 되돌릴 값이 남는다", () => {
+  const target = row({ domain: ["ISP"] });
+  const back = inversePatch(target, { domain: ["PM"] });
+  target.domain.push("RF");
+  expect(back.domain).toEqual(["ISP"]);
+});
+
+test("clampColumnWidth: 열이 사라지거나 화면 밖으로 나가지 않는다", () => {
+  expect(clampColumnWidth(0)).toBe(COLUMN_MIN_WIDTH);
+  expect(clampColumnWidth(99999)).toBe(COLUMN_MAX_WIDTH);
+  expect(clampColumnWidth(180.6)).toBe(181);
+});
+
+test("isDensity: 저장소에서 읽은 아무 값이나 통과시키지 않는다", () => {
+  expect(isDensity("compact")).toBe(true);
+  expect(isDensity("huge")).toBe(false);
+  expect(isDensity(null)).toBe(false);
+});
+
+test("rowLabel: 영문 → 국문 → 슬러그 순으로 떨어진다", () => {
+  expect(rowLabel(row({ nameEn: "Alpha", nameKo: "알파" }))).toBe("Alpha");
+  expect(rowLabel(row({ nameEn: null, nameKo: "알파" }))).toBe("알파");
+  expect(rowLabel(row({ nameEn: null, nameKo: null, slug: "alpha" }))).toBe("alpha");
 });

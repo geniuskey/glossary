@@ -134,6 +134,10 @@ export default async function TermsPage({
         rowOffset={(parsed.page - 1) * PAGE_SIZE}
         sortHrefs={sortHrefs}
         sortState={{ key: parsed.sort ?? "updatedAt", dir: parsed.dir ?? "desc" }}
+        query={parsed.q}
+        // 도메인 후보는 이 페이지의 50줄이 아니라 사전 전체에서 뽑는다 — 표에서
+        // 도메인을 새로 칠 때 이미 쓰던 값이 후보에 없으면 오타가 새 도메인이 된다.
+        knownDomains={facets.domains.map((d) => d.value)}
       />
 
       {/* R93: 51번째 용어부터는 이 링크 없이는 UI로 영원히 도달 불가능하다.

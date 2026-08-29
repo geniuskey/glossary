@@ -197,3 +197,273 @@ export function toCsv(rows: readonly TermRow[], columns: readonly GridColumn[]):
     .map((line) => line.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(","))
     .join("\r\n");
 }
+
+// --- 표시 밀도 / 열 너비 ---------------------------------------------------
+
+export const DENSITIES = ["compact", "normal", "roomy"] as const;
+export type Density = (typeof DENSITIES)[number];
+
+// F6/P1: 조회표는 Record<유니온, T>로 두고 ?? 기본값을 두지 않는다. 밀도가
+// 하나 늘었는데 여기를 빠뜨리면 화면이 아니라 tsc에서 먼저 걸려야 한다.
+export const DENSITY_LABEL: Record<Density, string> = {
+  compact: "촘촘",
+  normal: "보통",
+  roomy: "여유",
+};
+export const DENSITY_ROW_PX: Record<Density, number> = { compact: 26, normal: 32, roomy: 44 };
+
+export function isDensity(value: unknown): value is Density {
+  return DENSITIES.some((d) => d === value);
+}
+
+export const COLUMN_MIN_WIDTH = 72;
+export const COLUMN_MAX_WIDTH = 720;
+
+/** 열을 0px까지 줄여 사라지게 하거나 화면 밖으로 밀어내지 못하게 막는다. */
+export function clampColumnWidth(px: number): number {
+  return Math.max(COLUMN_MIN_WIDTH, Math.min(COLUMN_MAX_WIDTH, Math.round(px)));
+}
+
+/** 오류 문구에서 "어느 줄인지"를 가리키는 이름. 표준명이 없으면 슬러그로 떨어진다. */
+export function rowLabel(row: TermRow): string {
+  return row.nameEn ?? row.nameKo ?? row.slug;
+}
+
+// --- 선택 영역 -------------------------------------------------------------
+
+/** 화면에 보이는 좌표다(숨긴 열을 걸러낸 뒤의 인덱스). */
+export interface CellRef {
+  r: number;
+  c: number;
+}
+
+export interface CellRange {
+  r0: number;
+  r1: number;
+  c0: number;
+  c1: number;
+}
+
+/** 두 좌표로 만든 직사각형. 어느 쪽을 먼저 찍었든 같은 범위가 나온다. */
+export function normalizeRange(a: CellRef, b: CellRef): CellRange {
+  return {
+    r0: Math.min(a.r, b.r),
+    r1: Math.max(a.r, b.r),
+    c0: Math.min(a.c, b.c),
+    c1: Math.max(a.c, b.c),
+  };
+}
+
+export function rangeCells(range: CellRange): number {
+  return (range.r1 - range.r0 + 1) * (range.c1 - range.c0 + 1);
+}
+
+export function inRange(range: CellRange, r: number, c: number): boolean {
+  return r >= range.r0 && r <= range.r1 && c >= range.c0 && c <= range.c1;
+}
+
+/**
+ * 엑셀/시트에서 복사한 텍스트를 행×열 격자로 되돌린다. 클립보드의 줄바꿈은
+ * 운영체제마다 \r\n, \n, \r로 제각각이고, 마지막에 빈 줄이 하나 더 붙어 오는
+ * 경우가 많다 — 그대로 두면 표 맨 끝에 빈 행을 덮어쓰게 된다.
+ */
+export function parseClipboardMatrix(text: string): string[][] {
+  const body = text.replace(/\r\n?/g, "\n").replace(/\n+$/, "");
+  if (body === "") return [];
+  return body.split("\n").map((line) => line.split("\t"));
+}
+
+/** 선택한 직사각형만 클립보드용 TSV로 만든다(머리글 없이 값만). */
+export function rangeToTsv(
+  rows: readonly TermRow[],
+  columns: readonly GridColumn[],
+  range: CellRange,
+): string {
+  const lines: string[] = [];
+  for (let r = range.r0; r <= range.r1; r += 1) {
+    const row = rows[r];
+    if (!row) continue;
+    const cells: string[] = [];
+    for (let c = range.c0; c <= range.c1; c += 1) {
+      const column = columns[c];
+      if (!column) continue;
+      cells.push(cellText(row, column.key).replace(/[\t\r\n]+/g, " "));
+    }
+    lines.push(cells.join("\t"));
+  }
+  return lines.join("\n");
+}
+
+// --- 여러 셀을 한 번에 바꾸는 계획 -----------------------------------------
+
+export interface RowPatch {
+  rowId: string;
+  patch: CellPatch;
+}
+
+/**
+ * 붙여넣기/채우기/비우기의 결과. 요청을 보내기 전에 "무엇이 바뀌고 무엇이
+ * 안 바뀌는지"를 먼저 확정한다 — 한 줄씩 보내면서 중간에 실패하면 표의 절반만
+ * 바뀐 상태가 남고, 되돌릴 기준도 사라진다.
+ *
+ * 한 행의 여러 열을 고쳐도 updates에는 그 행이 한 번만 들어간다. 행마다 PATCH가
+ * 한 번이어야 리비전이 한 칸만 올라가고, 같이 쓰는 사람의 화면에도 "한 번 고침"
+ * 으로 보인다.
+ */
+export interface WritePlan {
+  updates: RowPatch[];
+  /** 반영하지 못한 것에 대한 사람이 읽는 사유. */
+  errors: string[];
+  /** 실제로 값이 바뀌는 셀 수. 0이면 요청을 보내지 않는다. */
+  cells: number;
+}
+
+interface PlanEntry {
+  row: TermRow;
+  column: GridColumn;
+  raw: string;
+}
+
+function buildPlan(entries: readonly PlanEntry[]): WritePlan {
+  const byRow = new Map<string, { row: TermRow; patch: CellPatch }>();
+  const errors: string[] = [];
+  let readonlySkipped = 0;
+
+  for (const { row, column, raw } of entries) {
+    if (column.kind === "readonly") {
+      readonlySkipped += 1;
+      continue;
+    }
+    // 값이 그대로면 저장하지 않는다 — 안 그러면 표를 훑고 지나가기만 해도
+    // 리비전 기록이 의미 없는 줄로 채워진다.
+    if (cellText(row, column.key) === raw.trim()) continue;
+
+    const parsed = patchForCell(column.key, raw);
+    if ("error" in parsed) {
+      errors.push(`${rowLabel(row)} · ${column.label}: ${parsed.error}`);
+      continue;
+    }
+    const prev = byRow.get(row.id);
+    byRow.set(row.id, { row, patch: { ...(prev?.patch ?? {}), ...parsed.patch } });
+  }
+
+  const updates: RowPatch[] = [];
+  let cells = 0;
+  for (const { row, patch } of byRow.values()) {
+    if (wouldClearBothNames(row, patch)) {
+      errors.push(`${rowLabel(row)}: 영문·국문 표준명을 둘 다 비울 수는 없습니다.`);
+      continue;
+    }
+    updates.push({ rowId: row.id, patch });
+    cells += Object.keys(patch).length;
+  }
+
+  if (readonlySkipped > 0) errors.push(`읽기 전용 열 ${readonlySkipped}칸은 건너뛰었습니다.`);
+  return { updates, errors, cells };
+}
+
+/**
+ * 클립보드 격자를 anchor 셀을 왼쪽 위 모서리로 삼아 붙여넣는다. 표 밖으로
+ * 넘치는 부분은 조용히 버리는 대신 몇 줄을 버렸는지 알려준다 — 엑셀에서 50줄을
+ * 복사해 왔는데 40줄만 들어갔다는 걸 모르면 그대로 사실이 아닌 사전이 된다.
+ */
+export function planPaste(
+  rows: readonly TermRow[],
+  columns: readonly GridColumn[],
+  anchor: CellRef,
+  matrix: readonly string[][],
+): WritePlan {
+  const entries: PlanEntry[] = [];
+  let clippedRows = 0;
+
+  for (let i = 0; i < matrix.length; i += 1) {
+    const line = matrix[i];
+    if (!line) continue;
+    const row = rows[anchor.r + i];
+    if (!row) {
+      clippedRows += 1;
+      continue;
+    }
+    for (let j = 0; j < line.length; j += 1) {
+      const column = columns[anchor.c + j];
+      const raw = line[j];
+      if (!column || raw === undefined) continue;
+      entries.push({ row, column, raw });
+    }
+  }
+
+  const plan = buildPlan(entries);
+  if (clippedRows > 0) {
+    plan.errors.push(`표에 남은 줄이 모자라 마지막 ${clippedRows}줄은 붙여넣지 않았습니다.`);
+  }
+  return plan;
+}
+
+/** 선택 영역의 첫 줄 값을 아래로 복사한다(엑셀의 Ctrl+D). */
+export function planFill(
+  rows: readonly TermRow[],
+  columns: readonly GridColumn[],
+  range: CellRange,
+): WritePlan {
+  const source = rows[range.r0];
+  if (!source) return { updates: [], errors: [], cells: 0 };
+
+  const entries: PlanEntry[] = [];
+  for (let r = range.r0 + 1; r <= range.r1; r += 1) {
+    const row = rows[r];
+    if (!row) continue;
+    for (let c = range.c0; c <= range.c1; c += 1) {
+      const column = columns[c];
+      if (!column) continue;
+      entries.push({ row, column, raw: cellText(source, column.key) });
+    }
+  }
+  return buildPlan(entries);
+}
+
+/** 선택 영역을 비운다. 종류·상태는 빈 값이 존재하지 않으므로 손대지 않는다. */
+export function planClear(
+  rows: readonly TermRow[],
+  columns: readonly GridColumn[],
+  range: CellRange,
+): WritePlan {
+  const entries: PlanEntry[] = [];
+  let enumSkipped = 0;
+
+  for (let r = range.r0; r <= range.r1; r += 1) {
+    const row = rows[r];
+    if (!row) continue;
+    for (let c = range.c0; c <= range.c1; c += 1) {
+      const column = columns[c];
+      if (!column) continue;
+      if (column.kind === "enum") {
+        enumSkipped += 1;
+        continue;
+      }
+      entries.push({ row, column, raw: "" });
+    }
+  }
+
+  const plan = buildPlan(entries);
+  if (enumSkipped > 0) plan.errors.push("종류·상태는 비울 수 없어 그대로 두었습니다.");
+  return plan;
+}
+
+/** 한 셀 편집도 같은 경로를 타게 한다 — 되돌리기와 저장 로직이 하나로 유지된다. */
+export function planCell(row: TermRow, column: GridColumn, raw: string): WritePlan {
+  return buildPlan([{ row, column, raw }]);
+}
+
+/**
+ * 되돌리기용 역패치. patch가 건드리는 열만, 지금 값으로 되돌린다.
+ * domain은 배열이라 반드시 복사한다 — 현재 행의 배열을 그대로 참조해 두면
+ * 낙관적 갱신이 그 배열을 바꾸는 순간 "되돌릴 값"도 같이 바뀌어 버린다.
+ */
+export function inversePatch(row: TermRow, patch: CellPatch): CellPatch {
+  const out: CellPatch = {};
+  for (const key of Object.keys(patch) as (keyof CellPatch)[]) {
+    if (key === "domain") out.domain = [...row.domain];
+    else Object.assign(out, { [key]: row[key] });
+  }
+  return out;
+}
