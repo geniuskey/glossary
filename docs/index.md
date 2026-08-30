@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: Grossary
-  text: 센서 개발용 용어집 관리 플랫폼
-  tagline: 엑셀과 컨플루언스에 흩어진 용어를 단일 사전으로 모으고, 도구가 API 한 번으로 문서를 검증할 수 있게 만든다.
+  text: 조직 특화형 용어집 관리 플랫폼
+  tagline: 한국어와 영어로 쓰이는 팀의 용어를 단일 사전으로 모으고, 도구가 API 한 번으로 문서를 검증할 수 있게 만든다.
   actions:
     - theme: brand
       text: 시작하기

@@ -17,6 +17,7 @@ export type ImportField =
   | "fullNameKo"
   | "termType"
   | "domain"
+  | "category"
   | "status"
   | "definitionMd"
   | "aliases";
@@ -111,11 +112,19 @@ export const IMPORT_COLUMNS: readonly ImportColumn[] = [
     width: 16,
   },
   {
+    field: "category",
+    header: "카테고리",
+    otherHeaders: ["category", "분류"],
+    requirement: "optional",
+    hint: "도메인 안의 한 단계 좁은 분류. 예: 노출 제어",
+    width: 18,
+  },
+  {
     field: "status",
     header: "상태",
     otherHeaders: ["status"],
     requirement: "optional",
-    hint: "정해진 값만 인정합니다. 비어 있거나 모르는 값이면 '사용'이 됩니다.",
+    hint: "정해진 값만 인정합니다. 비어 있거나 모르는 값이면 '초안'이 됩니다.",
     width: 12,
   },
   {
@@ -157,6 +166,7 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     fullNameKo: "자동 노출 조절",
     termType: "abbreviation",
     domain: "ISP, HW",
+    category: "노출 제어",
     status: "active",
     definitionMd: "장면 밝기에 맞춰 노출을 자동으로 맞추는 기능.",
     aliases: "오토익스포저, 자동노출제어",
@@ -168,6 +178,7 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     fullNameKo: "",
     termType: "term",
     domain: "ISP",
+    category: "신호 처리",
     status: "active",
     definitionMd: "센서가 받은 신호를 증폭하는 배율.",
     aliases: "이득",
@@ -179,6 +190,7 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     fullNameKo: "노바 프로젝트",
     termType: "project",
     domain: "PM",
+    category: "프로젝트",
     status: "active",
     definitionMd: "차기 카메라 모듈 과제.",
     aliases: "",
@@ -190,6 +202,7 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     fullNameKo: "",
     termType: "term",
     domain: "",
+    category: "포용적 표현",
     status: "forbidden",
     definitionMd: "쓰지 않습니다. 대신 '차단 목록'을 씁니다.",
     aliases: "",

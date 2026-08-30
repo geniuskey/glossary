@@ -6,6 +6,7 @@ import { cx } from "@/lib/ui/format";
 // 통과시켜 화면만 어긋난다. 라벨은 enums.ts의 TERM_STATUS_LABEL 하나만 쓴다
 // (여기 두 번째 사본이 있으면 그게 곧 드리프트의 출처가 된다).
 export const STATUS_TONE: Record<TermStatusLiteral, string> = {
+  draft: "bg-brand-soft text-brand",
   active: "bg-ok-soft text-ok",
   deprecated: "bg-warn-soft text-warn",
   forbidden: "bg-danger-soft text-danger",
@@ -30,4 +31,14 @@ export function DomainBadges({ domain }: { domain: string[] }) {
       ))}
     </span>
   );
+}
+
+export function CategoryBadge({ category }: { category: string | null }) {
+  if (!category) return null;
+  return <span className="chip border-brand/25 bg-brand-soft/60 text-brand">분류 · {category}</span>;
+}
+
+export function OwnerBadge({ ownerName, mine = false }: { ownerName: string | null; mine?: boolean }) {
+  if (!ownerName) return <span className="chip text-ink-3">담당자 미지정</span>;
+  return <span className={cx("chip", mine && "chip-on")}>{mine ? "내 담당" : `담당 · ${ownerName}`}</span>;
 }

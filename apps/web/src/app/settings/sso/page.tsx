@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { SsoSettingsForm } from "./sso-settings-form";
@@ -13,8 +14,11 @@ export default async function SsoSettingsPage() {
   if (user.role !== "admin") redirect("/");
 
   return (
-    <AppShell user={user} current="sso">
+    <AppShell user={user} current="settings">
       <header className="mb-7 border-b border-line pb-5">
+        <Link href="/settings" className="mb-3 inline-flex text-xs font-medium text-ink-2 hover:text-ink">
+          ← 설정으로 돌아가기
+        </Link>
         <h1 className="text-xl font-semibold tracking-tight">SSO 연결</h1>
         <p className="mt-1.5 max-w-xl text-sm text-ink-2">
           회사 계정(OpenID Connect)으로 로그인하게 만듭니다. IdP가 보내는 값의 이름은 회사마다

@@ -29,15 +29,22 @@ export function SignupForm() {
     }
 
     setPending(true);
-    const res = await fetch("/api/v1/auth/register", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        email: form.get("email"),
-        password,
-        name: form.get("name") || undefined,
-      }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/v1/auth/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: form.get("email"),
+          password,
+          name: form.get("name") || undefined,
+        }),
+      });
+    } catch {
+      setPending(false);
+      setError("네트워크 오류로 가입하지 못했습니다.");
+      return;
+    }
 
     if (res.ok) {
       router.push("/");
@@ -60,8 +67,10 @@ export function SignupForm() {
           name="email"
           type="email"
           required
+          maxLength={254}
           autoComplete="email"
-          placeholder="name@example.com"
+          spellCheck={false}
+          placeholder="name@example.com…"
           className="field"
         />
       </div>
@@ -79,8 +88,9 @@ export function SignupForm() {
           id="signup-name"
           name="name"
           type="text"
+          maxLength={100}
           autoComplete="name"
-          placeholder="표시할 이름"
+          placeholder="예: 홍길동…"
           className="field"
         />
       </div>
@@ -98,6 +108,7 @@ export function SignupForm() {
           type="password"
           required
           minLength={8}
+          maxLength={1024}
           autoComplete="new-password"
           className="field"
         />
@@ -113,6 +124,7 @@ export function SignupForm() {
           type="password"
           required
           minLength={8}
+          maxLength={1024}
           autoComplete="new-password"
           className="field"
         />
@@ -125,7 +137,7 @@ export function SignupForm() {
       )}
 
       <button type="submit" disabled={pending} className="btn-primary w-full">
-        {pending ? "만드는 중..." : "계정 만들기"}
+        {pending ? "만드는 중…" : "계정 만들기"}
       </button>
     </form>
   );

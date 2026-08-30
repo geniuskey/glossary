@@ -42,7 +42,7 @@ export function decodeFlowState(raw: string | undefined | null): FlowState | nul
     if (!parsed || typeof parsed !== "object") return null;
     const { state, nonce, verifier } = parsed as Record<string, unknown>;
     if (typeof state !== "string" || typeof nonce !== "string" || typeof verifier !== "string") return null;
-    if (!state || !verifier) return null;
+    if (!state || !nonce || !verifier) return null;
     return { state, nonce, verifier };
   } catch {
     return null;

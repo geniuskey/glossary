@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import { TERM_TYPES } from "../src/lib/terms/enums.js";
 import {
+  activeCellScrollDelta,
   applyPatch,
   cellText,
   clampColumnWidth,
@@ -49,6 +50,9 @@ function row(overrides: Partial<TermRow> = {}): TermRow {
     fullNameEn: null,
     fullNameKo: null,
     domain: ["ISP"],
+    category: null,
+    ownerId: null,
+    ownerName: null,
     status: "active",
     definitionMd: null,
     bodyMd: null,
@@ -58,6 +62,38 @@ function row(overrides: Partial<TermRow> = {}): TermRow {
     ...overrides,
   };
 }
+
+test("activeCellScrollDelta: 고정 머리글과 열 뒤에 가린 셀만 보이는 영역으로 옮긴다", () => {
+  const visible = { top: 34, bottom: 300, left: 200, right: 600 };
+
+  expect(
+    activeCellScrollDelta({ top: 20, bottom: 52, left: 150, right: 280 }, visible, { gap: 4 }),
+  ).toEqual({ left: -54, top: -18 });
+  expect(
+    activeCellScrollDelta({ top: 280, bottom: 312, left: 520, right: 640 }, visible, { gap: 4 }),
+  ).toEqual({ left: 44, top: 16 });
+});
+
+test("카테고리 셀은 공백을 null로 바꾸고 담당자 열은 읽기 전용이다", () => {
+  expect(patchForCell("category", "  노출 제어 ")).toEqual({ patch: { category: "노출 제어" } });
+  expect(patchForCell("category", "   ")).toEqual({ patch: { category: null } });
+  expect(patchForCell("ownerName", "다른 사람")).toEqual({ error: "이 열은 수정할 수 없습니다." });
+});
+
+test("activeCellScrollDelta: 이미 보이는 셀과 고정 셀의 가로 위치는 건드리지 않는다", () => {
+  const visible = { top: 34, bottom: 300, left: 200, right: 600 };
+
+  expect(
+    activeCellScrollDelta({ top: 80, bottom: 112, left: 240, right: 360 }, visible, { gap: 4 }),
+  ).toEqual({ left: 0, top: 0 });
+  expect(
+    activeCellScrollDelta(
+      { top: 80, bottom: 112, left: 70, right: 200 },
+      visible,
+      { horizontal: false, gap: 4 },
+    ),
+  ).toEqual({ left: 0, top: 0 });
+});
 
 test("patchForCell: 표준명/풀네임을 비우면 null(지운다)이 된다", () => {
   // R117: 빈 문자열이 아니라 null이어야 한다 — 빈 문자열은 스키마에서 400이고,
@@ -143,15 +179,16 @@ test("기본 숨김 열은 실제로 hiddenByDefault가 붙은 열들이다", ()
   expect(defaultHiddenColumns().length).toBeLessThan(GRID_COLUMNS.length);
 });
 
-test("상세 폼에서 고칠 수 있는 필드는 표에도 전부 열이 있다", () => {
+test("ID 선택이 필요한 담당자를 제외한 상세 폼 필드는 표에서도 수정할 수 있다", () => {
   // "시트에서도 모두 수정 가능"의 기준을 term-form.tsx가 편집하는 필드 집합에
-  // 맞춰 고정한다. 스키마에 필드가 하나 늘었는데 표만 빠지면 여기서 걸린다.
+  // 맞춰 고정한다. 담당자는 이름을 ID로 바꿔야 하므로 상세 폼의 사용자 선택기를 쓴다.
   const editable = GRID_COLUMNS.filter((c) => c.kind !== "readonly").map((c) => c.key);
   expect([...editable].sort()).toEqual(
     [
       "bodyMd",
       "definitionMd",
       "domain",
+      "category",
       "fullNameEn",
       "fullNameKo",
       "nameEn",
@@ -162,11 +199,11 @@ test("상세 폼에서 고칠 수 있는 필드는 표에도 전부 열이 있�
   );
 });
 
-test("slug·최근 수정만 읽기 전용이다", () => {
+test("담당자 표시·slug·최근 수정은 읽기 전용이다", () => {
   // slug는 termPatchSchema에 아예 없고(주소가 곧 신분이라 상세 폼도 안 건드린다),
   // updatedAt은 저장할 때 서버가 찍는 값이다.
   const readonly = GRID_COLUMNS.filter((c) => c.kind === "readonly").map((c) => c.key);
-  expect(readonly).toEqual(["slug", "updatedAt"]);
+  expect(readonly).toEqual(["ownerName", "slug", "updatedAt"]);
   for (const key of readonly) {
     expect(patchForCell(key, "아무 값")).toHaveProperty("error");
   }

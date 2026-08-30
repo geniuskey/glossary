@@ -13,6 +13,7 @@ import { SESSION_COOKIE } from "../src/lib/auth/session.js";
 
 const db = createDb(process.env.DATABASE_URL!);
 const BASE = "https://glossary.example.com";
+const ISSUER = "https://idp.example.com";
 const TOKEN_ENDPOINT = "https://idp.example.com/token";
 const USERINFO_ENDPOINT = "https://idp.example.com/userinfo";
 
@@ -34,6 +35,7 @@ beforeEach(async () => {
     .set({
       enabled: true,
       baseUrl: BASE,
+      issuer: ISSUER,
       authorizationEndpoint: "https://idp.example.com/authorize",
       tokenEndpoint: TOKEN_ENDPOINT,
       userinfoEndpoint: "",
@@ -67,7 +69,13 @@ function idToken(claims: Record<string, unknown>) {
 function stubIdp(claims: Record<string, unknown>, userinfo?: Record<string, unknown>) {
   vi.stubGlobal("fetch", async (url: string) => {
     if (String(url) === TOKEN_ENDPOINT) {
-      return new Response(JSON.stringify({ id_token: idToken(claims), access_token: "at" }), {
+      const completeClaims = {
+        iss: ISSUER,
+        aud: "grossary",
+        exp: Math.floor(Date.now() / 1000) + 300,
+        ...claims,
+      };
+      return new Response(JSON.stringify({ id_token: idToken(completeClaims), access_token: "at" }), {
         headers: { "content-type": "application/json" },
       });
     }
@@ -151,6 +159,15 @@ test("ID 토큰의 nonce가 다르면 로그인시키지 않는다", async () =>
 
   const res = await callbackGet(callbackRequest({ code: "c", state: FLOW.state }));
 
+  expect(location(res)).toBe(`${BASE}/login?sso=state`);
+});
+
+test("ID 토큰에 nonce가 없거나 audience가 다르면 로그인시키지 않는다", async () => {
+  stubIdp({ sub: "sub-invalid-token", email: "invalid-token@example.com", aud: "other-client" });
+
+  const res = await callbackGet(callbackRequest({ code: "c", state: FLOW.state }));
+
+  // nonce 검증이 먼저이며, 없는 nonce는 다른 nonce와 마찬가지로 흐름 오류다.
   expect(location(res)).toBe(`${BASE}/login?sso=state`);
 });
 

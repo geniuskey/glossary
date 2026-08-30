@@ -13,6 +13,8 @@ import { termFacets, type TermFacets } from "@/lib/terms/query";
 import { searchTerms, type SearchHit } from "@/lib/terms/search";
 import { termHref } from "@/lib/terms/search-ui";
 import { displayName, spineHue } from "@/lib/ui/format";
+import { getHomeContent } from "@/lib/workspace/home-content";
+import { DEFAULT_HOME_CONTENT, type HomeContent } from "@/lib/workspace/home-content-values";
 
 export const dynamic = "force-dynamic";
 const RESULT_LIMIT = 20;
@@ -25,17 +27,24 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
   const raw = await searchParams;
   const rawQ = Array.isArray(raw.q) ? raw.q[0] : raw.q;
   const q = (rawQ ?? "").trim();
-  const [hits, facets] = await Promise.all([
+  const [hits, facets, homeContent] = await Promise.all([
     q ? searchTerms(q, RESULT_LIMIT) : Promise.resolve<SearchHit[]>([]),
     termFacets(),
+    q ? Promise.resolve(DEFAULT_HOME_CONTENT) : getHomeContent(),
   ]);
 
   return (
     <div className="relative min-h-screen overflow-hidden">
+      <a
+        href="#main-content"
+        className="sr-only fixed left-3 top-3 z-50 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-brand-on focus:not-sr-only"
+      >
+        본문으로 건너뛰기
+      </a>
       <HomeBackdrop />
       <HomeHeader userLabel={user.name || user.email} />
       {q ? (
-        <main className="relative z-10 mx-auto w-full max-w-3xl px-5 pb-20 pt-10 sm:px-8 sm:pt-16">
+        <main id="main-content" tabIndex={-1} className="relative z-10 mx-auto w-full max-w-3xl px-5 pb-20 pt-10 sm:px-8 sm:pt-16">
           <div className="animate-fade-up">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">용어 검색</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-ink sm:text-4xl">
@@ -48,7 +57,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
           </div>
           <Results q={q} hits={hits} />
         </main>
-      ) : <HomeLanding facets={facets} />}
+      ) : <HomeLanding facets={facets} homeContent={homeContent} />}
     </div>
   );
 }
@@ -66,8 +75,9 @@ function HomeHeader({ userLabel }: { userLabel: string }) {
       <nav className="flex items-center gap-1" aria-label="주요 메뉴">
         <span className="mr-2 hidden max-w-40 truncate text-xs text-ink-3 lg:inline">{userLabel}</span>
         <Link href="/sheet" className="btn-quiet hidden sm:inline-flex">용어 둘러보기</Link>
-        <Link href="/import" className="btn-quiet hidden md:inline-flex">가져오기</Link>
-        <Link href="/settings/api-keys" className="btn-quiet hidden lg:inline-flex">설정</Link>
+        <Link href="/contribute" className="btn-quiet hidden md:inline-flex">함께 정리</Link>
+        <Link href="/import" className="btn-quiet hidden lg:inline-flex">가져오기</Link>
+        <Link href="/settings" className="btn-quiet hidden xl:inline-flex">설정</Link>
         <ThemeToggle />
         <LogoutButton />
         <Link href="/new" className="btn-primary ml-1 rounded-full px-4 py-2 shadow-sm">
@@ -78,25 +88,25 @@ function HomeHeader({ userLabel }: { userLabel: string }) {
   );
 }
 
-function HomeLanding({ facets }: { facets: TermFacets }) {
+function HomeLanding({ facets, homeContent }: { facets: TermFacets; homeContent: HomeContent }) {
   const active = facets.statuses.find((status) => status.value === "active")?.count ?? 0;
   const domains = facets.domains.slice(0, 6);
   return (
-    <main className="relative z-10 mx-auto w-full max-w-7xl px-5 pb-16 sm:px-8 sm:pb-24">
+    <main id="main-content" tabIndex={-1} className="relative z-10 mx-auto w-full max-w-7xl px-5 pb-16 sm:px-8 sm:pb-24">
       <section className="flex min-h-[calc(100svh-5rem)] items-center justify-center pb-16">
         <div className="w-full max-w-3xl -translate-y-4 animate-fade-up text-center sm:-translate-y-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">Grossary</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">{homeContent.eyebrow}</p>
           <h1 className="mt-5 text-[clamp(2.35rem,5vw,4rem)] font-semibold leading-[1.12] tracking-[-0.05em] text-ink">
-            우리가 쓰는 말,<br /><span className="home-gradient-text">우리의 기준으로.</span>
+            <HomeTitle title={homeContent.title} />
           </h1>
-          <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-ink-2 sm:text-base">
-            약어, 별칭, 헷갈리는 표현을 검색해 보세요.<br className="hidden sm:block" /> 팀이 함께 정리한 하나의 의미로 연결해 드립니다.
+          <p className="mx-auto mt-5 max-w-xl whitespace-pre-line text-sm leading-7 text-ink-2 sm:text-base">
+            {homeContent.description}
           </p>
           <div className="mx-auto mt-9 max-w-2xl">
             <SearchBox defaultValue="" />
           </div>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm text-ink-2">
-            <Stat value={facets.total} label="개의 개념" /><Stat value={active} label="개의 표준 용어" /><Stat value={facets.domains.length} label="개 분야" />
+            <Stat value={facets.total} label="개의 개념" /><Stat value={active} label="개의 표준 용어" /><Stat value={facets.domains.length} label="개 분야" /><Stat value={facets.needsContribution} label="개 정리 대기" href="/contribute" />
           </div>
         </div>
       </section>
@@ -123,7 +133,10 @@ function HomeLanding({ facets }: { facets: TermFacets }) {
       <section className="mt-8 rounded-[1.75rem] border border-line/80 bg-panel/65 p-6 backdrop-blur sm:p-9">
         <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div><p className="text-xs font-semibold tracking-[0.16em] text-brand">함께 만드는 용어집</p><h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-ink sm:text-3xl">알고 있는 한 단어가, 모두의 기준이 됩니다.</h2></div>
-          <Link href="/new" className="btn-primary self-start rounded-full px-5 py-2.5 md:self-auto">첫 용어 제안하기 <IconArrow /></Link>
+          <div className="flex flex-wrap gap-2 self-start md:self-auto">
+            {facets.needsContribution > 0 && <Link href="/contribute" className="btn-ghost rounded-full px-5 py-2.5">정리 이어가기 <IconArrow /></Link>}
+            <Link href="/new" className="btn-primary rounded-full px-5 py-2.5">첫 용어 제안하기 <IconArrow /></Link>
+          </div>
         </div>
         <div className="mt-8 grid gap-3 md:grid-cols-3">
           <JourneyCard number="01" title="먼저 찾아보고" body="약어, 별칭, 금지 표기까지 한 번에 검색해요." icon={<IconSearch />} />
@@ -135,8 +148,25 @@ function HomeLanding({ facets }: { facets: TermFacets }) {
   );
 }
 
-function Stat({ value, label }: { value: number; label: string }) {
-  return <span className="flex items-baseline gap-1.5"><strong className="text-lg font-bold tracking-tight text-ink">{value.toLocaleString("ko-KR")}</strong><span className="text-xs text-ink-3">{label}</span></span>;
+function HomeTitle({ title }: { title: string }) {
+  const [first, ...rest] = title.split(/\r?\n/);
+  return (
+    <>
+      {first}
+      {rest.map((line, index) => (
+        <span key={`${index}:${line}`} className="home-gradient-text">
+          <br />{line}
+        </span>
+      ))}
+    </>
+  );
+}
+
+function Stat({ value, label, href }: { value: number; label: string; href?: string }) {
+  const content = <><strong className="text-lg font-bold tracking-tight text-ink">{value.toLocaleString("ko-KR")}</strong><span className="text-xs text-ink-3">{label}</span></>;
+  return href
+    ? <Link href={href} className="flex items-baseline gap-1.5 rounded-md hover:text-brand">{content}</Link>
+    : <span className="flex items-baseline gap-1.5">{content}</span>;
 }
 
 function ConceptMap() {

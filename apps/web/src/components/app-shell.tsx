@@ -5,19 +5,19 @@ import { cx } from "@/lib/ui/format";
 import { LogoutButton } from "./logout-button";
 import { ThemeToggle } from "./theme-toggle";
 
-export type NavKey = "search" | "sheet" | "import" | "keys" | "sso";
+export type NavKey = "search" | "contribute" | "sheet" | "graph" | "import" | "settings" | "admin";
 
 const NAV: Array<{ key: NavKey; href: string; label: string; hint: string; icon: ReactNode; adminOnly?: true }> = [
   // R135: 홈은 검색 화면이다. 사이드바 첫 자리를 검색이 가져가는 이유는
   // 이 사전에서 가장 자주 하는 일이 "찾기"이기 때문이다 — 표를 여는 것은
   // 고칠 때뿐이다.
   { key: "search", href: "/", label: "검색", hint: "홈", icon: <IconSearch /> },
+  { key: "contribute", href: "/contribute", label: "함께 정리", hint: "미완성", icon: <IconContribute /> },
   { key: "sheet", href: "/sheet", label: "시트", hint: "표 편집", icon: <IconGrid /> },
+  { key: "graph", href: "/graph", label: "관계도", hint: "맥락 탐색", icon: <IconGraph /> },
   { key: "import", href: "/import", label: "가져오기", hint: "엑셀", icon: <IconImport /> },
-  { key: "keys", href: "/settings/api-keys", label: "API 키", hint: "AI-Lint", icon: <IconKey /> },
-  // R132: SSO 설정은 관리자 전용이다. 편집자에게 보여 봐야 들어가면 /terms로
-  // 되돌려지므로, 링크 자체를 감춰 막힌 문을 두드리게 하지 않는다.
-  { key: "sso", href: "/settings/sso", label: "SSO", hint: "회사 계정", icon: <IconShield />, adminOnly: true },
+  { key: "settings", href: "/settings", label: "설정", hint: "계정 · API", icon: <IconSettings /> },
+  { key: "admin", href: "/admin", label: "관리자", hint: "사용자", icon: <IconAdmin />, adminOnly: true },
 ];
 
 const ROLE_LABEL: Record<string, string> = { admin: "관리자", editor: "편집자" };
@@ -43,6 +43,12 @@ export function AppShell({
 }) {
   return (
     <div className="min-h-screen lg:flex">
+      <a
+        href="#main-content"
+        className="sr-only fixed left-3 top-3 z-50 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-brand-on focus:not-sr-only"
+      >
+        본문으로 건너뛰기
+      </a>
       {/* 좁은 화면: 상단 바. 넓은 화면: 왼쪽 고정 사이드바. 하나의 마크업으로
           둘 다 처리해서 네비게이션 항목이 두 곳에 중복되지 않게 한다. */}
       <aside
@@ -98,6 +104,8 @@ export function AppShell({
       </aside>
 
       <main
+        id="main-content"
+        tabIndex={-1}
         className={cx(
           "min-w-0 flex-1",
           wide
@@ -171,20 +179,41 @@ function IconImport() {
   );
 }
 
-function IconShield() {
+function IconSettings() {
   return (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-      <path d="M8 1.75 13 3.5v4.25c0 3-2.1 5.3-5 6.5-2.9-1.2-5-3.5-5-6.5V3.5z" strokeLinejoin="round" />
-      <path d="M5.75 8.1 7.4 9.75l3-3.25" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="8" cy="8" r="2.25" />
+      <path d="M6.9 1.8h2.2l.45 1.55c.4.16.78.38 1.12.65l1.57-.4 1.1 1.9-1.12 1.17c.03.22.05.44.05.66s-.02.44-.05.66l1.12 1.17-1.1 1.9-1.57-.4c-.34.27-.72.49-1.12.65L9.1 12.85H6.9l-.45-1.54a5 5 0 0 1-1.12-.65l-1.57.4-1.1-1.9 1.12-1.17a4.7 4.7 0 0 1 0-1.32L2.66 5.5l1.1-1.9 1.57.4c.34-.27.72-.49 1.12-.65z" strokeLinejoin="round" />
     </svg>
   );
 }
 
-function IconKey() {
+function IconGraph() {
   return (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-      <circle cx="5.25" cy="10.75" r="3" />
-      <path d="m7.5 8.5 6-6M11 5l1.75 1.75M9.5 6.5l1.75 1.75" strokeLinecap="round" />
+      <circle cx="3" cy="8" r="1.6" />
+      <circle cx="11.5" cy="3.5" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <path d="m4.4 7.2 5.7-3M4.5 8.7l6 2.5M11.7 5.1l.2 5.3" />
+    </svg>
+  );
+}
+
+function IconContribute() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <path d="M2.25 4.25h7.5M2.25 8h5.5M2.25 11.75h4" strokeLinecap="round" />
+      <path d="m10.2 10.7 3.45-3.45 1.1 1.1-3.45 3.45-1.65.55z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconAdmin() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <circle cx="8" cy="5" r="2.5" />
+      <path d="M3.5 13.5c.25-3 1.75-4.5 4.5-4.5s4.25 1.5 4.5 4.5" strokeLinecap="round" />
+      <path d="m12 2.25.55.3.6-.15.35.6-.4.47.05.62-.65.16-.45-.45-.6.15-.35-.6.4-.47-.05-.62.65-.16.45.45Z" strokeLinejoin="round" />
     </svg>
   );
 }

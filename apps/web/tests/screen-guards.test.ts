@@ -16,6 +16,17 @@ const srcDir = path.join(testDir, "..", "src");
 const appDir = path.join(srcDir, "app");
 const componentsDir = path.join(srcDir, "components");
 
+test("테마 초기화 스크립트는 클라이언트 재렌더링에서 실행되지 않는다", () => {
+  const layout = readFileSync(path.join(appDir, "layout.tsx"), "utf8");
+  const helper = readFileSync(path.join(componentsDir, "inline-script.tsx"), "utf8");
+
+  expect(layout).toContain("<InlineScript html={THEME_SCRIPT} />");
+  expect(layout).not.toMatch(/<script\s+dangerouslySetInnerHTML/);
+  expect(helper.startsWith('"use client";')).toBe(true);
+  expect(helper).toContain('typeof window === "undefined" ? "text/javascript" : "text/plain"');
+  expect(helper).toContain("suppressHydrationWarning");
+});
+
 function walk(dir: string, filter: (name: string) => boolean, acc: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
@@ -81,6 +92,9 @@ const PROTO_B_ALLOWLIST = new Set<string>([
   // R131: 가입 화면 — 로그인하지 않은 사람을 위한 화면이라 인증 게이트를 걸 수 없다.
   // 계정이 하나도 없을 때는 스스로 /setup으로 보낸다.
   path.join("signup", "page.tsx"),
+  // iframe 안에서는 로그인 화면 자체가 frame-ancestors로 막히므로, 새 창 로그인
+  // 안내를 자체 렌더링한다. getCurrentUser로 보호되는 읽기 전용 화면이다.
+  path.join("embed", "page.tsx"),
 ]);
 
 test('PROTO B: 허용목록 밖의 모든 page.tsx는 getCurrentUser(와 redirect("/login")를 모두 포함한다 (R3/R6)', () => {
@@ -93,6 +107,14 @@ test('PROTO B: 허용목록 밖의 모든 page.tsx는 getCurrentUser(와 redirec
     expect(content.includes("getCurrentUser("), `${f}: getCurrentUser( 없음`).toBe(true);
     expect(content.includes('redirect("/login")'), `${f}: redirect("/login") 없음`).toBe(true);
   }
+});
+
+test("관리자 화면은 사용자 목록을 읽기 전에 관리자 역할을 확인한다", () => {
+  const content = stripComments(readFileSync(path.join(appDir, "admin", "page.tsx"), "utf8"));
+  const roleGuard = content.indexOf('if (user.role !== "admin") redirect("/")');
+  const userQuery = content.indexOf("listManagedUsers()");
+  expect(roleGuard).toBeGreaterThan(-1);
+  expect(userQuery).toBeGreaterThan(roleGuard);
 });
 
 // PROTO D: 로그아웃 요청은 반드시 POST다(logout.ts:22의 문자열 검사 —

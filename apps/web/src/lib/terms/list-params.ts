@@ -1,5 +1,6 @@
 import { termStatusEnum, termTypeEnum } from "@grossary/db";
 import { DEFAULT_DIR, DEFAULT_SORT, SORT_DIRS, SORT_KEYS, type SortDir, type SortKey } from "./grid";
+import { DOMAIN_VALUE_MAX, TERM_QUERY_MAX } from "./limits";
 import type { TermStatus, TermType } from "./query";
 
 // R91: `app/api/v1/terms/route.ts`의 parseEnumParam/parsePageParam은 이 모듈과
@@ -17,6 +18,7 @@ export interface ParsedListParams {
   q?: string;
   type?: TermType;
   domain?: string;
+  category?: string;
   status?: TermStatus;
   // 정렬은 필터가 아니라 "보는 방식"이다. 그래도 주소에 실려야 한다 —
   // 표에서 열 머리글을 눌러 정렬한 뒤 새로고침하거나 링크를 공유했을 때
@@ -29,6 +31,10 @@ export interface ParsedListParams {
 function firstValue(raw: string | string[] | undefined): string | undefined {
   const value = Array.isArray(raw) ? raw[0] : raw;
   return value ? value : undefined;
+}
+
+function firstTextValue(raw: string | string[] | undefined, max: number): string | undefined {
+  return firstValue(raw)?.slice(0, max);
 }
 
 // R90: 알 수 없는 값은 undefined로 좁힌다(400을 던지지 않는다). 빈 문자열도
@@ -61,9 +67,10 @@ export function parsePage(raw: string | string[] | undefined): number {
 
 export function parseListParams(raw: RawSearchParams): ParsedListParams {
   return {
-    q: firstValue(raw.q),
+    q: firstTextValue(raw.q, TERM_QUERY_MAX),
     type: narrowEnum(raw.type, termTypeEnum.enumValues),
-    domain: firstValue(raw.domain),
+    domain: firstTextValue(raw.domain, DOMAIN_VALUE_MAX),
+    category: firstTextValue(raw.category, DOMAIN_VALUE_MAX),
     status: narrowEnum(raw.status, termStatusEnum.enumValues),
     sort: narrowEnum(raw.sort, SORT_KEYS),
     dir: narrowEnum(raw.dir, SORT_DIRS),
@@ -91,7 +98,7 @@ export function paginationInfo(page: number, total: number, pageSize: number): P
   };
 }
 
-type FilterName = "q" | "type" | "domain" | "status";
+type FilterName = "q" | "type" | "domain" | "category" | "status";
 type ParamName = FilterName | "sort" | "dir";
 
 // R93/R94: 현재 활성 필터(빈 값이 아닌 것만)를 이름 붙은 목록으로 뽑는다.
@@ -103,13 +110,14 @@ export function activeFilters(params: ParsedListParams): Array<{ name: FilterNam
   if (params.q) out.push({ name: "q", value: params.q });
   if (params.type) out.push({ name: "type", value: params.type });
   if (params.domain) out.push({ name: "domain", value: params.domain });
+  if (params.category) out.push({ name: "category", value: params.category });
   if (params.status) out.push({ name: "status", value: params.status });
   return out;
 }
 
 // R94: 검색 폼의 `q` input은 이미 화면에 보이는 입력창 자신이라, hidden으로
 // 다시 실으면 안 된다(값이 두 번 실려 마지막 것이 이기는 것에 우연히 기대게
-// 된다). type/domain/status만 hidden으로 실어 검색 제출 시 사라지지 않게 한다.
+// 된다). type/domain/category/status만 hidden으로 실어 검색 제출 시 사라지지 않게 한다.
 export function hiddenSearchFields(params: ParsedListParams): Array<{ name: ParamName; value: string }> {
   return activeParams(params).filter((f) => f.name !== "q");
 }

@@ -8,13 +8,17 @@ import {
   SURFACE_KIND_LABEL,
   SURFACE_LANGS,
   TERM_STATUSES,
+  TERM_STATUS_HINT,
   TERM_STATUS_LABEL,
   TERM_TYPES,
   TERM_TYPE_LABEL,
   type SurfaceLangLiteral,
+  type TermStatusLiteral,
 } from "@/lib/terms/enums";
 import { buildTermPayload, type SurfaceDraft, type TermFormState } from "@/lib/terms/form-payload";
 import { interpretResponse, type FormOutcome } from "@/lib/terms/form-response";
+import { TERM_DOMAIN_TEXT_MAX, TERM_MARKDOWN_MAX, TERM_NAME_MAX } from "@/lib/terms/limits";
+import type { AssignableUser } from "@/lib/terms/owners";
 
 export interface TermFormInitial extends TermFormState {
   slug?: string;
@@ -39,7 +43,9 @@ const EMPTY: TermFormState = {
   fullNameEn: "",
   fullNameKo: "",
   domain: "",
-  status: "active",
+  category: "",
+  ownerId: "",
+  status: "draft",
   definitionMd: "",
   bodyMd: "",
   surfaces: [],
@@ -51,7 +57,7 @@ const EMPTY: TermFormState = {
 type ExtractWarnings<T> = T extends { kind: "success"; warnings: infer W } ? W : never;
 type WarningList = ExtractWarnings<FormOutcome>;
 
-export function TermForm({ initial }: { initial?: TermFormInitial }) {
+export function TermForm({ initial, assignees = [] }: { initial?: TermFormInitial; assignees?: AssignableUser[] }) {
   const router = useRouter();
   const editSlug = initial?.slug;
 
@@ -232,7 +238,7 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
             <span className="label">상태</span>
             <select
               value={form.status}
-              onChange={(e) => updateField("status", e.target.value)}
+              onChange={(e) => updateField("status", e.target.value as TermStatusLiteral)}
               disabled={locked}
               className="field"
             >
@@ -242,12 +248,14 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
                 </option>
               ))}
             </select>
+            <span className="mt-1.5 block text-xs leading-5 text-ink-3">{TERM_STATUS_HINT[form.status]}</span>
           </label>
 
           <label className="block">
             <span className="label">영문 표준명</span>
             <input
               value={form.nameEn}
+              maxLength={TERM_NAME_MAX}
               onChange={(e) => updateField("nameEn", e.target.value)}
               disabled={locked}
               className="field"
@@ -258,6 +266,7 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
             <span className="label">국문 표준명</span>
             <input
               value={form.nameKo}
+              maxLength={TERM_NAME_MAX}
               onChange={(e) => updateField("nameKo", e.target.value)}
               disabled={locked}
               className="field"
@@ -268,6 +277,7 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
             <span className="label">영문 풀네임</span>
             <input
               value={form.fullNameEn}
+              maxLength={TERM_NAME_MAX}
               onChange={(e) => updateField("fullNameEn", e.target.value)}
               disabled={locked}
               className="field"
@@ -278,6 +288,7 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
             <span className="label">국문 풀네임</span>
             <input
               value={form.fullNameKo}
+              maxLength={TERM_NAME_MAX}
               onChange={(e) => updateField("fullNameKo", e.target.value)}
               disabled={locked}
               className="field"
@@ -288,11 +299,43 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
             <span className="label">도메인 (쉼표로 구분)</span>
             <input
               value={form.domain}
+              maxLength={TERM_DOMAIN_TEXT_MAX}
               onChange={(e) => updateField("domain", e.target.value)}
               disabled={locked}
-              placeholder="ISP, PM"
+              placeholder="예: ISP, PM…"
               className="field"
             />
+          </label>
+
+          <label className="block">
+            <span className="label">카테고리</span>
+            <input
+              value={form.category}
+              maxLength={TERM_NAME_MAX}
+              onChange={(e) => updateField("category", e.target.value)}
+              disabled={locked}
+              placeholder="예: 공정, 결제, 사용자 인증…"
+              className="field"
+            />
+            <span className="mt-1.5 block text-xs leading-5 text-ink-3">도메인 안에서 용어를 묶는 한 단계 좁은 분류입니다.</span>
+          </label>
+
+          <label className="block">
+            <span className="label">담당자</span>
+            <select
+              value={form.ownerId}
+              onChange={(e) => updateField("ownerId", e.target.value)}
+              disabled={locked}
+              className="field"
+            >
+              <option value="">미지정 · 누구나 정리</option>
+              {assignees.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.label}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1.5 block text-xs leading-5 text-ink-3">완성을 책임질 사람을 정하되, 다른 사람도 계속 보탤 수 있습니다.</span>
           </label>
         </div>
         <p className="mt-2 text-xs text-ink-3">영문 표준명과 국문 표준명 중 최소 하나는 있어야 합니다.</p>
@@ -303,10 +346,11 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
           <span className="label">정의</span>
           <textarea
             value={form.definitionMd}
+            maxLength={TERM_MARKDOWN_MAX}
             onChange={(e) => updateField("definitionMd", e.target.value)}
             disabled={locked}
             rows={3}
-            placeholder="한두 문장으로 이 용어가 무엇인지"
+            placeholder="한두 문장으로 이 용어가 무엇인지…"
             className="field"
           />
         </label>
@@ -319,10 +363,11 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
           <span className="label">본문</span>
           <textarea
             value={form.bodyMd}
+            maxLength={TERM_MARKDOWN_MAX}
             onChange={(e) => updateField("bodyMd", e.target.value)}
             disabled={locked}
             rows={6}
-            placeholder="배경, 사용 예, 쓰면 안 되는 맥락 등"
+            placeholder="배경, 사용 예, 쓰면 안 되는 맥락 등…"
             className="field"
           />
         </label>
@@ -346,9 +391,10 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
             <div key={i} className="flex items-center gap-2">
               <input
                 value={s.text}
+                maxLength={TERM_NAME_MAX}
                 onChange={(e) => updateSurface(i, { text: e.target.value })}
                 disabled={locked}
-                placeholder="표기"
+                placeholder="표기…"
                 className="field flex-1 py-1.5"
               />
               <select
@@ -398,7 +444,7 @@ export function TermForm({ initial }: { initial?: TermFormInitial }) {
           </Link>
         ) : (
           <button type="submit" disabled={saving} className="btn-primary">
-            {saving ? "저장 중..." : "저장"}
+            {saving ? "저장 중…" : "저장"}
           </button>
         )}
         <Link href={editSlug !== undefined ? `/w/${editSlug}` : "/sheet"} className="btn-quiet">

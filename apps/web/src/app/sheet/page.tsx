@@ -35,7 +35,7 @@ const SORT_FALLBACK_DIR: Record<SortKey, SortDir> = {
   status: "asc",
 };
 
-const FILTER_LABEL: Record<string, string> = { q: "검색", type: "종류", domain: "도메인", status: "상태" };
+const FILTER_LABEL: Record<string, string> = { q: "검색", type: "종류", domain: "도메인", category: "카테고리", status: "상태" };
 
 export default async function TermsPage({
   searchParams,
@@ -56,6 +56,7 @@ export default async function TermsPage({
       q: parsed.q,
       termType: parsed.type,
       domain: parsed.domain,
+      category: parsed.category,
       status: parsed.status,
       sort: parsed.sort,
       dir: parsed.dir,
@@ -90,9 +91,16 @@ export default async function TermsPage({
           <p className="text-xs text-ink-3">
             개념 <span className="font-medium text-ink-2">{total}</span>개 · 셀을 눌러 바로 고치면 그대로 저장됩니다
           </p>
-          <Link href="/new" className="btn-primary btn-sm ml-auto">
-            자세히 추가
-          </Link>
+          <span className="ml-auto flex items-center gap-1.5">
+            {facets.needsContribution > 0 && (
+              <Link href="/contribute" className="chip border-warn/30 bg-warn-soft text-warn">
+                정리 필요 {facets.needsContribution}
+              </Link>
+            )}
+            <Link href="/new" className="btn-primary btn-sm">
+              자세히 추가
+            </Link>
+          </span>
         </div>
 
         {/* R94: q는 이 폼 자신의 보이는 입력이라 hidden으로 다시 싣지 않는다.
@@ -102,7 +110,7 @@ export default async function TermsPage({
           <input
             name="q"
             defaultValue={parsed.q ?? ""}
-            placeholder="용어 · 약어 · 별칭 검색"
+            placeholder="용어 · 약어 · 별칭 검색…"
             className="field h-8 w-56 py-0"
           />
           {/* 숫자는 사전 전체 기준이다(termFacets는 현재 필터를 반영하지 않는다) —
@@ -128,6 +136,12 @@ export default async function TermsPage({
             value={parsed.domain}
             placeholder={withCount("도메인 전체", facets.total)}
             options={facets.domains.map((f) => ({ value: f.value, label: withCount(f.value, f.count) }))}
+          />
+          <FilterSelect
+            name="category"
+            value={parsed.category}
+            placeholder={withCount("카테고리 전체", facets.total)}
+            options={facets.categories.map((f) => ({ value: f.value, label: withCount(f.value, f.count) }))}
           />
           {hiddenSearchFields(parsed)
             .filter((f) => f.name === "sort" || f.name === "dir")

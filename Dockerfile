@@ -34,6 +34,9 @@ RUN pnpm turbo run build --filter=@grossary/web
 # ---- 운영 런타임 ----
 FROM base AS runner
 ENV NODE_ENV=production
+LABEL org.opencontainers.image.title="Grossary" \
+      org.opencontainers.image.description="Self-hosted collaborative glossary for organization-specific terminology, optimized for Korean and English." \
+      org.opencontainers.image.source="https://github.com/geniuskey/grossary"
 RUN addgroup -g 1001 -S nodejs && adduser -S -u 1001 -G nodejs nextjs
 
 # standalone은 outputFileTracingRoot(워크스페이스 루트) 기준으로 트리를 만든다.
@@ -53,4 +56,12 @@ CMD ["node", "apps/web/server.js"]
 # drizzle-kit도 tsx도 devDependency라 runner에는 없다. 이 스테이지가 그 둘을 갖는다.
 FROM builder AS migrator
 ENV NODE_ENV=production
+LABEL org.opencontainers.image.title="Grossary Database Migrator" \
+      org.opencontainers.image.description="Database migration companion for the matching Grossary application image." \
+      org.opencontainers.image.source="https://github.com/geniuskey/grossary"
 CMD ["pnpm", "--filter", "@grossary/db", "db:migrate"]
+
+# Docker Hub에 `docker build -t ... .`로 올릴 기본 산출물은 반드시 웹 앱이어야
+# 한다. migrator가 마지막 단계면 target을 생략한 이미지가 마이그레이션 명령만
+# 실행하고 종료하므로, runner를 최종 기본 단계로 다시 가리킨다.
+FROM runner AS app

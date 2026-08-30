@@ -142,7 +142,7 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
           aria-controls={listId}
           aria-autocomplete="list"
           aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
-          placeholder="용어 · 약어 · 별칭 · 금지 표기"
+          placeholder="용어 · 약어 · 별칭 · 금지 표기…"
           className="field h-16 rounded-full border-line-strong bg-panel pl-12 pr-5 text-base shadow-[0_10px_32px_-18px_rgb(38_32_99_/_0.42)] hover:border-brand/35"
         />
 

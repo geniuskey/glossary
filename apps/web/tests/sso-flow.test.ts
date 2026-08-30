@@ -46,6 +46,7 @@ test("흐름 상태는 쿠키 헤더에서 그대로 되살아난다", () => {
 
   expect(readFlowCookie(request)).toEqual(flow);
   expect(decodeFlowState(encodeFlowState(flow))).toEqual(flow);
+  expect(decodeFlowState(encodeFlowState({ ...flow, nonce: "" }))).toBeNull();
   expect(decodeFlowState("not-base64url-json")).toBeNull();
   expect(decodeFlowState(undefined)).toBeNull();
 });

@@ -1,7 +1,5 @@
 import { redirect } from "next/navigation";
-import { AppShell } from "@/components/app-shell";
 import { getCurrentUser } from "@/lib/auth/current-user";
-import { ApiKeysPanel } from "./api-keys-panel";
 
 export const metadata = { title: "API 키" };
 
@@ -15,17 +13,5 @@ export default async function ApiKeysPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  return (
-    <AppShell user={user} current="keys">
-      <header className="mb-7 border-b border-line pb-5">
-        <h1 className="text-xl font-semibold tracking-tight">API 키</h1>
-        <p className="mt-1.5 max-w-xl text-sm text-ink-2">
-          AI 린트나 외부 도구가 이 사전을 읽어 문서의 표기를 검사할 때 쓰는 키입니다. 용도마다 따로
-          발급하고, 더 쓰지 않는 키는 폐기하세요.
-        </p>
-      </header>
-
-      <ApiKeysPanel />
-    </AppShell>
-  );
+  redirect("/settings#api-keys");
 }

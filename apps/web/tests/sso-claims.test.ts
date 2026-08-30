@@ -9,6 +9,7 @@ import {
   pickGroups,
   readClaim,
   resolveIdentity,
+  validateIdTokenClaims,
 } from "../src/lib/auth/sso/claims.js";
 
 const MAPPING = {
@@ -80,6 +81,28 @@ test("ID 토큰 payload를 읽고, 형태가 아니면 null이다", () => {
   expect(decodeJwtPayload(`header.${payload}.signature`)).toEqual({ sub: "abc", email: "kim@example.com" });
   expect(decodeJwtPayload("not-a-token")).toBeNull();
   expect(decodeJwtPayload(`header.${Buffer.from("[]", "utf8").toString("base64url")}.sig`)).toBeNull();
+});
+
+test("ID 토큰 claim은 nonce·issuer·audience·만료 시각이 모두 맞아야 한다", () => {
+  const expected = { issuer: "https://idp.example.com", clientId: "grossary", nonce: "nonce", nowSeconds: 1000 };
+  const valid = { iss: expected.issuer, aud: expected.clientId, nonce: expected.nonce, exp: 1001 };
+
+  expect(validateIdTokenClaims(valid, expected)).toEqual({ ok: true });
+  expect(validateIdTokenClaims({ ...valid, nonce: undefined }, expected)).toEqual({ ok: false, reason: "nonce" });
+  expect(validateIdTokenClaims({ ...valid, aud: "other" }, expected)).toEqual({ ok: false, reason: "audience" });
+  expect(validateIdTokenClaims({ ...valid, exp: 1000 }, expected)).toEqual({ ok: false, reason: "expired" });
+  expect(validateIdTokenClaims({ ...valid, iss: "https://other.example.com" }, expected)).toEqual({
+    ok: false,
+    reason: "issuer",
+  });
+});
+
+test("audience가 여러 개면 이 클라이언트를 authorized party로 명시해야 한다", () => {
+  const expected = { clientId: "grossary", nonce: "nonce", nowSeconds: 1000 };
+  const claims = { aud: ["grossary", "other"], nonce: "nonce", exp: 1001 };
+
+  expect(validateIdTokenClaims(claims, expected)).toEqual({ ok: false, reason: "audience" });
+  expect(validateIdTokenClaims({ ...claims, azp: "grossary" }, expected)).toEqual({ ok: true });
 });
 
 // 운영자 화면에 보여줄 목록이다. 여기에 값이 섞이면 사번·전화번호가 설정 테이블에 쌓인다.

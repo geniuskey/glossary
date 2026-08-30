@@ -23,3 +23,6 @@
 .superpowers
 docs
 README.md
+DOCKERHUB.md
+.github
+docker-compose*.yml

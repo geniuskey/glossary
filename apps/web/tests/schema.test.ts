@@ -1,4 +1,11 @@
 import { expect, test } from "vitest";
+import {
+  DOMAIN_VALUE_MAX,
+  TERM_DOMAIN_MAX,
+  TERM_MARKDOWN_MAX,
+  TERM_NAME_MAX,
+  TERM_SURFACE_MAX,
+} from "../src/lib/terms/limits.js";
 import { termInputSchema, type TermInput } from "../src/lib/terms/schema.js";
 
 function base(overrides: Partial<TermInput> = {}): TermInput {
@@ -11,6 +18,23 @@ function base(overrides: Partial<TermInput> = {}): TermInput {
     ...overrides,
   };
 }
+
+test("새 용어는 명시적으로 공개하기 전까지 draft로 시작한다", () => {
+  const parsed = termInputSchema.parse({ nameEn: "Draft Probe" });
+  expect(parsed.status).toBe("draft");
+});
+
+test("용어 입력의 문자열과 배열은 서버 자원을 보호하는 상한을 가진다", () => {
+  expect(termInputSchema.safeParse(base({ nameEn: "x".repeat(TERM_NAME_MAX + 1) })).success).toBe(false);
+  expect(termInputSchema.safeParse(base({ domain: ["x".repeat(DOMAIN_VALUE_MAX + 1)] })).success).toBe(false);
+  expect(termInputSchema.safeParse(base({ domain: Array(TERM_DOMAIN_MAX + 1).fill("domain") })).success).toBe(false);
+  expect(
+    termInputSchema.safeParse(
+      base({ surfaces: Array(TERM_SURFACE_MAX + 1).fill({ text: "alias", lang: "en", kind: "alias" }) }),
+    ).success,
+  ).toBe(false);
+  expect(termInputSchema.safeParse(base({ bodyMd: "x".repeat(TERM_MARKDOWN_MAX + 1) })).success).toBe(false);
+});
 
 // R45: 같은 정규화 키가 승인군(canonical/abbreviation/full_name/alias)과
 // 비승인군(discouraged/forbidden)에 동시에 속하면 검색 결과가 스스로 모순된다.

@@ -199,6 +199,8 @@ export async function updateTerm(
           ...(input.fullNameEn !== undefined ? { fullNameEn: input.fullNameEn } : {}),
           ...(input.fullNameKo !== undefined ? { fullNameKo: input.fullNameKo } : {}),
           ...(input.domain !== undefined ? { domain: input.domain } : {}),
+          ...(input.category !== undefined ? { category: input.category } : {}),
+          ...(input.ownerId !== undefined ? { ownerId: input.ownerId } : {}),
           ...(input.status !== undefined ? { status: input.status } : {}),
           ...(input.definitionMd !== undefined ? { definitionMd: input.definitionMd } : {}),
           // R55: 브리프 원안은 bodyMd를 .set()에서 빠뜨려, 생성 후에는 body_md를

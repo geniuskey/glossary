@@ -3,7 +3,31 @@
 사내망 온프레미스 Docker 배포 기준이다. 첨부 이미지까지 Postgres에 들어 있으므로
 **`scripts/backup.sh`가 만드는 dump 파일 하나가 회사 용어집 전부다.**
 
-## 기동
+## Docker Hub 이미지로 기동
+
+Docker Hub 배포는 웹 앱과 마이그레이터 두 태그를 같은 버전으로 맞춘다. 서버에는
+소스 코드가 필요 없고 `docker-compose.hub.yml`과 환경 파일만 있으면 된다.
+
+```bash
+curl -LO https://raw.githubusercontent.com/geniuskey/grossary/main/docker-compose.hub.yml
+curl -L https://raw.githubusercontent.com/geniuskey/grossary/main/.env.dockerhub.example -o .env
+
+# .env에서 Docker Hub 이미지 두 개와 비밀번호를 수정한다.
+docker compose --env-file .env -f docker-compose.hub.yml pull
+docker compose --env-file .env -f docker-compose.hub.yml up -d
+```
+
+운영에서는 `latest` 대신 아래처럼 앱과 마이그레이터를 같은 버전으로 고정한다.
+
+```dotenv
+GROSSARY_IMAGE=your-dockerhub-id/grossary:1.0.0
+GROSSARY_MIGRATOR_IMAGE=your-dockerhub-id/grossary:1.0.0-migrator
+```
+
+`database-init`이 `pg_trgm` 확장을 준비하고, `migrator`가 성공한 뒤에만 `app`이
+시작된다. 데이터는 `grossary_hub_pgdata` 볼륨에 보존된다.
+
+## 소스에서 직접 빌드해 기동
 
 ```bash
 cp .env.example .env
@@ -137,6 +161,19 @@ AI-Lint가 쓰는 지점은 `POST /api/v1/terms/lookup`이다 — 문서에 등�
 ```bash
 docker compose -f docker-compose.prod.yml logs -f app
 ```
+
+## Confluence 임베드 허용
+
+`/embed`는 기본적으로 다른 사이트의 iframe 안에서 열리지 않는다. Confluence origin을
+환경변수에 넣은 뒤 앱 컨테이너를 다시 시작한다.
+
+```dotenv
+GROSSARY_EMBED_ANCESTORS=https://confluence.example.com
+```
+
+여러 출처는 쉼표로 구분한다. 경로가 아니라 `https://호스트[:포트]` 형태의 origin만
+인정한다. 이 값은 Proxy가 요청마다 런타임에 읽으므로 Docker Hub의 같은 이미지를 환경별로
+다르게 설정할 수 있다.
 
 애플리케이션 예외는 `{ error: { code: "internal_error", ... } }`로만 응답하고
 스택은 응답에 노출하지 않는다. 스택은 컨테이너 로그에만 남는다.

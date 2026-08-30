@@ -78,14 +78,23 @@ export function SsoSettingsForm() {
   const [secret, setSecret] = useState("");
   const [message, setMessage] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function load() {
-    const res = await fetch("/api/v1/sso");
-    if (!res.ok) return;
-    const body = await res.json();
-    setView(body.sso);
-    setForm(toForm(body.sso));
-    setRedirectUri(body.redirectUri);
+    try {
+      const res = await fetch("/api/v1/sso");
+      if (!res.ok) {
+        setLoadError(`SSO 설정을 불러오지 못했습니다 (${res.status}).`);
+        return;
+      }
+      const body = (await res.json()) as { sso: SsoView; redirectUri: string };
+      setView(body.sso);
+      setForm(toForm(body.sso));
+      setRedirectUri(body.redirectUri);
+      setLoadError(null);
+    } catch {
+      setLoadError("네트워크 오류로 SSO 설정을 불러오지 못했습니다.");
+    }
   }
 
   useEffect(() => {
@@ -100,83 +109,99 @@ export function SsoSettingsForm() {
     if (!form) return;
     setBusy(true);
     setMessage(null);
-    const res = await fetch("/api/v1/sso/discover", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ issuer: form.issuer }),
-    });
-    const body = await res.json().catch(() => null);
-    setBusy(false);
-    if (!res.ok) {
-      setMessage({ kind: "bad", text: body?.error?.message ?? "발견 문서를 읽지 못했습니다." });
-      return;
-    }
+    try {
+      const res = await fetch("/api/v1/sso/discover", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ issuer: form.issuer }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        setMessage({ kind: "bad", text: body?.error?.message ?? "발견 문서를 읽지 못했습니다." });
+        return;
+      }
 
-    const d = body.discovery;
-    setForm((prev) =>
-      prev
-        ? {
-            ...prev,
-            issuer: d.issuer || prev.issuer,
-            authorizationEndpoint: d.authorizationEndpoint,
-            tokenEndpoint: d.tokenEndpoint,
-            userinfoEndpoint: d.userinfoEndpoint,
-          }
-        : prev,
-    );
-    // 발견 문서의 claims_supported는 "이 IdP에서 고를 수 있는 이름"이라 매핑을 정할 때 그대로 쓸모가 있다.
-    setMessage({
-      kind: "ok",
-      text: d.claimsSupported.length
-        ? `엔드포인트를 채웠습니다. 이 IdP가 알린 claim: ${d.claimsSupported.join(", ")}`
-        : "엔드포인트를 채웠습니다. 저장을 눌러야 반영됩니다.",
-    });
+      const d = body.discovery;
+      setForm((prev) =>
+        prev
+          ? {
+              ...prev,
+              issuer: d.issuer || prev.issuer,
+              authorizationEndpoint: d.authorizationEndpoint,
+              tokenEndpoint: d.tokenEndpoint,
+              userinfoEndpoint: d.userinfoEndpoint,
+            }
+          : prev,
+      );
+      // 발견 문서의 claims_supported는 "이 IdP에서 고를 수 있는 이름"이라 매핑을 정할 때 그대로 쓸모가 있다.
+      setMessage({
+        kind: "ok",
+        text: d.claimsSupported.length
+          ? `엔드포인트를 채웠습니다. 이 IdP가 알린 claim: ${d.claimsSupported.join(", ")}`
+          : "엔드포인트를 채웠습니다. 저장을 눌러야 반영됩니다.",
+      });
+    } catch {
+      setMessage({ kind: "bad", text: "네트워크 오류로 발견 문서를 읽지 못했습니다." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function save() {
     if (!form) return;
     setBusy(true);
     setMessage(null);
-    const res = await fetch("/api/v1/sso", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        enabled: form.enabled,
-        buttonLabel: form.buttonLabel,
-        issuer: form.issuer,
-        authorizationEndpoint: form.authorizationEndpoint,
-        tokenEndpoint: form.tokenEndpoint,
-        userinfoEndpoint: form.userinfoEndpoint,
-        clientId: form.clientId,
-        // 빈 칸은 "그대로 두기"다 — 화면은 저장된 시크릿을 되받지 않는다.
-        clientSecret: secret,
-        scopes: parseClaimList(form.scopes),
-        tokenAuthMethod: form.tokenAuthMethod,
-        baseUrl: form.baseUrl,
-        subjectClaims: parseClaimList(form.subjectClaims),
-        emailClaims: parseClaimList(form.emailClaims),
-        nameClaims: parseClaimList(form.nameClaims),
-        groupClaims: parseClaimList(form.groupClaims),
-        allowedGroups: parseClaimList(form.allowedGroups),
-        adminGroups: parseClaimList(form.adminGroups),
-        autoCreate: form.autoCreate,
-      }),
-    });
-    const body = await res.json().catch(() => null);
-    setBusy(false);
-    if (!res.ok) {
-      setMessage({ kind: "bad", text: body?.error?.message ?? "저장하지 못했습니다." });
-      return;
-    }
+    try {
+      const res = await fetch("/api/v1/sso", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          enabled: form.enabled,
+          buttonLabel: form.buttonLabel,
+          issuer: form.issuer,
+          authorizationEndpoint: form.authorizationEndpoint,
+          tokenEndpoint: form.tokenEndpoint,
+          userinfoEndpoint: form.userinfoEndpoint,
+          clientId: form.clientId,
+          // 빈 칸은 "그대로 두기"다 — 화면은 저장된 시크릿을 되받지 않는다.
+          clientSecret: secret,
+          scopes: parseClaimList(form.scopes),
+          tokenAuthMethod: form.tokenAuthMethod,
+          baseUrl: form.baseUrl,
+          subjectClaims: parseClaimList(form.subjectClaims),
+          emailClaims: parseClaimList(form.emailClaims),
+          nameClaims: parseClaimList(form.nameClaims),
+          groupClaims: parseClaimList(form.groupClaims),
+          allowedGroups: parseClaimList(form.allowedGroups),
+          adminGroups: parseClaimList(form.adminGroups),
+          autoCreate: form.autoCreate,
+        }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        setMessage({ kind: "bad", text: body?.error?.message ?? "저장하지 못했습니다." });
+        return;
+      }
 
-    setSecret("");
-    setView(body.sso);
-    setForm(toForm(body.sso));
-    setRedirectUri(body.redirectUri);
-    setMessage({ kind: "ok", text: "저장했습니다." });
+      setSecret("");
+      setView(body.sso);
+      setForm(toForm(body.sso));
+      setRedirectUri(body.redirectUri);
+      setMessage({ kind: "ok", text: "저장했습니다." });
+    } catch {
+      setMessage({ kind: "bad", text: "네트워크 오류로 저장하지 못했습니다." });
+    } finally {
+      setBusy(false);
+    }
   }
 
-  if (!form || !view) return <p className="text-sm text-ink-3">불러오는 중...</p>;
+  if (!form || !view) {
+    return (
+      <p role={loadError ? "alert" : undefined} className={loadError ? "note-danger" : "text-sm text-ink-3"}>
+        {loadError ?? "불러오는 중…"}
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -206,10 +231,15 @@ export function SsoSettingsForm() {
             <div className="flex gap-2">
               <input
                 id="sso-issuer"
+                name="issuer"
+                type="url"
+                inputMode="url"
+                autoComplete="off"
+                spellCheck={false}
                 className="field font-mono text-xs"
                 value={form.issuer}
                 onChange={(e) => set("issuer", e.target.value)}
-                placeholder="https://login.example.com/realms/company"
+                placeholder="https://login.example.com/realms/company…"
               />
               <button type="button" className="btn-ghost shrink-0" onClick={discover} disabled={busy || !form.issuer}>
                 불러오기
@@ -242,7 +272,9 @@ export function SsoSettingsForm() {
             </label>
             <input
               id="sso-secret"
+              name="clientSecret"
               type="password"
+              autoComplete="new-password"
               className="field font-mono text-xs"
               value={secret}
               onChange={(e) => setSecret(e.target.value)}
@@ -347,11 +379,15 @@ export function SsoSettingsForm() {
         </label>
       </section>
 
-      {message && <p className={message.kind === "ok" ? "note-ok" : "note-danger"}>{message.text}</p>}
+      {message && (
+        <p role={message.kind === "bad" ? "alert" : "status"} className={message.kind === "ok" ? "note-ok" : "note-danger"}>
+          {message.text}
+        </p>
+      )}
 
       <div className="flex justify-end">
         <button type="button" className="btn-primary" onClick={save} disabled={busy}>
-          저장
+          {busy ? "저장 중…" : "SSO 설정 저장"}
         </button>
       </div>
     </div>
@@ -379,6 +415,9 @@ function TextField({
       </label>
       <input
         id={id}
+        name={id}
+        autoComplete="off"
+        spellCheck={!mono}
         className={mono ? "field font-mono text-xs" : "field"}
         value={value}
         onChange={(e) => onChange(e.target.value)}

@@ -11,6 +11,7 @@ import {
   type TermStatusLiteral,
 } from "@/lib/terms/enums";
 import {
+  activeCellScrollDelta,
   applyPatch,
   cellText,
   clampColumnWidth,
@@ -66,6 +67,8 @@ const GUTTER_W = 66;
 const UNDO_LIMIT = 40;
 /** 한 번에 띄우는 PATCH 수. 붙여넣기 50줄을 한꺼번에 쏘면 커넥션 풀이 마른다. */
 const CONCURRENCY = 6;
+/** 선택 테두리와 채우기 손잡이가 스크롤 상자 끝에서 잘리지 않게 남길 여백. */
+const ACTIVE_CELL_GAP = 4;
 
 type Toast = { id: number; tone: "error" | "conflict" | "ok"; text: string; refresh?: boolean };
 type Batch = { label: string; entries: RowPatch[] };
@@ -198,6 +201,7 @@ export function TermsGrid(props: TermsGridProps) {
   const [creating, setCreating] = useState(false);
 
   const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef<HTMLInputElement>(null);
   const toastSeq = useRef(0);
 
@@ -252,13 +256,34 @@ export function TermsGrid(props: TermsGridProps) {
     return () => window.removeEventListener("mouseup", stop);
   }, [drag]);
 
-  // 활성 셀로 포커스를 옮긴다. 셀마다 ref를 두는 대신 좌표를 data 속성으로 두고
-  // 찾는다 — 행 목록이 갈릴 때마다 ref 맵을 정리할 필요가 없다.
-  useEffect(() => {
+  // 활성 셀로 포커스를 옮기고, sticky 머리글·고정 열을 뺀 실제 가시 영역 안에
+  // 넣는다. scrollIntoView는 가려진 부분도 보인다고 판단해 직접 보정해야 한다.
+  useLayoutEffect(() => {
     if (!sel || editing) return;
     const el = bodyRef.current?.querySelector<HTMLElement>(`[data-cell="${sel.focus.r}:${sel.focus.c}"]`);
-    el?.focus({ preventScroll: true });
-    el?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const scroller = scrollRef.current;
+    if (!el || !scroller) return;
+
+    el.focus({ preventScroll: true });
+    const clip = scroller.getBoundingClientRect();
+    const headerBottom = scroller.querySelector("thead th")?.getBoundingClientRect().bottom ?? clip.top;
+    const frozenRight =
+      sel.focus.c === 0
+        ? clip.left
+        : bodyRef.current?.querySelector<HTMLElement>(`[data-cell="${sel.focus.r}:0"]`)?.getBoundingClientRect()
+            .right ?? clip.left;
+    const delta = activeCellScrollDelta(
+      el.getBoundingClientRect(),
+      {
+        top: Math.max(clip.top, headerBottom),
+        bottom: clip.bottom,
+        left: Math.max(clip.left, frozenRight),
+        right: clip.right,
+      },
+      { horizontal: sel.focus.c !== 0, gap: ACTIVE_CELL_GAP },
+    );
+    if (delta.left !== 0) scroller.scrollLeft += delta.left;
+    if (delta.top !== 0) scroller.scrollTop += delta.top;
   }, [sel, editing]);
 
   function widthOf(col: GridColumn): number {
@@ -412,6 +437,8 @@ export function TermsGrid(props: TermsGridProps) {
       setDraft({ nameEn: "", nameKo: "" });
       draftRef.current?.focus();
       router.refresh();
+    } catch {
+      pushToast({ tone: "error", text: "네트워크 오류로 추가하지 못했습니다." });
     } finally {
       setCreating(false);
     }
@@ -433,13 +460,21 @@ export function TermsGrid(props: TermsGridProps) {
 
   async function deletePicked() {
     const targets = rows.filter((r) => picked.has(r.id));
-    markBusy(targets.map((r) => r.id), true);
+    const ids = targets.map((r) => r.id);
+    const deleted = new Set<string>();
+    markBusy(ids, true);
     for (const row of targets) {
-      const res = await fetch(`/api/v1/terms/${row.id}`, { method: "DELETE" });
-      if (!res.ok) pushToast({ tone: "error", text: `${rowLabel(row)}: 삭제하지 못했습니다 (${res.status}).` });
+      try {
+        const res = await fetch(`/api/v1/terms/${row.id}`, { method: "DELETE" });
+        if (res.ok) deleted.add(row.id);
+        else pushToast({ tone: "error", text: `${rowLabel(row)}: 삭제하지 못했습니다 (${res.status}).` });
+      } catch {
+        pushToast({ tone: "error", text: `${rowLabel(row)}: 네트워크 오류로 삭제하지 못했습니다.` });
+      }
     }
-    setPicked(new Set());
-    router.refresh();
+    markBusy(ids, false);
+    setPicked((prev) => new Set([...prev].filter((id) => !deleted.has(id))));
+    if (deleted.size > 0) router.refresh();
   }
 
   async function copyText(text: string) {
@@ -748,7 +783,7 @@ export function TermsGrid(props: TermsGridProps) {
           const body = (await res.json()) as TermWriteResponse;
           if (body.warnings.length > 0) flagged += 1;
           // 방금 만든 행의 리비전은 언제나 1이다(createTerm이 리비전 1을 함께 쓴다).
-          made.push({ ...body.term, revision: 1, editorName: props.viewerName });
+          made.push({ ...body.term, ownerName: null, revision: 1, editorName: props.viewerName });
         } catch {
           failures.push(`${draft.line}번째 줄: 네트워크 오류로 만들지 못했습니다.`);
         }
@@ -808,6 +843,7 @@ export function TermsGrid(props: TermsGridProps) {
       />
 
       <div
+        ref={scrollRef}
         className="min-h-0 flex-1 overflow-auto"
         onCopy={onCopy}
         onPaste={onPaste}
@@ -1075,14 +1111,14 @@ export function TermsGrid(props: TermsGridProps) {
                     value={draft.nameEn}
                     onChange={(e) => setDraft({ ...draft, nameEn: e.target.value })}
                     onKeyDown={(e) => e.key === "Enter" && void createFromDraft()}
-                    placeholder="새 용어 영문명"
+                    placeholder="새 용어 영문명…"
                     className="h-7 w-48 rounded-md border border-line bg-panel px-2 text-[13px] placeholder:text-ink-3 focus:border-brand focus:outline-none"
                   />
                   <input
                     value={draft.nameKo}
                     onChange={(e) => setDraft({ ...draft, nameKo: e.target.value })}
                     onKeyDown={(e) => e.key === "Enter" && void createFromDraft()}
-                    placeholder="국문명"
+                    placeholder="국문명…"
                     className="h-7 w-40 rounded-md border border-line bg-panel px-2 text-[13px] placeholder:text-ink-3 focus:border-brand focus:outline-none"
                   />
                   <button
@@ -2088,7 +2124,7 @@ function ListEditor({
             onCommit(e.currentTarget.value, "right");
           }
         }}
-        placeholder="쉼표로 구분"
+        placeholder="쉼표로 구분…"
         className="absolute inset-0 h-full w-full rounded-none border-0 bg-panel px-2 text-[13px] text-ink outline-none ring-2 ring-brand"
       />
 

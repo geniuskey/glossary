@@ -33,6 +33,7 @@ afterEach(() => {
 
 const READY = {
   enabled: true,
+  issuer: "https://idp.example.com",
   authorizationEndpoint: "https://idp.example.com/authorize",
   tokenEndpoint: "https://idp.example.com/token",
   clientId: "grossary",

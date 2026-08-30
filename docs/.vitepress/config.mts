@@ -6,7 +6,7 @@ export default defineConfig({
   base: "/grossary/",
   lang: "ko-KR",
   title: "Grossary",
-  description: "센서 개발용 용어집 관리 플랫폼",
+  description: "한국어와 영어를 함께 쓰는 조직을 위한 셀프호스팅 용어집 관리 플랫폼",
   lastUpdated: true,
 
   // docs/superpowers/ 는 설계 스펙과 구현 계획 원본이다. 사이트에 싣지 않고
@@ -33,6 +33,7 @@ export default defineConfig({
           { text: "시작하기", link: "/guide/getting-started" },
           { text: "아키텍처", link: "/guide/architecture" },
           { text: "데이터 모델", link: "/guide/data-model" },
+          { text: "협업과 관계도", link: "/guide/collaboration" },
           { text: "SSO 연결", link: "/guide/sso" },
           { text: "테스트", link: "/guide/testing" },
           { text: "로드맵", link: "/guide/roadmap" },

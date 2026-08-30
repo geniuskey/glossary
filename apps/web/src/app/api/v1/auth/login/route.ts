@@ -5,9 +5,12 @@ import { getDb } from "@/lib/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { DUMMY_PASSWORD_HASH, verifyPassword } from "@/lib/auth/password";
 import { normalizeEmail } from "@/lib/auth/register";
-import { createSession, purgeExpiredSessions, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/auth/session";
+import { createSession, isSecureRequest, purgeExpiredSessions, sessionCookie } from "@/lib/auth/session";
 
-const bodySchema = z.object({ email: z.string().email(), password: z.string().min(1) });
+const bodySchema = z.object({
+  email: z.string().trim().email().max(254),
+  password: z.string().min(1).max(1024),
+});
 const ALLOWED_METHODS = ["POST"];
 
 const { GET, PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -38,9 +41,6 @@ export const POST = withApiErrors(async (request: Request) => {
   await purgeExpiredSessions();
   const session = await createSession(user.id);
   const res = Response.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
-  res.headers.append(
-    "set-cookie",
-    `${SESSION_COOKIE}=${session.token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_SECONDS}; Expires=${session.expiresAt.toUTCString()}`,
-  );
+  res.headers.append("set-cookie", sessionCookie(session.token, session.expiresAt, isSecureRequest(request)));
   return res;
 });

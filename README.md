@@ -1,9 +1,20 @@
 # Grossary
 
-센서 제품 개발용 **용어집 관리 플랫폼**. 엑셀과 컨플루언스에 흩어진 용어를 단일 사전으로
-모으고, AI-Lint 같은 도구가 API 한 번으로 문서의 표기를 검증할 수 있게 만든다.
+특정 조직·팀·제품군이 실제로 사용하는 용어를 함께 정리하는 **셀프호스팅 용어집 관리
+플랫폼**. 엑셀과 컨플루언스에 흩어진 용어를 단일 사전으로 모으고, AI-Lint 같은 도구가
+API 한 번으로 문서의 표기를 검증할 수 있게 만든다.
 
 **문서: https://geniuskey.github.io/grossary/**
+
+## 언어 지원 범위
+
+현재 버전은 **한국어를 모국어로 쓰면서 기술 용어는 영어와 함께 사용하는 한국 기업
+환경**에 최적화되어 있다. UI는 한국어이고, 용어 데이터는 한국어·영어 이름을 나란히
+관리한다. 완전한 다국어 UI나 임의 언어 선택 기능은 현재 범위가 아니다.
+
+추후 실제 요청이 생기면 `선택한 모국어 + 영어` 구조로 확장할 수 있지만, 아직 구현된
+기능으로 약속하지 않는다. Docker Hub에 사용할 한·영 제품 설명은
+[DOCKERHUB.md](./DOCKERHUB.md)에 정리되어 있다.
 
 ## 무엇을 하나
 
@@ -12,6 +23,8 @@
 2. **기계 판독 가능** — OpenAPI 3.1 스펙을 서빙하고, `POST /terms/lookup` 한 번으로
    문서에 등장한 표기 전체를 확인한다.
 3. **위키 수준의 문서성** — 각 용어를 마크다운과 이미지로 설명한다.
+4. **역할 분담과 맥락 탐색** — 용어별 담당자·카테고리를 두고, 도메인/카테고리 관계도와
+   Confluence용 읽기 전용 임베드 화면으로 정리 범위를 공유한다.
 
 핵심은 **개념(Term)과 표기(Surface)의 분리**다. 엑셀이 무너진 이유는 한 행이 개념이자
 표기였기 때문이다. `Auto Exposure` / `AE` / `자동노출` / `오토익스포저`가 모두 하나의
@@ -47,6 +60,18 @@ pnpm --filter @grossary/web dev   # http://localhost:3000
 > [!WARNING]
 > 개발 머신에서 `docker-compose.prod.yml`로 `up`하지 마라. 두 파일이 같은 볼륨 이름
 > (`grossary_pgdata`)을 쓴다.
+
+## Confluence 임베드
+
+Confluence iframe 매크로에는 다음처럼 도메인과 카테고리를 선택한 읽기 전용 주소를 넣는다.
+
+```text
+https://glossary.example.com/embed?domain=ISP&category=노출%20제어
+```
+
+`GROSSARY_EMBED_ANCESTORS=https://confluence.example.com`을 설정해야 해당 Confluence 출처에서만
+iframe이 열린다. 여러 출처는 쉼표로 구분한다. 임베드도 로그인 세션을 요구하므로 두 서비스는
+가급적 같은 사이트 범위(예: `glossary.example.com`과 `confluence.example.com`)에서 운영한다.
 
 ## 저장소 구조
 
@@ -94,7 +119,40 @@ curl -s -H "Authorization: Bearer glk_..." \
 
 자세한 것은 [API 레퍼런스](https://geniuskey.github.io/grossary/api/)를 본다.
 
-## 배포
+## Docker Hub 이미지 배포
+
+Docker Hub에는 웹 앱과 마이그레이터를 같은 저장소의 서로 다른 태그로 올린다.
+
+```bash
+IMAGE=your-dockerhub-id/grossary
+VERSION=1.0.0
+
+docker build --target app -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
+docker build --target migrator -t "$IMAGE:$VERSION-migrator" -t "$IMAGE:latest-migrator" .
+
+docker push "$IMAGE:$VERSION"
+docker push "$IMAGE:$VERSION-migrator"
+docker push "$IMAGE:latest"
+docker push "$IMAGE:latest-migrator"
+```
+
+사내 서버에서는 소스 빌드 없이 `docker-compose.hub.yml`을 사용한다. 운영에서는
+`latest`보다 앱·마이그레이터 양쪽을 같은 버전으로 고정하는 편이 안전하다.
+
+```bash
+docker pull your-dockerhub-id/grossary:1.0.0
+docker pull your-dockerhub-id/grossary:1.0.0-migrator
+```
+
+```bash
+cp .env.dockerhub.example .env
+# 이미지 이름, 동일한 버전 태그, POSTGRES_PASSWORD를 수정한다.
+# 비공개 Docker Hub 저장소라면 docker login을 먼저 실행한다.
+docker compose --env-file .env -f docker-compose.hub.yml pull
+docker compose --env-file .env -f docker-compose.hub.yml up -d
+```
+
+## 소스에서 직접 배포
 
 사내망 온프레미스 Docker Compose다. 첨부 이미지까지 Postgres에 들어 있어
 **`scripts/backup.sh`가 만드는 dump 파일 하나가 회사 용어집 전부다.**

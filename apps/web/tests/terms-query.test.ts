@@ -2,7 +2,13 @@ import { eq, or } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { createDb, terms } from "@grossary/db";
 import { createTerm } from "../src/lib/terms/create.js";
-import { getTermByIdOrSlug, listTerms, termFacets } from "../src/lib/terms/query.js";
+import {
+  getTermByIdOrSlug,
+  listContributionTerms,
+  listTermRows,
+  listTerms,
+  termFacets,
+} from "../src/lib/terms/query.js";
 
 const db = createDb(process.env.DATABASE_URL_TEST!);
 const ids: string[] = [];
@@ -29,6 +35,8 @@ async function purgeFixtures() {
 }
 
 let aeSlug = "";
+let nakedAbbreviationId = "";
+let completeDraftId = "";
 
 beforeAll(async () => {
   await purgeFixtures();
@@ -73,8 +81,31 @@ beforeAll(async () => {
     },
     null,
   );
-  ids.push(ae.term.id, hw.term.id, dupe.term.id);
+  const naked = await createTerm(
+    {
+      termType: "abbreviation",
+      nameEn: `NKT${Date.now()}`,
+      domain: [],
+      status: "active",
+      surfaces: [],
+    },
+    null,
+  );
+  const draft = await createTerm(
+    {
+      termType: "term",
+      nameEn: "CompleteDraftQueryProbe",
+      domain: ["QA"],
+      status: "draft",
+      definitionMd: "검토만 남은 완성된 초안.",
+      surfaces: [],
+    },
+    null,
+  );
+  ids.push(ae.term.id, hw.term.id, dupe.term.id, naked.term.id, draft.term.id);
   aeSlug = ae.term.slug;
+  nakedAbbreviationId = naked.term.id;
+  completeDraftId = draft.term.id;
 });
 
 afterAll(async () => {
@@ -121,6 +152,39 @@ test("비권장 표기로 검색해도 해당 용어가 나온다", async () => 
 test("표기 변형으로 검색해도 찾는다", async () => {
   const { items } = await listTerms({ q: "auto-exposure", page: 1, pageSize: 20 });
   expect(items.map((t) => t.id)).toContain(ids[0]);
+});
+
+test("구분 기호만 있는 검색어는 빈 결과를 반환하고 DB 유사도 연산을 실행하지 않는다", async () => {
+  await expect(listTerms({ q: "--- · _", page: 1, pageSize: 20 })).resolves.toEqual({
+    items: [],
+    total: 0,
+  });
+});
+
+test("정리 대기열은 약어만 등록된 항목과 비어 있는 핵심 정보를 함께 돌려준다", async () => {
+  const queue = await listContributionTerms(500);
+  const naked = queue.items.find((item) => item.id === nakedAbbreviationId);
+  expect(naked?.completion).toMatchObject({
+    complete: false,
+    completed: 0,
+    total: 3,
+    missing: ["expansion", "definition", "domain"],
+  });
+  expect(queue.total).toBeGreaterThanOrEqual(queue.items.length);
+});
+
+test("완성된 초안도 공개 검토를 위해 공동 정리 대기열에 남는다", async () => {
+  const queue = await listContributionTerms(500);
+  const draft = queue.items.find((item) => item.id === completeDraftId);
+  expect(draft?.completion.complete).toBe(true);
+  expect(draft?.status).toBe("draft");
+});
+
+test("기본 목록은 초안을 숨기고 명시 필터와 공동 편집 시트는 초안을 보여준다", async () => {
+  const baseParams = { q: "CompleteDraftQueryProbe", page: 1, pageSize: 20 };
+  expect((await listTerms(baseParams)).items.map((term) => term.id)).not.toContain(completeDraftId);
+  expect((await listTerms({ ...baseParams, status: "draft" })).items.map((term) => term.id)).toContain(completeDraftId);
+  expect((await listTermRows(baseParams)).items.map((term) => term.id)).toContain(completeDraftId);
 });
 
 // "auto-exposure"는 구분자만 다를 뿐 normLoose가 "Auto Exposure"와 정확히
@@ -278,4 +342,6 @@ test("termFacets: total은 종류·상태 합과 같은 기준(사전 전체)이
   expect(facets.total).toBeGreaterThan(0);
   expect(sum(facets.types)).toBe(facets.total);
   expect(sum(facets.statuses)).toBe(facets.total);
+  expect(facets.needsContribution).toBeGreaterThan(0);
+  expect(facets.needsContribution).toBeLessThanOrEqual(facets.total);
 });

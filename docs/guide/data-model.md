@@ -13,7 +13,9 @@
 | `name_en`, `name_ko` | text | 표준 표기. 최소 하나는 있어야 한다 |
 | `full_name_en`, `full_name_ko` | text | 약어일 때 풀네임 |
 | `domain` | text[] | ISP, HW, SW, Optics, PM … 동음이의어 구분축 |
-| `status` | enum | `active` \| `deprecated` \| `forbidden` |
+| `category` | text | 도메인 아래에서 화면·기능·공정 등으로 묶는 단일 분류 |
+| `owner_id` | uuid | 완성을 책임질 사용자. 삭제되면 null |
+| `status` | enum | `draft` \| `active` \| `deprecated` \| `forbidden` |
 | `definition_md` | text | 1~2문장 정의 (API 응답·툴팁용) |
 | `body_md` | text | 위키 본문 (마크다운) |
 | `replaced_by_id` | uuid | `deprecated`일 때 대체 용어 |

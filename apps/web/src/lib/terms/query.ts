@@ -12,6 +12,8 @@ import {
 import { isUuid } from "@/lib/api-error";
 import { getDb } from "@/lib/db";
 import { DEFAULT_DIR, DEFAULT_SORT, type SortDir, type SortKey, type TermRow } from "./grid";
+import { termCompletion, type TermCompletion } from "./completion";
+import { ownerDisplayLabelSql } from "./owners";
 
 export type TermType = (typeof termTypeEnum.enumValues)[number];
 export type TermStatus = (typeof termStatusEnum.enumValues)[number];
@@ -35,6 +37,9 @@ export interface TermSummary {
   nameEn: string | null;
   nameKo: string | null;
   domain: string[];
+  category: string | null;
+  ownerId: string | null;
+  ownerName: string | null;
   status: TermStatus;
 }
 
@@ -72,6 +77,9 @@ const summaryColumns = {
   nameEn: terms.nameEn,
   nameKo: terms.nameKo,
   domain: terms.domain,
+  category: terms.category,
+  ownerId: terms.ownerId,
+  ownerName: ownerDisplayLabelSql,
   status: terms.status,
 };
 
@@ -135,11 +143,15 @@ export interface ListParams {
   q?: string;
   termType?: TermType;
   domain?: string;
+  category?: string;
+  ownerId?: string;
   status?: TermStatus;
   sort?: SortKey;
   dir?: SortDir;
   page: number;
   pageSize: number;
+  /** 공동 편집 화면처럼 초안까지 보여줘야 하는 내부 조회에서만 사용한다. */
+  includeDraft?: boolean;
 }
 
 // R41: termType/status는 이미 알려진 union이라야 하는 값이다. 검증은 라우트가
@@ -151,21 +163,30 @@ function listFilters(params: ListParams) {
 
   if (params.termType) filters.push(eq(terms.termType, params.termType));
   if (params.status) filters.push(eq(terms.status, params.status));
+  else if (!params.includeDraft) filters.push(ne(terms.status, "draft"));
   if (params.domain) filters.push(arrayContains(terms.domain, [params.domain]));
+  if (params.category) filters.push(eq(terms.category, params.category));
+  if (params.ownerId) filters.push(eq(terms.ownerId, params.ownerId));
 
   if (params.q) {
     const { normLoose, normSpace } = surfaceKeys(params.q);
-    const matching = db
-      .select({ termId: termSurfaces.termId })
-      .from(termSurfaces)
-      .where(
-        or(
-          eq(termSurfaces.normLoose, normLoose),
-          eq(termSurfaces.normSpace, normSpace),
-          sql`${termSurfaces.normLoose} % ${normLoose}`,
-        ),
-      );
-    filters.push(inArray(terms.id, matching));
+    if (!normLoose) {
+      // 구분자뿐인 검색어는 어떤 표기에도 매치하지 않는다. 빈 trigram 질의를
+      // 전체 표기 테이블에 실행해 결과 0건을 얻는 비싼 경로를 피한다.
+      filters.push(sql`false`);
+    } else {
+      const matching = db
+        .select({ termId: termSurfaces.termId })
+        .from(termSurfaces)
+        .where(
+          or(
+            eq(termSurfaces.normLoose, normLoose),
+            eq(termSurfaces.normSpace, normSpace),
+            sql`${termSurfaces.normLoose} % ${normLoose}`,
+          ),
+        );
+      filters.push(inArray(terms.id, matching));
+    }
   }
 
   return filters.length ? and(...filters) : undefined;
@@ -226,7 +247,9 @@ export async function listTerms(params: ListParams): Promise<{ items: TermSummar
  */
 export async function listTermRows(params: ListParams): Promise<{ items: TermRow[]; total: number }> {
   const db = getDb();
-  const where = listFilters(params);
+  // 시트는 공개 카탈로그가 아니라 공동 편집 작업대다. 초안을 숨기면 만든 사람이
+  // 다시 찾거나 다른 사람이 이어서 완성할 수 없으므로 명시적으로 포함한다.
+  const where = listFilters({ ...params, includeDraft: true });
 
   const [rows, [counted]] = await Promise.all([
     db
@@ -269,11 +292,67 @@ export interface Facet<T extends string = string> {
 
 export interface TermFacets {
   domains: Facet[];
+  categories: Facet[];
   types: Facet<TermType>[];
   statuses: Facet<TermStatus>[];
   /** 필터 UI에서 "전체"가 뜻하는 수. 각 항목의 count와 같은 기준(사전 전체)이라야
    *  화면의 숫자들이 부분-전체로 읽힌다 — 목록의 total(현재 필터 결과 수)과 다르다. */
   total: number;
+  /** 초안이거나 핵심 정보가 비어 있어 공동 정리함에서 다뤄야 하는 용어 수. */
+  needsContribution: number;
+}
+
+const missingExpansion = sql`(
+  ${terms.termType} = 'abbreviation'
+  and nullif(btrim(coalesce(${terms.fullNameEn}, '')), '') is null
+  and nullif(btrim(coalesce(${terms.fullNameKo}, '')), '') is null
+)`;
+const missingDefinition = sql`nullif(btrim(coalesce(${terms.definitionMd}, '')), '') is null`;
+const missingDomain = sql`cardinality(${terms.domain}) = 0`;
+const incompleteTerm = or(missingExpansion, missingDefinition, missingDomain)!;
+const needsContribution = or(eq(terms.status, "draft"), incompleteTerm)!;
+const missingCount = sql<number>`(
+  case when ${missingExpansion} then 1 else 0 end
+  + case when ${missingDefinition} then 1 else 0 end
+  + case when ${missingDomain} then 1 else 0 end
+)`;
+
+export interface ContributionTerm extends TermSummary {
+  fullNameEn: string | null;
+  fullNameKo: string | null;
+  definitionMd: string | null;
+  updatedAt: string;
+  completion: TermCompletion;
+}
+
+/** 초안과 미완성 용어를 가장 비어 있고 오래 기다린 순으로 보여주는 공동 정리 대기열. */
+export async function listContributionTerms(limit = 60, currentUserId?: string): Promise<{ items: ContributionTerm[]; total: number }> {
+  const db = getDb();
+  const ownerRank = currentUserId ? sql`case when ${terms.ownerId} = ${currentUserId} then 0 else 1 end` : sql`1`;
+  const [rows, [counted]] = await Promise.all([
+    db
+      .select({
+        ...summaryColumns,
+        fullNameEn: terms.fullNameEn,
+        fullNameKo: terms.fullNameKo,
+        definitionMd: terms.definitionMd,
+        updatedAt: terms.updatedAt,
+      })
+      .from(terms)
+      .where(needsContribution)
+      .orderBy(ownerRank, desc(missingCount), terms.updatedAt, terms.id)
+      .limit(limit),
+    db.select({ total: sql<number>`count(*)::int` }).from(terms).where(needsContribution),
+  ]);
+
+  return {
+    items: rows.map((row) => ({
+      ...row,
+      updatedAt: row.updatedAt.toISOString(),
+      completion: termCompletion(row),
+    })),
+    total: counted?.total ?? 0,
+  };
 }
 
 /**
@@ -291,13 +370,20 @@ export async function termFacets(): Promise<TermFacets> {
   // 둘 수 없다(Postgres 10+) — 먼저 펼친 서브쿼리를 만들고 그 결과를 센다.
   const unnested = db.select({ value: sql<string>`unnest(${terms.domain})`.as("value") }).from(terms).as("d");
 
-  const [domains, types, statuses, [counted]] = await Promise.all([
+  const [domains, categories, types, statuses, [counted], [contribution]] = await Promise.all([
     db
       .select({ value: unnested.value, count: sql<number>`count(*)::int` })
       .from(unnested)
       .groupBy(unnested.value)
       .orderBy(sql`count(*) desc`, unnested.value)
       .limit(40),
+    db
+      .select({ value: sql<string>`${terms.category}`, count: sql<number>`count(*)::int` })
+      .from(terms)
+      .where(sql`${terms.category} is not null`)
+      .groupBy(terms.category)
+      .orderBy(sql`count(*) desc`, terms.category)
+      .limit(80),
     db
       .select({ value: terms.termType, count: sql<number>`count(*)::int` })
       .from(terms)
@@ -307,7 +393,36 @@ export async function termFacets(): Promise<TermFacets> {
       .from(terms)
       .groupBy(terms.status),
     db.select({ total: sql<number>`count(*)::int` }).from(terms),
+    db.select({ total: sql<number>`count(*)::int` }).from(terms).where(needsContribution),
   ]);
 
-  return { domains, types, statuses, total: counted?.total ?? 0 };
+  return {
+    domains,
+    categories,
+    types,
+    statuses,
+    total: counted?.total ?? 0,
+    needsContribution: contribution?.total ?? 0,
+  };
+}
+
+export interface GraphTerm extends TermSummary {
+  definitionMd: string | null;
+}
+
+/** 도메인·카테고리를 허브로 그릴 읽기 전용 용어 집합. */
+export async function listGraphTerms(filters: { domain?: string; category?: string; limit?: number; includeDraft?: boolean } = {}): Promise<GraphTerm[]> {
+  const where = listFilters({
+    domain: filters.domain,
+    category: filters.category,
+    page: 1,
+    pageSize: filters.limit ?? 120,
+    includeDraft: filters.includeDraft ?? true,
+  });
+  return getDb()
+    .select({ ...summaryColumns, definitionMd: terms.definitionMd })
+    .from(terms)
+    .where(where)
+    .orderBy(terms.category, terms.nameKo, terms.nameEn, terms.id)
+    .limit(filters.limit ?? 120);
 }

@@ -123,6 +123,37 @@ export function decodeJwtPayload(token: string): Claims | null {
   }
 }
 
+export type IdTokenValidation =
+  | { ok: true }
+  | { ok: false; reason: "nonce" | "issuer" | "audience" | "expired" };
+
+/** 토큰 교환으로 받은 ID 토큰이 이번 클라이언트·이번 로그인 흐름을 위한 것인지 확인한다. */
+export function validateIdTokenClaims(
+  claims: Claims,
+  expected: { issuer?: string; clientId: string; nonce: string; nowSeconds?: number },
+): IdTokenValidation {
+  if (typeof claims.nonce !== "string" || claims.nonce !== expected.nonce) {
+    return { ok: false, reason: "nonce" };
+  }
+  if (expected.issuer && claims.iss !== expected.issuer) {
+    return { ok: false, reason: "issuer" };
+  }
+
+  const audience = typeof claims.aud === "string"
+    ? [claims.aud]
+    : Array.isArray(claims.aud)
+      ? claims.aud.filter((value): value is string => typeof value === "string")
+      : [];
+  if (!audience.includes(expected.clientId)) return { ok: false, reason: "audience" };
+  if (audience.length > 1 && claims.azp !== expected.clientId) return { ok: false, reason: "audience" };
+
+  const now = expected.nowSeconds ?? Math.floor(Date.now() / 1000);
+  if (typeof claims.exp !== "number" || !Number.isFinite(claims.exp) || claims.exp <= now) {
+    return { ok: false, reason: "expired" };
+  }
+  return { ok: true };
+}
+
 /**
  * 운영자에게 "당신의 IdP는 실제로 이 이름들을 보냈다"를 보여주기 위한 목록.
  * 값은 담지 않는다 — 이름만으로 매핑을 고칠 수 있고, 값까지 저장하면 사번·

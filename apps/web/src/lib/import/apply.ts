@@ -177,6 +177,7 @@ export async function applyImport(
         fullNameEn: row.fullNameEn,
         fullNameKo: row.fullNameKo,
         domain: row.domain,
+        category: row.category,
         status: row.status,
         definitionMd: row.definitionMd,
         surfaces: row.aliases.map((a) => ({ text: a, lang: "neutral" as const, kind: "alias" as const })),

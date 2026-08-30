@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { surfaceKeys } from "@grossary/db";
+import {
+  DOMAIN_VALUE_MAX,
+  TERM_DOMAIN_MAX,
+  TERM_MARKDOWN_MAX,
+  TERM_NAME_MAX,
+  TERM_SURFACE_MAX,
+} from "./limits";
 import { deriveSurfaces } from "./surfaces";
 
 // R46: `.trim()`이 없으면 `z.string().min(1)`은 공백뿐인 문자열("   ")을 통과시킨다.
@@ -8,7 +15,7 @@ import { deriveSurfaces } from "./surfaces";
 // 될 수 없고, 검색에서도 영원히 보이지 않으면서 term/term-2 슬러그 네임스페이스만
 // 잠식한다. text/nameEn/nameKo/fullNameEn/fullNameKo/domain 각 항목에 trim을 건다.
 export const surfaceInputSchema = z.object({
-  text: z.string().trim().min(1),
+  text: z.string().trim().min(1).max(TERM_NAME_MAX),
   lang: z.enum(["en", "ko", "neutral"]).default("neutral"),
   kind: z.enum(["canonical", "abbreviation", "full_name", "alias", "discouraged", "forbidden"]),
   caseSensitive: z.boolean().optional(),
@@ -21,19 +28,21 @@ export const surfaceInputSchema = z.object({
 // 여전히 400이다(R46 — trim 후 min(1)).
 export const termInputBaseSchema = z.object({
   termType: z.enum(["term", "abbreviation", "project", "product_id", "code", "unit"]).default("term"),
-  nameEn: z.string().trim().min(1).nullable().optional(),
-  nameKo: z.string().trim().min(1).nullable().optional(),
-  fullNameEn: z.string().trim().min(1).nullable().optional(),
-  fullNameKo: z.string().trim().min(1).nullable().optional(),
-  domain: z.array(z.string().trim().min(1)).default([]),
-  status: z.enum(["active", "deprecated", "forbidden"]).default("active"),
-  definitionMd: z.string().optional(),
+  nameEn: z.string().trim().min(1).max(TERM_NAME_MAX).nullable().optional(),
+  nameKo: z.string().trim().min(1).max(TERM_NAME_MAX).nullable().optional(),
+  fullNameEn: z.string().trim().min(1).max(TERM_NAME_MAX).nullable().optional(),
+  fullNameKo: z.string().trim().min(1).max(TERM_NAME_MAX).nullable().optional(),
+  domain: z.array(z.string().trim().min(1).max(DOMAIN_VALUE_MAX)).max(TERM_DOMAIN_MAX).default([]),
+  category: z.string().trim().min(1).max(DOMAIN_VALUE_MAX).nullable().optional(),
+  ownerId: z.string().uuid().nullable().optional(),
+  status: z.enum(["draft", "active", "deprecated", "forbidden"]).default("draft"),
+  definitionMd: z.string().max(TERM_MARKDOWN_MAX).optional(),
   // R33: terms.body_md 컬럼은 Task 9의 상세 API가 읽어서 그대로 반환하지만, 이
   // 필드가 없으면 어떤 API/폼으로도 채울 방법이 없어 영원히 null로 남는다.
   // 용어 페이지는 마크다운으로 작성·열람되어야 한다는 요구를 만족하려면 쓰기
   // 경로에 필드가 있어야 한다. Task 10(patch)과 Task 13(폼)이 이어받는다.
-  bodyMd: z.string().optional(),
-  surfaces: z.array(surfaceInputSchema).default([]),
+  bodyMd: z.string().max(TERM_MARKDOWN_MAX).optional(),
+  surfaces: z.array(surfaceInputSchema).max(TERM_SURFACE_MAX).default([]),
 });
 
 const APPROVED_KINDS = new Set(["canonical", "abbreviation", "full_name", "alias"]);

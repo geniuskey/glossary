@@ -2,10 +2,12 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { surfaceKeys } from "@grossary/db";
 import { AppShell } from "@/components/app-shell";
-import { DomainBadges, StatusBadge } from "@/components/term-badges";
+import { CompletionBadge, CompletionProgress, MissingFields } from "@/components/term-completion";
+import { CategoryBadge, DomainBadges, OwnerBadge, StatusBadge } from "@/components/term-badges";
 import { isUuid } from "@/lib/api-error";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { TERM_TYPE_LABEL } from "@/lib/terms/enums";
+import { termCompletion } from "@/lib/terms/completion";
 import { getTermByIdOrSlug, type SurfaceKind } from "@/lib/terms/query";
 import { displayName, relativeTime, spineHue } from "@/lib/ui/format";
 
@@ -73,6 +75,7 @@ export default async function TermDetailPage({
     : undefined;
 
   const hue = spineHue(term.slug);
+  const completion = termCompletion(term);
 
   return (
     <AppShell user={user}>
@@ -127,8 +130,11 @@ export default async function TermDetailPage({
 
         <div className="mt-4 flex flex-wrap items-center gap-2 border-b border-line pb-4">
           <StatusBadge status={term.status} />
+          <CompletionBadge completion={completion} />
           <span className="chip">{TERM_TYPE_LABEL[term.termType]}</span>
           <DomainBadges domain={term.domain} />
+          <CategoryBadge category={term.category} />
+          <OwnerBadge ownerName={term.ownerName} mine={term.ownerId === user.id} />
           {/* F4: R40이 updatedAt을 TermDetail에 정식으로 추가한 이유가 "위키
               상세 페이지는 최근 수정을 보여줘야 한다"였는데, 그 화면이 지금
               한 번도 쓰지 않고 있었다. 함께 쓰는 사전에서는 "얼마나 최근 것인가"가
@@ -137,6 +143,47 @@ export default async function TermDetailPage({
             최근 수정 {relativeTime(term.updatedAt)}
           </span>
         </div>
+
+        {term.status === "draft" && completion.complete && (
+          <section className="mt-5 rounded-xl border border-brand/35 bg-brand-soft p-4 sm:p-5" aria-labelledby="publish-heading">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <h2 id="publish-heading" className="text-sm font-semibold text-ink text-balance">
+                  공개 검토를 기다리는 초안입니다
+                </h2>
+                <p className="mt-1 text-xs leading-5 text-ink-2">
+                  핵심 정보가 채워졌습니다. 내용을 확인한 뒤 상태를 ‘공개 · 사용’으로 바꾸면 검색과 AI 조회에 나타납니다.
+                </p>
+              </div>
+              <Link href={`/edit/${term.slug}`} className="btn-primary shrink-0 self-start sm:self-auto">
+                검토하고 공개하기
+              </Link>
+            </div>
+          </section>
+        )}
+
+        {!completion.complete && (
+          <section className="mt-5 rounded-xl border border-warn/35 bg-warn-soft p-4 sm:p-5" aria-labelledby="completion-heading">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <h2 id="completion-heading" className="text-sm font-semibold text-ink text-balance">
+                  이 용어는 아직 함께 정리 중입니다
+                </h2>
+                <p className="mt-1 text-xs leading-5 text-ink-2">
+                  아래 항목 중 알고 있는 것 하나만 보태 주세요. 완벽하지 않아도 다음 사람이 이어서 다듬을 수 있습니다.
+                </p>
+                {term.status === "draft" && (
+                  <p className="mt-1 text-xs leading-5 text-ink-3">초안은 기본 검색과 AI 조회에 나타나지 않습니다.</p>
+                )}
+                <div className="mt-3 max-w-sm"><CompletionProgress completion={completion} /></div>
+                <div className="mt-2.5"><MissingFields completion={completion} /></div>
+              </div>
+              <Link href={`/edit/${term.slug}`} className="btn-primary shrink-0 self-start sm:self-auto">
+                정리 이어가기
+              </Link>
+            </div>
+          </section>
+        )}
 
         {term.homonyms.length > 0 && (
           <div className="note note-warn mt-5">

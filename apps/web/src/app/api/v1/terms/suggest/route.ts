@@ -1,6 +1,7 @@
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAuth } from "@/lib/auth/require";
 import { suggestTerms } from "@/lib/terms/search";
+import { TERM_QUERY_MAX } from "@/lib/terms/limits";
 
 // R25/R83: 처리하지 않는 메서드는 405 스텁으로 명시 export한다.
 const ALLOWED_METHODS = ["GET"];
@@ -23,6 +24,9 @@ export const GET = withApiErrors(async (request: Request) => {
   // 영원히 성공하지 않으므로 400이 맞다(R41/R65와 같은 판단).
   if (q === null || q.trim() === "") {
     return apiError("validation_failed", "q가 필요합니다.", 400, { field: "q" });
+  }
+  if (q.length > TERM_QUERY_MAX) {
+    return apiError("validation_failed", `q는 ${TERM_QUERY_MAX}자 이하여야 합니다.`, 400, { field: "q" });
   }
 
   return Response.json({ items: await suggestTerms(q) });

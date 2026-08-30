@@ -2,6 +2,7 @@ import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAuth } from "@/lib/auth/require";
 import { getTermByIdOrSlug, type TermDetailResponse } from "@/lib/terms/query";
 import { termPatchSchema } from "@/lib/terms/schema";
+import { isAssignableUserId } from "@/lib/terms/owners";
 import { deleteTerm, updateTerm, type UpdateTermSuccess } from "@/lib/terms/update";
 import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
 
@@ -43,6 +44,9 @@ export const PATCH = withApiErrors(
     const parsed = termPatchSchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
       return apiError("validation_failed", "수정 입력이 올바르지 않습니다.", 400, parsed.error.flatten());
+    }
+    if (parsed.data.ownerId && !(await isAssignableUserId(parsed.data.ownerId))) {
+      return apiError("validation_failed", "담당자 계정을 찾을 수 없습니다.", 400, { field: "ownerId" });
     }
 
     const { expectedRevision, ...patchInput } = parsed.data;

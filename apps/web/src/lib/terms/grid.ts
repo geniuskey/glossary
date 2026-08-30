@@ -26,6 +26,9 @@ export interface TermRow {
   fullNameEn: string | null;
   fullNameKo: string | null;
   domain: string[];
+  category: string | null;
+  ownerId: string | null;
+  ownerName: string | null;
   status: TermStatusLiteral;
   definitionMd: string | null;
   bodyMd: string | null;
@@ -53,6 +56,8 @@ export type ColumnKey =
   | "termType"
   | "status"
   | "domain"
+  | "category"
+  | "ownerName"
   | "definitionMd"
   | "bodyMd"
   | "slug"
@@ -88,6 +93,8 @@ export const GRID_COLUMNS: readonly GridColumn[] = [
   { key: "termType", label: "종류", kind: "enum", width: 110, options: TYPE_OPTIONS, sortKey: "termType" },
   { key: "status", label: "상태", kind: "enum", width: 100, options: STATUS_OPTIONS, sortKey: "status" },
   { key: "domain", label: "도메인", kind: "list", width: 160 },
+  { key: "category", label: "카테고리", kind: "text", width: 160 },
+  { key: "ownerName", label: "담당자", kind: "readonly", width: 140 },
   { key: "definitionMd", label: "정의", kind: "longtext", width: 300 },
   // 본문은 문서 한 편이 통째로 들어가는 칸이라 기본으로는 접어 둔다 — 켜 두면
   // 모든 줄이 마크다운 덩어리가 되어 표를 훑는 일 자체가 안 된다. 열 메뉴에서
@@ -159,6 +166,39 @@ export interface Bounds {
   bottom: number;
 }
 
+/** 스크롤 상자 안에서 실제로 가리지 않고 볼 수 있는 사각형. */
+export interface ViewportBounds extends Bounds {
+  left: number;
+  right: number;
+}
+
+/**
+ * 활성 셀을 보이는 영역 안으로 옮기기 위해 더할 스크롤 양.
+ *
+ * scrollIntoView는 sticky 머리글·고정 열도 빈 공간으로 세어서, 키보드로 이동한
+ * 셀이 그 뒤에 들어가도 이미 보인다고 판단한다. 실제로 가리지 않은 경계를
+ * 넘은 만큼만 돌려주면 스크롤 위치를 불필요하게 흔들지 않고 바로잡을 수 있다.
+ */
+export function activeCellScrollDelta(
+  cell: ViewportBounds,
+  visible: ViewportBounds,
+  options: { horizontal?: boolean; gap?: number } = {},
+): { left: number; top: number } {
+  const gap = options.gap ?? 0;
+  let left = 0;
+  let top = 0;
+
+  if (options.horizontal !== false) {
+    if (cell.left - gap < visible.left) left = cell.left - gap - visible.left;
+    else if (cell.right + gap > visible.right) left = cell.right + gap - visible.right;
+  }
+
+  if (cell.top - gap < visible.top) top = cell.top - gap - visible.top;
+  else if (cell.bottom + gap > visible.bottom) top = cell.bottom + gap - visible.bottom;
+
+  return { left, top };
+}
+
 /**
  * 셀 밖으로 펼쳐지는 편집기(목록·도메인 후보·긴 글 상자)를 위로 열지.
  *
@@ -195,6 +235,7 @@ export type CellPatch = Partial<
     | "termType"
     | "status"
     | "domain"
+    | "category"
     | "definitionMd"
     | "bodyMd"
   >
@@ -224,6 +265,9 @@ export function patchForCell(key: ColumnKey, raw: string): { patch: CellPatch } 
     case "bodyMd":
       return { patch: { bodyMd: value } };
 
+    case "category":
+      return { patch: { category: value === "" ? null : value } };
+
     case "domain": {
       // 엑셀에서 붙여넣으면 쉼표와 줄바꿈이 섞여 들어온다. 둘 다 구분자로 보고
       // 빈 항목과 중복을 없앤다(도메인 배열에 같은 값이 두 번 들어가면
@@ -245,6 +289,7 @@ export function patchForCell(key: ColumnKey, raw: string): { patch: CellPatch } 
     }
 
     case "slug":
+    case "ownerName":
     case "updatedAt":
       return { error: "이 열은 수정할 수 없습니다." };
   }

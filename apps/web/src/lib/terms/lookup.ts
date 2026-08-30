@@ -1,7 +1,8 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { surfaceKeys, terms, termSurfaces, type Db } from "@grossary/db";
 import { getDb } from "@/lib/db";
 import type { SurfaceKind, TermStatus, TermSummary, TermType } from "./query";
+import { ownerDisplayLabelSql } from "./owners";
 
 export interface LookupResult {
   text: string;
@@ -76,6 +77,7 @@ async function fetchSimilar(db: Db, missingKeys: string[]): Promise<Map<string, 
       FROM missing_keys mk
       JOIN ${termSurfaces} ts ON ts.norm_loose % mk.key
       JOIN ${terms} tm ON tm.id = ts.term_id
+      WHERE tm.status <> 'draft'
       GROUP BY mk.key, tm.id, tm.slug
     ),
     ranked AS (
@@ -107,6 +109,9 @@ interface MatchRow {
   nameEn: string | null;
   nameKo: string | null;
   domain: string[];
+  category: string | null;
+  ownerId: string | null;
+  ownerName: string | null;
   status: TermStatus;
 }
 
@@ -129,11 +134,14 @@ export async function lookupTerms(texts: string[]): Promise<LookupResult[]> {
           nameEn: terms.nameEn,
           nameKo: terms.nameKo,
           domain: terms.domain,
+          category: terms.category,
+          ownerId: terms.ownerId,
+          ownerName: ownerDisplayLabelSql,
           status: terms.status,
         })
         .from(termSurfaces)
         .innerJoin(terms, eq(terms.id, termSurfaces.termId))
-        .where(inArray(termSurfaces.normLoose, unique))
+        .where(and(inArray(termSurfaces.normLoose, unique), ne(terms.status, "draft")))
         .orderBy(terms.slug)
     : [];
 
@@ -160,7 +168,8 @@ export async function lookupTerms(texts: string[]): Promise<LookupResult[]> {
       seen.add(m.id);
       matchedTerms.push({
         id: m.id, slug: m.slug, termType: m.termType,
-        nameEn: m.nameEn, nameKo: m.nameKo, domain: m.domain, status: m.status,
+        nameEn: m.nameEn, nameKo: m.nameKo, domain: m.domain,
+        category: m.category, ownerId: m.ownerId, ownerName: m.ownerName, status: m.status,
       });
     }
 
