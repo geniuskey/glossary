@@ -192,15 +192,20 @@ export function ApiKeysPanel() {
 
       {issued && (
         <div className="note-ok mt-4 animate-fade-up" aria-live="polite">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="font-medium">키가 발급되었습니다</p>
-            <button type="button" onClick={copyIssued} className="btn-ghost btn-sm">
-              {copied ? "복사됨" : "복사"}
+          <p className="font-medium">키가 발급되었습니다</p>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-stretch">
+            <code className="block min-w-0 flex-1 break-all rounded-lg border border-line bg-panel px-3 py-2.5 font-mono text-[15px] leading-relaxed text-ink">
+              {issued}
+            </code>
+            <button
+              type="button"
+              onClick={copyIssued}
+              className="btn-ghost btn-sm shrink-0"
+              aria-label="발급받은 API 키 복사"
+            >
+              {copied ? "복사 완료" : "API 키 복사"}
             </button>
           </div>
-          <code className="mt-2 block break-all rounded-lg border border-line bg-panel px-3 py-2.5 font-mono text-[15px] leading-relaxed text-ink">
-            {issued}
-          </code>
           <p className="mt-2 text-xs font-medium">
             이 값은 다시 볼 수 없습니다. 지금 복사해 안전한 곳에 보관하세요.
           </p>

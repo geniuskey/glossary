@@ -17,6 +17,9 @@ export const users = pgTable(
     passwordHash: text("password_hash"),
     role: userRoleEnum("role").notNull().default("editor"),
     externalId: text("external_id"),
+    // 마지막 SSO 로그인에서 IdP가 확인해 준 그룹/조직. 로그인할 때마다 최신
+    // claim으로 동기화하며, 로컬 계정은 null로 두어 이메일로 표시한다.
+    ssoGroups: text("sso_groups").array(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

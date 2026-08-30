@@ -224,7 +224,7 @@ test("유효한 ?type=/?status=는 목록을 정상적으로 반환한다 (R41)"
 test("read scope 키로 목록/상세를 조회할 수 있다", async () => {
   const { token } = await makeKeyRow(["write"]);
   const created = await termsPost(
-    postRequest({ nameEn: "Route Get Probe", domain: [], surfaces: [] }, token),
+    postRequest({ nameEn: "Route Get Probe", domain: [], status: "active", surfaces: [] }, token),
   );
   const createdBody = await created.json();
   createdTermIds.push(createdBody.term.id);
@@ -312,7 +312,7 @@ test("?page=1e999는 500이 아니라 400 validation_failed (R59)", async () => 
 test("?type=&status=&q=&domain=&page=&pageSize=는 400이 아니라 필터 없는 200을 반환한다 (R64)", async () => {
   const { token } = await makeKeyRow(["write"]);
   const created = await termsPost(
-    postRequest({ nameEn: "Route Empty Param Probe", domain: [], surfaces: [] }, token),
+    postRequest({ nameEn: "Route Empty Param Probe", domain: [], status: "active", surfaces: [] }, token),
   );
   const createdBody = await created.json();
   createdTermIds.push(createdBody.term.id);

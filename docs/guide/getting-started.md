@@ -164,8 +164,10 @@ pnpm --filter @grossary/web exec tsx scripts/seed-terms.ts it semiconductor
 | `/edit/[slug]` | 편집 (낙관적 잠금) |
 | `/history/[slug]` | 수정 이력 |
 | `/import` | 엑셀 업로드 → dry-run 리포트 → 반영 |
-| `/settings/api-keys` | API 키 발급·폐기 |
+| `/statistics` | 용어·사용자 성장과 도메인/카테고리별 관리 통계 (관리자 전용) |
+| `/settings` | 계정·화면 설정과 API 키 발급·폐기 |
 | `/settings/sso` | SSO 연결 설정 (관리자 전용) |
+| `/admin` | 홈 문구와 사용자·세션 관리 (관리자 전용) |
 
 옛 주소(`/terms`, `/terms/new`, `/terms/[slug]`, `/terms/[slug]/edit`,
 `/terms/[slug]/history`)는 `next.config.ts`의 308 리다이렉트로 전부 새 주소에

@@ -4,9 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { listManagedUsers } from "@/lib/admin/users";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { getHomeContent } from "@/lib/workspace/home-content";
-import { getIdentityDisplaySettings } from "@/lib/workspace/identity-display";
 import { HomeContentPanel } from "./home-content-panel";
-import { IdentityDisplayPanel } from "./identity-display-panel";
 import { UsersPanel } from "./users-panel";
 
 export const metadata = { title: "관리자" };
@@ -16,10 +14,9 @@ export default async function AdminPage() {
   if (!user) redirect("/login");
   if (user.role !== "admin") redirect("/");
 
-  const [managedUsers, homeContent, identityDisplay] = await Promise.all([
+  const [managedUsers, homeContent] = await Promise.all([
     listManagedUsers(),
     getHomeContent(),
-    getIdentityDisplaySettings(),
   ]);
 
   return (
@@ -33,15 +30,14 @@ export default async function AdminPage() {
               워크스페이스의 첫인상과 구성원의 접근 권한을 관리합니다.
             </p>
           </div>
-          <Link href="/settings/sso" className="btn-ghost shrink-0 self-start sm:self-auto">
-            SSO 설정 <span aria-hidden="true">→</span>
-          </Link>
+          <div className="flex flex-wrap gap-2 self-start sm:self-auto">
+            <Link href="/statistics" className="btn-ghost">플랫폼 통계 <span aria-hidden="true">→</span></Link>
+            <Link href="/settings/sso" className="btn-ghost">SSO 설정 <span aria-hidden="true">→</span></Link>
+          </div>
         </div>
       </header>
 
       <HomeContentPanel initialContent={homeContent} />
-      <div className="my-10 border-t border-line" />
-      <IdentityDisplayPanel initialSettings={identityDisplay} />
       <div className="my-10 border-t border-line" />
       <UsersPanel initialUsers={managedUsers} viewerId={user.id} />
     </AppShell>

@@ -84,7 +84,7 @@ export const openApiSpec = {
           domain: { type: "array", items: { type: "string" } },
           category: { type: ["string", "null"] },
           ownerId: { type: ["string", "null"], format: "uuid" },
-          ownerName: { type: ["string", "null"], description: "관리자 표시 정책이 적용된 담당자 라벨" },
+          ownerName: { type: ["string", "null"], description: "SSO 그룹/조직이 적용된 담당자 라벨" },
           status: statusSchema,
         },
       },

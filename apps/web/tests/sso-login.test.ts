@@ -45,6 +45,7 @@ test("처음 온 사람의 계정을 만들고 비밀번호는 두지 않는다"
   const row = await rowOf(result.user.id);
   expect(result.created).toBe(true);
   expect(row.externalId).toBe(id.subject);
+  expect(row.ssoGroups).toEqual(id.groups);
   expect(row.role).toBe("editor");
   // 임의의 해시를 채우면 "비밀번호가 있는 것처럼 보이지만 아무도 모르는 계정"이 된다.
   expect(row.passwordHash).toBeNull();
@@ -124,6 +125,21 @@ test("역할은 올라가기만 하고 내려가지 않는다", async () => {
 
   const demoted = await login({ identity: id, isAdmin: false, autoCreate: true });
   expect(demoted.ok && demoted.user.role).toBe("admin");
+});
+
+test("로그인할 때마다 SSO 그룹/조직을 최신 claim으로 동기화한다", async () => {
+  const id = identity({ groups: ["Platform 조직"] });
+  const created = await login({ identity: id, isAdmin: false, autoCreate: true });
+  expect(created.ok).toBe(true);
+  if (!created.ok) return;
+
+  await login({
+    identity: { ...id, groups: ["Search 조직", "Glossary Editors"] },
+    isAdmin: false,
+    autoCreate: true,
+  });
+
+  expect((await rowOf(created.user.id)).ssoGroups).toEqual(["Search 조직", "Glossary Editors"]);
 });
 
 // 이메일을 따라가려다 users_email_lower_unique를 위반하면 로그인 전체가 500이 된다.

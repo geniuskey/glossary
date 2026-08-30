@@ -61,6 +61,7 @@ export async function applySsoLogin(input: {
         name: identity.name,
         passwordHash: null,
         externalId: identity.subject,
+        ssoGroups: identity.groups,
         role: isAdmin ? "admin" : "editor",
       })
       .returning({ id: users.id, email: users.email, name: users.name, role: users.role });
@@ -85,6 +86,7 @@ async function syncPatch(
 ): Promise<Partial<UserRow>> {
   const patch: Partial<UserRow> = {};
   if (identity.name && identity.name !== existing.name) patch.name = identity.name;
+  if (!sameGroups(identity.groups, existing.ssoGroups)) patch.ssoGroups = identity.groups;
   if (isAdmin && existing.role !== "admin") patch.role = "admin";
 
   if (existing.email.toLowerCase() !== identity.email) {
@@ -98,6 +100,10 @@ async function syncPatch(
     if (!taken) patch.email = identity.email;
   }
   return patch;
+}
+
+function sameGroups(current: readonly string[], saved: readonly string[] | null): boolean {
+  return saved !== null && current.length === saved.length && current.every((group, index) => group === saved[index]);
 }
 
 async function applyPatch(tx: Tx, existing: UserRow, patch: Partial<UserRow>): Promise<CurrentUser> {

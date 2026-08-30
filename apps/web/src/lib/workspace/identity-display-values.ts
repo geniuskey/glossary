@@ -1,29 +1,8 @@
-export const IDENTITY_DISPLAY_LIMITS = { domain: 253, organization: 80 } as const;
-
-export interface IdentityDisplaySettings {
-  emailDomain: string;
-  organization: string;
-}
-
-export const DEFAULT_IDENTITY_DISPLAY: IdentityDisplaySettings = {
-  emailDomain: "",
-  organization: "",
-};
-
-export function emailDomainOf(email: string): string {
-  const at = email.lastIndexOf("@");
-  return at >= 0 ? email.slice(at + 1).trim().toLowerCase() : "";
-}
-
-/** 같은 회사 도메인만 조직명으로 축약하고, 예외 계정은 이메일을 남긴다. */
+/** SSO가 확인한 그룹/조직을 표시하고, 로컬 계정은 이메일을 남긴다. */
 export function userDisplayLabel(
-  user: { name: string; email: string },
-  settings: IdentityDisplaySettings,
+  user: { name: string; email: string; ssoGroups: readonly string[] | null },
 ): string {
-  const configuredDomain = settings.emailDomain.trim().toLowerCase();
-  const organization = settings.organization.trim();
-  if (configuredDomain && organization && emailDomainOf(user.email) === configuredDomain) {
-    return `${user.name} · ${organization}`;
-  }
+  const groups = user.ssoGroups?.map((group) => group.trim()).filter(Boolean) ?? [];
+  if (groups.length > 0) return `${user.name} · ${groups.join(", ")}`;
   return `${user.name} · ${user.email}`;
 }

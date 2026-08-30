@@ -198,7 +198,7 @@ test("매핑이 틀리면 IdP가 보낸 claim 이름을 설정에 남긴다", as
 
   expect(location(res)).toBe(`${BASE}/login?sso=no_email`);
   const cfg = await loadSsoConfig();
-  expect(cfg.lastClaimKeys).toEqual(["displayName", "nonce", "sub", "upn"]);
+  expect(cfg.lastClaimKeys).toEqual(["aud", "displayName", "exp", "iss", "nonce", "sub", "upn"]);
   expect(cfg.lastLoginAt).not.toBeNull();
 });
 

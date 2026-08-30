@@ -59,7 +59,7 @@ export function TermGraph({ terms }: { terms: GraphTerm[] }) {
           <g key={hub.key} transform={`translate(${hub.x} ${hub.y})`}>
             <circle r={hub.kind === "category" ? 28 : 34} className={hub.kind === "category" ? "fill-brand-soft stroke-brand" : "fill-panel stroke-line-strong"} strokeWidth="2" />
             <text textAnchor="middle" dy="4" className="fill-ink text-[12px] font-semibold">{hub.label.slice(0, 12)}</text>
-            <title>{hub.kind === "category" ? "카테고리" : "도메인"}: {hub.label}</title>
+            <title>{`${hub.kind === "category" ? "카테고리" : "도메인"}: ${hub.label}`}</title>
           </g>
         ))}
         {nodes.map(({ term, x, y }) => (
@@ -67,7 +67,7 @@ export function TermGraph({ terms }: { terms: GraphTerm[] }) {
             <g transform={`translate(${x} ${y})`} className="cursor-pointer">
               <circle r="12" fill={`hsl(${spineHue(term.slug)} 62% 55%)`} className="stroke-panel" strokeWidth="3" />
               <text x="16" y="4" className="fill-ink text-[11px] font-medium">{displayName(term).slice(0, 18)}</text>
-              <title>{displayName(term)}{term.ownerName ? ` · 담당 ${term.ownerName}` : ""}</title>
+              <title>{`${displayName(term)}${term.ownerName ? ` · 담당 ${term.ownerName}` : ""}`}</title>
             </g>
           </a>
         ))}

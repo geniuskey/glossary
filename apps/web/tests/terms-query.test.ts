@@ -219,7 +219,8 @@ test("상세 응답은 TermDetail 필드만 싣고 원본 테이블의 다른 �
   const keys = Object.keys(detail ?? {}).sort();
   expect(keys).toEqual(
     [
-      "id", "slug", "termType", "nameEn", "nameKo", "domain", "status",
+      "id", "slug", "termType", "nameEn", "nameKo", "domain", "category",
+      "ownerId", "ownerName", "status",
       "fullNameEn", "fullNameKo", "definitionMd", "bodyMd", "updatedAt",
       "surfaces", "homonyms",
     ].sort(),
@@ -276,8 +277,8 @@ test("동률 정렬 중 한 행이 갱신돼도 페이지마다 다른 결과를
     const rows = await tx
       .insert(terms)
       .values([
-        { slug: `${domain}-a`, domain: [domain] },
-        { slug: `${domain}-b`, domain: [domain] },
+        { slug: `${domain}-a`, domain: [domain], status: "active" },
+        { slug: `${domain}-b`, domain: [domain], status: "active" },
       ])
       .returning({ id: terms.id, updatedAt: terms.updatedAt });
     return rows;
@@ -315,7 +316,7 @@ test("동률인 행이 6개 이상이면 id 내림차순 전체 순서와 정확
   const rows = await db.transaction(async (tx) =>
     tx
       .insert(terms)
-      .values(Array.from({ length: COUNT }, (_, i) => ({ slug: `${domain}-${i}`, domain: [domain] })))
+      .values(Array.from({ length: COUNT }, (_, i) => ({ slug: `${domain}-${i}`, domain: [domain], status: "active" as const })))
       .returning({ id: terms.id, updatedAt: terms.updatedAt }),
   );
   for (const row of rows) ids.push(row.id);

@@ -2,7 +2,12 @@ import path from "node:path";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
+  resolve: {
+    alias: {
+      "@": path.resolve(import.meta.dirname, "src"),
+      "server-only": path.resolve(import.meta.dirname, "tests/server-only.ts"),
+    },
+  },
   // R109/R110(Task 13): jsdom은 여전히 없다(렌더/이벤트 테스트는 여전히
   // 불가능 — vitest.config.ts의 "no jsdom" 결정은 그대로 유지). 이 esbuild
   // 옵션은 그거와 무관하게, Server Component(app/**/page.tsx)를 평범한 async

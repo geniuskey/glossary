@@ -5,7 +5,7 @@ import { cx } from "@/lib/ui/format";
 import { LogoutButton } from "./logout-button";
 import { ThemeToggle } from "./theme-toggle";
 
-export type NavKey = "search" | "contribute" | "sheet" | "graph" | "import" | "settings" | "admin";
+export type NavKey = "search" | "contribute" | "sheet" | "graph" | "import" | "statistics" | "settings" | "admin";
 
 const NAV: Array<{ key: NavKey; href: string; label: string; hint: string; icon: ReactNode; adminOnly?: true }> = [
   // R135: 홈은 검색 화면이다. 사이드바 첫 자리를 검색이 가져가는 이유는
@@ -16,6 +16,7 @@ const NAV: Array<{ key: NavKey; href: string; label: string; hint: string; icon:
   { key: "sheet", href: "/sheet", label: "시트", hint: "표 편집", icon: <IconGrid /> },
   { key: "graph", href: "/graph", label: "관계도", hint: "맥락 탐색", icon: <IconGraph /> },
   { key: "import", href: "/import", label: "가져오기", hint: "엑셀", icon: <IconImport /> },
+  { key: "statistics", href: "/statistics", label: "통계", hint: "운영 현황", icon: <IconStatistics />, adminOnly: true },
   { key: "settings", href: "/settings", label: "설정", hint: "계정 · API", icon: <IconSettings /> },
   { key: "admin", href: "/admin", label: "관리자", hint: "사용자", icon: <IconAdmin />, adminOnly: true },
 ];
@@ -195,6 +196,15 @@ function IconGraph() {
       <circle cx="11.5" cy="3.5" r="1.6" />
       <circle cx="12" cy="12" r="1.6" />
       <path d="m4.4 7.2 5.7-3M4.5 8.7l6 2.5M11.7 5.1l.2 5.3" />
+    </svg>
+  );
+}
+
+function IconStatistics() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <path d="M2.25 13.5h11.5" strokeLinecap="round" />
+      <path d="M3.5 11V7.75h2V11h-2Zm3.5 0V3.5h2V11H7Zm3.5 0V5.75h2V11h-2Z" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -31,15 +31,29 @@ const appDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "sr
 
 test("설정 허브에서 계정·테마·API 키를 한 화면에 관리한다", () => {
   const settingsPage = readFileSync(path.join(appDir, "settings", "page.tsx"), "utf8");
+  const apiKeysPanel = readFileSync(path.join(appDir, "settings", "api-keys", "api-keys-panel.tsx"), "utf8");
   expect(settingsPage).toContain("getCurrentUser(");
   expect(settingsPage).toContain("<ThemeToggle alwaysShowLabel />");
   expect(settingsPage).toContain('<section id="api-keys"');
   expect(settingsPage).toContain("<ApiKeysPanel />");
+  expect(apiKeysPanel).toContain('aria-label="발급받은 API 키 복사"');
+  expect(apiKeysPanel).toContain("navigator.clipboard.writeText(issued)");
 });
 
 test("기존 API 키 주소는 설정 허브의 API 키 영역으로 이어진다", () => {
   const legacyPage = readFileSync(path.join(appDir, "settings", "api-keys", "page.tsx"), "utf8");
   expect(legacyPage).toContain('redirect("/settings#api-keys")');
+});
+
+test("관리자 통계 화면은 성장 차트와 조직별 집계를 제공한다", () => {
+  const statisticsPage = readFileSync(path.join(appDir, "statistics", "page.tsx"), "utf8");
+  const groupTable = readFileSync(path.join(appDir, "statistics", "group-statistics-table.tsx"), "utf8");
+  expect(statisticsPage).toContain('user.role !== "admin"');
+  expect(statisticsPage).toContain("<DailyGrowthChart");
+  expect(statisticsPage).toContain('value="cumulativeTerms"');
+  expect(statisticsPage).toContain('kind="category"');
+  expect(groupTable).toContain("담당 지정");
+  expect(groupTable).toContain("90일 미갱신");
 });
 
 /** `/edit/:slug` → `src/app/edit/[slug]/page.tsx` */
