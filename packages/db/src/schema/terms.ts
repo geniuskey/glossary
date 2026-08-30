@@ -2,20 +2,18 @@ import { sql } from "drizzle-orm";
 import {
   boolean, index, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid,
 } from "drizzle-orm/pg-core";
+import { users } from "./auth";
 
 export const termTypeEnum = pgEnum("term_type", [
   "term", "abbreviation", "project", "product_id", "code", "unit",
 ]);
 
-// R130: 원래 draft|approved|deprecated|forbidden 4값이었다. 승인 축(draft↔approved)은
-// 승인 주체·권한·효과가 어디에도 없어서 배지 색과 필터 파셋 말고는 아무것도 바꾸지
-// 못했고, 로그인한 사람이면 누구나 자기 글을 approved로 올릴 수 있는 개방 편집에서는
-// 라벨이 곧 소음이 된다(엑셀의 "확정" 열이 죽던 방식). status는 "이 용어를 문서에서
-// 써도 되는가" 한 축만 남긴다 — 로드맵 M2의 린트 규칙(deprecated→replaced_by 제시,
-// forbidden→error)과 1:1로 대응하는 값들이다. 기존 draft/approved 행은
-// 마이그레이션 0003에서 전부 active로 접었다.
+// draft는 협업 중인 초안이며 기본 검색·추천·AI 조회에는 노출하지 않는다.
+// active는 팀이 찾아보고 실제 문서에서 사용할 수 있는 공개 상태다. 완성도는
+// 별도 규칙(termCompletion)으로 계산하며, 필드가 다 찼다는 이유만으로 자동 공개하지
+// 않는다. deprecated/forbidden은 공개된 용어의 사용 정책을 표현한다.
 export const termStatusEnum = pgEnum("term_status", [
-  "active", "deprecated", "forbidden",
+  "draft", "active", "deprecated", "forbidden",
 ]);
 
 export const surfaceKindEnum = pgEnum("surface_kind", [
@@ -35,7 +33,9 @@ export const terms = pgTable(
     fullNameEn: text("full_name_en"),
     fullNameKo: text("full_name_ko"),
     domain: text("domain").array().notNull().default([]),
-    status: termStatusEnum("status").notNull().default("active"),
+    category: text("category"),
+    ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+    status: termStatusEnum("status").notNull().default("draft"),
     definitionMd: text("definition_md"),
     bodyMd: text("body_md"),
     replacedById: uuid("replaced_by_id"),
@@ -47,6 +47,8 @@ export const terms = pgTable(
   (t) => ({
     slugUnique: uniqueIndex("terms_slug_unique").on(t.slug),
     statusIdx: index("terms_status_idx").on(t.status),
+    categoryIdx: index("terms_category_idx").on(t.category),
+    ownerIdx: index("terms_owner_idx").on(t.ownerId),
   }),
 );
 

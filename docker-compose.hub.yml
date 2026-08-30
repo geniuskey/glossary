@@ -1,0 +1,67 @@
+# Docker Hub에서 미리 빌드된 이미지를 pull해 사내에 배포하는 스택.
+# 소스 코드나 scripts/init-db.sql이 없어도 동작하도록 pg_trgm 초기화를 별도
+# 일회성 컨테이너가 맡는다. 앱과 migrator는 같은 저장소의 서로 다른 태그다.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: grossary
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: grossary
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grossary -d grossary"]
+      interval: 5s
+      retries: 10
+
+  database-init:
+    image: postgres:16-alpine
+    restart: "no"
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    command:
+      - psql
+      - -h
+      - postgres
+      - -U
+      - grossary
+      - -d
+      - grossary
+      - -v
+      - ON_ERROR_STOP=1
+      - -c
+      - CREATE EXTENSION IF NOT EXISTS pg_trgm;
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  migrator:
+    image: ${GROSSARY_MIGRATOR_IMAGE:?GROSSARY_MIGRATOR_IMAGE is required}
+    restart: "no"
+    environment:
+      DATABASE_URL: postgres://grossary:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/grossary
+    depends_on:
+      database-init:
+        condition: service_completed_successfully
+
+  app:
+    image: ${GROSSARY_IMAGE:?GROSSARY_IMAGE is required}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://grossary:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/grossary
+      NODE_ENV: production
+      GROSSARY_EMBED_ANCESTORS: ${GROSSARY_EMBED_ANCESTORS:-}
+    ports:
+      - "${GROSSARY_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
+    name: grossary_hub_pgdata

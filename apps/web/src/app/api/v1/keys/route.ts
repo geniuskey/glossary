@@ -7,8 +7,8 @@ import { getCurrentUser } from "@/lib/auth/current-user";
 import { generateApiKey } from "@/lib/auth/api-key";
 
 const createSchema = z.object({
-  name: z.string().min(1),
-  scopes: z.array(z.enum(["read", "write", "validate"])).min(1),
+  name: z.string().trim().min(1).max(100),
+  scopes: z.array(z.enum(["read", "write", "validate"])).min(1).max(3),
 });
 
 // R25: 신규 라우트도 methodNotAllowed를 명시 export한다 — 이 규칙에 예외는 없다.

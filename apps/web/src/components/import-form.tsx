@@ -185,7 +185,7 @@ export function ImportForm() {
 
       {!applied && (
         <button type="button" onClick={runDryRun} disabled={!file || busy} className="btn-primary">
-          {busy ? "검사 중..." : "검사만 실행 (dry-run)"}
+          {busy ? "검사 중…" : "검사만 실행 (dry-run)"}
         </button>
       )}
 
@@ -294,7 +294,7 @@ export function ImportForm() {
               disabled={busy || (report.total === 0 && forced.size === 0)}
               className="btn-primary"
             >
-              {busy ? "등록 중..." : `${report.ready + forced.size}개 실제로 등록하기`}
+              {busy ? "등록 중…" : `${report.ready + forced.size}개 실제로 등록하기`}
             </button>
             <span className="text-xs text-ink-3">
               바로 등록 {report.ready}개 + 강제 등록 {forced.size}개

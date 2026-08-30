@@ -15,6 +15,7 @@ let otherId = "";
 let qzzId = "";
 let pctId = "";
 let pctPlainId = "";
+let draftId = "";
 
 beforeAll(async () => {
   const soc = await createTerm(
@@ -68,6 +69,20 @@ beforeAll(async () => {
   );
   pctPlainId = pctPlain.term.id;
   ids.push(pctPlainId);
+
+  const draft = await createTerm(
+    {
+      termType: "term",
+      nameEn: "HiddenDraftXSRCH",
+      domain: ["QA"],
+      status: "draft",
+      definitionMd: "검색에 아직 노출하지 않는 초안.",
+      surfaces: [],
+    },
+    null,
+  );
+  draftId = draft.term.id;
+  ids.push(draftId);
 });
 
 afterAll(async () => {
@@ -118,6 +133,11 @@ test("정규화하면 빈 문자열이 되는 입력은 아무것도 찾지 않�
 test("limit을 넘겨 돌려주지 않는다", async () => {
   const hits = await searchTerms("SoCXSRCH", 1);
   expect(hits.length).toBeLessThanOrEqual(1);
+});
+
+test("draft는 기본 검색과 자동완성에 노출되지 않는다", async () => {
+  expect((await searchTerms("HiddenDraftXSRCH")).map((hit) => hit.id)).not.toContain(draftId);
+  expect((await suggestTerms("HiddenDraftXSRCH")).map((hit) => hit.id)).not.toContain(draftId);
 });
 
 // --- suggestTerms (R136, 자동완성) -------------------------------------------

@@ -38,6 +38,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --paper: 19 21 25;
     --panel: 26 29 34;
     --panel-2: 33 37 43;
@@ -115,6 +116,10 @@
     -webkit-text-size-adjust: 100%;
   }
 
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+  }
+
   body {
     @apply bg-paper text-ink antialiased;
     /* 종이 질감: 이미지 없이 그라디언트 두 겹으로만 만든다(요청 0건). */
@@ -148,6 +153,17 @@
     border: 3px solid transparent;
     background-clip: content-box;
     border-radius: 999px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 

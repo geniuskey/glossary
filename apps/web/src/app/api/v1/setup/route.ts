@@ -2,12 +2,12 @@ import { z } from "zod";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { normalizeEmail } from "@/lib/auth/register";
 import { createFirstAdmin, needsSetup } from "@/lib/auth/setup";
-import { createSession, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/auth/session";
+import { createSession, isSecureRequest, sessionCookie } from "@/lib/auth/session";
 
 const bodySchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  name: z.string().trim().min(1).optional(),
+  email: z.string().trim().email().max(254),
+  password: z.string().min(8).max(1024),
+  name: z.string().trim().min(1).max(100).optional(),
 });
 const ALLOWED_METHODS = ["POST"];
 
@@ -43,9 +43,6 @@ export const POST = withApiErrors(async (request: Request) => {
 
   const session = await createSession(result.user.id);
   const res = Response.json({ user: result.user });
-  res.headers.append(
-    "set-cookie",
-    `${SESSION_COOKIE}=${session.token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_SECONDS}; Expires=${session.expiresAt.toUTCString()}`,
-  );
+  res.headers.append("set-cookie", sessionCookie(session.token, session.expiresAt, isSecureRequest(request)));
   return res;
 });

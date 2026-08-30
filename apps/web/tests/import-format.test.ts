@@ -28,6 +28,7 @@ const FIELDS: ImportField[] = [
   "fullNameKo",
   "termType",
   "domain",
+  "category",
   "status",
   "definitionMd",
   "aliases",
@@ -146,6 +147,7 @@ test("샘플 파일을 그대로 파서에 먹이면 경고 없이 SAMPLE_ROWS�
     expect(parsed.fullNameKo ?? "").toBe(sample.fullNameKo);
     expect(parsed.definitionMd ?? "").toBe(sample.definitionMd);
     expect(parsed.domain.join(", ")).toBe(sample.domain);
+    expect(parsed.category ?? "").toBe(sample.category);
     expect(parsed.aliases.join(", ")).toBe(sample.aliases);
   });
 });

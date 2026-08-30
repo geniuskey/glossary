@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { methodStubs } from "@/lib/api-error";
-import { claimKeys, decideAccess, decodeJwtPayload, resolveIdentity } from "@/lib/auth/sso/claims";
+import { claimKeys, decideAccess, decodeJwtPayload, resolveIdentity, validateIdTokenClaims } from "@/lib/auth/sso/claims";
 import { loadSsoConfig, recordClaimKeys } from "@/lib/auth/sso/config";
 import type { SsoErrorCode } from "@/lib/auth/sso/errors";
 import {
@@ -13,7 +13,7 @@ import {
   resolveBaseUrl,
 } from "@/lib/auth/sso/flow";
 import { applySsoLogin } from "@/lib/auth/sso/login";
-import { createSession, purgeExpiredSessions, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/auth/session";
+import { createSession, purgeExpiredSessions, sessionCookie } from "@/lib/auth/session";
 
 // start/route.ts와 같은 이유로 /api/v1 밖에 있고, 에러 응답 대신 302로만 답한다.
 export const dynamic = "force-dynamic";
@@ -71,8 +71,15 @@ export async function GET(request: Request): Promise<Response> {
 
     const idClaims = decodeJwtPayload(token.idToken);
     if (!idClaims) return back(base, "token");
-    // nonce는 "이 ID 토큰이 방금 이 브라우저가 시작한 요청의 것인가"를 잇는 끈이다.
-    if (typeof idClaims.nonce === "string" && !sameToken(idClaims.nonce, flow.nonce)) return back(base, "state");
+    const claimsValidation = validateIdTokenClaims(idClaims, {
+      issuer: cfg.issuer || undefined,
+      clientId: cfg.clientId,
+      nonce: flow.nonce,
+    });
+    if (!claimsValidation.ok) {
+      // nonce는 브라우저의 로그인 흐름, 나머지는 IdP가 발급한 토큰 자체의 문제다.
+      return back(base, claimsValidation.reason === "nonce" ? "state" : "token");
+    }
 
     const userinfo =
       cfg.userinfoEndpoint && token.accessToken ? await fetchUserinfo(cfg.userinfoEndpoint, token.accessToken) : null;
@@ -104,10 +111,7 @@ export async function GET(request: Request): Promise<Response> {
     const session = await createSession(result.user.id);
 
     const headers = new Headers({ location: `${base}/` });
-    headers.append(
-      "set-cookie",
-      `${SESSION_COOKIE}=${session.token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_SECONDS}; Expires=${session.expiresAt.toUTCString()}`,
-    );
+    headers.append("set-cookie", sessionCookie(session.token, session.expiresAt, base.startsWith("https://")));
     headers.append("set-cookie", clearFlowCookie());
     return new Response(null, { status: 302, headers });
   } catch (err) {

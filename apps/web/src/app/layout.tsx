@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { InlineScript } from "@/components/inline-script";
 import "./globals.css";
 
 export const metadata = {
@@ -16,7 +17,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <InlineScript html={THEME_SCRIPT} />
       </head>
       <body className="font-sans">{children}</body>
     </html>

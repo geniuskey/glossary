@@ -1,8 +1,31 @@
 import { eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
 import { createDb, sessions, users } from "@grossary/db";
-import { createSession, deleteSession, hashSessionToken } from "../src/lib/auth/session.js";
+import {
+  clearSessionCookie,
+  createSession,
+  deleteSession,
+  hashSessionToken,
+  isSecureRequest,
+  sessionCookie,
+} from "../src/lib/auth/session.js";
 import { hashPassword } from "../src/lib/auth/password.js";
+
+test("HTTPS 세션 쿠키는 Secure이고 HTTP 개발 쿠키는 Secure가 아니다", () => {
+  const expiresAt = new Date("2026-09-01T00:00:00.000Z");
+
+  expect(sessionCookie("token", expiresAt, true)).toContain("; Secure");
+  expect(sessionCookie("token", expiresAt, false)).not.toContain("; Secure");
+  expect(clearSessionCookie(true)).toContain("; Secure");
+});
+
+test("프록시가 전달한 원래 프로토콜을 세션 쿠키 보안 판단에 사용한다", () => {
+  expect(isSecureRequest(new Request("https://example.com/login"))).toBe(true);
+  expect(isSecureRequest(new Request("http://localhost/login"))).toBe(false);
+  expect(
+    isSecureRequest(new Request("http://app.internal/login", { headers: { "x-forwarded-proto": "https" } })),
+  ).toBe(true);
+});
 
 const db = createDb(process.env.DATABASE_URL!);
 const createdUserIds: string[] = [];

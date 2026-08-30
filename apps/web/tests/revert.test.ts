@@ -97,9 +97,9 @@ test("정의가 없던 리비전으로 되돌리면 나중에 쓴 정의가 지�
   expect(reverted.term.definitionMd ?? "").toBe("");
 });
 
-// R130: 마이그레이션 0003은 terms만 접고 스냅샷의 옛 status는 그대로 두었다.
-// 승인 축이 있던 시절의 리비전도 되돌릴 수 있어야 한다.
-test("옛 draft/approved 스냅샷도 active로 되돌린다", async () => {
+// R130: approved는 현재 enum에 없지만 옛 리비전에는 남아 있다. 이 값만 현재의
+// 공개 상태인 active로 옮겨 읽는다.
+test("옛 approved 스냅샷은 active로 되돌린다", async () => {
   const term = await seed();
   const [rev1] = await db
     .select({ id: termRevisions.id, snapshot: termRevisions.snapshot })
@@ -116,6 +116,25 @@ test("옛 draft/approved 스냅샷도 active로 되돌린다", async () => {
   const reverted = expectSaved(await revertTerm(term.id, 1, null));
 
   expect(reverted.term.status).toBe("active");
+});
+
+test("draft가 다시 정식 상태가 된 뒤에는 draft 스냅샷도 그대로 되돌린다", async () => {
+  const term = await seed();
+  const [rev1] = await db
+    .select({ id: termRevisions.id, snapshot: termRevisions.snapshot })
+    .from(termRevisions)
+    .where(and(eq(termRevisions.termId, term.id), eq(termRevisions.revisionNumber, 1)))
+    .limit(1);
+  const snapshot = rev1!.snapshot as { term: Record<string, unknown>; surfaces: unknown[] };
+  await db
+    .update(termRevisions)
+    .set({ snapshot: { ...snapshot, term: { ...snapshot.term, status: "draft" } } })
+    .where(eq(termRevisions.id, rev1!.id));
+
+  await updateTerm(term.id, { status: "forbidden" }, null);
+  const reverted = expectSaved(await revertTerm(term.id, 1, null));
+
+  expect(reverted.term.status).toBe("draft");
 });
 
 test("없는 리비전 번호로 되돌리면 revisionNotFound다", async () => {

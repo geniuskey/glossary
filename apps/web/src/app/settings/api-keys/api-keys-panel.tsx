@@ -18,6 +18,16 @@ const SCOPE_HINT: Record<(typeof ALL_SCOPES)[number], string> = {
   validate: "검사",
 };
 
+const DATE_FORMAT = new Intl.DateTimeFormat("ko-KR", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function formatDate(value: string) {
+  return DATE_FORMAT.format(new Date(value));
+}
+
 // 화면 전체가 아니라 상태를 갖는 이 조각만 Client Component다(logout-button.tsx와
 // 같은 이유) — 셸과 헤더는 서버에 남아 클라이언트 번들에 실리지 않고, 그 덕에
 // page.tsx가 getCurrentUser로 인증을 걸 수 있어 PROTO B 허용목록에서 빠졌다.
@@ -27,15 +37,28 @@ export function ApiKeysPanel() {
   const [scopes, setScopes] = useState<string[]>(["read"]);
   const [issued, setIssued] = useState<string | null>(null);
   const [revoking, setRevoking] = useState<string | null>(null);
+  const [issuing, setIssuing] = useState(false);
   // 빈 상태 문구는 첫 응답 전에는 띄우지 않는다 — 키가 있는데도 "아직 없습니다"가
   // 한 프레임 스쳐 지나가면 화면이 거짓말을 하는 셈이다.
   const [loaded, setLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    const res = await fetch("/api/v1/keys");
-    if (res.ok) setKeys((await res.json()).keys);
-    setLoaded(true);
+    try {
+      const res = await fetch("/api/v1/keys");
+      if (!res.ok) {
+        setError(`키 목록을 불러오지 못했습니다 (${res.status}).`);
+        return;
+      }
+      const body = (await res.json()) as { keys: KeyRow[] };
+      setKeys(body.keys);
+      setError(null);
+    } catch {
+      setError("네트워크 오류로 키 목록을 불러오지 못했습니다.");
+    } finally {
+      setLoaded(true);
+    }
   }
 
   useEffect(() => {
@@ -43,36 +66,66 @@ export function ApiKeysPanel() {
   }, []);
 
   async function issue() {
-    const res = await fetch("/api/v1/keys", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, scopes }),
-    });
-    if (!res.ok) return;
+    if (issuing) return;
+    setIssuing(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/v1/keys", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, scopes }),
+      });
+      const body = (await res.json().catch(() => null)) as
+        | { token?: string; error?: { message?: string } }
+        | null;
+      if (!res.ok || !body?.token) {
+        setError(body?.error?.message ?? `키를 발급하지 못했습니다 (${res.status}).`);
+        return;
+      }
 
-    setIssued((await res.json()).token);
-    setName("");
-    setCopied(false);
-    void load();
+      setIssued(body.token);
+      setName("");
+      setCopied(false);
+      await load();
+    } catch {
+      setError("네트워크 오류로 키를 발급하지 못했습니다.");
+    } finally {
+      setIssuing(false);
+    }
   }
 
   async function revoke(id: string) {
+    if (revoking) return;
+    if (!window.confirm("이 API 키를 폐기할까요? 폐기한 키는 다시 사용할 수 없습니다.")) return;
     setRevoking(id);
-    const res = await fetch(`/api/v1/keys/${id}`, { method: "DELETE" });
-    setRevoking(null);
-    if (res.ok) void load();
+    setError(null);
+    try {
+      const res = await fetch(`/api/v1/keys/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+        setError(body?.error?.message ?? `키를 폐기하지 못했습니다 (${res.status}).`);
+        return;
+      }
+      await load();
+    } catch {
+      setError("네트워크 오류로 키를 폐기하지 못했습니다.");
+    } finally {
+      setRevoking(null);
+    }
   }
 
   // 평문 키는 이 화면에 딱 한 번 뜨고 사라진다 — 손으로 43자를 옮겨 적게 두면
   // 오타로 실패한다. 클립보드 권한이 없는 브라우저에서는 아래 평문을 직접
-  // 선택해 복사할 수 있으므로 실패해도 조용히 버튼 라벨만 그대로 둔다.
+  // 선택해 복사할 수 있으므로 실패하면 직접 복사할 수 있다는 안내를 남긴다.
   async function copyIssued() {
     if (!issued) return;
     try {
       await navigator.clipboard.writeText(issued);
       setCopied(true);
+      setError(null);
     } catch {
       setCopied(false);
+      setError("클립보드에 복사하지 못했습니다. 아래 키를 직접 선택해 복사하세요.");
     }
   }
 
@@ -82,22 +135,29 @@ export function ApiKeysPanel() {
         <h2 className="label">새 키 발급</h2>
 
         <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+          <label htmlFor="api-key-name" className="sr-only">
+            API 키 용도
+          </label>
           <input
+            id="api-key-name"
+            name="apiKeyName"
             value={name}
+            maxLength={100}
+            autoComplete="off"
             onChange={(e) => setName(e.target.value)}
-            placeholder="용도 (예: ai-lint)"
+            placeholder="예: 문서 AI 린트…"
             className="field sm:flex-1"
           />
-          <button onClick={issue} disabled={!name || scopes.length === 0} className="btn-primary shrink-0">
-            발급
+          <button type="button" onClick={issue} disabled={issuing || !name.trim() || scopes.length === 0} className="btn-primary shrink-0">
+            {issuing ? "발급 중…" : "API 키 발급"}
           </button>
         </div>
 
         {/* 체크박스는 sr-only로 숨기고 라벨 자체를 칩으로 만든다 — 켜짐/꺼짐이
             체크 표시보다 색으로 먼저 읽히고, 클릭 과녁도 칩 전체로 넓어진다.
             키보드 초점은 focus-within으로 칩에 그대로 드러난다. */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-ink-3">권한</span>
+        <fieldset className="mt-3 flex flex-wrap items-center gap-2">
+          <legend className="float-left mr-2 text-xs text-ink-3">권한</legend>
           {ALL_SCOPES.map((sc) => {
             const on = scopes.includes(sc);
             return (
@@ -121,14 +181,20 @@ export function ApiKeysPanel() {
               </label>
             );
           })}
-        </div>
+        </fieldset>
       </section>
 
+      {error && (
+        <p role="alert" aria-live="polite" className="note-danger mt-4">
+          {error}
+        </p>
+      )}
+
       {issued && (
-        <div className="note-ok mt-4 animate-fade-up">
+        <div className="note-ok mt-4 animate-fade-up" aria-live="polite">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="font-medium">키가 발급되었습니다</p>
-            <button onClick={copyIssued} className="btn-ghost btn-sm">
+            <button type="button" onClick={copyIssued} className="btn-ghost btn-sm">
               {copied ? "복사됨" : "복사"}
             </button>
           </div>
@@ -163,7 +229,7 @@ export function ApiKeysPanel() {
                           대조하는 값이므로 등폭으로 둔다. */}
                       <span className="font-mono">glk_{k.prefix}_…</span>
                       <span className="mx-1.5">·</span>
-                      발급 {k.createdAt.slice(0, 10)}
+                      발급 {formatDate(k.createdAt)}
                     </p>
                   </div>
 
@@ -176,18 +242,19 @@ export function ApiKeysPanel() {
                   </div>
 
                   <span className="shrink-0 text-xs text-ink-3">
-                    {k.lastUsedAt ? `최근 사용 ${k.lastUsedAt.slice(0, 10)}` : "미사용"}
+                    {k.lastUsedAt ? `최근 사용 ${formatDate(k.lastUsedAt)}` : "미사용"}
                   </span>
 
                   {revoked ? (
                     <span className="shrink-0 text-xs font-medium text-ink-3">폐기됨</span>
                   ) : (
                     <button
+                      type="button"
                       onClick={() => revoke(k.id)}
                       disabled={revoking === k.id}
                       className="btn-danger btn-sm shrink-0"
                     >
-                      {revoking === k.id ? "폐기 중" : "폐기"}
+                      {revoking === k.id ? "폐기 중…" : "키 폐기"}
                     </button>
                   )}
                 </li>

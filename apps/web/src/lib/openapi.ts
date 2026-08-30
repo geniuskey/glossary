@@ -43,10 +43,11 @@ const termTypeSchema = {
   type: "string",
   enum: ["term", "abbreviation", "project", "product_id", "code", "unit"],
 };
-const statusSchema = {
-  type: "string",
-  enum: ["active", "deprecated", "forbidden"],
-};
+  const statusSchema = {
+    type: "string",
+    enum: ["draft", "active", "deprecated", "forbidden"],
+    description: "draft는 공동 작성 중이며 기본 목록·검색·추천·lookup에서 제외됩니다. active는 팀 공개 및 사용 가능 상태입니다.",
+  };
 
 export const openApiSpec = {
   openapi: "3.1.0",
@@ -81,6 +82,9 @@ export const openApiSpec = {
           nameEn: { type: ["string", "null"] },
           nameKo: { type: ["string", "null"] },
           domain: { type: "array", items: { type: "string" } },
+          category: { type: ["string", "null"] },
+          ownerId: { type: ["string", "null"], format: "uuid" },
+          ownerName: { type: ["string", "null"], description: "관리자 표시 정책이 적용된 담당자 라벨" },
           status: statusSchema,
         },
       },
@@ -229,6 +233,97 @@ export const openApiSpec = {
         responses: { "200": json("쿠키를 만료시킨다", { type: "object" }) },
       },
     },
+    "/admin/users": {
+      get: {
+        summary: "관리자용 사용자 목록",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("사용자와 활성 세션 수", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+    },
+    "/admin/home-content": {
+      get: {
+        summary: "홈 첫 화면 소개 문구 조회",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("{ settings: { eyebrow, title, description } }", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+      patch: {
+        summary: "홈 첫 화면 소개 문구 수정",
+        security: [{ sessionCookie: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["eyebrow", "title", "description"],
+                additionalProperties: false,
+                properties: {
+                  eyebrow: { type: "string", minLength: 1, maxLength: 48 },
+                  title: { type: "string", minLength: 1, maxLength: 120 },
+                  description: { type: "string", minLength: 1, maxLength: 280 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": json("저장된 홈 문구", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+    },
+    "/admin/users/{id}": {
+      patch: {
+        summary: "사용자 역할 변경",
+        security: [{ sessionCookie: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["role"],
+                properties: { role: { type: "string", enum: ["admin", "editor"] } },
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+        responses: {
+          "200": json("변경됨", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden"),
+          "404": errorResponse("not_found"),
+          "409": errorResponse("operation_conflict — 자기 역할 변경 차단"),
+        },
+      },
+    },
+    "/admin/users/{id}/sessions": {
+      delete: {
+        summary: "사용자의 모든 로그인 세션 종료",
+        security: [{ sessionCookie: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        responses: {
+          "200": json("종료한 세션 수", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden"),
+          "404": errorResponse("not_found"),
+          "409": errorResponse("operation_conflict — 자기 세션 종료 차단"),
+        },
+      },
+    },
     "/keys": {
       get: {
         summary: "API 키 목록 (비밀값은 돌려주지 않는다)",
@@ -328,6 +423,7 @@ export const openApiSpec = {
           { name: "q", in: "query", schema: { type: "string" } },
           { name: "type", in: "query", schema: termTypeSchema },
           { name: "domain", in: "query", schema: { type: "string" } },
+          { name: "category", in: "query", schema: { type: "string" } },
           { name: "status", in: "query", schema: statusSchema },
           { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
           { name: "pageSize", in: "query", schema: { type: "integer" } },
@@ -352,6 +448,8 @@ export const openApiSpec = {
                   definitionMd: { type: ["string", "null"] },
                   bodyMd: { type: ["string", "null"] },
                   domain: { type: "array", items: { type: "string" } },
+                  category: { type: ["string", "null"] },
+                  ownerId: { type: ["string", "null"], format: "uuid" },
                   status: statusSchema,
                   surfaces: { type: "array", items: { type: "object" } },
                 },

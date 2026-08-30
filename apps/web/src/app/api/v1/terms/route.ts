@@ -3,6 +3,8 @@ import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { requireAuth, isResponse } from "@/lib/auth/require";
 import { termInputSchema } from "@/lib/terms/schema";
 import { createTerm } from "@/lib/terms/create";
+import { DOMAIN_VALUE_MAX, TERM_QUERY_MAX } from "@/lib/terms/limits";
+import { isAssignableUserId } from "@/lib/terms/owners";
 import { listTerms, type TermStatus, type TermType } from "@/lib/terms/query";
 import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
 
@@ -78,6 +80,19 @@ export const GET = withApiErrors(async (request: Request) => {
 
   const url = new URL(request.url);
 
+  const q = url.searchParams.get("q");
+  const domain = url.searchParams.get("domain");
+  const category = url.searchParams.get("category");
+  if (q && q.length > TERM_QUERY_MAX) {
+    return apiError("validation_failed", `q는 ${TERM_QUERY_MAX}자 이하여야 합니다.`, 400, { field: "q" });
+  }
+  if (domain && domain.length > DOMAIN_VALUE_MAX) {
+    return apiError("validation_failed", `domain은 ${DOMAIN_VALUE_MAX}자 이하여야 합니다.`, 400, { field: "domain" });
+  }
+  if (category && category.length > DOMAIN_VALUE_MAX) {
+    return apiError("validation_failed", `category는 ${DOMAIN_VALUE_MAX}자 이하여야 합니다.`, 400, { field: "category" });
+  }
+
   const termType = parseEnumParam<TermType>(url.searchParams.get("type"), termTypeEnum.enumValues, "type");
   if (isResponse(termType)) return termType;
 
@@ -91,9 +106,10 @@ export const GET = withApiErrors(async (request: Request) => {
   if (isResponse(pageSize)) return pageSize;
 
   const result = await listTerms({
-    q: url.searchParams.get("q") ?? undefined,
+    q: q ?? undefined,
     termType,
-    domain: url.searchParams.get("domain") ?? undefined,
+    domain: domain ?? undefined,
+    category: category ?? undefined,
     status,
     page,
     pageSize,
@@ -111,6 +127,9 @@ export const POST = withApiErrors(async (request: Request) => {
   const parsed = termInputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return apiError("validation_failed", "용어 입력이 올바르지 않습니다.", 400, parsed.error.flatten());
+  }
+  if (parsed.data.ownerId && !(await isAssignableUserId(parsed.data.ownerId))) {
+    return apiError("validation_failed", "담당자 계정을 찾을 수 없습니다.", 400, { field: "ownerId" });
   }
 
   const authorId = auth.kind === "user" ? auth.user.id : null;

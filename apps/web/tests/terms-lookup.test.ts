@@ -32,6 +32,7 @@ let ae: Awaited<ReturnType<typeof createTerm>>;
 let goodTerm: Awaited<ReturnType<typeof createTerm>>;
 let forbiddenTerm: Awaited<ReturnType<typeof createTerm>>;
 let simTerm: Awaited<ReturnType<typeof createTerm>>;
+let draftTerm: Awaited<ReturnType<typeof createTerm>>;
 
 async function makeReadKey(): Promise<string> {
   const { token, prefix, hash } = generateApiKey();
@@ -93,6 +94,15 @@ beforeAll(async () => {
     null,
   );
   ids.push(simTerm.term.id);
+
+  draftTerm = await createTerm(
+    {
+      termType: "term", nameEn: "HiddenDraftLookupProbe", domain: ["QA"], status: "draft",
+      definitionMd: "공개 전 조회 제외 확인용.", surfaces: [],
+    },
+    null,
+  );
+  ids.push(draftTerm.term.id);
 });
 
 afterAll(async () => {
@@ -121,6 +131,14 @@ test("미등록 표기는 found=false로 반환한다", async () => {
   const [missing] = await lookupTerms(["Nonexistent Widget Zzq"]);
   expect(missing!.found).toBe(false);
   expect(missing!.terms).toEqual([]);
+});
+
+test("draft는 정확 조회와 유사어 후보에서 모두 제외된다", async () => {
+  const [exact] = await lookupTerms(["HiddenDraftLookupProbe"]);
+  expect(exact).toMatchObject({ found: false, terms: [] });
+
+  const [similar] = await lookupTerms(["HiddenDraftLookupProbez"]);
+  expect(similar!.similar.map((item) => item.slug)).not.toContain(draftTerm.term.slug);
 });
 
 test("요청 순서와 개수를 그대로 보존한다", async () => {

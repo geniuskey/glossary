@@ -227,6 +227,22 @@ test("로그인하면 키를 발급하고 목록에서 조회되며, 평문 토�
   expect(JSON.stringify(list)).not.toContain(created.token);
 });
 
+test("공백뿐이거나 지나치게 긴 키 이름은 발급하지 않는다", async () => {
+  const user = await makeUser();
+  await loginAs(user);
+
+  for (const name of ["   ", "x".repeat(101)]) {
+    const res = await keysPost(
+      new Request("http://x", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, scopes: ["read"] }),
+      }),
+    );
+    expect(res.status).toBe(400);
+  }
+});
+
 test("로그인하지 않으면 키 폐기도 401", async () => {
   const { row } = await makeKeyRow();
   const res = await keyDelete(new Request("http://x", { method: "DELETE" }), {

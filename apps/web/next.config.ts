@@ -36,9 +36,18 @@ export const legacyRedirects = [
   { source: "/terms/:slug", destination: "/w/:slug", permanent: true },
 ] as const;
 
+/** 동적 화면과 API를 같은 출처에서 제공하므로 전 경로에 공통으로 적용한다. */
+export const securityHeaders = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+  { key: "Referrer-Policy", value: "same-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), browsing-topics=()" },
+] as const;
+
 const config: NextConfig = {
   output: "standalone",
   redirects: async () => [...legacyRedirects],
+  headers: async () => [{ source: "/:path*", headers: [...securityHeaders] }],
   // 모노레포에서는 트레이싱 루트를 워크스페이스 최상단으로 올려야
   // standalone 번들에 packages/*가 포함된다.
   outputFileTracingRoot: path.join(import.meta.dirname, "../.."),

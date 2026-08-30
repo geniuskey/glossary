@@ -51,10 +51,10 @@ test("표준 표기가 둘 다 비면 에러 행으로 분류한다", async () =
   expect(errors[0]!.rowNumber).toBe(2);
 });
 
-test("알 수 없는 status는 active로 떨어뜨린다", async () => {
+test("알 수 없는 status는 draft로 떨어뜨린다", async () => {
   const buf = await workbook([["Gain", "", "", "term", "", "확인중", "", ""]]);
   const { rows } = await parseGlossaryWorkbook(buf);
-  expect(rows[0]!.status).toBe("active");
+  expect(rows[0]!.status).toBe("draft");
 });
 
 // R123: 계획서 원본 그대로("완전히 빈 행은 건너뛴다", ws.addRow([]))도 남겨

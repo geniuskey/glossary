@@ -9,7 +9,7 @@
 // 이 배열들의 정확한 일치를 구조 테스트로 고정한다.
 export const TERM_TYPES = ["term", "abbreviation", "project", "product_id", "code", "unit"] as const;
 
-export const TERM_STATUSES = ["active", "deprecated", "forbidden"] as const;
+export const TERM_STATUSES = ["draft", "active", "deprecated", "forbidden"] as const;
 
 // canonical은 표준 이름 필드(nameEn/nameKo)에서만 파생되는 kind다 — 사용자가
 // "명시 표기"로 직접 고를 수 있는 kind 목록에는 의도적으로 포함하지 않는다
@@ -40,9 +40,17 @@ export const TERM_TYPE_LABEL: Record<TermTypeLiteral, string> = {
 };
 
 export const TERM_STATUS_LABEL: Record<TermStatusLiteral, string> = {
-  active: "사용",
+  draft: "초안",
+  active: "공개 · 사용",
   deprecated: "폐기됨",
   forbidden: "금지어",
+};
+
+export const TERM_STATUS_HINT: Record<TermStatusLiteral, string> = {
+  draft: "함께 작성 중인 상태입니다. 시트와 공동 정리함에는 보이지만 기본 검색과 AI 조회에서는 제외됩니다.",
+  active: "팀원이 검색하고 문서나 AI 조회에서 바로 사용할 수 있습니다.",
+  deprecated: "이전에는 썼지만 이제 사용하지 않는 용어입니다.",
+  forbidden: "문서에서 사용하면 안 되는 표현입니다.",
 };
 
 export const SURFACE_KIND_LABEL: Record<ExplicitSurfaceKindLiteral, string> = {

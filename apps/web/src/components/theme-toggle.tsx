@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 type Theme = "light" | "dark" | "system";
 
@@ -15,14 +15,14 @@ const NEXT: Record<Theme, Theme> = { system: "light", light: "dark", dark: "syst
  * 일은 layout.tsx의 인라인 스크립트가 맡는다 — 여기서 하면 이미 늦어서
  * 흰 화면이 한 프레임 번쩍인다.
  */
-export function ThemeToggle() {
+export function ThemeToggle({ alwaysShowLabel = false }: { alwaysShowLabel?: boolean }) {
   const [theme, setTheme] = useState<Theme>("system");
 
   // 저장된 값을 다시 읽어 (1) 버튼 라벨을 맞추고 (2) data-theme을 다시 건다.
   // (2)가 필요한 이유: 개발 모드의 StrictMode 재마운트에서 React가 <html>의
   // 속성을 JSX가 관리하는 것만 남기고 지워버려, layout.tsx의 인라인 스크립트가
   // 걸어둔 data-theme이 사라진다(운영 빌드에서는 no-op).
-  useEffect(() => {
+  useLayoutEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved === "light" || saved === "dark") {
       setTheme(saved);
@@ -50,7 +50,7 @@ export function ThemeToggle() {
       className="btn-quiet btn-sm"
     >
       <ThemeIcon theme={theme} />
-      <span className="hidden lg:inline">{LABEL[theme]}</span>
+      <span className={alwaysShowLabel ? undefined : "hidden lg:inline"}>{LABEL[theme]}</span>
     </button>
   );
 }

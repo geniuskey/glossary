@@ -6,21 +6,33 @@ import { useRouter } from "next/navigation";
 export function LoginForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
+    setPending(true);
+    setError(null);
     const form = new FormData(event.currentTarget);
-    const res = await fetch("/api/v1/auth/login", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/v1/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
+      });
+    } catch {
+      setPending(false);
+      setError("네트워크 오류로 로그인하지 못했습니다.");
+      return;
+    }
 
     if (res.ok) {
       router.push("/");
       router.refresh();
       return;
     }
+    setPending(false);
     const body = await res.json().catch(() => null);
     setError(body?.error?.message ?? "로그인에 실패했습니다.");
   }
@@ -36,8 +48,10 @@ export function LoginForm() {
           name="email"
           type="email"
           required
+          maxLength={254}
           autoComplete="email"
-          placeholder="name@example.com"
+          spellCheck={false}
+          placeholder="name@example.com…"
           className="field"
         />
       </div>
@@ -51,6 +65,7 @@ export function LoginForm() {
           name="password"
           type="password"
           required
+          maxLength={1024}
           autoComplete="current-password"
           className="field"
         />
@@ -63,8 +78,8 @@ export function LoginForm() {
         </p>
       )}
 
-      <button type="submit" className="btn-primary w-full">
-        로그인
+      <button type="submit" disabled={pending} className="btn-primary w-full">
+        {pending ? "로그인 중…" : "로그인"}
       </button>
     </form>
   );

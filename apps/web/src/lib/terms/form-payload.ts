@@ -1,3 +1,5 @@
+import type { TermStatusLiteral } from "./enums";
+
 // R116: term-form.tsx는 Client Component라 vitest.config.ts에 jsdom 환경이 없는
 // 이 저장소(R97)에서는 렌더 테스트를 할 수 없다. logout.ts/list-params.ts와
 // 같은 패턴으로, "무엇을 보낼지" 계산하는 부분을 순수 함수로 뽑아서 폼 상태
@@ -16,7 +18,9 @@ export interface TermFormState {
   fullNameEn: string;
   fullNameKo: string;
   domain: string;
-  status: string;
+  category: string;
+  ownerId: string;
+  status: TermStatusLiteral;
   definitionMd: string;
   bodyMd: string;
   surfaces: SurfaceDraft[];
@@ -29,7 +33,9 @@ export interface TermWritePayload {
   fullNameEn?: string;
   fullNameKo?: string;
   domain: string[];
-  status: string;
+  category: string | null;
+  ownerId: string | null;
+  status: TermStatusLiteral;
   definitionMd?: string;
   bodyMd?: string;
   surfaces: SurfaceDraft[];
@@ -58,6 +64,8 @@ export function buildTermPayload(form: TermFormState, expectedRevision?: number)
       .split(",")
       .map((d) => d.trim())
       .filter(Boolean),
+    category: form.category.trim() || null,
+    ownerId: form.ownerId || null,
     status: form.status,
     definitionMd: form.definitionMd.trim() || undefined,
     bodyMd: form.bodyMd.trim() || undefined,

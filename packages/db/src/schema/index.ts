@@ -4,3 +4,4 @@
 export * from "./terms";
 export * from "./auth";
 export * from "./revisions";
+export * from "./workspace";

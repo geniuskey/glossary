@@ -5,7 +5,7 @@
 ## 목록 조회
 
 ```http
-GET /api/v1/terms?q=exposure&type=abbreviation&domain=ISP&status=active&page=1&pageSize=20
+GET /api/v1/terms?q=exposure&type=abbreviation&domain=ISP&category=노출%20제어&status=active&page=1&pageSize=20
 ```
 
 | 파라미터 | 기본값 | 설명 |
@@ -13,6 +13,7 @@ GET /api/v1/terms?q=exposure&type=abbreviation&domain=ISP&status=active&page=1&p
 | `q` | — | 검색어. **Term이 아니라 Surface를 향한다** |
 | `type` | — | `term` \| `abbreviation` \| `project` \| `product_id` \| `code` \| `unit` |
 | `domain` | — | 도메인 태그 하나 |
+| `category` | — | 카테고리 하나 |
 | `status` | — | `active` \| `deprecated` \| `forbidden` |
 | `page` | 1 | |
 | `pageSize` | 20 | 1~100으로 클램프된다 |
@@ -21,7 +22,8 @@ GET /api/v1/terms?q=exposure&type=abbreviation&domain=ISP&status=active&page=1&p
 { "items": [ /* TermSummary[] */ ], "total": 137, "page": 1, "pageSize": 20 }
 ```
 
-`TermSummary`는 `id`, `slug`, `termType`, `nameEn`, `nameKo`, `domain`, `status`다.
+`TermSummary`는 `id`, `slug`, `termType`, `nameEn`, `nameKo`, `domain`, `category`,
+`ownerId`, `ownerName`, `status`다.
 
 ::: tip 검색이 Surface를 향하는 이유
 "오토익스포저"나 `auto-exposure`로 검색해도 AE 개념 페이지에 도착해야 한다.
@@ -54,6 +56,8 @@ Content-Type: application/json
   "nameKo": "자동노출",
   "fullNameEn": "Auto Exposure",
   "domain": ["ISP"],
+  "category": "노출 제어",
+  "ownerId": "11111111-1111-1111-1111-111111111111",
   "status": "active",
   "definitionMd": "장면 밝기에 따라 노출을 자동으로 맞추는 기능.",
   "surfaces": [

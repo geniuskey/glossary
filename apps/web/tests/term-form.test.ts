@@ -13,6 +13,8 @@ const BASE_FORM: TermFormState = {
   fullNameEn: "",
   fullNameKo: "",
   domain: "",
+  category: "",
+  ownerId: "",
   status: "active",
   definitionMd: "",
   bodyMd: "",
@@ -50,6 +52,12 @@ test("domain은 쉼표로 나뉘고 trim되며 빈 조각은 버려진다", () =
 test("domain이 빈 문자열이면 빈 배열이 된다(undefined가 아님)", () => {
   const payload = buildTermPayload(BASE_FORM);
   expect(payload.domain).toEqual([]);
+});
+
+test("카테고리와 담당자는 빈 값을 null로, 선택한 값은 그대로 보낸다", () => {
+  expect(buildTermPayload(BASE_FORM)).toMatchObject({ category: null, ownerId: null });
+  expect(buildTermPayload({ ...BASE_FORM, category: "  노출 제어  ", ownerId: "11111111-1111-1111-1111-111111111111" }))
+    .toMatchObject({ category: "노출 제어", ownerId: "11111111-1111-1111-1111-111111111111" });
 });
 
 test("공백뿐인 surface는 제거되고, 남은 surface의 text는 trim된다", () => {

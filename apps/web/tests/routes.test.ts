@@ -1,8 +1,25 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { legacyRedirects } from "../next.config.js";
+import { legacyRedirects, securityHeaders } from "../next.config.js";
+import { embedFrameAncestors } from "../src/lib/embed/frame-ancestors.js";
+
+test("모든 화면에 필요한 기본 보안 헤더를 설정한다", () => {
+  expect(Object.fromEntries(securityHeaders.map((header) => [header.key, header.value]))).toMatchObject({
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "frame-ancestors 'none'",
+    "Referrer-Policy": "same-origin",
+    "Permissions-Policy": expect.stringContaining("camera=()"),
+  });
+});
+
+test("Confluence frame-ancestors는 origin만 허용하고 헤더 삽입값은 버린다", () => {
+  expect(embedFrameAncestors("https://confluence.example.com, https://wiki.example.com/path")).toBe(
+    "'self' https://confluence.example.com https://wiki.example.com",
+  );
+  expect(embedFrameAncestors("javascript:alert(1)\nframe-src *")).toBe("'self'");
+});
 
 // R135: 옛 `/terms/*` 주소는 next.config.ts의 리다이렉트로만 살아 있다 — 그
 // 목적지에 해당하는 화면이 실제로 있는지 확인해 주는 것은 아무것도 없다.
@@ -11,6 +28,19 @@ import { legacyRedirects } from "../next.config.js";
 // 손으로 유지되는 두 곳(리다이렉트 표, 라우트 디렉터리)을 여기서 묶는다.
 
 const appDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "app");
+
+test("설정 허브에서 계정·테마·API 키를 한 화면에 관리한다", () => {
+  const settingsPage = readFileSync(path.join(appDir, "settings", "page.tsx"), "utf8");
+  expect(settingsPage).toContain("getCurrentUser(");
+  expect(settingsPage).toContain("<ThemeToggle alwaysShowLabel />");
+  expect(settingsPage).toContain('<section id="api-keys"');
+  expect(settingsPage).toContain("<ApiKeysPanel />");
+});
+
+test("기존 API 키 주소는 설정 허브의 API 키 영역으로 이어진다", () => {
+  const legacyPage = readFileSync(path.join(appDir, "settings", "api-keys", "page.tsx"), "utf8");
+  expect(legacyPage).toContain('redirect("/settings#api-keys")');
+});
 
 /** `/edit/:slug` → `src/app/edit/[slug]/page.tsx` */
 function pageFileFor(destination: string): string {

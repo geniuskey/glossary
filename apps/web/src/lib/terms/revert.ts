@@ -36,10 +36,11 @@ const snapshotSchema = z.object({
     fullNameEn: z.string().nullable().optional(),
     fullNameKo: z.string().nullable().optional(),
     domain: z.array(z.string()).optional(),
-    // R130: 옛 리비전에는 draft/approved가 그대로 들어 있다. 마이그레이션 0003은
-    // terms만 접고 스냅샷은 일부러 두었으므로(이력을 고쳐 쓰면 거짓말이 된다),
-    // 읽는 쪽인 여기서 옮긴다. z.enum(TERM_STATUSES)로 검사하면 승인 축이 있던
-    // 시절의 리비전은 전부 되돌릴 수 없게 된다.
+    category: z.string().nullable().optional(),
+    ownerId: z.string().uuid().nullable().optional(),
+    // R130: 옛 리비전에는 지금은 사라진 approved가 들어 있다. 스냅샷은 일부러
+    // 고쳐 쓰지 않으므로 읽는 쪽에서 현재의 active로 옮긴다. draft는 다시 정식
+    // 상태가 되었으므로 TERM_STATUSES 검사에서 그대로 보존된다.
     status: z.string().optional(),
     definitionMd: z.string().nullable().optional(),
     bodyMd: z.string().nullable().optional(),
@@ -48,7 +49,6 @@ const snapshotSchema = z.object({
 });
 
 const LEGACY_STATUS: Record<string, (typeof TERM_STATUSES)[number]> = {
-  draft: "active",
   approved: "active",
 };
 
@@ -93,6 +93,8 @@ function toPatch(snapshot: z.infer<typeof snapshotSchema>): TermUpdate {
     ...(t.fullNameEn !== undefined ? { fullNameEn: t.fullNameEn } : {}),
     ...(t.fullNameKo !== undefined ? { fullNameKo: t.fullNameKo } : {}),
     ...(t.domain !== undefined ? { domain: t.domain } : {}),
+    ...(t.category !== undefined ? { category: t.category } : {}),
+    ...(t.ownerId !== undefined ? { ownerId: t.ownerId } : {}),
     ...(status !== undefined ? { status } : {}),
     ...(t.definitionMd !== undefined ? { definitionMd: t.definitionMd ?? "" } : {}),
     ...(t.bodyMd !== undefined ? { bodyMd: t.bodyMd ?? "" } : {}),

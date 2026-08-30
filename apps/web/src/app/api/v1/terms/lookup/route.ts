@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAuth } from "@/lib/auth/require";
 import { lookupTerms } from "@/lib/terms/lookup";
+import { TERM_NAME_MAX } from "@/lib/terms/limits";
 
 // R83: 이 라우트는 POST만 처리한다. 나머지는 405 스텁으로 명시 export한다 —
 // 이 구멍(Next 기본 405의 0바이트 본문)이 이 저장소에서 네 번째로 반복되는
@@ -21,6 +22,7 @@ const bodySchema = z.object({
       z
         .string()
         .min(1)
+        .max(TERM_NAME_MAX)
         .refine((s) => s.trim().length > 0, "공백뿐인 표기는 사용할 수 없습니다."),
     )
     .min(1)

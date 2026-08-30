@@ -50,6 +50,7 @@ export function validateSsoConfig(cfg: SsoConfig): string[] {
   if (!cfg.enabled) return [];
 
   const problems: string[] = [];
+  if (!cfg.issuer) problems.push("Issuer가 비어 있습니다.");
   if (!cfg.authorizationEndpoint) problems.push("인가 엔드포인트가 비어 있습니다.");
   if (!cfg.tokenEndpoint) problems.push("토큰 엔드포인트가 비어 있습니다.");
   if (!cfg.clientId) problems.push("클라이언트 ID가 비어 있습니다.");

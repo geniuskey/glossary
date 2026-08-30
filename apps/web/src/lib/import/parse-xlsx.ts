@@ -10,6 +10,7 @@ export interface ImportRow {
   fullNameEn?: string;
   fullNameKo?: string;
   domain: string[];
+  category?: string;
   status: TermStatusLiteral;
   definitionMd?: string;
   aliases: string[];
@@ -120,7 +121,7 @@ export async function parseGlossaryWorkbook(buffer: ArrayBuffer): Promise<ParseR
     }
 
     const termType = TERM_TYPE_SET.has(raw.termType ?? "") ? (raw.termType as TermTypeLiteral) : "term";
-    const status = STATUS_SET.has(raw.status ?? "") ? (raw.status as TermStatusLiteral) : "active";
+    const status = STATUS_SET.has(raw.status ?? "") ? (raw.status as TermStatusLiteral) : "draft";
 
     rows.push({
       rowNumber,
@@ -130,6 +131,7 @@ export async function parseGlossaryWorkbook(buffer: ArrayBuffer): Promise<ParseR
       fullNameEn: raw.fullNameEn || undefined,
       fullNameKo: raw.fullNameKo || undefined,
       domain: splitList(raw.domain ?? ""),
+      category: raw.category || undefined,
       status,
       definitionMd: raw.definitionMd || undefined,
       aliases: splitList(raw.aliases ?? ""),

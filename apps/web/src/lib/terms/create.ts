@@ -145,6 +145,8 @@ export async function createTerm(
             fullNameEn: input.fullNameEn ?? null,
             fullNameKo: input.fullNameKo ?? null,
             domain: input.domain,
+            category: input.category ?? null,
+            ownerId: input.ownerId ?? null,
             status: input.status,
             definitionMd: input.definitionMd ?? null,
             // R33: terms.body_md를 채우는 유일한 쓰기 경로. schema.ts에 bodyMd 필드를
