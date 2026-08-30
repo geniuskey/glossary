@@ -16,10 +16,10 @@ export default async function SettingsPage() {
   const displayName = user.name || user.email;
 
   return (
-    <AppShell user={user} current="settings">
+    <AppShell user={user} title="설정" current="settings">
       <header className="mb-8 border-b border-line pb-5">
         <p className="text-xs font-semibold tracking-[0.16em] text-brand">내 환경</p>
-        <h1 className="mt-2 text-xl font-semibold tracking-tight text-balance">설정</h1>
+        <p className="mt-2 text-xl font-semibold tracking-tight text-balance lg:hidden">설정</p>
         <p className="mt-1.5 max-w-2xl text-sm leading-6 text-ink-2">
           계정과 화면 환경을 확인하고, Grossary를 외부 도구와 연결할 API 키를 관리합니다.
         </p>

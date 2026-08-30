@@ -46,7 +46,7 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
   };
 
   return (
-    <AppShell user={user} current="sheet">
+    <AppShell user={user} title="용어 편집" current="sheet">
       <nav className="mb-5 text-xs text-ink-3">
         <Link href="/sheet" className="link">
           시트
@@ -61,7 +61,7 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
 
       <header className="mb-5 flex items-end justify-between border-b border-line pb-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">용어 편집</h1>
+          <p className="text-xl font-semibold tracking-tight lg:hidden">용어 편집</p>
           {/* 함께 쓰는 사전이라 "지금 몇 번째 판을 고치는 중인지"가 보여야
               409(다른 사람이 먼저 저장함)를 만났을 때 상황이 납득된다. */}
           <p className="mt-0.5 text-xs text-ink-3">리비전 #{expectedRevision} 기준</p>

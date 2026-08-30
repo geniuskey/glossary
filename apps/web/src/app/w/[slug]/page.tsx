@@ -78,7 +78,7 @@ export default async function TermDetailPage({
   const completion = termCompletion(term);
 
   return (
-    <AppShell user={user}>
+    <AppShell user={user} title={displayName(term)}>
       <nav className="mb-5 text-xs text-ink-3">
         <Link href="/" className="link">
           검색
@@ -97,7 +97,7 @@ export default async function TermDetailPage({
             style={{ backgroundColor: `hsl(${hue} 62% 55%)` }}
           />
           <div className="min-w-0 flex-1">
-            <h1 className="break-words text-2xl font-semibold tracking-tight">{displayName(term)}</h1>
+            <p className="break-words text-2xl font-semibold tracking-tight lg:hidden">{displayName(term)}</p>
             {term.nameEn && term.nameKo && <p className="mt-0.5 text-ink-2">{term.nameKo}</p>}
             {/* F3: fullNameKo는 스키마·생성·수정·API 응답에 전부 있는데 화면에는
                 없었다 — R96이 bodyMd에 편 논리("저장만 되고 화면 어디에도 없으면

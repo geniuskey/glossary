@@ -168,6 +168,36 @@
 }
 
 @layer components {
+  @media (min-width: 1024px) {
+    [data-sidebar-collapsed="true"] .sidebar-expanded-only {
+      display: none;
+    }
+
+    [data-sidebar-collapsed="true"] .sidebar-header {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    [data-sidebar-collapsed="true"] .sidebar-brand,
+    [data-sidebar-collapsed="true"] .sidebar-nav-link,
+    [data-sidebar-collapsed="true"] .sidebar-account-trigger,
+    [data-sidebar-collapsed="true"] .sidebar-account-controls {
+      justify-content: center;
+    }
+
+    [data-sidebar-collapsed="true"] .sidebar-nav-link {
+      gap: 0;
+      padding-left: 0.625rem;
+      padding-right: 0.625rem;
+    }
+
+    [data-sidebar-collapsed="true"] .account-popover {
+      bottom: 0;
+      left: calc(100% + 0.75rem);
+      width: 13rem;
+    }
+  }
+
   .card {
     @apply rounded-xl border border-line bg-panel;
   }

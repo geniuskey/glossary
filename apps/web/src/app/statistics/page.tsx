@@ -32,13 +32,13 @@ export default async function StatisticsPage({
     : 0;
 
   return (
-    <AppShell user={user} current="statistics" wide>
-      <header className="shrink-0 border-b border-line bg-panel/70 px-4 py-4 backdrop-blur lg:px-6">
+    <AppShell user={user} title="플랫폼 통계" current="statistics" wide>
+      <header className="shrink-0 border-b border-line bg-panel/70 px-4 py-3 backdrop-blur lg:px-6">
         <div className="flex flex-wrap items-end gap-4">
           <div className="mr-auto">
-            <p className="text-xs font-semibold tracking-[0.14em] text-brand">PLATFORM HEALTH</p>
-            <h1 className="mt-1 text-xl font-semibold">플랫폼 통계</h1>
-            <p className="mt-1 text-xs leading-5 text-ink-3">용어와 사용자 성장, 조직별 관리 상태를 날짜 기준으로 확인합니다.</p>
+            <p className="text-xs font-semibold tracking-[0.14em] text-brand lg:hidden">PLATFORM HEALTH</p>
+            <p className="mt-1 text-xl font-semibold lg:hidden">플랫폼 통계</p>
+            <p className="mt-1 text-xs leading-5 text-ink-3 lg:mt-0">용어와 사용자 성장, 조직별 관리 상태를 날짜 기준으로 확인합니다.</p>
           </div>
           <nav aria-label="통계 기간" className="flex rounded-lg border border-line bg-panel p-1">
             {PERIODS.map((days) => (

@@ -17,10 +17,10 @@ export default async function ContributePage() {
   const queue = await listContributionTerms(60, user.id);
 
   return (
-    <AppShell user={user} current="contribute">
+    <AppShell user={user} title="함께 정리" current="contribute">
       <header className="mb-7 border-b border-line pb-5">
         <p className="text-xs font-semibold tracking-[0.16em] text-brand">집단지성 대기열</p>
-        <h1 className="mt-2 text-xl font-semibold tracking-tight text-balance">함께 정리해 주세요</h1>
+        <p className="mt-2 text-xl font-semibold tracking-tight text-balance lg:hidden">함께 정리해 주세요</p>
         <p className="mt-1.5 max-w-2xl text-sm leading-6 text-ink-2">
           누군가 먼저 남긴 초안에 알고 있는 정보 하나만 보태도 됩니다. 핵심 정보가 채워진 초안은
           내용을 검토한 뒤 팀에 공개해 주세요.

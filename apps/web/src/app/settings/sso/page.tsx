@@ -14,12 +14,12 @@ export default async function SsoSettingsPage() {
   if (user.role !== "admin") redirect("/");
 
   return (
-    <AppShell user={user} current="settings">
+    <AppShell user={user} title="SSO 연결" current="settings">
       <header className="mb-7 border-b border-line pb-5">
         <Link href="/settings" className="mb-3 inline-flex text-xs font-medium text-ink-2 hover:text-ink">
           ← 설정으로 돌아가기
         </Link>
-        <h1 className="text-xl font-semibold tracking-tight">SSO 연결</h1>
+        <p className="text-xl font-semibold tracking-tight lg:hidden">SSO 연결</p>
         <p className="mt-1.5 max-w-xl text-sm text-ink-2">
           회사 계정(OpenID Connect)으로 로그인하게 만듭니다. IdP가 보내는 값의 이름은 회사마다
           달라서, 어떤 값을 이름과 그룹으로 쓸지 여기서 직접 정합니다.

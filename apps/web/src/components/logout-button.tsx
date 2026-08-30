@@ -12,7 +12,13 @@ import { performLogout } from "@/lib/auth/logout";
 // (F7 — 응답을 확인하지 않으면 5xx에서도 로그인 화면으로 넘어가면서 세션
 // 쿠키가 살아있는 채로 남는다). AppShell 전체를 Client Component로 만들면
 // 헤더 전부가 클라이언트 번들에 들어가므로, 상태를 갖는 이 조각만 분리한다.
-export function LogoutButton() {
+export function LogoutButton({
+  alwaysShowLabel = false,
+  menuItem = false,
+}: {
+  alwaysShowLabel?: boolean;
+  menuItem?: boolean;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -31,17 +37,18 @@ export function LogoutButton() {
   return (
     <button
       type="button"
+      role={menuItem ? "menuitem" : undefined}
       onClick={onClick}
       disabled={busy}
       title={failed ? "로그아웃하지 못했습니다. 다시 시도하세요." : "로그아웃"}
       aria-label={failed ? "로그아웃 실패, 다시 시도" : "로그아웃"}
-      className="btn-quiet btn-sm"
+      className={alwaysShowLabel ? "btn-quiet btn-sm w-full justify-start" : "btn-quiet btn-sm"}
     >
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
         <path d="M6 14H3.5A1.5 1.5 0 0 1 2 12.5v-9A1.5 1.5 0 0 1 3.5 2H6" strokeLinecap="round" />
         <path d="M10.5 11 14 8l-3.5-3M14 8H6" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span className="hidden lg:inline">{busy ? "로그아웃 중" : failed ? "다시 시도" : "로그아웃"}</span>
+      <span className={alwaysShowLabel ? undefined : "sidebar-expanded-only hidden lg:inline"}>{busy ? "로그아웃 중" : failed ? "다시 시도" : "로그아웃"}</span>
     </button>
   );
 }

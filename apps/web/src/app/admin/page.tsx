@@ -20,12 +20,12 @@ export default async function AdminPage() {
   ]);
 
   return (
-    <AppShell user={user} current="admin">
+    <AppShell user={user} title="관리자 패널" current="admin">
       <header className="mb-8 border-b border-line pb-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold tracking-[0.16em] text-brand">워크스페이스 관리</p>
-            <h1 className="mt-2 text-xl font-semibold tracking-tight text-balance">관리자 패널</h1>
+            <p className="mt-2 text-xl font-semibold tracking-tight text-balance lg:hidden">관리자 패널</p>
             <p className="mt-1.5 max-w-2xl text-sm leading-6 text-ink-2">
               워크스페이스의 첫인상과 구성원의 접근 권한을 관리합니다.
             </p>

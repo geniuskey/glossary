@@ -15,7 +15,13 @@ const NEXT: Record<Theme, Theme> = { system: "light", light: "dark", dark: "syst
  * 일은 layout.tsx의 인라인 스크립트가 맡는다 — 여기서 하면 이미 늦어서
  * 흰 화면이 한 프레임 번쩍인다.
  */
-export function ThemeToggle({ alwaysShowLabel = false }: { alwaysShowLabel?: boolean }) {
+export function ThemeToggle({
+  alwaysShowLabel = false,
+  menuItem = false,
+}: {
+  alwaysShowLabel?: boolean;
+  menuItem?: boolean;
+}) {
   const [theme, setTheme] = useState<Theme>("system");
 
   // 저장된 값을 다시 읽어 (1) 버튼 라벨을 맞추고 (2) data-theme을 다시 건다.
@@ -44,13 +50,14 @@ export function ThemeToggle({ alwaysShowLabel = false }: { alwaysShowLabel?: boo
   return (
     <button
       type="button"
+      role={menuItem ? "menuitem" : undefined}
       onClick={() => apply(NEXT[theme])}
       title={`테마: ${LABEL[theme]}`}
       aria-label={`테마 전환 (현재 ${LABEL[theme]})`}
       className="btn-quiet btn-sm"
     >
       <ThemeIcon theme={theme} />
-      <span className={alwaysShowLabel ? undefined : "hidden lg:inline"}>{LABEL[theme]}</span>
+      <span className={alwaysShowLabel ? undefined : "sidebar-expanded-only hidden lg:inline"}>{LABEL[theme]}</span>
     </button>
   );
 }

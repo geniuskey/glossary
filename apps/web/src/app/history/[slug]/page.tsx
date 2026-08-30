@@ -22,7 +22,7 @@ export default async function TermHistoryPage({ params }: { params: Promise<{ sl
   const currentRevision = revisions[0]?.revisionNumber ?? 0;
 
   return (
-    <AppShell user={user} current="sheet">
+    <AppShell user={user} title="수정 이력" current="sheet">
       <nav className="mb-5 text-xs text-ink-3">
         <Link href="/sheet" className="link">
           시트
@@ -37,7 +37,7 @@ export default async function TermHistoryPage({ params }: { params: Promise<{ sl
 
       <header className="mb-5 flex items-end justify-between border-b border-line pb-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">수정 이력</h1>
+          <p className="text-xl font-semibold tracking-tight lg:hidden">수정 이력</p>
           <p className="mt-0.5 text-xs text-ink-3">
             리비전 {revisions.length}개 · 최신순 · 되돌려도 이력은 지워지지 않고 새 리비전이 쌓인다
           </p>

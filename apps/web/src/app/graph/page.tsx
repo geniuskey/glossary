@@ -20,13 +20,13 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
   const [terms, facets] = await Promise.all([listGraphTerms({ domain, category, limit: 100 }), termFacets()]);
 
   return (
-    <AppShell user={user} current="graph" wide>
-      <header className="shrink-0 border-b border-line bg-panel/70 px-4 py-4 backdrop-blur lg:px-6">
+    <AppShell user={user} title="용어 관계도" current="graph" wide>
+      <header className="shrink-0 border-b border-line bg-panel/70 px-4 py-3 backdrop-blur lg:px-6">
         <div className="flex flex-wrap items-end gap-3">
           <div className="mr-auto">
-            <p className="text-xs font-semibold tracking-[0.14em] text-brand">TERM MAP</p>
-            <h1 className="mt-1 text-xl font-semibold">용어 관계도</h1>
-            <p className="mt-1 text-xs text-ink-3">같은 도메인과 카테고리에 속한 용어를 맥락으로 연결합니다.</p>
+            <p className="text-xs font-semibold tracking-[0.14em] text-brand lg:hidden">TERM MAP</p>
+            <p className="mt-1 text-xl font-semibold lg:hidden">용어 관계도</p>
+            <p className="mt-1 text-xs text-ink-3 lg:mt-0">같은 도메인과 카테고리에 속한 용어를 맥락으로 연결합니다.</p>
           </div>
           <form method="get" className="flex flex-wrap gap-1.5">
             <Select name="domain" value={domain} label="도메인 전체" options={facets.domains.map((f) => f.value)} />

@@ -34,7 +34,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
   ]);
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
+    <div className="relative min-h-screen overflow-x-clip">
       <a
         href="#main-content"
         className="sr-only fixed left-3 top-3 z-50 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-brand-on focus:not-sr-only"
@@ -64,26 +64,28 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
 
 function HomeHeader({ userLabel }: { userLabel: string }) {
   return (
-    <header className="relative z-20 mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-5 sm:px-8">
-      <Link href="/" className="group flex items-center gap-3" aria-label="Grossary 홈">
-        <BrandMark size={38} />
-        <span className="flex flex-col leading-none">
-          <span className="text-[17px] font-bold tracking-[-0.035em] text-ink">Grossary</span>
-          <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-ink-3">Shared language</span>
-        </span>
-      </Link>
-      <nav className="flex items-center gap-1" aria-label="주요 메뉴">
-        <span className="mr-2 hidden max-w-40 truncate text-xs text-ink-3 lg:inline">{userLabel}</span>
-        <Link href="/sheet" className="btn-quiet hidden sm:inline-flex">용어 둘러보기</Link>
-        <Link href="/contribute" className="btn-quiet hidden md:inline-flex">함께 정리</Link>
-        <Link href="/import" className="btn-quiet hidden lg:inline-flex">가져오기</Link>
-        <Link href="/settings" className="btn-quiet hidden xl:inline-flex">설정</Link>
-        <ThemeToggle />
-        <LogoutButton />
-        <Link href="/new" className="btn-primary ml-1 rounded-full px-4 py-2 shadow-sm">
-          <IconPlus /><span className="hidden sm:inline">용어 제안하기</span><span className="sm:hidden">추가</span>
+    <header className="sticky top-0 z-30 border-b border-line/80 bg-paper/90 backdrop-blur">
+      <div className="mx-auto flex h-20 w-full max-w-7xl items-center gap-3 px-5 sm:px-8">
+        <Link href="/" className="group flex shrink-0 items-center gap-3" aria-label="Grossary 홈">
+          <BrandMark size={38} />
+          <span className="flex flex-col leading-none">
+            <span className="text-[17px] font-bold tracking-[-0.035em] text-ink">Grossary</span>
+            <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-ink-3">Shared language</span>
+          </span>
         </Link>
-      </nav>
+        <nav className="ml-auto flex shrink-0 items-center gap-1" aria-label="주요 메뉴">
+          <span className="mr-2 hidden max-w-40 truncate text-xs text-ink-3 lg:inline">{userLabel}</span>
+          <Link href="/sheet" className="btn-quiet hidden sm:inline-flex">용어 둘러보기</Link>
+          <Link href="/contribute" className="btn-quiet hidden md:inline-flex">함께 정리</Link>
+          <Link href="/import" className="btn-quiet hidden lg:inline-flex">가져오기</Link>
+          <Link href="/settings" className="btn-quiet hidden xl:inline-flex">설정</Link>
+          <ThemeToggle />
+          <LogoutButton />
+          <Link href="/new" className="btn-primary ml-1 rounded-full px-4 py-2 shadow-sm">
+            <IconPlus /><span className="hidden sm:inline">용어 제안하기</span><span className="sm:hidden">추가</span>
+          </Link>
+        </nav>
+      </div>
     </header>
   );
 }

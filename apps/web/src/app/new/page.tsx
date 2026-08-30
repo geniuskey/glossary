@@ -15,7 +15,7 @@ export default async function NewTermPage() {
   const assignees = await listAssignableUsers();
 
   return (
-    <AppShell user={user} current="sheet">
+    <AppShell user={user} title="새 용어" current="sheet">
       <nav className="mb-5 text-xs text-ink-3">
         <Link href="/sheet" className="link">
           시트
@@ -25,7 +25,7 @@ export default async function NewTermPage() {
       </nav>
 
       <header className="mb-5 border-b border-line pb-4">
-        <h1 className="text-xl font-semibold tracking-tight">새 용어</h1>
+        <p className="text-xl font-semibold tracking-tight lg:hidden">새 용어</p>
         {/* 표에서도 한 줄 추가가 되므로, 이 화면이 존재하는 이유(표기·정의까지
             한 번에 넣는 경우)를 한 줄로 알려준다. */}
         <p className="mt-1 max-w-2xl text-xs leading-5 text-ink-3">

@@ -19,14 +19,23 @@ import { cx, displayName } from "@/lib/ui/format";
 const DEBOUNCE_MS = 140;
 
 /**
- * R136: 홈의 검색창. 자바스크립트 없이도 동작해야 하므로 **여전히 평범한 GET
+ * R136: 모든 화면에서 쓰는 검색창. 자바스크립트 없이도 동작해야 하므로 **여전히 평범한 GET
  * 폼**이다 — 자동완성은 그 위에 얹은 것뿐이고, 후보를 고르지 않고 Enter를
  * 치면 예전처럼 `/?q=`로 제출된다(결과가 주소에 남아 공유·뒤로가기가 된다).
  */
-export function SearchBox({ defaultValue }: { defaultValue: string }) {
+export function SearchBox({
+  defaultValue,
+  compact = false,
+  autoFocus = !compact,
+}: {
+  defaultValue: string;
+  compact?: boolean;
+  autoFocus?: boolean;
+}) {
   const router = useRouter();
   const inputId = useId();
   const listId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const [value, setValue] = useState(defaultValue);
   const [items, setItems] = useState<Suggestion[]>([]);
@@ -41,6 +50,21 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
   // 응답 도착 순서는 요청 순서와 다르다. 늦게 온 옛 응답이 새 응답을 덮으면
   // 목록이 방금 지운 글자에 맞춰 되돌아간다 — 순번이 최신일 때만 반영한다.
   const seqRef = useRef(0);
+
+  useEffect(() => {
+    if (!compact) return;
+
+    function focusSearch(event: globalThis.KeyboardEvent) {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
+      event.preventDefault();
+      inputRef.current?.focus();
+    }
+
+    document.addEventListener("keydown", focusSearch);
+    return () => document.removeEventListener("keydown", focusSearch);
+  }, [compact]);
 
   useEffect(() => {
     const q = value.trim();
@@ -121,10 +145,14 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
         용어 검색
       </label>
       <div className="relative">
-        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-3">
+        <span className={cx(
+          "pointer-events-none absolute top-1/2 -translate-y-1/2 text-ink-3",
+          compact ? "left-3" : "left-4",
+        )}>
           <IconSearch />
         </span>
         <input
+          ref={inputRef}
           id={inputId}
           name="q"
           value={value}
@@ -135,16 +163,28 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           onKeyDown={onKeyDown}
-          autoFocus
+          autoFocus={autoFocus}
           autoComplete="off"
+          enterKeyHint="search"
           role="combobox"
           aria-expanded={open}
           aria-controls={listId}
           aria-autocomplete="list"
+          aria-keyshortcuts={compact ? "/" : undefined}
           aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
           placeholder="용어 · 약어 · 별칭 · 금지 표기…"
-          className="field h-16 rounded-full border-line-strong bg-panel pl-12 pr-5 text-base shadow-[0_10px_32px_-18px_rgb(38_32_99_/_0.42)] hover:border-brand/35"
+          className={cx(
+            "field border-line-strong bg-panel hover:border-brand/35",
+            compact
+              ? "h-10 rounded-xl pl-10 pr-11 text-sm shadow-sm"
+              : "h-16 rounded-full pl-12 pr-5 text-base shadow-[0_10px_32px_-18px_rgb(38_32_99_/_0.42)]",
+          )}
         />
+        {compact && (
+          <span className="kbd pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 sm:inline-flex" aria-hidden>
+            /
+          </span>
+        )}
 
         {open && (
           <ul
@@ -156,7 +196,7 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
             // 지운 뒤에야 click이 도착해서 **아무 일도 일어나지 않는다**(R133과
             // 같은 계열의 조용한 실패). 눌러도 포커스가 입력창에 남게 막는다.
             onMouseDown={(e) => e.preventDefault()}
-            className="card absolute left-0 right-0 top-full z-20 mt-2 max-h-[60vh] overflow-y-auto py-1.5 shadow-lg"
+            className="card absolute left-0 right-0 top-full z-50 mt-2 max-h-[60vh] overflow-y-auto py-1.5 shadow-lg"
           >
             {completions.length > 0 && <GroupLabel>자동완성</GroupLabel>}
             {completions.map((item, i) => (
@@ -186,7 +226,7 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
         )}
       </div>
 
-      <div className="mt-4 flex items-center justify-center gap-2 px-1">
+      {!compact && <div className="mt-4 flex items-center justify-center gap-2 px-1">
         <button type="submit" className="btn-ghost px-4 py-2 text-xs">
           검색
         </button>
@@ -195,7 +235,7 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
         <button type="submit" formAction="/sheet" className="btn-quiet btn-sm">
           시트에서 보기
         </button>
-      </div>
+      </div>}
     </form>
   );
 }
