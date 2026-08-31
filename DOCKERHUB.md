@@ -52,8 +52,8 @@ For production, pin both images to the same version instead of using `latest`.
 사내 서버에서 명시적으로 받으려면 두 태그를 함께 pull합니다.
 
 ```bash
-docker pull your-dockerhub-id/grossary:1.0.0
-docker pull your-dockerhub-id/grossary:1.0.0-migrator
+docker pull euiyun/grossary:0.1.0
+docker pull euiyun/grossary:0.1.0-migrator
 ```
 
 ## Quick start with Docker Compose
@@ -66,7 +66,7 @@ curl -LO https://raw.githubusercontent.com/geniuskey/grossary/main/docker-compos
 curl -L https://raw.githubusercontent.com/geniuskey/grossary/main/.env.dockerhub.example -o .env
 ```
 
-Edit `.env` and replace `your-dockerhub-id` with the Docker Hub namespace where the images were published. Set a long, URL-safe database password. Then pull and start the stack:
+The environment template pins both images to the `0.1.0` development release. Set a long, URL-safe database password, then pull and start the stack:
 
 ```bash
 # 비공개 저장소라면 먼저 실행합니다.
@@ -90,8 +90,8 @@ docker compose --env-file .env -f docker-compose.hub.yml ps
 
 | Variable | Description |
 |---|---|
-| `GROSSARY_IMAGE` | Web image, for example `your-id/grossary:1.0.0` |
-| `GROSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `your-id/grossary:1.0.0-migrator` |
+| `GROSSARY_IMAGE` | Web image, for example `euiyun/grossary:0.1.0` |
+| `GROSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/grossary:0.1.0-migrator` |
 | `GROSSARY_PORT` | Host port; defaults to `3000` |
 | `POSTGRES_PASSWORD` | Internal PostgreSQL password; use URL-safe characters |
 | `GROSSARY_EMBED_ANCESTORS` | Optional comma-separated Confluence origins allowed to frame `/embed` |

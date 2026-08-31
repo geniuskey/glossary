@@ -20,8 +20,8 @@ docker compose --env-file .env -f docker-compose.hub.yml up -d
 운영에서는 `latest` 대신 아래처럼 앱과 마이그레이터를 같은 버전으로 고정한다.
 
 ```dotenv
-GROSSARY_IMAGE=your-dockerhub-id/grossary:1.0.0
-GROSSARY_MIGRATOR_IMAGE=your-dockerhub-id/grossary:1.0.0-migrator
+GROSSARY_IMAGE=euiyun/grossary:0.1.0
+GROSSARY_MIGRATOR_IMAGE=euiyun/grossary:0.1.0-migrator
 ```
 
 `database-init`이 `pg_trgm` 확장을 준비하고, `migrator`가 성공한 뒤에만 `app`이

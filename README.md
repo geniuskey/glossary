@@ -124,8 +124,8 @@ curl -s -H "Authorization: Bearer glk_..." \
 Docker Hub에는 웹 앱과 마이그레이터를 같은 저장소의 서로 다른 태그로 올린다.
 
 ```bash
-IMAGE=your-dockerhub-id/grossary
-VERSION=1.0.0
+IMAGE=euiyun/grossary
+VERSION=0.1.0
 
 docker build --target app -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
 docker build --target migrator -t "$IMAGE:$VERSION-migrator" -t "$IMAGE:latest-migrator" .
@@ -140,8 +140,8 @@ docker push "$IMAGE:latest-migrator"
 `latest`보다 앱·마이그레이터 양쪽을 같은 버전으로 고정하는 편이 안전하다.
 
 ```bash
-docker pull your-dockerhub-id/grossary:1.0.0
-docker pull your-dockerhub-id/grossary:1.0.0-migrator
+docker pull euiyun/grossary:0.1.0
+docker pull euiyun/grossary:0.1.0-migrator
 ```
 
 ```bash
