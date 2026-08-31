@@ -46,25 +46,16 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
   };
 
   return (
-    <AppShell user={user} title="용어 편집" current="sheet" roomy>
-      <nav className="mb-5 text-xs text-ink-3">
-        <Link href="/sheet" className="link">
-          시트
-        </Link>
-        <span className="mx-1.5">/</span>
-        <Link href={`/w/${term.slug}`} className="link">
-          {displayName(term)}
-        </Link>
-        <span className="mx-1.5">/</span>
-        <span>편집</span>
-      </nav>
-
-      <header className="mb-5 flex items-end justify-between border-b border-line pb-4">
-        <div>
-          <p className="text-xl font-semibold tracking-tight lg:hidden">용어 편집</p>
+    <AppShell user={user} title={`${displayName(term)} 편집`} current="sheet" roomy>
+      <header className="mb-4 flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <Link href="/sheet" className="mb-2 inline-flex text-xs text-ink-3 hover:text-ink">
+            ← 시트로 돌아가기
+          </Link>
+          <h1 className="truncate text-xl font-semibold tracking-tight text-ink">{displayName(term)}</h1>
           {/* 함께 쓰는 사전이라 "지금 몇 번째 판을 고치는 중인지"가 보여야
               409(다른 사람이 먼저 저장함)를 만났을 때 상황이 납득된다. */}
-          <p className="mt-0.5 text-xs text-ink-3">리비전 #{expectedRevision} 기준</p>
+          <p className="mt-1 text-xs text-ink-3">용어 편집 · 리비전 #{expectedRevision} 기준</p>
         </div>
         <div className="flex gap-1.5">
           {/* R135: 시트에서 용어를 누르면 곧장 이 화면으로 온다(보기 화면을

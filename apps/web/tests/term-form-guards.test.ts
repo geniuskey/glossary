@@ -71,6 +71,30 @@ test("savedSlug가 있으면 제출 버튼 대신 Link가 렌더된다 (R108)", 
   expect(linkIdx).toBeLessThan(submitBtnIdx); // Link가 먼저(참 분기), submit 버튼은 else 분기
 });
 
+test("대표 표기와 추가 표기는 같은 이름 영역에서 관리 정보·본문보다 먼저 보인다", () => {
+  const primaryNameIdx = code.indexOf('name="nameEn"');
+  const surfacesIdx = code.indexOf(">추가 표기 <");
+  const managementIdx = code.indexOf('title="관리 정보"');
+  const bodyIdx = code.indexOf('label="용어 본문"');
+
+  expect(primaryNameIdx).toBeGreaterThan(-1);
+  expect(surfacesIdx).toBeGreaterThan(primaryNameIdx);
+  expect(managementIdx).toBeGreaterThan(surfacesIdx);
+  expect(bodyIdx).toBeGreaterThan(managementIdx);
+});
+
+test("수정 중인 폼은 저장하지 않은 변경사항의 이탈을 경고한다", () => {
+  expect(code).toContain('window.addEventListener("beforeunload", warnBeforeUnload)');
+  expect(code).toContain('document.addEventListener("click", warnBeforeLinkNavigation, true)');
+  expect(code).toContain("저장하지 않은 변경사항이 있습니다");
+});
+
+test("용어 종류는 하나의 세그먼트 컨트롤 안에서 선택 상태를 강조한다", () => {
+  expect(code).toContain('rounded-xl bg-panel-2 p-1');
+  expect(code).toContain('peer-checked:bg-panel');
+  expect(code).toContain('peer-checked:shadow-sm');
+});
+
 // 자기검사: 위 정규식들이 "아무 소스에도 항상 참"인 식으로 무너지지
 // 않았는지 - 관련 없는 임의 소스에서는 false여야 한다.
 test("자기검사: 위 판별식들은 무관한 소스에서 false다", () => {

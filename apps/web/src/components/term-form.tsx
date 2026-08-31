@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import {
   EXPLICIT_SURFACE_KINDS,
@@ -37,13 +37,6 @@ const LANG_LABEL: Record<SurfaceLangLiteral, string> = {
   en: "영문",
   ko: "국문",
   neutral: "공통",
-};
-
-const STATUS_DOT: Record<TermStatusLiteral, string> = {
-  draft: "bg-ink-3",
-  active: "bg-ok",
-  deprecated: "bg-warn",
-  forbidden: "bg-danger",
 };
 
 const EMPTY: TermFormState = {
@@ -84,9 +77,59 @@ export function TermForm({ initial, assignees = [] }: { initial?: TermFormInitia
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]> | null>(null);
   const [conflict, setConflict] = useState<{ message: string; currentRevision: number | null } | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
+  const errorSummaryRef = useRef<HTMLDivElement>(null);
+  const initialSnapshotRef = useRef(JSON.stringify(buildTermPayload(initial ?? EMPTY)));
 
   const locked = saving || savedSlug !== null;
   const labels = TERM_FIELD_LABELS[form.termType as TermTypeLiteral] ?? TERM_FIELD_LABELS.term;
+  const fieldDisplayLabel: Record<string, string> = {
+    termType: "용어 종류",
+    nameEn: labels.nameEn,
+    nameKo: labels.nameKo,
+    fullNameEn: labels.fullNameEn,
+    fullNameKo: labels.fullNameKo,
+    domain: "도메인",
+    category: "카테고리",
+    ownerId: "담당자",
+    status: "공개 상태",
+    definitionMd: "정의",
+    bodyMd: "본문",
+    surfaces: "추가 표기",
+  };
+  const formSnapshot = useMemo(() => JSON.stringify(buildTermPayload(form)), [form]);
+  const dirty = formSnapshot !== initialSnapshotRef.current;
+
+  useEffect(() => {
+    if (!dirty || savedSlug !== null) return;
+
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    const warnBeforeLinkNavigation = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest<HTMLAnchorElement>("a[href]");
+      if (!anchor || anchor.target === "_blank" || anchor.hasAttribute("download")) return;
+      if (window.confirm("저장하지 않은 변경사항이 있습니다. 이 페이지를 나갈까요?")) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    document.addEventListener("click", warnBeforeLinkNavigation, true);
+    return () => {
+      window.removeEventListener("beforeunload", warnBeforeUnload);
+      document.removeEventListener("click", warnBeforeLinkNavigation, true);
+    };
+  }, [dirty, savedSlug]);
+
+  useEffect(() => {
+    if (!fieldErrors) return;
+    const firstField = Object.keys(fieldErrors)[0];
+    const control = firstField ? document.querySelector<HTMLElement>(`[name="${CSS.escape(firstField)}"]`) : null;
+    (control ?? errorSummaryRef.current)?.focus();
+  }, [fieldErrors]);
 
   function updateField<K extends keyof TermFormState>(key: K, value: TermFormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -102,6 +145,10 @@ export function TermForm({ initial, assignees = [] }: { initial?: TermFormInitia
 
   function removeSurface(index: number) {
     setForm((f) => ({ ...f, surfaces: f.surfaces.filter((_, i) => i !== index) }));
+  }
+
+  function errorsFor(field: string): string[] | undefined {
+    return fieldErrors?.[field];
   }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -192,7 +239,7 @@ export function TermForm({ initial, assignees = [] }: { initial?: TermFormInitia
       )}
 
       {errorMessage && !conflict && (
-        <div className="note note-danger" aria-live="polite">
+        <div ref={errorSummaryRef} tabIndex={-1} className="note note-danger" aria-live="polite">
           <p className="font-medium">{errorMessage}</p>
           {issues && (
             <ul className="mt-1 list-disc pl-5">
@@ -205,7 +252,7 @@ export function TermForm({ initial, assignees = [] }: { initial?: TermFormInitia
             <ul className="mt-1 list-disc pl-5">
               {Object.entries(fieldErrors).map(([field, errs]) => (
                 <li key={field}>
-                  {field}: {errs.join(", ")}
+                  {fieldDisplayLabel[field] ?? field}: {errs.join(", ")}
                 </li>
               ))}
             </ul>
@@ -229,349 +276,341 @@ export function TermForm({ initial, assignees = [] }: { initial?: TermFormInitia
         </div>
       )}
 
-      <section className="card overflow-hidden">
-        <FormSectionTitle icon={<IconIdentity />} title="기본 정보" description="어떤 이름을 어떻게 사용할지 정합니다." />
-        <div className="space-y-6 p-4 sm:p-5">
-          <fieldset>
-            <legend className="label">용어 종류</legend>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-              {TERM_TYPES.map((type) => (
-                <label key={type} className="cursor-pointer">
-                  <input
-                    type="radio"
-                    name="termType"
-                    value={type}
-                    checked={form.termType === type}
-                    onChange={() => updateField("termType", type)}
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <section className="card overflow-hidden">
+          <CompactSectionTitle title="이름과 표기" description="대표 이름과 함께 검색할 약어·별칭을 한곳에서 관리합니다." />
+          <div className="space-y-5 p-4 sm:p-5">
+            <fieldset>
+              <legend className="label">용어 종류</legend>
+              <div className="grid grid-cols-2 gap-1 rounded-xl bg-panel-2 p-1 sm:grid-cols-3 xl:grid-cols-6">
+                {TERM_TYPES.map((type) => (
+                  <label key={type} className="cursor-pointer">
+                    <input
+                      type="radio"
+                      name="termType"
+                      value={type}
+                      checked={form.termType === type}
+                      onChange={() => updateField("termType", type)}
+                      disabled={locked}
+                      className="peer sr-only"
+                    />
+                    <span className="flex min-h-9 items-center justify-center rounded-lg border border-transparent px-2 py-1.5 text-center text-xs text-ink-2 transition-[background-color,border-color,color,box-shadow] hover:bg-panel hover:text-ink peer-checked:border-line-strong peer-checked:bg-panel peer-checked:font-semibold peer-checked:text-brand peer-checked:shadow-sm peer-focus-visible:ring-2 peer-focus-visible:ring-brand/40 peer-disabled:cursor-not-allowed peer-disabled:opacity-50">
+                      {TERM_TYPE_LABEL[type]}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <div className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
+              <FormTextField
+                name="nameEn"
+                label={labels.nameEn}
+                value={form.nameEn}
+                errors={errorsFor("nameEn")}
+                maxLength={TERM_NAME_MAX}
+                disabled={locked}
+                onChange={(value) => updateField("nameEn", value)}
+              />
+              <FormTextField
+                name="nameKo"
+                label={labels.nameKo}
+                value={form.nameKo}
+                errors={errorsFor("nameKo")}
+                maxLength={TERM_NAME_MAX}
+                disabled={locked}
+                onChange={(value) => updateField("nameKo", value)}
+              />
+
+              {(labels.showFullNames || form.fullNameEn || form.fullNameKo) && (
+                <>
+                  <FormTextField
+                    name="fullNameEn"
+                    label={labels.fullNameEn}
+                    value={form.fullNameEn}
+                    errors={errorsFor("fullNameEn")}
+                    maxLength={TERM_NAME_MAX}
                     disabled={locked}
-                    className="peer sr-only"
+                    onChange={(value) => updateField("fullNameEn", value)}
                   />
-                  <span className="flex min-h-10 items-center justify-center rounded-lg border border-line bg-panel px-2.5 py-2 text-center text-sm text-ink-2 transition-colors hover:border-brand/40 hover:bg-brand-soft peer-checked:border-brand peer-checked:bg-brand-soft peer-checked:font-medium peer-checked:text-brand peer-focus-visible:ring-2 peer-focus-visible:ring-brand/40 peer-disabled:cursor-not-allowed peer-disabled:opacity-50">
-                    {TERM_TYPE_LABEL[type]}
-                  </span>
-                </label>
-              ))}
+                  <FormTextField
+                    name="fullNameKo"
+                    label={labels.fullNameKo}
+                    value={form.fullNameKo}
+                    errors={errorsFor("fullNameKo")}
+                    maxLength={TERM_NAME_MAX}
+                    disabled={locked}
+                    onChange={(value) => updateField("fullNameKo", value)}
+                  />
+                </>
+              )}
+              <p className="text-xs leading-5 text-ink-3 sm:col-span-2">{labels.primaryHint}</p>
             </div>
-          </fieldset>
 
-          <div className="grid gap-4 border-t border-line pt-5 sm:grid-cols-2">
-          <label className="block">
-            <span className="label">{labels.nameEn}</span>
-            <input
-              name="nameEn"
-              autoComplete="off"
-              value={form.nameEn}
-              maxLength={TERM_NAME_MAX}
-              onChange={(e) => updateField("nameEn", e.target.value)}
-              disabled={locked}
-              className="field"
-            />
-          </label>
+            <div className="border-t border-line pt-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-medium text-ink">추가 표기 <span className="font-normal text-ink-3">{form.surfaces.length}개</span></h3>
+                  <p className="mt-0.5 text-xs text-ink-3">T/O, TO처럼 함께 검색할 표기를 등록합니다.</p>
+                </div>
+                <button type="button" onClick={() => addSurface("alias")} disabled={locked} className="btn-ghost btn-sm shrink-0">
+                  <IconPlus />표기 추가
+                </button>
+              </div>
 
-          <label className="block">
-            <span className="label">{labels.nameKo}</span>
-            <input
-              name="nameKo"
-              autoComplete="off"
-              value={form.nameKo}
-              maxLength={TERM_NAME_MAX}
-              onChange={(e) => updateField("nameKo", e.target.value)}
-              disabled={locked}
-              className="field"
-            />
-          </label>
+              <div className="mb-1.5 hidden grid-cols-[minmax(0,1fr)_5.5rem_7rem_2.5rem] gap-1.5 px-2 text-[11px] font-medium text-ink-3 sm:grid">
+                <span>표기</span><span>언어</span><span>종류</span><span className="sr-only">작업</span>
+              </div>
+              <div className="space-y-1.5">
+                {form.surfaces.map((surface, index) => (
+                  <div key={index} className="grid gap-1.5 rounded-lg border border-line bg-panel-2/40 p-2 sm:grid-cols-[minmax(0,1fr)_5.5rem_7rem_2.5rem]">
+                    <input
+                      name={`surface-${index}-text`}
+                      autoComplete="off"
+                      aria-label={`추가 표기 ${index + 1}`}
+                      value={surface.text}
+                      maxLength={TERM_NAME_MAX}
+                      onChange={(event) => updateSurface(index, { text: event.target.value })}
+                      disabled={locked}
+                      placeholder="예: T/O…"
+                      className="field min-w-0 py-1.5"
+                    />
+                    <select
+                      name={`surface-${index}-lang`}
+                      aria-label={`추가 표기 ${index + 1} 언어`}
+                      value={surface.lang}
+                      onChange={(event) => updateSurface(index, { lang: event.target.value })}
+                      disabled={locked}
+                      className="field py-1.5"
+                    >
+                      {SURFACE_LANGS.map((lang) => <option key={lang} value={lang}>{LANG_LABEL[lang]}</option>)}
+                    </select>
+                    <select
+                      name={`surface-${index}-kind`}
+                      aria-label={`추가 표기 ${index + 1} 종류`}
+                      value={surface.kind}
+                      onChange={(event) => updateSurface(index, { kind: event.target.value })}
+                      disabled={locked}
+                      className="field py-1.5"
+                    >
+                      {EXPLICIT_SURFACE_KINDS.map((kind) => <option key={kind} value={kind}>{SURFACE_KIND_LABEL[kind]}</option>)}
+                    </select>
+                    <button
+                      type="button"
+                      aria-label={`${surface.text || `추가 표기 ${index + 1}`} 삭제`}
+                      title="표기 삭제"
+                      onClick={() => removeSurface(index)}
+                      disabled={locked}
+                      className="btn-quiet btn-sm h-10 w-10 px-0 text-ink-3 hover:text-danger"
+                    >
+                      <IconTrash />
+                    </button>
+                  </div>
+                ))}
+                {form.surfaces.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => addSurface("alias")}
+                    disabled={locked}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-line px-3 py-3 text-xs text-ink-3 transition-colors hover:border-brand/40 hover:bg-brand-soft hover:text-brand disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <IconPlus />등록된 추가 표기가 없습니다
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
 
-          {(labels.showFullNames || form.fullNameEn || form.fullNameKo) && (
-            <>
-              <label className="block">
-                <span className="label">{labels.fullNameEn}</span>
-                <input
-                  name="fullNameEn"
-                  autoComplete="off"
-                  value={form.fullNameEn}
-                  maxLength={TERM_NAME_MAX}
-                  onChange={(e) => updateField("fullNameEn", e.target.value)}
-                  disabled={locked}
-                  className="field"
-                />
-              </label>
+        <section className="card overflow-hidden lg:sticky lg:top-16">
+          <CompactSectionTitle title="관리 정보" description="검색 노출과 관리 책임을 정합니다." />
+          <div className="space-y-4 p-4">
+            <label className="block">
+              <span className="label">공개 상태</span>
+              <select
+                name="status"
+                value={form.status}
+                onChange={(event) => updateField("status", event.target.value as TermStatusLiteral)}
+                disabled={locked}
+                aria-invalid={errorsFor("status") ? true : undefined}
+                aria-describedby={errorsFor("status") ? "status-error" : "status-hint"}
+                className="field"
+              >
+                {TERM_STATUSES.map((status) => <option key={status} value={status}>{TERM_STATUS_LABEL[status]}</option>)}
+              </select>
+              <span id="status-hint" className="mt-1.5 block text-xs leading-5 text-ink-3">{TERM_STATUS_HINT[form.status]}</span>
+              <FormFieldError id="status-error" errors={errorsFor("status")} />
+            </label>
 
-              <label className="block">
-                <span className="label">{labels.fullNameKo}</span>
-                <input
-                  name="fullNameKo"
-                  autoComplete="off"
-                  value={form.fullNameKo}
-                  maxLength={TERM_NAME_MAX}
-                  onChange={(e) => updateField("fullNameKo", e.target.value)}
-                  disabled={locked}
-                  className="field"
-                />
-              </label>
-            </>
-          )}
-
-          <label className="block sm:col-span-2">
-            <span className="label">도메인 (쉼표로 구분)</span>
-            <input
+            <FormTextField
               name="domain"
-              autoComplete="off"
+              label="도메인"
               value={form.domain}
+              errors={errorsFor("domain")}
               maxLength={TERM_DOMAIN_TEXT_MAX}
-              onChange={(e) => updateField("domain", e.target.value)}
               disabled={locked}
               placeholder="예: ISP, PM…"
-              className="field"
+              hint="여러 값은 쉼표로 구분합니다."
+              onChange={(value) => updateField("domain", value)}
             />
-          </label>
-
-          <label className="block">
-            <span className="label">카테고리</span>
-            <input
+            <FormTextField
               name="category"
-              autoComplete="off"
+              label="카테고리"
               value={form.category}
+              errors={errorsFor("category")}
               maxLength={TERM_NAME_MAX}
-              onChange={(e) => updateField("category", e.target.value)}
               disabled={locked}
-              placeholder="예: 공정, 결제, 사용자 인증…"
-              className="field"
+              placeholder="예: 공정…"
+              onChange={(value) => updateField("category", value)}
             />
-            <span className="mt-1.5 block text-xs leading-5 text-ink-3">도메인 안에서 용어를 묶는 한 단계 좁은 분류입니다.</span>
-          </label>
 
-          <label className="block">
-            <span className="label">담당자</span>
-            <select
-              name="ownerId"
-              value={form.ownerId}
-              onChange={(e) => updateField("ownerId", e.target.value)}
-              disabled={locked}
-              className="field"
-            >
-              <option value="">미지정 · 누구나 정리</option>
-              {assignees.map((person) => (
-                <option key={person.id} value={person.id}>
-                  {person.label}
-                </option>
-              ))}
-            </select>
-            <span className="mt-1.5 block text-xs leading-5 text-ink-3">완성을 책임질 사람을 정하되, 다른 사람도 계속 보탤 수 있습니다.</span>
-          </label>
+            <label className="block">
+              <span className="label">담당자</span>
+              <select
+                name="ownerId"
+                value={form.ownerId}
+                onChange={(event) => updateField("ownerId", event.target.value)}
+                disabled={locked}
+                aria-invalid={errorsFor("ownerId") ? true : undefined}
+                aria-describedby={errorsFor("ownerId") ? "ownerId-error" : undefined}
+                className="field"
+              >
+                <option value="">미지정 · 누구나 정리</option>
+                {assignees.map((person) => <option key={person.id} value={person.id}>{person.label}</option>)}
+              </select>
+              <FormFieldError id="ownerId-error" errors={errorsFor("ownerId")} />
+            </label>
           </div>
+        </section>
+      </div>
 
-          <fieldset className="border-t border-line pt-5">
-            <legend className="label float-left w-full">공개 상태</legend>
-            <div className="clear-both grid grid-cols-2 gap-2 lg:grid-cols-4">
-              {TERM_STATUSES.map((status) => (
-                <label key={status} className="cursor-pointer">
-                  <input
-                    type="radio"
-                    name="status"
-                    value={status}
-                    checked={form.status === status}
-                    onChange={() => updateField("status", status)}
-                    disabled={locked}
-                    className="peer sr-only"
-                  />
-                  <span className="flex min-h-10 items-center justify-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-2 transition-colors hover:border-brand/40 peer-checked:border-brand peer-checked:bg-brand-soft peer-checked:font-medium peer-checked:text-brand peer-focus-visible:ring-2 peer-focus-visible:ring-brand/40 peer-disabled:cursor-not-allowed peer-disabled:opacity-50">
-                    <span className={`h-2 w-2 rounded-full ${STATUS_DOT[status]}`} aria-hidden="true" />
-                    {TERM_STATUS_LABEL[status]}
-                  </span>
-                </label>
-              ))}
-            </div>
-            <p className="mt-2 text-xs leading-5 text-ink-3">{TERM_STATUS_HINT[form.status]}</p>
-          </fieldset>
+      <section className="card p-4 sm:p-5">
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-ink">정의</h2>
+          <p className="mt-0.5 text-xs text-ink-3">검색 결과에서 먼저 읽히는 짧은 설명입니다.</p>
         </div>
-        <p className="border-t border-line bg-panel-2/50 px-4 py-3 text-xs text-ink-3 sm:px-5">{labels.primaryHint}</p>
+        <textarea
+          name="definitionMd"
+          autoComplete="off"
+          value={form.definitionMd}
+          maxLength={TERM_MARKDOWN_MAX}
+          onChange={(event) => updateField("definitionMd", event.target.value)}
+          disabled={locked}
+          aria-label="정의"
+          aria-invalid={errorsFor("definitionMd") ? true : undefined}
+          aria-describedby={errorsFor("definitionMd") ? "definitionMd-error" : undefined}
+          rows={3}
+          placeholder="한두 문장으로 이 용어가 무엇인지…"
+          className="field"
+        />
+        <FormFieldError id="definitionMd-error" errors={errorsFor("definitionMd")} />
       </section>
 
-      <section className="card overflow-hidden">
-        <FormSectionTitle icon={<IconDocument />} title="설명" description="짧은 정의를 먼저 쓰고, 필요한 맥락은 본문에 자세히 남깁니다." />
-        <div className="space-y-5 p-4 sm:p-5">
-        <label className="block">
-          <span className="label">정의</span>
-          <textarea
-            name="definitionMd"
-            autoComplete="off"
-            value={form.definitionMd}
-            maxLength={TERM_MARKDOWN_MAX}
-            onChange={(e) => updateField("definitionMd", e.target.value)}
-            disabled={locked}
-            rows={3}
-            placeholder="한두 문장으로 이 용어가 무엇인지…"
-            className="field"
-          />
-        </label>
-
-        {/* R111: bodyMd는 terms.body_md 컬럼에 이미 저장되고(lib/terms/create.ts,
-            update.ts) 상세 화면(app/w/[slug]/page.tsx, R96)에도 이미 렌더되는데,
-            계획서 스케치의 폼에는 입력란 자체가 없었다 — 상세 화면이 보여주는
-            "본문"을 채울 방법이 폼에 없는 셈이었다. */}
-        <div>
-          <span className="label">본문</span>
-          <MarkdownEditor
-            value={form.bodyMd}
-            maxLength={TERM_MARKDOWN_MAX}
-            onChange={(bodyMd) => updateField("bodyMd", bodyMd)}
-            disabled={locked}
-            onUploadingChange={setImageUploading}
-          />
+      <section>
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-ink">본문</h2>
+          <p className="mt-0.5 text-xs text-ink-3">예시나 배경처럼 정의만으로 부족한 맥락을 남깁니다.</p>
         </div>
-        </div>
+        <MarkdownEditor
+          label="용어 본문"
+          describedBy={errorsFor("bodyMd") ? "bodyMd-error" : undefined}
+          invalid={Boolean(errorsFor("bodyMd"))}
+          value={form.bodyMd}
+          maxLength={TERM_MARKDOWN_MAX}
+          onChange={(bodyMd) => updateField("bodyMd", bodyMd)}
+          disabled={locked}
+          onUploadingChange={setImageUploading}
+        />
+        <FormFieldError id="bodyMd-error" errors={errorsFor("bodyMd")} />
       </section>
 
-      <section className="card overflow-hidden">
-        <FormSectionTitle icon={<IconTags />} title="추가 표기" description="대표 표기 외에 검색되어야 하거나 피해야 할 이름을 등록합니다.">
-          <div className="flex flex-wrap gap-1.5">
-            <button type="button" onClick={() => addSurface("canonical")} disabled={locked} className="btn-ghost btn-sm shrink-0"><IconPlus />표준 표기</button>
-            <button type="button" onClick={() => addSurface("abbreviation")} disabled={locked} className="btn-ghost btn-sm shrink-0"><IconPlus />약어</button>
-            <button type="button" onClick={() => addSurface("alias")} disabled={locked} className="btn-quiet btn-sm shrink-0"><IconPlus />기타</button>
-          </div>
-        </FormSectionTitle>
-        <div className="p-4 sm:p-5">
-          <div className="mb-2 hidden grid-cols-[minmax(0,1fr)_6rem_8rem_2.5rem] gap-2 px-2 text-[11px] font-medium text-ink-3 sm:grid">
-            <span>표기</span><span>언어</span><span>종류</span><span className="sr-only">작업</span>
-          </div>
-            {/* 표준명에서 자동으로 파생되는 표기는 여기 나타나지 않는다(R110의
-                pickExplicitSurfaces). 그 사실을 적어두지 않으면 빈 목록을 보고
-                "표기가 하나도 없다"고 오해한다. */}
-        <div className="space-y-2">
-          {form.surfaces.map((s, i) => (
-            <div key={i} className="grid gap-2 rounded-lg border border-line bg-panel-2/40 p-2 sm:grid-cols-[minmax(0,1fr)_6rem_8rem_2.5rem]">
-              <input
-                name={`surface-${i}-text`}
-                autoComplete="off"
-                aria-label={`추가 표기 ${i + 1}`}
-                value={s.text}
-                maxLength={TERM_NAME_MAX}
-                onChange={(e) => updateSurface(i, { text: e.target.value })}
-                disabled={locked}
-                placeholder="표기…"
-                className="field min-w-0 py-1.5"
-              />
-              <select
-                name={`surface-${i}-lang`}
-                aria-label={`추가 표기 ${i + 1} 언어`}
-                value={s.lang}
-                onChange={(e) => updateSurface(i, { lang: e.target.value })}
-                disabled={locked}
-                className="field py-1.5"
-              >
-                {SURFACE_LANGS.map((l) => (
-                  <option key={l} value={l}>
-                    {LANG_LABEL[l]}
-                  </option>
-                ))}
-              </select>
-              <select
-                name={`surface-${i}-kind`}
-                aria-label={`추가 표기 ${i + 1} 종류`}
-                value={s.kind}
-                onChange={(e) => updateSurface(i, { kind: e.target.value })}
-                disabled={locked}
-                className="field py-1.5"
-              >
-                {EXPLICIT_SURFACE_KINDS.map((k) => (
-                  <option key={k} value={k}>
-                    {SURFACE_KIND_LABEL[k]}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                aria-label={`${s.text || `추가 표기 ${i + 1}`} 삭제`}
-                title="표기 삭제"
-                onClick={() => removeSurface(i)}
-                disabled={locked}
-                className="btn-quiet btn-sm h-10 w-10 px-0 text-ink-3 hover:text-danger"
-              >
-                <IconTrash />
-              </button>
-            </div>
-          ))}
-          {form.surfaces.length === 0 && (
-            <div className="rounded-lg border border-dashed border-line px-4 py-7 text-center">
-              <IconTags className="mx-auto mb-2 text-ink-3" />
-              <p className="text-sm text-ink-2">아직 추가 표기가 없습니다.</p>
-              <p className="mt-1 text-xs text-ink-3">대표 표기는 저장할 때 자동으로 표준 표기에 포함됩니다.</p>
-            </div>
+      <div className="sticky bottom-3 z-10 flex items-center justify-between gap-3 rounded-xl border border-line bg-panel/95 px-3 py-2.5 shadow-lg backdrop-blur">
+        <p className="min-w-0 truncate text-xs text-ink-3" aria-live="polite">
+          {savedSlug ? "저장 완료" : editSlug === undefined ? "새 용어 작성 중" : dirty ? "저장하지 않은 변경사항이 있습니다" : "변경사항 없음"}
+        </p>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Link href={editSlug !== undefined ? `/w/${editSlug}` : "/sheet"} className="btn-quiet">
+            취소
+          </Link>
+          {savedSlug ? (
+            <Link href={`/w/${savedSlug}`} className="btn-primary">
+              저장됨 → {savedSlug}로 이동
+            </Link>
+          ) : (
+            <button type="submit" disabled={saving || imageUploading} className="btn-primary">
+              {imageUploading ? "이미지 변환 중…" : saving ? "저장 중…" : editSlug === undefined ? "용어 저장" : "변경사항 저장"}
+            </button>
           )}
         </div>
-        </div>
-      </section>
-
-      <div className="sticky bottom-3 z-10 flex items-center gap-2 rounded-xl border border-line bg-panel/90 p-3 shadow-lg backdrop-blur">
-        {savedSlug ? (
-          <Link href={`/w/${savedSlug}`} className="btn-primary">
-            저장됨 → {savedSlug}로 이동
-          </Link>
-        ) : (
-          <button type="submit" disabled={saving || imageUploading} className="btn-primary">
-            {imageUploading ? "이미지 변환 중…" : saving ? "저장 중…" : "저장"}
-          </button>
-        )}
-        <Link href={editSlug !== undefined ? `/w/${editSlug}` : "/sheet"} className="btn-quiet">
-          취소
-        </Link>
       </div>
     </form>
   );
 }
 
-function FormSectionTitle({
-  icon,
+function CompactSectionTitle({
   title,
   description,
-  children,
 }: {
-  icon: ReactNode;
   title: string;
   description: string;
-  children?: ReactNode;
 }) {
   return (
-    <header className="flex flex-col gap-3 border-b border-line bg-panel-2/50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-      <div className="flex min-w-0 items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand" aria-hidden="true">
-          {icon}
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-ink">{title}</h2>
-          <p className="mt-0.5 text-xs leading-5 text-ink-3">{description}</p>
-        </div>
-      </div>
-      {children}
+    <header className="border-b border-line bg-panel-2/50 px-4 py-3 sm:px-5">
+      <h2 className="text-sm font-semibold text-ink">{title}</h2>
+      <p className="mt-0.5 text-xs leading-5 text-ink-3">{description}</p>
     </header>
   );
 }
 
-function IconIdentity() {
+function FormTextField({
+  name,
+  label,
+  value,
+  errors,
+  maxLength,
+  disabled,
+  placeholder,
+  hint,
+  onChange,
+}: {
+  name: string;
+  label: string;
+  value: string;
+  errors?: string[];
+  maxLength: number;
+  disabled: boolean;
+  placeholder?: string;
+  hint?: string;
+  onChange: (value: string) => void;
+}) {
+  const errorId = `${name}-error`;
   return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-      <rect x="2.5" y="3.5" width="15" height="13" rx="2" />
-      <circle cx="7" cy="8" r="2" />
-      <path d="M4.5 13c.6-1.5 1.4-2.2 2.5-2.2s1.9.7 2.5 2.2M12 7h3.2M12 10h3.2M12 13h2" strokeLinecap="round" />
-    </svg>
+    <label className="block min-w-0">
+      <span className="label">{label}</span>
+      <input
+        name={name}
+        autoComplete="off"
+        value={value}
+        maxLength={maxLength}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        placeholder={placeholder}
+        aria-invalid={errors ? true : undefined}
+        aria-describedby={errors ? errorId : undefined}
+        className="field"
+      />
+      {hint && !errors && <span className="mt-1.5 block text-xs leading-5 text-ink-3">{hint}</span>}
+      <FormFieldError id={errorId} errors={errors} />
+    </label>
   );
 }
 
-function IconDocument() {
+function FormFieldError({ id, errors }: { id: string; errors?: string[] }) {
+  if (!errors || errors.length === 0) return null;
   return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-      <path d="M5 2.75h7l3 3V17.25H5z" strokeLinejoin="round" />
-      <path d="M12 2.75v3h3M7.5 9h5M7.5 12h5M7.5 15h3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconTags({ className }: { className?: string } = {}) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-      <path d="m10.5 3.5 6 6-6.7 6.7-6-6V3.5z" strokeLinejoin="round" />
-      <circle cx="7" cy="7" r="1" />
-    </svg>
+    <span id={id} className="mt-1.5 block text-xs leading-5 text-danger">
+      {errors.join(" ")}
+    </span>
   );
 }
 

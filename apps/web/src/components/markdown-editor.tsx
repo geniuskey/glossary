@@ -12,6 +12,9 @@ interface UploadResponse {
 }
 
 interface MarkdownEditorProps {
+  label?: string;
+  describedBy?: string;
+  invalid?: boolean;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
@@ -29,6 +32,9 @@ function imageAlt(file: File): string {
 }
 
 export function MarkdownEditor({
+  label = "Markdown 본문",
+  describedBy,
+  invalid = false,
   value,
   onChange,
   disabled = false,
@@ -41,7 +47,7 @@ export function MarkdownEditor({
   const onChangeRef = useRef(onChange);
   const [uploadCount, setUploadCount] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [mobileMode, setMobileMode] = useState<"edit" | "preview">("edit");
+  const [mode, setMode] = useState<"edit" | "preview">("edit");
   const [fullscreen, setFullscreen] = useState(false);
 
   onChangeRef.current = onChange;
@@ -116,6 +122,11 @@ export function MarkdownEditor({
           basicSetup,
           markdown(),
           EditorView.lineWrapping,
+          EditorView.contentAttributes.of({
+            "aria-label": label,
+            ...(describedBy ? { "aria-describedby": describedBy } : {}),
+            ...(invalid ? { "aria-invalid": "true" } : {}),
+          }),
           EditorState.readOnly.of(disabled),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChangeRef.current(update.state.doc.toString());
@@ -139,8 +150,8 @@ export function MarkdownEditor({
             },
           }),
           EditorView.theme({
-            "&": { minHeight: "26rem", backgroundColor: "transparent", color: "rgb(var(--ink))" },
-            ".cm-content": { minHeight: "26rem", padding: "1rem", caretColor: "rgb(var(--brand))" },
+            "&": { minHeight: "16rem", backgroundColor: "transparent", color: "rgb(var(--ink))" },
+            ".cm-content": { minHeight: "16rem", padding: "1rem", caretColor: "rgb(var(--brand))" },
             ".cm-gutters": { backgroundColor: "rgb(var(--panel-2))", color: "rgb(var(--ink-3))", border: "none" },
             ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "rgb(var(--brand) / 0.06)" },
             ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { backgroundColor: "rgb(var(--selection) / 0.2)" },
@@ -155,7 +166,7 @@ export function MarkdownEditor({
       viewRef.current = null;
     };
     // disabled 변경 시 인스턴스를 다시 만들어 readOnly 상태까지 정확히 반영한다.
-  }, [disabled]);
+  }, [describedBy, disabled, invalid, label]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -182,7 +193,7 @@ export function MarkdownEditor({
       data-markdown-fullscreen={fullscreen}
       role={fullscreen ? "dialog" : undefined}
       aria-modal={fullscreen || undefined}
-      aria-label={fullscreen ? "본문 Markdown 전체 화면 편집기" : undefined}
+      aria-label={fullscreen ? `${label} 전체 화면 편집기` : undefined}
       className={fullscreen
         ? "fixed inset-0 z-[100] flex h-[100dvh] flex-col overflow-hidden bg-panel"
         : "overflow-hidden rounded-xl border border-line bg-panel"}
@@ -198,9 +209,9 @@ export function MarkdownEditor({
         <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={chooseFiles} />
         <div className="ml-auto flex items-center gap-1">
           <span className="mr-1 hidden text-[11px] text-ink-3 md:inline">붙여넣기·드롭 가능 · WebP 자동 변환</span>
-          <div className="flex lg:hidden">
-            <button type="button" className={`btn-sm ${mobileMode === "edit" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMobileMode("edit")}>편집</button>
-            <button type="button" className={`btn-sm ${mobileMode === "preview" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMobileMode("preview")}>미리보기</button>
+          <div className="flex" aria-label="본문 보기 방식">
+            <button type="button" aria-pressed={mode === "edit"} className={`btn-sm ${mode === "edit" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("edit")}>편집</button>
+            <button type="button" aria-pressed={mode === "preview"} className={`btn-sm ${mode === "preview" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("preview")}>미리보기</button>
           </div>
           <button
             type="button"
@@ -214,9 +225,9 @@ export function MarkdownEditor({
         </div>
       </div>
       {uploadError && <div className="border-b border-danger/35 bg-danger-soft px-3 py-2 text-xs text-danger">{uploadError}</div>}
-      <div className={`grid lg:grid-cols-2 lg:divide-x lg:divide-line ${fullscreen ? "min-h-0 flex-1" : ""}`}>
-        <div className={`${mobileMode === "preview" ? "hidden lg:block" : "block"} min-h-0 overflow-auto`} ref={hostRef} />
-        <div className={`${mobileMode === "edit" ? "hidden lg:block" : "block"} min-h-[26rem] overflow-auto p-4 ${fullscreen ? "lg:min-h-0" : ""}`}>
+      <div className={`grid ${fullscreen ? "min-h-0 flex-1" : ""}`}>
+        <div className={`${mode === "preview" ? "hidden" : "block"} min-h-0 overflow-auto`} ref={hostRef} />
+        <div className={`${mode === "edit" ? "hidden" : "block"} min-h-[16rem] overflow-auto p-4 ${fullscreen ? "min-h-0" : ""}`}>
           {value.trim() ? <MarkdownContent>{value}</MarkdownContent> : <p className="text-sm text-ink-3">미리보기가 여기에 표시됩니다.</p>}
         </div>
       </div>
