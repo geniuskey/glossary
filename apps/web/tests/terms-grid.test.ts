@@ -200,7 +200,8 @@ test("ID 선택이 필요한 담당자를 제외한 상세 폼 필드는 표에�
 });
 
 test("담당자 표시·slug·최근 수정은 읽기 전용이다", () => {
-  // slug는 termPatchSchema에 아예 없고(주소가 곧 신분이라 상세 폼도 안 건드린다),
+  // slug 변경은 충돌과 이동을 함께 처리하는 상세 편집 폼의 전용 작업이다.
+  // 표의 셀 단위 PATCH에서는 실수로 주소가 바뀌지 않도록 읽기 전용으로 둔다.
   // updatedAt은 저장할 때 서버가 찍는 값이다.
   const readonly = GRID_COLUMNS.filter((c) => c.kind === "readonly").map((c) => c.key);
   expect(readonly).toEqual(["ownerName", "slug", "updatedAt"]);

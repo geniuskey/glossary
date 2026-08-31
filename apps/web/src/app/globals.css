@@ -273,10 +273,15 @@
   .markdown-body h1 { @apply mb-4 mt-7 text-2xl font-semibold tracking-tight; }
   .markdown-body h2 { @apply mb-3 mt-7 border-b border-line pb-2 text-xl font-semibold; }
   .markdown-body h3 { @apply mb-2 mt-6 text-lg font-semibold; }
+  .markdown-body h4 { @apply mb-2 mt-5 text-base font-semibold; }
+  .markdown-body h5 { @apply mb-2 mt-5 text-sm font-semibold; }
+  .markdown-body h6 { @apply mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-ink-2; }
   .markdown-body p { @apply my-3; }
   .markdown-body ul { @apply my-3 list-disc pl-6; }
   .markdown-body ol { @apply my-3 list-decimal pl-6; }
   .markdown-body li { @apply my-1; }
+  .markdown-body li.task-list-item { @apply list-none; }
+  .markdown-body li.task-list-item input { @apply mr-2 align-middle accent-brand; }
   .markdown-body blockquote { @apply my-4 border-l-4 border-brand/40 bg-brand-soft px-4 py-1 text-ink-2; }
   .markdown-body pre { @apply my-4 overflow-x-auto rounded-lg bg-panel-2 p-4 text-sm leading-6; }
   .markdown-body table { @apply w-full border-collapse text-sm; }

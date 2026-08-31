@@ -8,6 +8,7 @@ import {
   TERM_SURFACE_MAX,
 } from "./limits";
 import { deriveSurfaces } from "./surfaces";
+import { slugify, slugValidationMessage } from "./slug";
 
 // R46: `.trim()`이 없으면 `z.string().min(1)`은 공백뿐인 문자열("   ")을 통과시킨다.
 // 그 값은 surfaceKeys(...).normLoose === ""로 정규화되는데, findDuplicates가
@@ -119,6 +120,10 @@ export const termInputSchema = termInputBaseSchema
  * base를 따로 두고 여기서 파생시키는 이유가 이것이다.
  */
 export const termPatchSchema = termInputBaseSchema.partial().extend({
+  slug: z.string().trim().transform(slugify).superRefine((slug, ctx) => {
+    const message = slugValidationMessage(slug);
+    if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+  }).optional(),
   expectedRevision: z.number().int().positive().optional(),
 });
 

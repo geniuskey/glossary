@@ -1,9 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { basicSetup, EditorView } from "codemirror";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
+import {
+  insertMarkdownBlock,
+  toggleCodeBlockMarkdown,
+  toggleHeadingMarkdown,
+  toggleListMarkdown,
+  toggleQuoteMarkdown,
+  wrapMarkdown,
+  type MarkdownEdit,
+} from "@/lib/markdown/edit";
 import { MarkdownContent } from "./markdown-content";
 
 interface UploadResponse {
@@ -29,6 +38,38 @@ function imageFiles(items: Iterable<File>): File[] {
 function imageAlt(file: File): string {
   const base = file.name.replace(/\.[^.]+$/, "").trim();
   return (base || "첨부 이미지").replaceAll("]", "\\]");
+}
+
+type MarkdownCommand = (source: string, from: number, to: number) => MarkdownEdit;
+
+function applyCommand(view: EditorView, command: MarkdownCommand) {
+  const source = view.state.doc.toString();
+  const { from, to } = view.state.selection.main;
+  const edit = command(source, from, to);
+  view.dispatch({
+    changes: { from: 0, to: source.length, insert: edit.text },
+    selection: { anchor: edit.anchor, head: edit.head },
+    scrollIntoView: true,
+  });
+  view.focus();
+}
+
+function handleMarkdownShortcut(event: KeyboardEvent, view: EditorView): boolean {
+  const mod = event.ctrlKey || event.metaKey;
+  const key = event.key.toLowerCase();
+  let command: MarkdownCommand | null = null;
+
+  if (mod && !event.altKey && !event.shiftKey && key === "b") command = (text, from, to) => wrapMarkdown(text, from, to, "**", "**", "굵은 텍스트");
+  if (mod && !event.altKey && !event.shiftKey && key === "i") command = (text, from, to) => wrapMarkdown(text, from, to, "*", "*", "기울임 텍스트");
+  if (mod && !event.altKey && !event.shiftKey && key === "k") command = (text, from, to) => wrapMarkdown(text, from, to, "[", "](https://example.com)", "링크 텍스트");
+  if (mod && event.altKey && /^[1-6]$/.test(key)) {
+    command = (text, from, to) => toggleHeadingMarkdown(text, from, to, Number(key));
+  }
+  if (!command) return false;
+
+  event.preventDefault();
+  applyCommand(view, command);
+  return true;
 }
 
 export function MarkdownEditor({
@@ -89,6 +130,13 @@ export function MarkdownEditor({
     view.focus();
   }
 
+  function run(command: MarkdownCommand) {
+    const view = viewRef.current;
+    if (!view || disabled) return;
+    setMode("edit");
+    applyCommand(view, command);
+  }
+
   async function upload(files: File[]) {
     if (disabled || files.length === 0) return;
     setUploadError(null);
@@ -132,6 +180,10 @@ export function MarkdownEditor({
             if (update.docChanged) onChangeRef.current(update.state.doc.toString());
           }),
           EditorView.domEventHandlers({
+            keydown(event, view) {
+              if (disabled) return false;
+              return handleMarkdownShortcut(event, view);
+            },
             paste(event) {
               const files = imageFiles(Array.from(event.clipboardData?.files ?? []));
               if (files.length === 0) return false;
@@ -175,14 +227,6 @@ export function MarkdownEditor({
     if (current !== value) view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
   }, [value]);
 
-  function wrapSelection(before: string, after = before) {
-    const view = viewRef.current;
-    if (!view) return;
-    const { from, to } = view.state.selection.main;
-    const selected = view.state.sliceDoc(from, to) || "텍스트";
-    insertText(`${before}${selected}${after}`, from, to);
-  }
-
   function chooseFiles(event: ChangeEvent<HTMLInputElement>) {
     void upload(imageFiles(Array.from(event.target.files ?? [])));
     event.target.value = "";
@@ -198,33 +242,82 @@ export function MarkdownEditor({
         ? "fixed inset-0 z-[100] flex h-[100dvh] flex-col overflow-hidden bg-panel"
         : "overflow-hidden rounded-xl border border-line bg-panel"}
     >
-      <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-line bg-panel-2 px-2 py-2">
-        <button type="button" className="btn-quiet btn-sm" disabled={disabled} onClick={() => wrapSelection("**")}>굵게</button>
-        <button type="button" className="btn-quiet btn-sm" disabled={disabled} onClick={() => wrapSelection("`")}>코드</button>
-        <button type="button" className="btn-quiet btn-sm" disabled={disabled} onClick={() => insertText("\n## 제목\n")}>제목</button>
-        <button type="button" className="btn-quiet btn-sm" disabled={disabled} onClick={() => wrapSelection("[", "](https://)")}>링크</button>
-        <button type="button" className="btn-ghost btn-sm" disabled={disabled || uploadCount > 0} onClick={() => fileRef.current?.click()}>
-          {uploadCount > 0 ? `이미지 변환 중 ${uploadCount}` : "이미지 첨부"}
-        </button>
-        <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={chooseFiles} />
-        <div className="ml-auto flex items-center gap-1">
-          <span className="mr-1 hidden text-[11px] text-ink-3 md:inline">붙여넣기·드롭 가능 · WebP 자동 변환</span>
-          <div className="flex" aria-label="본문 보기 방식">
-            <button type="button" aria-pressed={mode === "edit"} className={`btn-sm ${mode === "edit" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("edit")}>편집</button>
-            <button type="button" aria-pressed={mode === "preview"} className={`btn-sm ${mode === "preview" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("preview")}>미리보기</button>
+      <div className="shrink-0 border-b border-line bg-panel-2">
+        <div className="flex flex-wrap items-center gap-2 border-b border-line/70 px-2 py-1.5">
+          <p className="text-xs font-medium text-ink-2">Markdown</p>
+          <span className="hidden text-[11px] text-ink-3 md:inline">선택한 텍스트에 서식을 적용합니다</span>
+          <div className="ml-auto flex items-center gap-1">
+            <div className="flex" aria-label="본문 보기 방식">
+              <button type="button" aria-pressed={mode === "edit"} className={`btn-sm ${mode === "edit" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("edit")}>편집</button>
+              <button type="button" aria-pressed={mode === "preview"} className={`btn-sm ${mode === "preview" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("preview")}>미리보기</button>
+            </div>
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              aria-pressed={fullscreen}
+              title={fullscreen ? "전체 화면 닫기 (Esc)" : "전체 화면으로 편집"}
+              onClick={() => setFullscreen((current) => !current)}
+            >
+              {fullscreen ? "전체 화면 닫기" : "전체 화면"}
+            </button>
           </div>
-          <button
-            type="button"
-            className="btn-ghost btn-sm"
-            aria-pressed={fullscreen}
-            title={fullscreen ? "전체 화면 닫기 (Esc)" : "전체 화면으로 편집"}
-            onClick={() => setFullscreen((current) => !current)}
-          >
-            {fullscreen ? "전체 화면 닫기" : "전체 화면"}
-          </button>
         </div>
+
+        <div role="toolbar" aria-label="Markdown 서식 도구" className="flex items-center gap-1 overflow-x-auto px-2 py-1.5">
+          <div className="flex shrink-0 items-center gap-0.5" aria-label="제목">
+            {[1, 2, 3, 4, 5, 6].map((level) => (
+              <ToolbarButton
+                key={level}
+                label={`제목 ${level}`}
+                title={`제목 ${level} 적용/해제 (Ctrl+Alt+${level})`}
+                disabled={disabled}
+                onClick={() => run((text, from, to) => toggleHeadingMarkdown(text, from, to, level))}
+              >
+                H{level}
+              </ToolbarButton>
+            ))}
+          </div>
+
+          <ToolbarDivider />
+          <div className="flex shrink-0 items-center gap-0.5" aria-label="인라인 서식">
+            <ToolbarButton label="굵게" title="굵게 (Ctrl+B)" disabled={disabled} onClick={() => run((text, from, to) => wrapMarkdown(text, from, to, "**", "**", "굵은 텍스트"))}><strong>B</strong></ToolbarButton>
+            <ToolbarButton label="기울임" title="기울임 (Ctrl+I)" disabled={disabled} onClick={() => run((text, from, to) => wrapMarkdown(text, from, to, "*", "*", "기울임 텍스트"))}><em>I</em></ToolbarButton>
+            <ToolbarButton label="취소선" title="취소선" disabled={disabled} onClick={() => run((text, from, to) => wrapMarkdown(text, from, to, "~~", "~~", "취소선 텍스트"))}><span className="line-through">S</span></ToolbarButton>
+            <ToolbarButton label="인라인 코드" title="인라인 코드" disabled={disabled} onClick={() => run((text, from, to) => wrapMarkdown(text, from, to, "`", "`", "코드"))}><span className="font-mono">&lt;/&gt;</span></ToolbarButton>
+            <ToolbarButton label="링크" title="링크 (Ctrl+K)" disabled={disabled} onClick={() => run((text, from, to) => wrapMarkdown(text, from, to, "[", "](https://example.com)", "링크 텍스트"))}>링크</ToolbarButton>
+          </div>
+
+          <ToolbarDivider />
+          <div className="flex shrink-0 items-center gap-0.5" aria-label="블록 서식">
+            <ToolbarButton label="인용문" title="인용문 적용/해제" disabled={disabled} onClick={() => run(toggleQuoteMarkdown)}>인용</ToolbarButton>
+            <ToolbarButton label="글머리 목록" title="글머리 목록 적용/해제" disabled={disabled} onClick={() => run((text, from, to) => toggleListMarkdown(text, from, to, "bullet"))}>• 목록</ToolbarButton>
+            <ToolbarButton label="번호 목록" title="번호 목록 적용/해제" disabled={disabled} onClick={() => run((text, from, to) => toggleListMarkdown(text, from, to, "ordered"))}>1. 목록</ToolbarButton>
+            <ToolbarButton label="체크리스트" title="체크리스트 적용/해제" disabled={disabled} onClick={() => run((text, from, to) => toggleListMarkdown(text, from, to, "task"))}>☑ 목록</ToolbarButton>
+            <ToolbarButton label="코드 블록" title="코드 블록 적용/해제" disabled={disabled} onClick={() => run(toggleCodeBlockMarkdown)}>코드 블록</ToolbarButton>
+          </div>
+
+          <ToolbarDivider />
+          <div className="flex shrink-0 items-center gap-0.5" aria-label="삽입">
+            <ToolbarButton
+              label="표 삽입"
+              title="3열 표 삽입"
+              disabled={disabled}
+              onClick={() => run((text, from, to) => insertMarkdownBlock(text, from, to, "| 열 1 | 열 2 | 열 3 |\n| --- | --- | --- |\n| 내용 | 내용 | 내용 |"))}
+            >표</ToolbarButton>
+            <ToolbarButton label="구분선 삽입" title="구분선 삽입" disabled={disabled} onClick={() => run((text, from, to) => insertMarkdownBlock(text, from, to, "---"))}>구분선</ToolbarButton>
+            <ToolbarButton
+              label="이미지 첨부"
+              title="이미지 첨부 · 붙여넣기와 드롭도 가능"
+              disabled={disabled || uploadCount > 0}
+              onClick={() => { setMode("edit"); fileRef.current?.click(); }}
+            >
+              {uploadCount > 0 ? `변환 중 ${uploadCount}` : "이미지"}
+            </ToolbarButton>
+          </div>
+        </div>
+        <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={chooseFiles} />
       </div>
-      {uploadError && <div className="border-b border-danger/35 bg-danger-soft px-3 py-2 text-xs text-danger">{uploadError}</div>}
+      {uploadError && <div className="border-b border-danger/35 bg-danger-soft px-3 py-2 text-xs text-danger" aria-live="polite">{uploadError}</div>}
       <div className={`grid ${fullscreen ? "min-h-0 flex-1" : ""}`}>
         <div className={`${mode === "preview" ? "hidden" : "block"} min-h-0 overflow-auto`} ref={hostRef} />
         <div className={`${mode === "edit" ? "hidden" : "block"} min-h-[16rem] overflow-auto p-4 ${fullscreen ? "min-h-0" : ""}`}>
@@ -234,4 +327,31 @@ export function MarkdownEditor({
       {maxLength !== undefined && <div className="shrink-0 border-t border-line px-3 py-1.5 text-right text-[11px] text-ink-3">{value.length.toLocaleString()} / {maxLength.toLocaleString()}</div>}
     </div>
   );
+}
+
+interface ToolbarButtonProps {
+  label: string;
+  title: string;
+  disabled: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}
+
+function ToolbarButton({ label, title, disabled, onClick, children }: ToolbarButtonProps) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={title}
+      disabled={disabled}
+      onClick={onClick}
+      className="inline-flex h-8 min-w-8 shrink-0 touch-manipulation items-center justify-center rounded-md px-2 text-xs text-ink-2 transition-colors hover:bg-panel hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+function ToolbarDivider() {
+  return <span className="mx-0.5 h-5 w-px shrink-0 bg-line" aria-hidden="true" />;
 }

@@ -5,6 +5,7 @@ export type ApiErrorCode =
   | "not_found"
   | "term_not_found"
   | "revision_conflict"
+  | "slug_conflict"
   | "operation_conflict"
   // R131: 가입에서만 쓴다. 로그인과 달리 계정 존재 여부를 숨기지 않는다 —
   // 가입 화면이 이유를 말해주지 않으면 같은 이메일로 계속 다시 시도하게 된다.

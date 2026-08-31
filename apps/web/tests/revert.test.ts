@@ -30,7 +30,13 @@ async function seed() {
 }
 
 function expectSaved(result: RevertResult): UpdateTermSuccess {
-  if ("conflict" in result || "invalid" in result || "notFound" in result || "revisionNotFound" in result) {
+  if (
+    "conflict" in result
+    || "slugConflict" in result
+    || "invalid" in result
+    || "notFound" in result
+    || "revisionNotFound" in result
+  ) {
     throw new Error(`예상치 못한 결과: ${JSON.stringify(result)}`);
   }
   return result;

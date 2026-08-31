@@ -20,8 +20,9 @@ import {
 import { TERM_FIELD_LABELS } from "@/lib/terms/form-labels";
 import { buildTermPayload, type SurfaceDraft, type TermFormState } from "@/lib/terms/form-payload";
 import { interpretResponse, type FormOutcome } from "@/lib/terms/form-response";
-import { TERM_DOMAIN_TEXT_MAX, TERM_MARKDOWN_MAX, TERM_NAME_MAX } from "@/lib/terms/limits";
+import { TERM_DOMAIN_TEXT_MAX, TERM_MARKDOWN_MAX, TERM_NAME_MAX, TERM_SLUG_MAX } from "@/lib/terms/limits";
 import type { AssignableUser } from "@/lib/terms/owners";
+import { slugify, slugValidationMessage } from "@/lib/terms/slug";
 
 export interface TermFormInitial extends TermFormState {
   slug?: string;
@@ -66,6 +67,9 @@ export function TermForm({ initial, assignees = [] }: { initial?: TermFormInitia
 
   const [form, setForm] = useState<TermFormState>(initial ?? EMPTY);
   const [saving, setSaving] = useState(false);
+  const [renamingSlug, setRenamingSlug] = useState(false);
+  const [slugDraft, setSlugDraft] = useState(editSlug ?? "");
+  const [slugError, setSlugError] = useState<string | null>(null);
   // R108: 경고가 딸린 저장이 끝나면 이 슬러그가 채워지고, 그때부터 폼은
   // 잠긴다(입력도 비활성화되고 제출 버튼도 링크로 바뀐다) — 그래서 사용자가
   // "저장이 됐는지 몰라서" 또는 "경고를 읽었지만 무심코" 다시 제출해 같은
@@ -80,7 +84,7 @@ export function TermForm({ initial, assignees = [] }: { initial?: TermFormInitia
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const initialSnapshotRef = useRef(JSON.stringify(buildTermPayload(initial ?? EMPTY)));
 
-  const locked = saving || savedSlug !== null;
+  const locked = saving || renamingSlug || savedSlug !== null;
   const labels = TERM_FIELD_LABELS[form.termType as TermTypeLiteral] ?? TERM_FIELD_LABELS.term;
   const fieldDisplayLabel: Record<string, string> = {
     termType: "용어 종류",
@@ -98,6 +102,9 @@ export function TermForm({ initial, assignees = [] }: { initial?: TermFormInitia
   };
   const formSnapshot = useMemo(() => JSON.stringify(buildTermPayload(form)), [form]);
   const dirty = formSnapshot !== initialSnapshotRef.current;
+  const normalizedSlug = slugify(slugDraft);
+  const slugChanged = editSlug !== undefined && normalizedSlug !== editSlug;
+  const slugDraftIssue = slugValidationMessage(normalizedSlug);
 
   useEffect(() => {
     if (!dirty || savedSlug !== null) return;
@@ -149,6 +156,45 @@ export function TermForm({ initial, assignees = [] }: { initial?: TermFormInitia
 
   function errorsFor(field: string): string[] | undefined {
     return fieldErrors?.[field];
+  }
+
+  async function renameSlug() {
+    if (editSlug === undefined || locked || dirty || !slugChanged) return;
+    if (slugDraftIssue) {
+      setSlugError(slugDraftIssue);
+      return;
+    }
+
+    setRenamingSlug(true);
+    setSlugError(null);
+    try {
+      const response = await fetch(`/api/v1/terms/${encodeURIComponent(editSlug)}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ slug: slugDraft, expectedRevision: initial?.expectedRevision }),
+      });
+      const body = await response.json().catch(() => null) as {
+        term?: { slug?: string };
+        error?: { code?: string; message?: string };
+      } | null;
+
+      if (!response.ok || !body?.term?.slug) {
+        const fallback = body?.error?.code === "revision_conflict"
+          ? "다른 사람이 먼저 수정했습니다. 새로고침한 뒤 다시 시도해 주세요."
+          : "URL 주소를 변경하지 못했습니다.";
+        setSlugError(body?.error?.message || fallback);
+        return;
+      }
+
+      const nextSlug = body.term.slug;
+      setSlugDraft(nextSlug);
+      router.replace(`/edit/${encodeURIComponent(nextSlug)}`);
+      router.refresh();
+    } catch {
+      setSlugError("네트워크 오류로 URL 주소를 변경하지 못했습니다.");
+    } finally {
+      setRenamingSlug(false);
+    }
   }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -480,6 +526,46 @@ export function TermForm({ initial, assignees = [] }: { initial?: TermFormInitia
               </select>
               <FormFieldError id="ownerId-error" errors={errorsFor("ownerId")} />
             </label>
+
+            {editSlug !== undefined && (
+              <div className="border-t border-line pt-4">
+                <label htmlFor="term-slug" className="label">URL 주소</label>
+                <div className="flex overflow-hidden rounded-lg border border-line bg-panel focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15">
+                  <span className="flex shrink-0 items-center border-r border-line bg-panel-2 px-2.5 text-xs text-ink-3">/w/</span>
+                  <input
+                    id="term-slug"
+                    name="slug"
+                    autoComplete="off"
+                    value={slugDraft}
+                    maxLength={TERM_SLUG_MAX}
+                    disabled={locked}
+                    aria-invalid={slugError ? true : undefined}
+                    aria-describedby="term-slug-hint term-slug-error"
+                    onChange={(event) => {
+                      setSlugDraft(event.target.value);
+                      setSlugError(null);
+                    }}
+                    className="min-w-0 flex-1 bg-transparent px-2.5 py-2 text-sm text-ink outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                  />
+                </div>
+                <p id="term-slug-hint" className="mt-1.5 text-xs leading-5 text-ink-3">
+                  {dirty
+                    ? "다른 변경사항을 먼저 저장해야 URL을 변경할 수 있습니다."
+                    : normalizedSlug && normalizedSlug !== slugDraft
+                      ? `실제 주소: /w/${normalizedSlug}`
+                      : "글자·숫자와 하이픈으로 정리되어 저장됩니다."}
+                </p>
+                {slugError && <p id="term-slug-error" className="mt-1 text-xs text-danger" aria-live="polite">{slugError}</p>}
+                <button
+                  type="button"
+                  onClick={() => void renameSlug()}
+                  disabled={locked || dirty || !slugChanged || Boolean(slugDraftIssue)}
+                  className="btn-ghost btn-sm mt-2 w-full"
+                >
+                  {renamingSlug ? "URL 변경 중…" : "URL 변경"}
+                </button>
+              </div>
+            )}
           </div>
         </section>
       </div>

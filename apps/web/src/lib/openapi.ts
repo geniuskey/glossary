@@ -485,6 +485,11 @@ export const openApiSpec = {
                 properties: {
                   // R109: 편집 화면이 읽은 리비전 번호. 그 사이 남이 고쳤으면 409다.
                   expectedRevision: { type: "integer" },
+                  slug: {
+                    type: "string",
+                    description: "새 URL slug. 서버가 소문자·하이픈 형식으로 정규화한다.",
+                    maxLength: 160,
+                  },
                   message: { type: "string" },
                 },
                 additionalProperties: true,
@@ -496,7 +501,7 @@ export const openApiSpec = {
           "200": json("{ term, surfaces, warnings }", { type: "object" }),
           "400": errorResponse("validation_failed"),
           "404": errorResponse("not_found"),
-          "409": errorResponse("revision_conflict — details.currentRevision에 현재 번호가 있다"),
+          "409": errorResponse("revision_conflict 또는 slug_conflict"),
         },
       },
       delete: {

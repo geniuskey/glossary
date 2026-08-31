@@ -33,7 +33,7 @@ test("vacuity 가드: term-form.tsx 소스를 실제로 읽었다", () => {
 // R108 핵심 1: locked는 saving뿐 아니라 savedSlug !== null도 봐야 한다 —
 // saving만 보면 저장이 끝나자마자(경고를 읽기도 전에) 다시 제출 가능해진다.
 test("locked 계산에 savedSlug 조건이 포함된다 (R108)", () => {
-  expect(/const\s+locked\s*=\s*saving\s*\|\|\s*savedSlug\s*!==\s*null/.test(code)).toBe(true);
+  expect(/const\s+locked\s*=\s*saving\s*\|\|\s*renamingSlug\s*\|\|\s*savedSlug\s*!==\s*null/.test(code)).toBe(true);
 });
 
 // R108 핵심 2: onSubmit 맨 앞에서 locked 가드로 조기 반환해야 한다. 버튼이
@@ -95,10 +95,18 @@ test("용어 종류는 하나의 세그먼트 컨트롤 안에서 선택 상태�
   expect(code).toContain('peer-checked:shadow-sm');
 });
 
+test("편집 폼은 slug를 별도 버튼으로 변경하고 새 편집 URL로 이동한다", () => {
+  expect(code).toContain('name="slug"');
+  expect(code).toContain('"URL 변경"');
+  expect(code).toContain('body: JSON.stringify({ slug: slugDraft, expectedRevision: initial?.expectedRevision })');
+  expect(code).toContain('router.replace(`/edit/${encodeURIComponent(nextSlug)}`)');
+  expect(code).toContain('disabled={locked || dirty || !slugChanged || Boolean(slugDraftIssue)}');
+});
+
 // 자기검사: 위 정규식들이 "아무 소스에도 항상 참"인 식으로 무너지지
 // 않았는지 - 관련 없는 임의 소스에서는 false여야 한다.
 test("자기검사: 위 판별식들은 무관한 소스에서 false다", () => {
   const irrelevant = "const x = 1; function foo() { return 2; }";
-  expect(/const\s+locked\s*=\s*saving\s*\|\|\s*savedSlug\s*!==\s*null/.test(irrelevant)).toBe(false);
+  expect(/const\s+locked\s*=\s*saving\s*\|\|\s*renamingSlug\s*\|\|\s*savedSlug\s*!==\s*null/.test(irrelevant)).toBe(false);
   expect(/if\s*\(\s*locked\s*\)\s*return\s*;/.test(irrelevant)).toBe(false);
 });

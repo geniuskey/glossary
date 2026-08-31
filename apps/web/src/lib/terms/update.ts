@@ -5,11 +5,11 @@ import {
 import { extractAttachmentHashes } from "@/lib/attachments/refs";
 import { getDb } from "@/lib/db";
 import { checkSurfaceConflicts } from "./schema";
-import { findDuplicates, type DuplicateWarning } from "./create";
+import { findDuplicates, isSlugConflict, type DuplicateWarning } from "./create";
 import { defaultCaseSensitive, deriveSurfaces, pickExplicitSurfaces, type CanonicalNames } from "./surfaces";
 import type { SurfaceInput, TermInput } from "./schema";
 
-export type TermUpdate = Partial<TermInput>;
+export type TermUpdate = Partial<TermInput> & { slug?: string };
 
 export interface RevisionRow {
   id: string;
@@ -49,6 +49,7 @@ export interface UpdateTermSuccess {
 export type UpdateTermResult =
   | UpdateTermSuccess
   | { conflict: true; currentRevision: number }
+  | { slugConflict: true }
   | { invalid: true; issues: string[] }
   // R75: 존재하지 않는 termId로 호출되는 건 레이스와 무관하게 도달 가능한 정상
   // 상태다(Task 13이 오래된/잘못된 id로 부를 수 있다) — updateTerm은 export된
@@ -201,6 +202,7 @@ export async function updateTerm(
       const [updated] = await tx
         .update(terms)
         .set({
+          ...(input.slug !== undefined ? { slug: input.slug } : {}),
           ...(input.termType !== undefined ? { termType: input.termType } : {}),
           ...(input.nameEn !== undefined ? { nameEn: input.nameEn } : {}),
           ...(input.nameKo !== undefined ? { nameKo: input.nameKo } : {}),
@@ -271,6 +273,9 @@ export async function updateTerm(
       return { term: updated, surfaces: savedSurfaces, warnings };
     });
   } catch (err) {
+    if (isSlugConflict(err)) {
+      return { slugConflict: true };
+    }
     // R54: READ COMMITTED는 "같은 currentRevision을 읽고 동시에 revisionNumber+1을
     // insert"하는 경합을 막지 못한다. 나중에 커밋을 시도한 쪽의 insert가
     // term_revisions_unique에서 23505를 던지면, 그건 정말로 누군가 먼저 썼다는

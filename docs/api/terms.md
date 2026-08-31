@@ -152,6 +152,21 @@ Content-Type: application/json
 `surfaces`를 아예 보내지 않으면 기존 명시 표기를 유지한다. 보내면 그 배열이 명시 표기
 전체를 대체한다.
 
+### URL 주소 변경
+
+편집 화면의 URL 변경 버튼은 slug만 별도로 PATCH하고, 성공하면 새 편집 주소로 이동한다.
+
+```http
+PATCH /api/v1/terms/ae
+Content-Type: application/json
+
+{ "slug": "auto exposure", "expectedRevision": 6 }
+```
+
+서버는 입력을 `auto-exposure`처럼 소문자·하이픈 형식으로 정리한다. 이미 사용 중인
+주소면 저장하지 않고 409 `slug_conflict`를 반환한다. 예약 주소와 UUID 형식은 400으로
+거부한다.
+
 ### 낙관적 잠금
 
 편집 화면은 자기가 읽은 리비전 번호를 들고 있다가 저장 시점에 `expectedRevision`으로

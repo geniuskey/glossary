@@ -6,7 +6,7 @@ import {
   TERM_NAME_MAX,
   TERM_SURFACE_MAX,
 } from "../src/lib/terms/limits.js";
-import { termInputSchema, type TermInput } from "../src/lib/terms/schema.js";
+import { termInputSchema, termPatchSchema, type TermInput } from "../src/lib/terms/schema.js";
 
 function base(overrides: Partial<TermInput> = {}): TermInput {
   return {
@@ -34,6 +34,17 @@ test("용어 입력의 문자열과 배열은 서버 자원을 보호하는 상�
     ).success,
   ).toBe(false);
   expect(termInputSchema.safeParse(base({ bodyMd: "x".repeat(TERM_MARKDOWN_MAX + 1) })).success).toBe(false);
+});
+
+test("slug 수정 입력은 실제 URL 형식으로 정규화된다", () => {
+  const parsed = termPatchSchema.parse({ slug: "  새 URL 이름  ", expectedRevision: 2 });
+  expect(parsed.slug).toBe("새-url-이름");
+});
+
+test("비어 있거나 예약어·UUID 형식인 slug는 거부된다", () => {
+  expect(termPatchSchema.safeParse({ slug: "!!!" }).success).toBe(false);
+  expect(termPatchSchema.safeParse({ slug: "lookup" }).success).toBe(false);
+  expect(termPatchSchema.safeParse({ slug: "550e8400-e29b-41d4-a716-446655440000" }).success).toBe(false);
 });
 
 // R45: 같은 정규화 키가 승인군(canonical/abbreviation/full_name/alias)과

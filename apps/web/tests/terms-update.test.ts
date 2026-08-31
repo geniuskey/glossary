@@ -3,7 +3,12 @@ import { afterEach, expect, test } from "vitest";
 import { apiKeys, createDb, terms, termRevisions, termSurfaces, users } from "@grossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createTerm } from "../src/lib/terms/create.js";
-import { deleteTerm, isRevisionConflict, listRevisions, updateTerm } from "../src/lib/terms/update.js";
+import {
+  deleteTerm,
+  isRevisionConflict,
+  listRevisions,
+  updateTerm,
+} from "../src/lib/terms/update.js";
 
 const db = createDb(process.env.DATABASE_URL_TEST!);
 const created: string[] = [];
@@ -29,10 +34,11 @@ function expectSaved<T extends { term: unknown }>(
   result:
     | T
     | { conflict: true; currentRevision: number }
+    | { slugConflict: true }
     | { invalid: true; issues: string[] }
     | { notFound: true },
 ): T {
-  if ("conflict" in result || "invalid" in result || "notFound" in result) {
+  if ("conflict" in result || "slugConflict" in result || "invalid" in result || "notFound" in result) {
     throw new Error(`예상치 못한 결과: ${JSON.stringify(result)}`);
   }
   return result;
@@ -487,5 +493,39 @@ test("작성자 정보가 전혀 없는 리비전은 authorName/authorKeyName �
   const initial = revs.find((r) => r.revisionNumber === 1);
   expect(initial?.authorName).toBeNull();
   expect(initial?.authorKeyName).toBeNull();
+});
+
+test("slug를 수정하면 새 주소가 저장되고 리비전 스냅샷에도 반영된다", async () => {
+  const term = await seed();
+  const nextSlug = `renamed-${term.id.slice(0, 8)}`;
+  const result = expectSaved(await updateTerm(term.id, { slug: nextSlug }, null, 1));
+
+  expect(result.term.slug).toBe(nextSlug);
+  const [row] = await db.select().from(terms).where(eq(terms.id, term.id));
+  expect(row?.slug).toBe(nextSlug);
+
+  const revisions = await db
+    .select()
+    .from(termRevisions)
+    .where(eq(termRevisions.termId, term.id))
+    .orderBy(termRevisions.revisionNumber);
+  const snapshot = revisions[1]?.snapshot as { term?: { slug?: string } };
+  expect(snapshot.term?.slug).toBe(nextSlug);
+});
+
+test("이미 사용 중인 slug로 수정하면 저장과 리비전 생성을 모두 거부한다", async () => {
+  const term = await seed();
+  const other = await createTerm(
+    { termType: "term", nameEn: `Slug Collision ${term.id}`, domain: [], status: "active", surfaces: [] },
+    null,
+  );
+  created.push(other.term.id);
+
+  const result = await updateTerm(term.id, { slug: other.term.slug }, null, 1);
+  expect(result).toEqual({ slugConflict: true });
+
+  const [row] = await db.select().from(terms).where(eq(terms.id, term.id));
+  expect(row?.slug).toBe(term.slug);
+  await expect(listRevisions(term.id)).resolves.toHaveLength(1);
 });
 

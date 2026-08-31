@@ -32,3 +32,18 @@ test("Markdown 입력 영역에는 접근 가능한 이름이 있다", () => {
   expect(source).toContain('"aria-label": label');
   expect(source).toContain('"aria-describedby": describedBy');
 });
+
+test("Markdown 툴바는 H1~H6와 주요 GFM 블록을 선택 영역에 적용한다", () => {
+  expect(source).toContain('role="toolbar"');
+  expect(source).toContain('[1, 2, 3, 4, 5, 6].map');
+  expect(source).toContain('toggleListMarkdown(text, from, to, "task")');
+  expect(source).toContain('toggleCodeBlockMarkdown');
+  expect(source).toContain('insertMarkdownBlock');
+});
+
+test("자주 쓰는 인라인 서식과 제목에는 키보드 단축키가 있다", () => {
+  expect(source).toContain('key === "b"');
+  expect(source).toContain('key === "i"');
+  expect(source).toContain('key === "k"');
+  expect(source).toContain('event.altKey && /^[1-6]$/.test(key)');
+});

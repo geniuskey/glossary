@@ -64,6 +64,9 @@ export const POST = withApiErrors(
     if ("invalid" in result) {
       return apiError("validation_failed", "되돌릴 수 없는 리비전입니다.", 400, { issues: result.issues });
     }
+    if ("slugConflict" in result) {
+      return apiError("slug_conflict", "이미 사용 중인 URL 주소입니다.", 409, { field: "slug" });
+    }
     if ("conflict" in result) {
       return apiError("revision_conflict", "다른 사람이 먼저 수정했습니다.", 409, {
         currentRevision: result.currentRevision,

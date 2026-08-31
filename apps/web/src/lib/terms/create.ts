@@ -5,7 +5,7 @@ import {
 import { isUuid } from "@/lib/api-error";
 import { extractAttachmentHashes } from "@/lib/attachments/refs";
 import { getDb } from "@/lib/db";
-import { slugify } from "./slug";
+import { RESERVED_SLUGS, slugify } from "./slug";
 import { defaultCaseSensitive, deriveSurfaces } from "./surfaces";
 import type { SurfaceInput, TermInput } from "./schema";
 
@@ -40,7 +40,7 @@ export interface DuplicateWarning {
 // R136: "suggest"도 같은 이유로 추가한다 — `GET /api/v1/terms/suggest`(자동완성)가
 // `terms/[idOrSlug]`보다 먼저 매칭되므로, 슬러그가 "suggest"인 용어는 상세 조회가
 // 영원히 자동완성 응답으로 대체된다.
-export const RESERVED_SLUGS = new Set(["lookup", "new", "suggest"]);
+export { RESERVED_SLUGS } from "./slug";
 
 // F2(수정 라운드, R86/R92와 같은 계열): slugify는 하이픈과 16진 문자를 모두
 // 보존하므로 "550e8400 e29b 41d4 a716 446655440000" 같은 이름이 UUID 모양
