@@ -1,5 +1,15 @@
 # Grossary on Docker Hub
 
+> **Development preview — `0.1.0`**
+>
+> Grossary is under active development. Use this release for evaluation and internal pilots,
+> pin both container tags to `0.1.0`, and keep tested database backups before upgrading.
+>
+> **개발 미리보기 — `0.1.0`**
+>
+> 현재 활발히 개발 중인 초기 버전입니다. 기능 검토와 사내 파일럿 용도로 사용하고,
+> 앱과 마이그레이터 이미지를 모두 `0.1.0`으로 고정한 뒤 업그레이드 전 백업을 보관하세요.
+
 ## Short description
 
 **English**
@@ -44,8 +54,10 @@ Grossary publishes two tags from the same Docker Hub repository:
 
 | Tag | Purpose |
 |---|---|
-| `latest`, `<version>` | Web application |
-| `latest-migrator`, `<version>-migrator` | Database migrations run before the application starts |
+| `0.1.0` | Version-pinned web application (recommended) |
+| `0.1.0-migrator` | Matching database migrations (recommended) |
+| `latest` | Most recently published web application |
+| `latest-migrator` | Migrations matching `latest` |
 
 For production, pin both images to the same version instead of using `latest`.
 
@@ -108,3 +120,5 @@ Workspace-specific wording can be configured after login from the administrator 
 Project documentation: [https://geniuskey.github.io/grossary/](https://geniuskey.github.io/grossary/)
 
 Source: [https://github.com/geniuskey/grossary](https://github.com/geniuskey/grossary)
+
+Docker Hub: [https://hub.docker.com/r/euiyun/grossary](https://hub.docker.com/r/euiyun/grossary)

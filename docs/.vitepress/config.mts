@@ -23,6 +23,7 @@ export default defineConfig({
       { text: "가이드", link: "/guide/", activeMatch: "/guide/" },
       { text: "API", link: "/api/", activeMatch: "/api/" },
       { text: "운영", link: "/operations" },
+      { text: "Docker Hub", link: "https://hub.docker.com/r/euiyun/grossary" },
     ],
 
     sidebar: [
