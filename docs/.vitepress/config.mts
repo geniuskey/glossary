@@ -47,6 +47,7 @@ export default defineConfig({
           { text: "인증", link: "/api/auth" },
           { text: "용어", link: "/api/terms" },
           { text: "임포트", link: "/api/import" },
+          { text: "첨부 이미지", link: "/api/attachments" },
         ],
       },
       {

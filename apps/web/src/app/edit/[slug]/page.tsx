@@ -46,7 +46,7 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
   };
 
   return (
-    <AppShell user={user} title="용어 편집" current="sheet">
+    <AppShell user={user} title="용어 편집" current="sheet" roomy>
       <nav className="mb-5 text-xs text-ink-3">
         <Link href="/sheet" className="link">
           시트

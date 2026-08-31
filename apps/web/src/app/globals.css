@@ -264,4 +264,28 @@
   .note-ok {
     @apply note border-ok/35 bg-ok-soft text-ok;
   }
+
+  .markdown-body {
+    @apply break-words text-[15px] leading-7 text-ink;
+  }
+  .markdown-body > :first-child { @apply mt-0; }
+  .markdown-body > :last-child { @apply mb-0; }
+  .markdown-body h1 { @apply mb-4 mt-7 text-2xl font-semibold tracking-tight; }
+  .markdown-body h2 { @apply mb-3 mt-7 border-b border-line pb-2 text-xl font-semibold; }
+  .markdown-body h3 { @apply mb-2 mt-6 text-lg font-semibold; }
+  .markdown-body p { @apply my-3; }
+  .markdown-body ul { @apply my-3 list-disc pl-6; }
+  .markdown-body ol { @apply my-3 list-decimal pl-6; }
+  .markdown-body li { @apply my-1; }
+  .markdown-body blockquote { @apply my-4 border-l-4 border-brand/40 bg-brand-soft px-4 py-1 text-ink-2; }
+  .markdown-body pre { @apply my-4 overflow-x-auto rounded-lg bg-panel-2 p-4 text-sm leading-6; }
+  .markdown-body table { @apply w-full border-collapse text-sm; }
+  .markdown-body th { @apply border border-line bg-panel-2 px-3 py-2 text-left font-medium; }
+  .markdown-body td { @apply border border-line px-3 py-2 align-top; }
+  .markdown-body hr { @apply my-7 border-line; }
+
+  [data-markdown-fullscreen="true"] .cm-editor,
+  [data-markdown-fullscreen="true"] .cm-scroller {
+    height: 100%;
+  }
 }

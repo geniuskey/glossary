@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { surfaceKeys } from "@grossary/db";
 import { AppShell } from "@/components/app-shell";
+import { MarkdownContent } from "@/components/markdown-content";
 import { CompletionBadge, CompletionProgress, MissingFields } from "@/components/term-completion";
 import { CategoryBadge, DomainBadges, OwnerBadge, StatusBadge } from "@/components/term-badges";
 import { isUuid } from "@/lib/api-error";
@@ -201,11 +202,8 @@ export default async function TermDetailPage({
           </div>
         )}
 
-        {/* R96: M3(마크다운 렌더러·이미지·diff/revert) 범위 밖 — definitionMd/
-            bodyMd는 렌더러 없이 텍스트로 보여준다. whitespace-pre-wrap이 없으면
-            여러 줄 정의가 한 줄로 뭉개진다. */}
         {term.definitionMd && (
-          <p className="mt-5 whitespace-pre-wrap text-[15px] leading-relaxed text-ink">{term.definitionMd}</p>
+          <MarkdownContent className="mt-5">{term.definitionMd}</MarkdownContent>
         )}
 
         <section className="mt-6">
@@ -223,14 +221,11 @@ export default async function TermDetailPage({
           </ul>
         </section>
 
-        {/* R96: bodyMd는 R33이 추가한 컬럼이라 저장은 이미 되고 있었는데, 계획서
-            스케치에는 화면 어디에도 노출되지 않았다 — 그대로 두면 사용자는 자기가
-            쓴 본문이 유실됐다고 믿는다. */}
         {term.bodyMd && (
           <section className="mt-6">
             <h2 className="label mb-2">본문</h2>
-            <div className="card">
-              <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-ink">{term.bodyMd}</p>
+            <div className="card p-4 sm:p-5">
+              <MarkdownContent>{term.bodyMd}</MarkdownContent>
             </div>
           </section>
         )}

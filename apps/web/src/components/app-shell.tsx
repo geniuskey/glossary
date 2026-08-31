@@ -29,12 +29,15 @@ export function AppShell({
   title,
   current,
   wide = false,
+  roomy = false,
   children,
 }: {
   user: CurrentUser | null;
   title: string;
   current?: NavKey;
   wide?: boolean;
+  /** 문서형 여백은 유지하되, 편집기처럼 가로 공간이 더 필요한 화면에 쓴다. */
+  roomy?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -118,7 +121,7 @@ export function AppShell({
             "min-w-0 flex-1",
             wide
               ? "flex min-h-0 flex-col"
-              : "mx-auto w-full max-w-4xl px-5 py-8 lg:px-8",
+              : cx("mx-auto w-full px-5 py-8 lg:px-8", roomy ? "max-w-6xl" : "max-w-4xl"),
           )}
         >
           {children}

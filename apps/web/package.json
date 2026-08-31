@@ -11,14 +11,20 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/state": "^6.5.2",
     "@grossary/db": "workspace:*",
     "@grossary/engine": "workspace:*",
+    "codemirror": "^6.0.2",
     "drizzle-orm": "^0.36.0",
     "exceljs": "^4.4.0",
     "next": "^16.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "server-only": "^0.0.1",
+    "sharp": "^0.35.4",
     "zod": "^3.23.0"
   },
   "devDependencies": {

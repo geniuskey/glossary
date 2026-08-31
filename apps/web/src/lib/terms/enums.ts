@@ -11,12 +11,10 @@ export const TERM_TYPES = ["term", "abbreviation", "project", "product_id", "cod
 
 export const TERM_STATUSES = ["draft", "active", "deprecated", "forbidden"] as const;
 
-// canonical은 표준 이름 필드(nameEn/nameKo)에서만 파생되는 kind다 — 사용자가
-// "명시 표기"로 직접 고를 수 있는 kind 목록에는 의도적으로 포함하지 않는다
-// (deriveSurfaces가 이미 다루므로, 폼에서 canonical을 고르게 두면 파생 표기와
-// 명시 표기가 같은 정규화 키에서 충돌해 R45의 checkSurfaceConflicts가 400을
-// 던진다).
-export const EXPLICIT_SURFACE_KINDS = ["abbreviation", "full_name", "alias", "discouraged", "forbidden"] as const;
+// 대표 표기(nameEn/nameKo) 외에도 같은 개념에 복수 표준 표기가 있을 수 있다.
+// canonical을 명시 표기로 열어 두고, 대표 표기와 같은 값은 deriveSurfaces가
+// 정규화 키+kind 기준으로 중복 제거한다.
+export const EXPLICIT_SURFACE_KINDS = ["canonical", "abbreviation", "full_name", "alias", "discouraged", "forbidden"] as const;
 
 export const SURFACE_LANGS = ["en", "ko", "neutral"] as const;
 
@@ -27,7 +25,7 @@ export type ExplicitSurfaceKindLiteral = (typeof EXPLICIT_SURFACE_KINDS)[number]
 // 그대로 나온다(표준명으로 검색이 맞으면 kind가 canonical이다) — 그래서 읽는
 // 쪽 타입에는 필요하다. 위 배열이 terms-enums.test.ts로 DB enum에 묶여 있으므로
 // 이 합집합도 함께 묶인다.
-export type SurfaceKindLiteral = "canonical" | ExplicitSurfaceKindLiteral;
+export type SurfaceKindLiteral = ExplicitSurfaceKindLiteral;
 export type SurfaceLangLiteral = (typeof SURFACE_LANGS)[number];
 
 export const TERM_TYPE_LABEL: Record<TermTypeLiteral, string> = {
@@ -54,6 +52,7 @@ export const TERM_STATUS_HINT: Record<TermStatusLiteral, string> = {
 };
 
 export const SURFACE_KIND_LABEL: Record<ExplicitSurfaceKindLiteral, string> = {
+  canonical: "표준 표기",
   abbreviation: "약어",
   full_name: "풀네임",
   alias: "별칭",

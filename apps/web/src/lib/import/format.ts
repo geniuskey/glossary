@@ -68,7 +68,7 @@ export const IMPORT_COLUMNS: readonly ImportColumn[] = [
     header: "영문",
     otherHeaders: ["name_en", "영문명", "english"],
     requirement: "either-name",
-    hint: "영문 표준 표기. 한글과 둘 중 하나는 반드시 있어야 합니다.",
+    hint: "목록과 제목에 쓸 대표 영문 표기. 한글과 둘 중 하나는 반드시 있어야 합니다.",
     width: 16,
   },
   {
@@ -76,7 +76,7 @@ export const IMPORT_COLUMNS: readonly ImportColumn[] = [
     header: "한글",
     otherHeaders: ["name_ko", "한글명", "korean"],
     requirement: "either-name",
-    hint: "한글 표준 표기. 영문과 둘 중 하나는 반드시 있어야 합니다.",
+    hint: "목록과 제목에 쓸 대표 한글 표기. 영문과 둘 중 하나는 반드시 있어야 합니다.",
     width: 16,
   },
   {

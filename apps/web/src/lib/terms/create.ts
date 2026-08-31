@@ -1,6 +1,9 @@
 import { and, eq, inArray, like, ne } from "drizzle-orm";
-import { surfaceKeys, terms, termRevisions, termSurfaces } from "@grossary/db";
+import {
+  attachmentRefs, attachments, surfaceKeys, terms, termRevisions, termSurfaces,
+} from "@grossary/db";
 import { isUuid } from "@/lib/api-error";
+import { extractAttachmentHashes } from "@/lib/attachments/refs";
 import { getDb } from "@/lib/db";
 import { slugify } from "./slug";
 import { defaultCaseSensitive, deriveSurfaces } from "./surfaces";
@@ -117,6 +120,10 @@ export async function createTerm(
   // 묶어야 하는 쓰기가 아니므로 트랜잭션 밖에서 수행한다.
   const warnings = await findDuplicates(surfaces);
   const base = slugify(input.nameEn ?? input.nameKo ?? "");
+  const attachmentHashes = extractAttachmentHashes(input.bodyMd);
+  const attachmentRows = attachmentHashes.length
+    ? await db.select({ id: attachments.id }).from(attachments).where(inArray(attachments.sha256, attachmentHashes))
+    : [];
 
   // R48: uniqueSlug의 SELECT와 트랜잭션의 INSERT 사이에는 창이 있다. 그 창에서
   // 동시에 같은 슬러그를 계산한 다른 요청이 먼저 커밋하면 terms_slug_unique가
@@ -172,6 +179,12 @@ export async function createTerm(
               )
               .returning()
           : [];
+
+        if (attachmentRows.length > 0) {
+          await tx.insert(attachmentRefs).values(
+            attachmentRows.map((attachment) => ({ attachmentId: attachment.id, termId: insertedTerm!.id })),
+          );
+        }
 
         await tx.insert(termRevisions).values({
           termId: insertedTerm!.id,

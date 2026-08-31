@@ -27,16 +27,8 @@ test("SURFACE_LANGS는 surfaceLangEnum과 정확히 같은 집합이다 (R114)",
   expect(SURFACE_LANGS.length).toBe(surfaceLangEnum.enumValues.length);
 });
 
-// EXPLICIT_SURFACE_KINDS는 surfaceKindEnum에서 "canonical"만 뺀 나머지다 —
-// canonical은 표준 이름 필드에서만 파생되고 사용자가 직접 고르지 못한다
-// (enums.ts:14-18 주석). 이 관계를 구조적으로 고정한다.
-test("EXPLICIT_SURFACE_KINDS는 surfaceKindEnum에서 canonical만 뺀 것과 같다 (R114)", () => {
-  const expected = new Set(surfaceKindEnum.enumValues.filter((k) => k !== "canonical"));
-  expect(new Set(EXPLICIT_SURFACE_KINDS)).toEqual(expected);
-  expect(EXPLICIT_SURFACE_KINDS.length).toBe(surfaceKindEnum.enumValues.length - 1);
-});
-
-test("EXPLICIT_SURFACE_KINDS는 canonical을 포함하지 않는다 (R114)", () => {
-  expect(EXPLICIT_SURFACE_KINDS).not.toContain("canonical");
-  expect(surfaceKindEnum.enumValues).toContain("canonical"); // DB에는 존재함을 대조 확인
+test("EXPLICIT_SURFACE_KINDS는 복수 표준명을 포함해 DB surface kind 전체와 같다 (R114)", () => {
+  expect(new Set(EXPLICIT_SURFACE_KINDS)).toEqual(new Set(surfaceKindEnum.enumValues));
+  expect(EXPLICIT_SURFACE_KINDS.length).toBe(surfaceKindEnum.enumValues.length);
+  expect(EXPLICIT_SURFACE_KINDS).toContain("canonical");
 });

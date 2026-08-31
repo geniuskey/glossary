@@ -10,8 +10,8 @@
 | `id` | uuid | PK |
 | `slug` | text | 유니크. URL 식별자 |
 | `term_type` | enum | `term` \| `abbreviation` \| `project` \| `product_id` \| `code` \| `unit` |
-| `name_en`, `name_ko` | text | 표준 표기. 최소 하나는 있어야 한다 |
-| `full_name_en`, `full_name_ko` | text | 약어일 때 풀네임 |
+| `name_en`, `name_ko` | text | 목록·제목에 쓸 대표 표기. 최소 하나는 있어야 한다 |
+| `full_name_en`, `full_name_ko` | text | 약어의 대표 풀네임 또는 기존 데이터의 확장명 |
 | `domain` | text[] | ISP, HW, SW, Optics, PM … 동음이의어 구분축 |
 | `category` | text | 도메인 아래에서 화면·기능·공정 등으로 묶는 단일 분류 |
 | `owner_id` | uuid | 완성을 책임질 사용자. 삭제되면 null |
@@ -109,4 +109,4 @@ alias가 먼저 나오면 린터가 금지 표기를 놓친다.
 - **TermRelation** — `related` \| `broader` \| `narrower` \| `see_also`. 본문의 위키 링크가
   여기 실체화되어 역참조 목록이 자동 생성된다 (M3).
 - **UnregisteredCandidate** — 미등록 후보 누적 (M2).
-- **Attachment / AttachmentRef** — content-addressed 첨부 이미지 (M3).
+- **Attachment / AttachmentRef** — WebP로 변환한 content-addressed 첨부 이미지. 현재 본문 참조는 `AttachmentRef`로 동기화되며 이미지 실체는 이력 보존을 위해 자동 삭제하지 않는다.

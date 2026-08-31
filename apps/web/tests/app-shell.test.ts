@@ -41,3 +41,16 @@ test("설정과 관리자 링크는 개인 계정 하위 메뉴에 있다", () =
   expect(html).toContain('href="/admin"');
   expect(html).toContain('id="account-submenu"');
 });
+
+test("roomy 본문은 문서 여백을 유지하면서 편집 화면 폭을 넓힌다", () => {
+  const html = renderToStaticMarkup(AppShell({
+    user: null,
+    title: "새 용어",
+    roomy: true,
+    children: "편집 폼",
+  }));
+
+  expect(html).toContain("max-w-6xl");
+  expect(html).toContain("px-5 py-8 lg:px-8");
+  expect(html).not.toContain("max-w-4xl");
+});

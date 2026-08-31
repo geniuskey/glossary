@@ -25,6 +25,8 @@ import * as adminHomeContentRoute from "../src/app/api/v1/admin/home-content/rou
 import * as adminUsersRoute from "../src/app/api/v1/admin/users/route.js";
 import * as adminUserRoute from "../src/app/api/v1/admin/users/[id]/route.js";
 import * as adminUserSessionsRoute from "../src/app/api/v1/admin/users/[id]/sessions/route.js";
+import * as attachmentsRoute from "../src/app/api/v1/attachments/route.js";
+import * as attachmentRoute from "../src/app/api/v1/attachments/[sha256]/route.js";
 
 // 라우트 모듈은 실제 핸들러(GET/POST/...)마다 서로 다른 인자 개수를 요구하므로
 // (예: DELETE는 (request, context)) 여기서는 이름으로 임의 접근한 뒤 405 스텁/
@@ -92,6 +94,8 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "admin/users", mod: adminUsersRoute, allowed: ["GET"], allow: "GET, HEAD" },
   { name: "admin/users/[id]", mod: adminUserRoute, allowed: ["PATCH"], allow: "PATCH" },
   { name: "admin/users/[id]/sessions", mod: adminUserSessionsRoute, allowed: ["DELETE"], allow: "DELETE" },
+  { name: "attachments", mod: attachmentsRoute, allowed: ["POST"], allow: "POST" },
+  { name: "attachments/[sha256]", mod: attachmentRoute, allowed: ["GET"], allow: "GET, HEAD" },
 ];
 
 test("에러 응답이 규약 형태를 지킨다", async () => {

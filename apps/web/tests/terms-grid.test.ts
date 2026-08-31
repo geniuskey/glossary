@@ -246,7 +246,7 @@ test("columnByKey: 모든 GRID_COLUMNS 키가 조회된다", () => {
 test("rowsToMatrix: 첫 줄은 열 라벨이고 그 뒤가 행이다", () => {
   const columns = [columnByKey("nameEn"), columnByKey("status")];
   expect(rowsToMatrix([row()], columns)).toEqual([
-    ["영문 표준명", "상태"],
+    ["대표 영문 표기", "상태"],
     ["Interstitial Slide Point", "active"],
   ]);
 });
@@ -264,7 +264,7 @@ test("toCsv: 모든 값을 따옴표로 감싸고 값 안의 따옴표는 두 �
   const columns = [columnByKey("nameEn"), columnByKey("definitionMd")];
   const csv = toCsv([row({ nameEn: 'He said "hi"', definitionMd: "a,b" })], columns);
   const lines = csv.split("\r\n");
-  expect(lines[0]).toBe('"영문 표준명","정의"');
+  expect(lines[0]).toBe('"대표 영문 표기","정의"');
   expect(lines[1]).toBe('"He said ""hi""","a,b"');
 });
 

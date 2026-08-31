@@ -587,6 +587,43 @@ export const openApiSpec = {
         },
       },
     },
+    "/attachments": {
+      post: {
+        summary: "본문 이미지 업로드 및 WebP 변환",
+        description: "PNG/JPEG/WebP 원본을 받아 긴 변 2560px 이하의 WebP로 변환하고 내용 해시 URL을 반환한다.",
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                required: ["file"],
+                properties: { file: { type: "string", format: "binary" } },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": json("이미 존재하는 동일 이미지", { type: "object" }),
+          "201": json("{ sha256, url, mime, byteSize, width, height, originalFilename }", { type: "object" }),
+          "400": errorResponse("validation_failed — 지원하지 않거나 손상된 이미지"),
+          "401": errorResponse("unauthorized"),
+          "413": errorResponse("payload_too_large — 원본 10MB 또는 변환 결과 2MB 초과"),
+        },
+      },
+    },
+    "/attachments/{sha256}": {
+      get: {
+        summary: "내용 해시로 첨부 이미지 조회",
+        parameters: [{ name: "sha256", in: "path", required: true, schema: { type: "string", pattern: "^[a-f0-9]{64}$" } }],
+        responses: {
+          "200": { description: "WebP 이미지", content: { "image/webp": { schema: { type: "string", format: "binary" } } } },
+          "304": { description: "ETag가 일치함" },
+          "401": errorResponse("unauthorized"),
+          "404": errorResponse("not_found"),
+        },
+      },
+    },
     "/terms/suggest": {
       get: {
         summary: "검색창 자동완성 — 앞부분이 맞거나 비슷한 표기 (최대 8개)",

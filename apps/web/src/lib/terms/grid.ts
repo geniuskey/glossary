@@ -86,10 +86,10 @@ const TYPE_OPTIONS = TERM_TYPES.map((v) => ({ value: v, label: TERM_TYPE_LABEL[v
 const STATUS_OPTIONS = TERM_STATUSES.map((v) => ({ value: v, label: TERM_STATUS_LABEL[v] }));
 
 export const GRID_COLUMNS: readonly GridColumn[] = [
-  { key: "nameEn", label: "영문 표준명", kind: "text", width: 200, sortKey: "nameEn" },
-  { key: "nameKo", label: "국문 표준명", kind: "text", width: 180, sortKey: "nameKo" },
-  { key: "fullNameEn", label: "영문 풀네임", kind: "text", width: 220 },
-  { key: "fullNameKo", label: "국문 풀네임", kind: "text", width: 200 },
+  { key: "nameEn", label: "대표 영문 표기", kind: "text", width: 200, sortKey: "nameEn" },
+  { key: "nameKo", label: "대표 국문 표기", kind: "text", width: 180, sortKey: "nameKo" },
+  { key: "fullNameEn", label: "영문 확장명", kind: "text", width: 220 },
+  { key: "fullNameKo", label: "국문 확장명", kind: "text", width: 200 },
   { key: "termType", label: "종류", kind: "enum", width: 110, options: TYPE_OPTIONS, sortKey: "termType" },
   { key: "status", label: "상태", kind: "enum", width: 100, options: STATUS_OPTIONS, sortKey: "status" },
   { key: "domain", label: "도메인", kind: "list", width: 160 },
@@ -488,7 +488,7 @@ function buildPlan(entries: readonly PlanEntry[]): WritePlan {
   let cells = 0;
   for (const { row, patch } of byRow.values()) {
     if (wouldClearBothNames(row, patch)) {
-      errors.push(`${rowLabel(row)}: 영문·국문 표준명을 둘 다 비울 수는 없습니다.`);
+      errors.push(`${rowLabel(row)}: 대표 영문·국문 표기를 둘 다 비울 수는 없습니다.`);
       continue;
     }
     updates.push({ rowId: row.id, patch });
@@ -551,7 +551,7 @@ function draftFromLine(
   // 엑셀 선택 영역에는 빈 줄이 딸려 오는 일이 흔하다 — 오류가 아니라 없는 줄이다.
   if (filled === 0) return { error: null };
   if (!values.nameEn && !values.nameKo) {
-    return { error: `${lineNumber}번째 줄: 영문·국문 표준명이 없어 새 행을 만들지 않았습니다.` };
+    return { error: `${lineNumber}번째 줄: 대표 영문·국문 표기가 없어 새 행을 만들지 않았습니다.` };
   }
   return { row: { line: lineNumber, values } };
 }

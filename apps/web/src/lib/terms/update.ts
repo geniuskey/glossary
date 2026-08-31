@@ -1,5 +1,8 @@
-import { desc, eq, sql } from "drizzle-orm";
-import { apiKeys, surfaceKeys, terms, termRevisions, termSurfaces, users } from "@grossary/db";
+import { desc, eq, inArray, sql } from "drizzle-orm";
+import {
+  apiKeys, attachmentRefs, attachments, surfaceKeys, terms, termRevisions, termSurfaces, users,
+} from "@grossary/db";
+import { extractAttachmentHashes } from "@/lib/attachments/refs";
 import { getDb } from "@/lib/db";
 import { checkSurfaceConflicts } from "./schema";
 import { findDuplicates, type DuplicateWarning } from "./create";
@@ -171,6 +174,11 @@ export async function updateTerm(
   // 조회라 트랜잭션 밖에서 수행한다. R56: 자기 자신의 기존 표기와는 충돌로
   // 보지 않는다.
   const warnings = await findDuplicates(nextSurfaces, termId);
+  const nextBodyMd = input.bodyMd !== undefined ? input.bodyMd : oldTerm.bodyMd;
+  const attachmentHashes = extractAttachmentHashes(nextBodyMd);
+  const attachmentRows = attachmentHashes.length
+    ? await db.select({ id: attachments.id }).from(attachments).where(inArray(attachments.sha256, attachmentHashes))
+    : [];
 
   try {
     return await db.transaction(async (tx) => {
@@ -241,6 +249,13 @@ export async function updateTerm(
             )
             .returning()
         : [];
+
+      await tx.delete(attachmentRefs).where(eq(attachmentRefs.termId, termId));
+      if (attachmentRows.length > 0) {
+        await tx.insert(attachmentRefs).values(
+          attachmentRows.map((attachment) => ({ attachmentId: attachment.id, termId })),
+        );
+      }
 
       await tx.insert(termRevisions).values({
         termId,

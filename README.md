@@ -170,6 +170,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 - **M1 사전 코어** — 구현됨. DB 스키마, 정규화, 인증·API Key, 용어 CRUD, 검색,
   중복 경고, 엑셀 임포트(dry-run), 프로덕션 Docker, 백업·복구.
 - **M2 검증 엔진** — `packages/engine` 전체, `/validate`, `/lexicon`, 미등록 후보 수집.
-- **M3 위키 완성도** — 마크다운 본문·mermaid, 첨부, 리비전 diff/revert, 병합 UI.
+- **M3 위키 완성도** — CodeMirror Markdown 편집·GFM 미리보기, 이미지 붙여넣기·WebP 첨부,
+  리비전 조회/revert는 구현됨. mermaid, diff 화면, 위키 링크·역참조, 병합 UI는 남음.
 
 [로드맵](https://geniuskey.github.io/grossary/guide/roadmap)에 자세한 범위가 있다.
