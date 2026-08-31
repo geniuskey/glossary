@@ -26,7 +26,7 @@ const DEBOUNCE_MS = 140;
 export function SearchBox({
   defaultValue,
   compact = false,
-  autoFocus = !compact,
+  autoFocus = false,
 }: {
   defaultValue: string;
   compact?: boolean;

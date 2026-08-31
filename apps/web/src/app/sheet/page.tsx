@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { SheetShare } from "@/components/sheet-share";
 import { TermsGrid } from "@/components/terms-grid";
 import { getCurrentUser } from "@/lib/auth/current-user";
+import { embedBaseQuery } from "@/lib/embed/sheet-share";
 import { TERM_STATUS_LABEL, TERM_TYPE_LABEL } from "@/lib/terms/enums";
 import { SORT_KEYS, type SortDir, type SortKey } from "@/lib/terms/grid";
 import {
@@ -97,9 +99,7 @@ export default async function TermsPage({
                 정리 필요 {facets.needsContribution}
               </Link>
             )}
-            <Link href="/new" className="btn-primary btn-sm">
-              자세히 추가
-            </Link>
+            <SheetShare baseQuery={embedBaseQuery(parsed)} />
           </span>
         </div>
 

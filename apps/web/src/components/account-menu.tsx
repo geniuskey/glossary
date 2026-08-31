@@ -52,6 +52,7 @@ export function AccountMenu({
         title={`${label} · ${ROLE_LABEL[user.role]}`}
         className={cx(
           "flex items-center gap-2 rounded-lg px-1 py-1 text-left transition hover:bg-panel-2",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
           placement === "sidebar" ? "sidebar-account-trigger w-full lg:bg-panel-2 lg:px-2 lg:py-2" : "shrink-0 sm:px-2",
           current === "settings" || current === "admin" ? "text-brand" : "text-ink",
         )}
@@ -121,6 +122,7 @@ function AccountLink({
       onClick={onSelect}
       className={cx(
         "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
         active ? "bg-brand-soft font-medium text-brand" : "text-ink-2 hover:bg-panel-2 hover:text-ink",
       )}
     >

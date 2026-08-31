@@ -139,6 +139,60 @@ export async function getTermByIdOrSlug(idOrSlug: string): Promise<TermDetail | 
   };
 }
 
+export interface RelatedTerm extends TermSummary {
+  sharedDomains: string[];
+  sameCategory: boolean;
+}
+
+/**
+ * 같은 도메인·카테고리의 공개 용어를 상세 화면의 다음 탐색 후보로 돌려준다.
+ * DB에서는 후보만 좁히고, "카테고리 + 공유 도메인 수 + 같은 종류" 점수는
+ * 애플리케이션에서 계산한다. 자유 텍스트 배열인 domain의 교집합 개수를 SQL로
+ * 다시 구현해 화면과 DB 사이에 별도 규칙을 만들지 않기 위해서다.
+ */
+export async function listRelatedTerms(
+  source: Pick<TermSummary, "id" | "termType" | "domain" | "category">,
+  limit = 6,
+): Promise<RelatedTerm[]> {
+  const relationshipFilters = [
+    ...source.domain.map((domain) => arrayContains(terms.domain, [domain])),
+    ...(source.category ? [eq(terms.category, source.category)] : []),
+  ];
+  if (relationshipFilters.length === 0) return [];
+
+  const safeLimit = Math.min(12, Math.max(1, limit));
+  const candidates = await getDb()
+    .select(summaryColumns)
+    .from(terms)
+    .where(and(
+      ne(terms.id, source.id),
+      ne(terms.status, "draft"),
+      or(...relationshipFilters),
+    ))
+    .orderBy(desc(terms.updatedAt), terms.id)
+    .limit(Math.min(120, Math.max(40, safeLimit * 8)));
+
+  const related = candidates.map((term) => {
+    const sharedDomains = source.domain.filter((domain) => term.domain.includes(domain));
+    return {
+      ...term,
+      sharedDomains,
+      sameCategory: Boolean(source.category && term.category === source.category),
+    };
+  });
+
+  const score = (term: RelatedTerm) => (
+    term.sharedDomains.length * 3
+    + (term.sameCategory ? 4 : 0)
+    + (term.termType === source.termType ? 1 : 0)
+    + (term.status === "active" ? 1 : 0)
+  );
+
+  return related
+    .sort((a, b) => score(b) - score(a) || a.slug.localeCompare(b.slug, "ko"))
+    .slice(0, safeLimit);
+}
+
 export interface ListParams {
   q?: string;
   termType?: TermType;
@@ -245,11 +299,11 @@ export async function listTerms(params: ListParams): Promise<{ items: TermSummar
  * 조회하면 그 사이에 다른 사람이 저장한 리비전을 읽게 되어(협업 화면에서
  * 실제로 일어난다) 낙관적 동시성의 기준값이 오히려 틀어진다.
  */
-export async function listTermRows(params: ListParams): Promise<{ items: TermRow[]; total: number }> {
+async function listTermRowData(params: ListParams, includeDraft: boolean): Promise<{ items: TermRow[]; total: number }> {
   const db = getDb();
   // 시트는 공개 카탈로그가 아니라 공동 편집 작업대다. 초안을 숨기면 만든 사람이
   // 다시 찾거나 다른 사람이 이어서 완성할 수 없으므로 명시적으로 포함한다.
-  const where = listFilters({ ...params, includeDraft: true });
+  const where = listFilters({ ...params, includeDraft });
 
   const [rows, [counted]] = await Promise.all([
     db
@@ -283,6 +337,16 @@ export async function listTermRows(params: ListParams): Promise<{ items: TermRow
   // prop으로 직렬화되므로, 타입에서도 문자열이어야 거짓말이 아니다.
   const items = rows.map((r) => ({ ...r, updatedAt: r.updatedAt.toISOString() }));
   return { items, total: counted?.total ?? 0 };
+}
+
+export async function listTermRows(params: ListParams): Promise<{ items: TermRow[]; total: number }> {
+  return listTermRowData(params, true);
+}
+
+/** iframe 공유 화면은 편집 작업대와 달리 초안을 외부 문서에 노출하지 않는다. */
+export async function listPublishedTermRows(params: ListParams): Promise<{ items: TermRow[]; total: number }> {
+  if (params.status === "draft") return { items: [], total: 0 };
+  return listTermRowData(params, false);
 }
 
 export interface Facet<T extends string = string> {

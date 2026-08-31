@@ -95,6 +95,22 @@ test("용어 종류는 하나의 세그먼트 컨트롤 안에서 선택 상태�
   expect(code).toContain('peer-checked:shadow-sm');
 });
 
+test("추가 표기는 일괄 등록 후 현재 사용 중인 종류만 보드로 표시한다", () => {
+  expect(code).toContain('name="surfaceBatch"');
+  expect(code).toContain("parseSurfaceBatch(surfaceBatch)");
+  expect(code).toContain("const usedSurfaceKinds = EXPLICIT_SURFACE_KINDS.filter");
+  expect(code).toContain("usedSurfaceKinds.map((kind) =>");
+  expect(code).toContain("formWithPendingSurfaces");
+});
+
+test("추가 표기 종류는 드래그로 옮기고 select로도 바꿀 수 있다", () => {
+  expect(code).toContain("handleSurfaceDragStart");
+  expect(code).toContain("handleSurfaceDrop");
+  expect(code).toContain("draggable={!locked}");
+  expect(code).toContain('name={`surface-${index}-kind`}');
+  expect(code).toContain('aria-live="polite"');
+});
+
 test("편집 폼은 slug를 별도 버튼으로 변경하고 새 편집 URL로 이동한다", () => {
   expect(code).toContain('name="slug"');
   expect(code).toContain('"URL 변경"');

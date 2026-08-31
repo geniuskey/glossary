@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { AccountMenu } from "@/components/account-menu";
 import { BrandMark } from "@/components/app-shell";
-import { LogoutButton } from "@/components/logout-button";
 import { SearchBox } from "@/components/search-box";
 import { DomainBadges, StatusBadge } from "@/components/term-badges";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { getCurrentUser } from "@/lib/auth/current-user";
+import { getCurrentUser, type CurrentUser } from "@/lib/auth/current-user";
 import { needsSetup } from "@/lib/auth/setup";
 import { SURFACE_KIND_LABEL, TERM_TYPE_LABEL } from "@/lib/terms/enums";
 import { termFacets, type TermFacets } from "@/lib/terms/query";
@@ -42,7 +41,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
         본문으로 건너뛰기
       </a>
       <HomeBackdrop />
-      <HomeHeader userLabel={user.name || user.email} />
+      <HomeHeader user={user} />
       {q ? (
         <main id="main-content" tabIndex={-1} className="relative z-10 mx-auto w-full max-w-3xl px-5 pb-20 pt-10 sm:px-8 sm:pt-16">
           <div className="animate-fade-up">
@@ -62,7 +61,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
   );
 }
 
-function HomeHeader({ userLabel }: { userLabel: string }) {
+function HomeHeader({ user }: { user: CurrentUser }) {
   return (
     <header className="sticky top-0 z-30 border-b border-line/80 bg-paper/90 backdrop-blur">
       <div className="mx-auto flex h-20 w-full max-w-7xl items-center gap-3 px-5 sm:px-8">
@@ -74,13 +73,13 @@ function HomeHeader({ userLabel }: { userLabel: string }) {
           </span>
         </Link>
         <nav className="ml-auto flex shrink-0 items-center gap-1" aria-label="주요 메뉴">
-          <span className="mr-2 hidden max-w-40 truncate text-xs text-ink-3 lg:inline">{userLabel}</span>
+          <Link href="/sheet" className="btn-quiet h-9 w-9 touch-manipulation p-0 sm:hidden" aria-label="용어 시트 열기" title="용어 시트">
+            <IconGrid />
+          </Link>
           <Link href="/sheet" className="btn-quiet hidden sm:inline-flex">용어 둘러보기</Link>
           <Link href="/contribute" className="btn-quiet hidden md:inline-flex">함께 정리</Link>
           <Link href="/import" className="btn-quiet hidden lg:inline-flex">가져오기</Link>
-          <Link href="/settings" className="btn-quiet hidden xl:inline-flex">설정</Link>
-          <ThemeToggle />
-          <LogoutButton />
+          <AccountMenu user={user} placement="topbar" />
           <Link href="/new" className="btn-primary ml-1 rounded-full px-4 py-2 shadow-sm">
             <IconPlus /><span className="hidden sm:inline">용어 제안하기</span><span className="sm:hidden">추가</span>
           </Link>
@@ -206,3 +205,4 @@ function IconArrow() { return <svg width="15" height="15" viewBox="0 0 16 16" fi
 function IconSearch() { return <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><circle cx="7.5" cy="7.5" r="4.5" /><path d="m11 11 3.5 3.5" strokeLinecap="round" /></svg>; }
 function IconPen() { return <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><path d="m11.3 3.2 3.5 3.5-8.7 8.7-3.9.4.4-3.9 8.7-8.7Z" strokeLinejoin="round" /><path d="m9.8 4.7 3.5 3.5" /></svg>; }
 function IconPeople() { return <svg width="19" height="19" viewBox="0 0 19 19" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><circle cx="7" cy="6" r="2.5" /><path d="M2.5 15c.3-3 1.8-4.5 4.5-4.5s4.2 1.5 4.5 4.5" strokeLinecap="round" /><path d="M12.5 4.5a2.4 2.4 0 0 1 0 4.7M13 11c2.1.2 3.2 1.5 3.5 4" strokeLinecap="round" /></svg>; }
+function IconGrid() { return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.5" /><path d="M1.75 6.25h12.5M6 6.25v7" /></svg>; }

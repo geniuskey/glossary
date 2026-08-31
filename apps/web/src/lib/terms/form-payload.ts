@@ -42,6 +42,21 @@ export interface TermWritePayload {
   expectedRevision?: number;
 }
 
+/** 쉼표나 줄바꿈으로 빠르게 입력한 추가 표기를 빈 값·중복 없이 정리한다. */
+export function parseSurfaceBatch(input: string): string[] {
+  const seen = new Set<string>();
+  const values: string[] = [];
+
+  for (const raw of input.split(/[,\n]+/)) {
+    const value = raw.trim();
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    values.push(value);
+  }
+
+  return values;
+}
+
 /**
  * 폼 상태를 API 요청 바디로 변환한다.
  * - 빈 문자열(공백만 포함해도) 필드는 undefined로 보낸다 — 서버 스키마가

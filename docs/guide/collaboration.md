@@ -28,10 +28,22 @@ SSO 사용자는 로그인할 때 IdP가 확인해 준 group/조직이 이름 �
 
 ## Confluence 임베드
 
-읽기 전용 `/embed` 화면에 필터를 쿼리로 붙인다.
+`시트` 상단의 **공유하기**를 누르면 현재 검색·필터·정렬을 유지한 읽기 전용 표를
+만들 수 있다. `표시할 열`에서 필요한 열만 체크하고, 촘촘한 행·상세 링크·바깥 테두리
+여부를 고른다. 같은 설정으로 다음 두 결과를 각각 복사할 수 있다.
+
+- **공유 URL**: 새 탭에서 열거나 Confluence URL 매크로에 붙인다.
+- **iframe 코드**: HTML/iframe 삽입을 지원하는 매크로에 붙인다.
+
+열 정의는 `columns` 쿼리에 표준 열 키의 쉼표 목록으로 들어간다. 주소를 직접 만들 수도
+있지만, 알 수 없는 열 키는 무시되고 유효한 열이 하나도 없으면 기본 열 구성을 사용한다.
 
 ```text
-https://glossary.example.com/embed?domain=ISP&category=노출%20제어
+https://glossary.example.com/embed?domain=ISP&category=노출%20제어&sort=nameEn&dir=asc&columns=nameEn,nameKo,domain,definitionMd&compact=1&links=1&border=1
+```
+
+```html
+<iframe src="https://glossary.example.com/embed?..." title="Grossary 용어 시트" width="100%" height="560" loading="lazy" style="border:1px solid #e7e3dc;border-radius:8px"></iframe>
 ```
 
 운영 환경에는 iframe을 허용할 Confluence origin을 설정한다.
@@ -41,5 +53,6 @@ GROSSARY_EMBED_ANCESTORS=https://confluence.example.com
 ```
 
 여러 출처는 쉼표로 구분한다. 값이 비어 있으면 동일 출처 외에는 프레임 삽입이 차단된다.
-임베드 화면도 인증된 공개 상태 용어만 보여준다. 브라우저의 서드파티 쿠키 제한을 피하려면
+공유 표는 최대 200개의 공개 상태 용어만 보여 주며 초안은 노출하지 않는다. 임베드 화면도
+Grossary 로그인을 요구한다. 브라우저의 서드파티 쿠키 제한을 피하려면
 Grossary와 Confluence를 같은 사이트 범위의 서브도메인으로 운영하는 편이 안전하다.

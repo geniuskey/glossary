@@ -9,14 +9,14 @@
 DB 마이그레이터를 한 저장소의 별도 태그로 배포한다. 서버에는 소스 코드가 필요 없고
 `docker-compose.hub.yml`과 환경 파일만 있으면 된다.
 
-> 현재 배포판은 **`0.1.1` 개발 미리보기**다. 기능 검토와 사내 파일럿에 사용하고,
+> 현재 배포판은 **`0.1.2` 개발 미리보기**다. 기능 검토와 사내 파일럿에 사용하고,
 > 업그레이드 전에는 반드시 DB 백업과 복구를 검증한다. 앱과 마이그레이터는 항상 같은
 > 버전 조합으로 고정한다.
 
 | 이미지 | 고정 태그 | 용도 |
 |---|---|---|
-| `euiyun/grossary` | `0.1.1` | Grossary 웹 애플리케이션 |
-| `euiyun/grossary` | `0.1.1-migrator` | 앱 기동 전에 실행하는 DB 마이그레이션 |
+| `euiyun/grossary` | `0.1.2` | Grossary 웹 애플리케이션 |
+| `euiyun/grossary` | `0.1.2-migrator` | 앱 기동 전에 실행하는 DB 마이그레이션 |
 
 `latest`와 `latest-migrator`도 제공하지만, 예고 없이 다음 개발 버전을 가리킬 수 있으므로
 재현 가능한 배포에는 버전 태그를 사용한다.
@@ -33,8 +33,8 @@ docker compose --env-file .env -f docker-compose.hub.yml up -d
 운영에서는 `latest` 대신 아래처럼 앱과 마이그레이터를 같은 버전으로 고정한다.
 
 ```dotenv
-GROSSARY_IMAGE=euiyun/grossary:0.1.1
-GROSSARY_MIGRATOR_IMAGE=euiyun/grossary:0.1.1-migrator
+GROSSARY_IMAGE=euiyun/grossary:0.1.2
+GROSSARY_MIGRATOR_IMAGE=euiyun/grossary:0.1.2-migrator
 ```
 
 `database-init`이 `pg_trgm` 확장을 준비하고, `migrator`가 성공한 뒤에만 `app`이
@@ -187,6 +187,11 @@ GROSSARY_EMBED_ANCESTORS=https://confluence.example.com
 여러 출처는 쉼표로 구분한다. 경로가 아니라 `https://호스트[:포트]` 형태의 origin만
 인정한다. 이 값은 Proxy가 요청마다 런타임에 읽으므로 Docker Hub의 같은 이미지를 환경별로
 다르게 설정할 수 있다.
+
+사용자는 `/sheet`의 **공유하기**에서 현재 필터·정렬과 표시할 열을 고른 뒤 공유 URL 또는
+iframe 코드를 복사한다. `columns`는 쉼표로 구분한 표준 열 키이며, `compact`, `links`,
+`border`는 각각 `1` 또는 `0`이다. 공유 표는 공개 상태 용어를 최대 200개 표시하고 초안은
+제외하지만, 접근 자체에는 Grossary 로그인 세션이 필요하다.
 
 애플리케이션 예외는 `{ error: { code: "internal_error", ... } }`로만 응답하고
 스택은 응답에 노출하지 않는다. 스택은 컨테이너 로그에만 남는다.

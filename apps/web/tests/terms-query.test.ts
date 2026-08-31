@@ -5,6 +5,8 @@ import { createTerm } from "../src/lib/terms/create.js";
 import {
   getTermByIdOrSlug,
   listContributionTerms,
+  listPublishedTermRows,
+  listRelatedTerms,
   listTermRows,
   listTerms,
   termFacets,
@@ -37,6 +39,7 @@ async function purgeFixtures() {
 let aeSlug = "";
 let nakedAbbreviationId = "";
 let completeDraftId = "";
+let relatedTermId = "";
 
 beforeAll(async () => {
   await purgeFixtures();
@@ -48,6 +51,7 @@ beforeAll(async () => {
       fullNameEn: "Auto Exposure",
       nameKo: "자동노출",
       domain: ["ISP"],
+      category: "QueryRelationProbe",
       status: "active",
       surfaces: [{ text: "오토익스포저", lang: "ko", kind: "discouraged" }],
     },
@@ -102,10 +106,23 @@ beforeAll(async () => {
     },
     null,
   );
-  ids.push(ae.term.id, hw.term.id, dupe.term.id, naked.term.id, draft.term.id);
+  const related = await createTerm(
+    {
+      termType: "term",
+      nameEn: `Related Exposure ${Date.now()}`,
+      domain: ["ISP", "Sensor"],
+      category: "QueryRelationProbe",
+      status: "active",
+      definitionMd: "상세 화면 관련 용어 테스트.",
+      surfaces: [],
+    },
+    null,
+  );
+  ids.push(ae.term.id, hw.term.id, dupe.term.id, naked.term.id, draft.term.id, related.term.id);
   aeSlug = ae.term.slug;
   nakedAbbreviationId = naked.term.id;
   completeDraftId = draft.term.id;
+  relatedTermId = related.term.id;
 });
 
 afterAll(async () => {
@@ -142,6 +159,22 @@ test("동음이의어는 표기가 여러 개 겹쳐도 한 번만 나온다 (R6
   const detail = await getTermByIdOrSlug(aeSlug);
   const occurrences = detail?.homonyms.filter((h) => h.id === ids[2]) ?? [];
   expect(occurrences.length).toBe(1);
+});
+
+test("관련 용어는 같은 도메인·카테고리에서 찾고 자기 자신과 초안은 제외한다", async () => {
+  const detail = await getTermByIdOrSlug(aeSlug);
+  expect(detail).not.toBeNull();
+  if (!detail) return;
+
+  const related = await listRelatedTerms(detail, 20);
+  const probe = related.find((term) => term.id === relatedTermId);
+  expect(probe).toMatchObject({ sameCategory: true, sharedDomains: ["ISP"] });
+  expect(related.map((term) => term.id)).not.toContain(detail.id);
+  expect(related.map((term) => term.id)).not.toContain(completeDraftId);
+});
+
+test("도메인과 카테고리가 모두 없으면 관련 용어 조회는 빈 배열이다", async () => {
+  await expect(listRelatedTerms({ id: ids[3]!, termType: "abbreviation", domain: [], category: null })).resolves.toEqual([]);
 });
 
 test("비권장 표기로 검색해도 해당 용어가 나온다", async () => {
@@ -185,6 +218,8 @@ test("기본 목록은 초안을 숨기고 명시 필터와 공동 편집 시트
   expect((await listTerms(baseParams)).items.map((term) => term.id)).not.toContain(completeDraftId);
   expect((await listTerms({ ...baseParams, status: "draft" })).items.map((term) => term.id)).toContain(completeDraftId);
   expect((await listTermRows(baseParams)).items.map((term) => term.id)).toContain(completeDraftId);
+  expect((await listPublishedTermRows(baseParams)).items.map((term) => term.id)).not.toContain(completeDraftId);
+  await expect(listPublishedTermRows({ ...baseParams, status: "draft" })).resolves.toEqual({ items: [], total: 0 });
 });
 
 // "auto-exposure"는 구분자만 다를 뿐 normLoose가 "Auto Exposure"와 정확히

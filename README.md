@@ -61,12 +61,14 @@ pnpm --filter @grossary/web dev   # http://localhost:3000
 > 개발 머신에서 `docker-compose.prod.yml`로 `up`하지 마라. 두 파일이 같은 볼륨 이름
 > (`grossary_pgdata`)을 쓴다.
 
-## Confluence 임베드
+## 시트 공유와 Confluence 임베드
 
-Confluence iframe 매크로에는 다음처럼 도메인과 카테고리를 선택한 읽기 전용 주소를 넣는다.
+`/sheet`의 **공유하기**에서 표시할 열과 촘촘한 행·상세 링크·테두리를 체크하면 현재
+필터·정렬을 담은 공유 URL과 iframe 코드를 각각 복사할 수 있다. Confluence iframe
+매크로에는 다음처럼 열 정의까지 포함된 읽기 전용 주소를 넣는다.
 
 ```text
-https://glossary.example.com/embed?domain=ISP&category=노출%20제어
+https://glossary.example.com/embed?domain=ISP&category=노출%20제어&columns=nameEn,nameKo,domain,definitionMd&compact=1&links=1&border=1
 ```
 
 `GROSSARY_EMBED_ANCESTORS=https://confluence.example.com`을 설정해야 해당 Confluence 출처에서만
@@ -125,7 +127,7 @@ Docker Hub에는 웹 앱과 마이그레이터를 같은 저장소의 서로 다
 
 ```bash
 IMAGE=euiyun/grossary
-VERSION=0.1.1
+VERSION=0.1.2
 
 docker build --target app -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
 docker build --target migrator -t "$IMAGE:$VERSION-migrator" -t "$IMAGE:latest-migrator" .
@@ -140,8 +142,8 @@ docker push "$IMAGE:latest-migrator"
 `latest`보다 앱·마이그레이터 양쪽을 같은 버전으로 고정하는 편이 안전하다.
 
 ```bash
-docker pull euiyun/grossary:0.1.1
-docker pull euiyun/grossary:0.1.1-migrator
+docker pull euiyun/grossary:0.1.2
+docker pull euiyun/grossary:0.1.2-migrator
 ```
 
 ```bash

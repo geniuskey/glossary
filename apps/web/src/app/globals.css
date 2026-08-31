@@ -214,7 +214,9 @@
 
   .btn {
     @apply inline-flex select-none items-center justify-center gap-1.5 rounded-lg border
-      border-transparent px-3 py-1.5 text-sm font-medium transition
+      border-transparent px-3 py-1.5 text-sm font-medium transition touch-manipulation
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45
+      focus-visible:ring-offset-2 focus-visible:ring-offset-paper
       disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
@@ -235,7 +237,8 @@
 
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-panel
-      px-2.5 py-1 text-xs text-ink-2 transition hover:border-line-strong hover:text-ink;
+      px-2.5 py-1 text-xs text-ink-2 transition hover:border-line-strong hover:text-ink
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40;
   }
   .chip-on {
     @apply border-brand/45 bg-brand-soft text-brand;
@@ -248,7 +251,8 @@
 
   .link {
     @apply text-ink underline decoration-line-strong underline-offset-[3px]
-      transition hover:decoration-brand;
+      rounded-sm transition hover:decoration-brand focus-visible:outline-none
+      focus-visible:ring-2 focus-visible:ring-brand/40;
   }
 
   /* 안내 배너 3종. 색만 다르고 구조는 같아서 한 자리에 모은다. */

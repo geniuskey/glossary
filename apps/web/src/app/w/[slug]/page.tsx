@@ -9,7 +9,7 @@ import { isUuid } from "@/lib/api-error";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { TERM_TYPE_LABEL } from "@/lib/terms/enums";
 import { termCompletion } from "@/lib/terms/completion";
-import { getTermByIdOrSlug, type SurfaceKind } from "@/lib/terms/query";
+import { getTermByIdOrSlug, listRelatedTerms, type SurfaceKind } from "@/lib/terms/query";
 import { displayName, relativeTime, spineHue } from "@/lib/ui/format";
 
 // F6/P1: `Record<유니온, T>` + 폴백 없음. SurfaceKind에 값이 추가되면 tsc가 여기서 막는다.
@@ -77,6 +77,12 @@ export default async function TermDetailPage({
 
   const hue = spineHue(term.slug);
   const completion = termCompletion(term);
+  const relatedTerms = await listRelatedTerms(term, 6);
+  const graphHref = term.category
+    ? `/graph?category=${encodeURIComponent(term.category)}`
+    : term.domain[0]
+      ? `/graph?domain=${encodeURIComponent(term.domain[0])}`
+      : "/graph";
 
   return (
     <AppShell user={user} title={displayName(term)}>
@@ -229,7 +235,58 @@ export default async function TermDetailPage({
             </div>
           </section>
         )}
+
+        {relatedTerms.length > 0 && (
+          <section className="mt-8 border-t border-line pt-6" aria-labelledby="related-terms-heading">
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 id="related-terms-heading" className="text-base font-semibold text-ink text-balance">같이 보면 좋은 용어</h2>
+                <p className="mt-1 text-xs leading-5 text-ink-3">같은 도메인이나 카테고리에서 이어지는 개념입니다.</p>
+              </div>
+              <Link href={graphHref} className="btn-ghost btn-sm shrink-0">
+                관계도에서 보기 <IconArrow />
+              </Link>
+            </div>
+            <ul className="grid gap-2 sm:grid-cols-2">
+              {relatedTerms.map((related) => (
+                <li key={related.id} className="min-w-0">
+                  <Link
+                    href={`/w/${related.slug}`}
+                    className="group block min-h-full rounded-xl border border-line bg-panel p-3.5 transition-[border-color,background-color,box-shadow] hover:border-line-strong hover:bg-panel-2/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                  >
+                    <span className="flex min-w-0 items-start gap-2">
+                      <span className="min-w-0 flex-1">
+                        <span className="block break-words text-sm font-semibold text-ink group-hover:text-brand">{displayName(related)}</span>
+                        {related.nameEn && related.nameKo && (
+                          <span className="mt-0.5 block truncate text-xs text-ink-3">{related.nameKo}</span>
+                        )}
+                      </span>
+                      {related.status !== "active" && <StatusBadge status={related.status} />}
+                      <IconArrow />
+                    </span>
+                    <span className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-3">
+                      {related.sameCategory && related.category && (
+                        <span className="rounded bg-brand-soft px-1.5 py-0.5 text-brand">같은 카테고리 · {related.category}</span>
+                      )}
+                      {related.sharedDomains.map((domain) => (
+                        <span key={domain} className="rounded bg-panel-2 px-1.5 py-0.5">같은 도메인 · {domain}</span>
+                      ))}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </article>
     </AppShell>
+  );
+}
+
+function IconArrow() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true" className="shrink-0">
+      <path d="M3 8h9M9 4.5 12.5 8 9 11.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
