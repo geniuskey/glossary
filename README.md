@@ -130,7 +130,7 @@ Docker Hub에는 웹 앱과 마이그레이터를 같은 저장소의 서로 다
 
 ```bash
 IMAGE=euiyun/grossary
-VERSION=0.1.2
+VERSION=0.1.3
 
 docker build --target app -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
 docker build --target migrator -t "$IMAGE:$VERSION-migrator" -t "$IMAGE:latest-migrator" .
@@ -145,8 +145,8 @@ docker push "$IMAGE:latest-migrator"
 `latest`보다 앱·마이그레이터 양쪽을 같은 버전으로 고정하는 편이 안전하다.
 
 ```bash
-docker pull euiyun/grossary:0.1.2
-docker pull euiyun/grossary:0.1.2-migrator
+docker pull euiyun/grossary:0.1.3
+docker pull euiyun/grossary:0.1.3-migrator
 ```
 
 ```bash

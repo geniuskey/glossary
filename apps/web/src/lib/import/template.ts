@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { TERM_STATUS_LABEL, TERM_STATUSES, TERM_TYPE_LABEL, TERM_TYPES } from "@/lib/terms/enums";
-import { IMPORT_COLUMNS, IMPORT_RULES, REQUIREMENT_LABEL, SAMPLE_ROWS } from "./format";
+import { ADDITIONAL_SURFACE_FIELDS, IMPORT_COLUMNS, IMPORT_RULES, REQUIREMENT_LABEL, SAMPLE_ROWS } from "./format";
 
 const HEADER_FILL = "FFF1F3F5";
 const HEADER_LINE = "FFC6CBD1";
@@ -65,6 +65,16 @@ function addGuideSheet(wb: ExcelJS.Workbook): void {
     const row = ws.addRow([`· ${line}`]);
     ws.mergeCells(row.number, 1, row.number, 4);
   }
+
+  ws.addRow([]);
+  table(
+    ws,
+    ["추가 표기 입력", "용도", "", ""],
+    ADDITIONAL_SURFACE_FIELDS.map((field) => {
+      const column = IMPORT_COLUMNS.find((candidate) => candidate.field === field)!;
+      return [column.header, column.hint, "", ""];
+    }),
+  );
 
   ws.addRow([]);
   table(

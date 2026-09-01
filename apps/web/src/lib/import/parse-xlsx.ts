@@ -14,8 +14,11 @@ export interface ImportRow {
   topic?: string;
   status: TermStatusLiteral;
   definitionMd?: string;
+  canonicalNames: string[];
   abbreviations: string[];
   aliases: string[];
+  discouragedNames: string[];
+  forbiddenNames: string[];
 }
 
 /** 특정 행에서 발생한 실패. rowNumber는 워크시트의 실제 행 번호(1-base)다. */
@@ -55,10 +58,15 @@ const LEGACY_TYPE: Record<string, TermTypeLiteral> = {
 };
 
 function splitList(value: string): string[] {
-  return value
-    .split(LIST_SEPARATOR)
-    .map((v) => v.trim())
-    .filter(Boolean);
+  const seen = new Set<string>();
+  const values: string[] = [];
+  for (const raw of value.split(new RegExp(`[${LIST_SEPARATOR}\\r\\n]+`))) {
+    const item = raw.trim();
+    if (!item || seen.has(item)) continue;
+    seen.add(item);
+    values.push(item);
+  }
+  return values;
 }
 
 function cellText(value: ExcelJS.CellValue): string {
@@ -153,8 +161,11 @@ export async function parseGlossaryWorkbook(
       topic: raw.topic || (raw.category && !categorySet.has(raw.category) ? raw.category : undefined),
       status,
       definitionMd: raw.definitionMd || undefined,
+      canonicalNames: splitList(raw.canonicalNames ?? ""),
       abbreviations: splitList(raw.abbreviations ?? ""),
       aliases: splitList(raw.aliases ?? ""),
+      discouragedNames: splitList(raw.discouragedNames ?? ""),
+      forbiddenNames: splitList(raw.forbiddenNames ?? ""),
     });
   });
 

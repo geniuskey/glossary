@@ -7,6 +7,7 @@ import {
   type ApplySkipWire,
   type ImportReportWire,
 } from "@/lib/import/form-response";
+import { MAX_IMPORT_BYTES } from "@/lib/import/format";
 import { cx } from "@/lib/ui/format";
 
 interface AppliedState {
@@ -59,16 +60,25 @@ export function ImportForm() {
 
   // 파일이 바뀌면 이전 검사 결과는 더 이상 그 파일의 것이 아니다. 파일을 고르는
   // 경로가 둘(입력 상자, 끌어다 놓기)이라 초기화를 한 함수로 모은다.
-  function acceptFile(next: File | null) {
-    setFile(next);
+  function acceptFile(next: File | null): boolean {
+    const invalidExtension = next && !next.name.toLowerCase().endsWith(".xlsx");
+    const tooLarge = next && next.size > MAX_IMPORT_BYTES;
+    setFile(invalidExtension || tooLarge ? null : next);
     setReport(null);
     setApplied(null);
-    setErrorMessage(null);
+    setErrorMessage(
+      invalidExtension
+        ? "xlsx 파일만 가져올 수 있습니다. 파일 형식을 확인한 뒤 다시 선택하세요."
+        : tooLarge
+          ? "파일이 10MB를 넘습니다. 행을 여러 파일로 나눠 다시 선택하세요."
+          : null,
+    );
     setForced(new Set());
+    return !invalidExtension && !tooLarge;
   }
 
   function onFileChange(e: ChangeEvent<HTMLInputElement>) {
-    acceptFile(e.target.files?.[0] ?? null);
+    if (!acceptFile(e.target.files?.[0] ?? null)) e.currentTarget.value = "";
   }
 
   function toggleForce(rowNumber: number) {
@@ -147,7 +157,7 @@ export function ImportForm() {
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
         className={cx(
-          "card border-dashed border-line-strong transition",
+          "card border-dashed border-line-strong transition-colors",
           dragging && !locked && "border-brand bg-brand/10",
           locked && "opacity-60",
         )}
@@ -158,26 +168,35 @@ export function ImportForm() {
             locked ? "cursor-not-allowed" : "cursor-pointer",
           )}
         >
-          <input type="file" accept=".xlsx" onChange={onFileChange} disabled={locked} className="sr-only" />
+          <input
+            type="file"
+            name="glossaryFile"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            autoComplete="off"
+            aria-describedby="import-file-hint"
+            onChange={onFileChange}
+            disabled={locked}
+            className="sr-only"
+          />
           <IconSheet />
           {file ? (
             <>
-              <span className="font-mono text-sm text-ink">{file.name}</span>
-              <span className="text-xs text-ink-3">다시 누르거나 다른 파일을 끌어다 놓으면 바뀝니다</span>
+              <span className="max-w-full break-all font-mono text-sm text-ink">{file.name}</span>
+              <span id="import-file-hint" className="text-xs text-ink-3">다시 누르거나 다른 파일을 끌어다 놓으면 바뀝니다</span>
             </>
           ) : (
             <>
               <span className="text-sm font-medium text-ink">xlsx 파일을 끌어다 놓거나 눌러서 선택</span>
-              <span className="text-xs text-ink-3">첫 행은 열 이름으로 읽습니다</span>
+              <span id="import-file-hint" className="text-xs text-ink-3">첫 행은 열 이름으로 읽습니다 · 최대 10 MB</span>
             </>
           )}
         </label>
       </div>
 
-      {errorMessage && <p className="note-danger animate-fade-up">{errorMessage}</p>}
+      {errorMessage && <p role="alert" className="note-danger animate-fade-up">{errorMessage}</p>}
 
       {applied && (
-        <div className="note-ok animate-fade-up space-y-1">
+        <div role="status" aria-live="polite" className="note-ok animate-fade-up space-y-1">
           <p className="font-medium">{applied.created}개 용어를 등록했습니다.</p>
           {applied.skipped.length > 0 && <p>{applied.skipped.length}개 행은 충돌/중복으로 건너뛰었습니다.</p>}
         </div>
@@ -190,7 +209,7 @@ export function ImportForm() {
       )}
 
       {report && !applied && (
-        <section className="animate-fade-up space-y-5">
+        <section aria-live="polite" className="animate-fade-up space-y-5">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatCard label="전체 행" value={report.total} />
             <StatCard label="바로 등록" value={report.ready} tone="ok" />
@@ -264,13 +283,15 @@ export function ImportForm() {
                   {forceRowsOf(report).map((r) => (
                     <tr key={`${r.kind}-${r.rowNumber}`}>
                       <Td>
-                        <input
-                          type="checkbox"
-                          checked={forced.has(r.rowNumber)}
-                          onChange={() => toggleForce(r.rowNumber)}
-                          aria-label={`${r.rowNumber}행 강제 등록`}
-                          className="accent-brand"
-                        />
+                        <label className="-m-2 inline-flex cursor-pointer p-2">
+                          <input
+                            type="checkbox"
+                            checked={forced.has(r.rowNumber)}
+                            onChange={() => toggleForce(r.rowNumber)}
+                            className="accent-brand"
+                          />
+                          <span className="sr-only">{r.rowNumber}행 강제 등록</span>
+                        </label>
                       </Td>
                       <Td className="font-mono text-xs text-ink-3">{r.rowNumber}</Td>
                       <Td>

@@ -34,17 +34,26 @@ Content-Type: multipart/form-data
 | `fullNameKo` | `full_name_ko`, `한글 풀네임` |
 | `termType` | `term_type`, `종류`, `유형` |
 | `domain` | `domain`, `도메인` |
-| `category` | `category`, `카테고리`, `업무 분류` |
+| `category` | `category`, `분류`, `업무 분류` |
 | `topic` | `topic`, `주제`, `세부 주제` |
 | `status` | `status`, `상태` |
 | `definitionMd` | `definition`, `정의`, `설명` |
+| `canonicalNames` | `canonical_names`, `추가 표준 표기`, `추가 표준명` |
 | `aliases` | `aliases`, `별칭`, `약칭` |
-| `abbreviations` | `abbreviations`, `약어` |
+| `abbreviations` | `abbreviations`, `약어`, `약어 표기` |
+| `discouragedNames` | `discouraged`, `비권장 표기`, `비권장` |
+| `forbiddenNames` | `forbidden`, `금지 표기`, `금지` |
 
-`domain`, `aliases`, `abbreviations`는 쉼표로 나눈다. `termType`은 `concept`,
+`domain`과 추가 표기 열(`canonicalNames`, `aliases`, `abbreviations`,
+`discouragedNames`, `forbiddenNames`)은 쉼표 또는 셀 안 줄바꿈으로 여러 값을 나눈다.
+같은 셀 안에서 똑같은 값을 반복하면 한 번만 가져온다. `termType`은 `concept`,
 `proper_name`, `identifier`, `unit` 중 하나다. `category`에는 관리자 화면에 등록된 업무
 분류 key를 쓴다(가져오기 화면에 현재 허용 목록이 표시된다). 약어는 Type이 아니라
 `abbreviations` 열에 적는다.
+
+용어 편집 화면의 **추가 표기**는 엑셀에서 역할별 열로 나뉜다. 대표 영문·한글 외의
+표준명은 `추가 표준 표기`, 쓰지 않도록 안내할 말은 `비권장 표기` 또는 `금지 표기`에
+적는다. 영문·한글 풀네임은 언어별 풀네임 열에 하나씩 적는다.
 
 못 알아본 헤더는 **조용히 사라지지 않고** 응답의 `ignoredHeaders`에 원문 그대로
 실려 온다. 관대한 매핑 때문에 한 컬럼이 통째로 무시된 것을 모르고 넘어가면 안 된다.

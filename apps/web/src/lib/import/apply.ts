@@ -30,7 +30,7 @@ function displayName(row: ImportRow): string {
 interface RowSurface {
   text: string;
   lang: "en" | "ko" | "neutral";
-  kind: "canonical" | "abbreviation" | "full_name" | "alias";
+  kind: "canonical" | "abbreviation" | "full_name" | "alias" | "discouraged" | "forbidden";
 }
 
 /**
@@ -46,8 +46,11 @@ function verdictSurfacesOf(row: ImportRow): RowSurface[] {
     ...(row.nameKo ? [{ text: row.nameKo, lang: "ko" as const, kind: "canonical" as const }] : []),
     ...(row.fullNameEn ? [{ text: row.fullNameEn, lang: "en" as const, kind: "full_name" as const }] : []),
     ...(row.fullNameKo ? [{ text: row.fullNameKo, lang: "ko" as const, kind: "full_name" as const }] : []),
+    ...row.canonicalNames.map((a) => ({ text: a, lang: "neutral" as const, kind: "canonical" as const })),
     ...row.abbreviations.map((a) => ({ text: a, lang: "neutral" as const, kind: "abbreviation" as const })),
     ...row.aliases.map((a) => ({ text: a, lang: "neutral" as const, kind: "alias" as const })),
+    ...row.discouragedNames.map((a) => ({ text: a, lang: "neutral" as const, kind: "discouraged" as const })),
+    ...row.forbiddenNames.map((a) => ({ text: a, lang: "neutral" as const, kind: "forbidden" as const })),
   ];
 }
 
@@ -185,8 +188,11 @@ export async function applyImport(
         status: row.status,
         definitionMd: row.definitionMd,
         surfaces: [
+          ...row.canonicalNames.map((text) => ({ text, lang: "neutral" as const, kind: "canonical" as const })),
           ...row.abbreviations.map((text) => ({ text, lang: "neutral" as const, kind: "abbreviation" as const })),
           ...row.aliases.map((text) => ({ text, lang: "neutral" as const, kind: "alias" as const })),
+          ...row.discouragedNames.map((text) => ({ text, lang: "neutral" as const, kind: "discouraged" as const })),
+          ...row.forbiddenNames.map((text) => ({ text, lang: "neutral" as const, kind: "forbidden" as const })),
         ],
       },
       authorId,

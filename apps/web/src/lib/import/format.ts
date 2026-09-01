@@ -21,8 +21,11 @@ export type ImportField =
   | "topic"
   | "status"
   | "definitionMd"
+  | "canonicalNames"
   | "abbreviations"
-  | "aliases";
+  | "aliases"
+  | "discouragedNames"
+  | "forbiddenNames";
 
 /**
  * 헤더 비교 전 정규화. 대소문자와 공백만 흡수한다 — "Name EN", "name en",
@@ -146,11 +149,19 @@ export const IMPORT_COLUMNS: readonly ImportColumn[] = [
     width: 40,
   },
   {
+    field: "canonicalNames",
+    header: "추가 표준 표기",
+    otherHeaders: ["canonical_names", "추가_표준명"],
+    requirement: "optional",
+    hint: "대표 영문·한글 외에도 함께 쓰는 표준 표기. 쉼표나 줄바꿈으로 여러 개.",
+    width: 22,
+  },
+  {
     field: "abbreviations",
     header: "약어",
     otherHeaders: ["abbreviations", "약어_표기"],
     requirement: "optional",
-    hint: "같은 개념의 약어 표기. 쉼표로 여러 개.",
+    hint: "같은 개념의 약어 표기. 쉼표나 줄바꿈으로 여러 개.",
     width: 18,
   },
   {
@@ -158,9 +169,36 @@ export const IMPORT_COLUMNS: readonly ImportColumn[] = [
     header: "별칭",
     otherHeaders: ["aliases", "약칭"],
     requirement: "optional",
-    hint: "같은 개념을 가리키는 다른 표기. 쉼표로 여러 개.",
+    hint: "같은 개념을 가리키는 다른 표기. 쉼표나 줄바꿈으로 여러 개.",
     width: 24,
   },
+  {
+    field: "discouragedNames",
+    header: "비권장 표기",
+    otherHeaders: ["discouraged", "비권장"],
+    requirement: "optional",
+    hint: "가능하면 쓰지 않도록 안내할 표기. 쉼표나 줄바꿈으로 여러 개.",
+    width: 22,
+  },
+  {
+    field: "forbiddenNames",
+    header: "금지 표기",
+    otherHeaders: ["forbidden", "금지"],
+    requirement: "optional",
+    hint: "문서에서 사용하면 안 되는 표기. 쉼표나 줄바꿈으로 여러 개.",
+    width: 22,
+  },
+];
+
+/** 용어 편집 화면의 “추가 표기”와 직접 대응하는 가져오기 열. */
+export const ADDITIONAL_SURFACE_FIELDS: readonly ImportField[] = [
+  "canonicalNames",
+  "fullNameEn",
+  "fullNameKo",
+  "abbreviations",
+  "aliases",
+  "discouragedNames",
+  "forbiddenNames",
 ];
 
 /** 정규화된 헤더 → 필드. 파서가 실제로 찾아보는 표다. */
@@ -188,8 +226,11 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     topic: "노출 제어",
     status: "active",
     definitionMd: "장면 밝기에 맞춰 노출을 자동으로 맞추는 기능.",
+    canonicalNames: "Automatic Exposure",
     abbreviations: "AE",
     aliases: "오토익스포저, 자동노출제어",
+    discouragedNames: "오토 노출",
+    forbiddenNames: "",
   },
   {
     nameEn: "Gain",
@@ -202,8 +243,11 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     topic: "신호 처리",
     status: "active",
     definitionMd: "센서가 받은 신호를 증폭하는 배율.",
+    canonicalNames: "",
     abbreviations: "",
     aliases: "이득",
+    discouragedNames: "",
+    forbiddenNames: "",
   },
   {
     nameEn: "Nova",
@@ -216,26 +260,32 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     topic: "",
     status: "active",
     definitionMd: "차기 카메라 모듈 과제.",
+    canonicalNames: "",
     abbreviations: "",
     aliases: "",
+    discouragedNames: "",
+    forbiddenNames: "",
   },
   {
-    nameEn: "blacklist",
-    nameKo: "",
+    nameEn: "blocklist",
+    nameKo: "차단 목록",
     fullNameEn: "",
     fullNameKo: "",
     termType: "concept",
     domain: "",
     category: "other",
     topic: "포용적 표현",
-    status: "forbidden",
-    definitionMd: "쓰지 않습니다. 대신 '차단 목록'을 씁니다.",
+    status: "active",
+    definitionMd: "접근을 차단할 대상을 모은 목록.",
+    canonicalNames: "",
     abbreviations: "",
     aliases: "",
+    discouragedNames: "",
+    forbiddenNames: "blacklist",
   },
 ];
 
-/** 도메인·별칭을 여러 개 적을 때 쓰는 구분자. 줄바꿈은 구분자가 아니다. */
+/** 목록형 셀은 쉼표와 줄바꿈을 모두 받는다. 폼의 추가 표기 일괄 입력과 같다. */
 export const LIST_SEPARATOR = ",";
 
 /** R119: 한 번의 임포트 요청이 처리할 수 있는 최대 행 수. */
@@ -253,7 +303,7 @@ export const IMPORT_RULES: readonly string[] = [
   "첫 번째 시트의 1행만 열 이름으로 읽습니다. 두 번째 시트부터는 보지 않습니다.",
   "열 순서는 상관없습니다. 이름이 맞는 열만 가져오고, 모르는 열은 무시한 뒤 검사 결과에 그대로 보여 줍니다.",
   "영문·한글 중 최소 하나는 있어야 합니다. 둘 다 비어 있으면 그 행은 건너뜁니다.",
-  `도메인·별칭은 쉼표(${LIST_SEPARATOR})로 여러 개를 적습니다. 줄바꿈은 구분자가 아닙니다.`,
+  `도메인과 추가 표기는 쉼표(${LIST_SEPARATOR}) 또는 줄바꿈으로 여러 개를 적습니다.`,
   `한 번에 ${MAX_IMPORT_ROWS.toLocaleString("ko-KR")}행 · ${MAX_IMPORT_BYTES / 1024 / 1024}MB까지 올릴 수 있습니다.`,
   "이미 등록된 용어와 겹치거나 파일 안에서 중복인 행은 기본적으로 건너뜁니다 — 검사 결과에서 직접 골라야 등록됩니다.",
 ];

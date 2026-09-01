@@ -137,6 +137,33 @@ test("R124: 인식하지 못한 헤더는 ignoredHeaders에 등장 순서대로,
   expect(result.rows[0]).toMatchObject({ nameEn: "Gain", nameKo: "게인" });
 });
 
+test("추가 표기 5종을 종류별로 읽고 쉼표·줄바꿈·중복을 정리한다", async () => {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("glossary");
+  ws.addRow(["영문", "추가 표준 표기", "약어", "별칭", "비권장 표기", "금지 표기"]);
+  ws.addRow([
+    "Auto Exposure",
+    "Automatic Exposure\nAuto Exposure Mode",
+    "AE, AEX\nAE",
+    "오토익스포저\n자동노출제어",
+    "오토 노출",
+    "Auto Magic, 오토매직",
+  ]);
+  const buf = (await wb.xlsx.writeBuffer()) as ArrayBuffer;
+
+  const { rows, errors, ignoredHeaders } = await parseGlossaryWorkbook(buf);
+
+  expect(errors).toEqual([]);
+  expect(ignoredHeaders).toEqual([]);
+  expect(rows[0]).toMatchObject({
+    canonicalNames: ["Automatic Exposure", "Auto Exposure Mode"],
+    abbreviations: ["AE", "AEX"],
+    aliases: ["오토익스포저", "자동노출제어"],
+    discouragedNames: ["오토 노출"],
+    forbiddenNames: ["Auto Magic", "오토매직"],
+  });
+});
+
 test("관리자가 추가한 업무 분류 key는 현재 허용 목록을 받아 그대로 가져온다", async () => {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("glossary");

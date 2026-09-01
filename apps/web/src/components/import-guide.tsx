@@ -1,5 +1,12 @@
 import { TERM_STATUS_LABEL, TERM_STATUSES, TERM_TYPE_LABEL, TERM_TYPES } from "@/lib/terms/enums";
-import { IMPORT_COLUMNS, IMPORT_RULES, SAMPLE_ROWS, TEMPLATE_HREF, type ImportColumn } from "@/lib/import/format";
+import {
+  ADDITIONAL_SURFACE_FIELDS,
+  IMPORT_COLUMNS,
+  IMPORT_RULES,
+  SAMPLE_ROWS,
+  TEMPLATE_HREF,
+  type ImportColumn,
+} from "@/lib/import/format";
 import { cx } from "@/lib/ui/format";
 
 /**
@@ -34,6 +41,7 @@ export function ImportGuide({ categoryOptions }: { categoryOptions: Array<{ key:
         ))}
       </ul>
 
+      <AdditionalSurfaceGuide />
       <SamplePreview />
       <ColumnTable />
       <div className="grid gap-4 sm:grid-cols-3">
@@ -53,6 +61,34 @@ export function ImportGuide({ categoryOptions }: { categoryOptions: Array<{ key:
           items={TERM_STATUSES.map((s) => ({ value: s, label: TERM_STATUS_LABEL[s] }))}
         />
       </div>
+    </section>
+  );
+}
+
+function AdditionalSurfaceGuide() {
+  const columns = ADDITIONAL_SURFACE_FIELDS.map((field) => IMPORT_COLUMNS.find((column) => column.field === field)!)
+    .filter(Boolean);
+
+  return (
+    <section className="card overflow-hidden" aria-labelledby="additional-surface-title">
+      <div className="border-b border-line px-4 py-3">
+        <h3 id="additional-surface-title" className="text-sm font-medium text-ink">추가 표기는 종류별 열에 적습니다</h3>
+        <p className="mt-1 text-xs leading-5 text-ink-3">
+          별도의 “추가 표기” 열은 없습니다. 표기의 역할에 맞는 열을 고르고, 여러 값은 쉼표나 셀 안 줄바꿈으로 나누세요.
+        </p>
+      </div>
+      <dl className="grid sm:grid-cols-2">
+        {columns.map((column) => (
+          <div key={column.field} className="border-b border-grid px-4 py-3 sm:odd:border-r">
+            <dt className="font-mono text-xs font-medium text-brand" translate="no">{column.header}</dt>
+            <dd className="mt-1 text-xs leading-5 text-ink-2">{column.hint}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="px-4 py-3 text-xs leading-5 text-ink-2">
+        예: <code className="font-mono text-ink" translate="no">약어</code>에 <code className="font-mono text-ink" translate="no">AE, AEX</code>,
+        {" "}<code className="font-mono text-ink" translate="no">별칭</code>에 <code className="font-mono text-ink">오토익스포저, 자동노출제어</code>
+      </p>
     </section>
   );
 }
@@ -139,7 +175,7 @@ function ColumnTable() {
                 <Td>
                   <span className="flex flex-wrap gap-1">
                     {c.otherHeaders.map((h) => (
-                      <span key={h} className="chip font-mono text-[11px]">
+                      <span key={h} className="chip font-mono text-[11px]" translate="no">
                         {h}
                       </span>
                     ))}
@@ -184,7 +220,7 @@ function ValueList({
       <ul className="mt-2 space-y-1">
         {items.map((item) => (
           <li key={item.value} className="flex items-baseline gap-2 text-sm">
-            <code className="font-mono text-xs text-brand">{item.value}</code>
+            <code className="font-mono text-xs text-brand" translate="no">{item.value}</code>
             <span className="text-ink-2">{item.label}</span>
           </li>
         ))}

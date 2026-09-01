@@ -6,6 +6,7 @@ import { surfaceKeys } from "@grossary/db";
 import { expect, test } from "vitest";
 import { TERM_STATUSES, TERM_TYPES } from "../src/lib/terms/enums.js";
 import {
+  ADDITIONAL_SURFACE_FIELDS,
   HEADER_TO_FIELD,
   IMPORT_COLUMNS,
   normalizeHeader,
@@ -32,12 +33,30 @@ const FIELDS: ImportField[] = [
   "topic",
   "status",
   "definitionMd",
+  "canonicalNames",
   "aliases",
   "abbreviations",
+  "discouragedNames",
+  "forbiddenNames",
 ];
 
 test("IMPORT_COLUMNS는 파서가 채우는 필드를 하나도 빠짐없이 덮는다", () => {
   expect([...IMPORT_COLUMNS.map((c) => c.field)].sort()).toEqual([...FIELDS].sort());
+});
+
+test("추가 표기 안내는 편집 화면의 6종을 모두 가져올 수 있게 한다", () => {
+  expect(ADDITIONAL_SURFACE_FIELDS).toEqual([
+    "canonicalNames",
+    "fullNameEn",
+    "fullNameKo",
+    "abbreviations",
+    "aliases",
+    "discouragedNames",
+    "forbiddenNames",
+  ]);
+  for (const field of ADDITIONAL_SURFACE_FIELDS) {
+    expect(IMPORT_COLUMNS.some((column) => column.field === field), field).toBe(true);
+  }
 });
 
 test("otherHeaders는 이미 정규화된 형태다", () => {
@@ -84,6 +103,12 @@ test("예전부터 인정하던 헤더는 하나도 사라지지 않았다", () 
     aliases: "aliases",
     별칭: "aliases",
     약칭: "aliases",
+    canonical_names: "canonicalNames",
+    추가_표준명: "canonicalNames",
+    discouraged: "discouragedNames",
+    비권장: "discouragedNames",
+    forbidden: "forbiddenNames",
+    금지: "forbiddenNames",
   };
   for (const [header, field] of Object.entries(legacy)) {
     expect(HEADER_TO_FIELD[header], header).toBe(field);
@@ -153,6 +178,9 @@ test("샘플 파일을 그대로 파서에 먹이면 경고 없이 SAMPLE_ROWS�
     expect(parsed.topic ?? "").toBe(sample.topic);
     expect(parsed.aliases.join(", ")).toBe(sample.aliases);
     expect(parsed.abbreviations.join(", ")).toBe(sample.abbreviations);
+    expect(parsed.canonicalNames.join(", ")).toBe(sample.canonicalNames);
+    expect(parsed.discouragedNames.join(", ")).toBe(sample.discouragedNames);
+    expect(parsed.forbiddenNames.join(", ")).toBe(sample.forbiddenNames);
   });
 });
 

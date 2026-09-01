@@ -1,6 +1,6 @@
 import { eq, inArray, like } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
-import { apiKeys, createDb, terms, users } from "@grossary/db";
+import { apiKeys, createDb, termSurfaces, terms, users } from "@grossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createTerm } from "../src/lib/terms/create.js";
 import { listRevisions } from "../src/lib/terms/update.js";
@@ -24,7 +24,18 @@ const createdKeys: string[] = [];
 const NAME_PREFIX = "ID14 ";
 
 function row(rowNumber: number, nameEn: string, aliases: string[] = []): ImportRow {
-  return { rowNumber, termType: "concept", nameEn, domain: [], status: "active", abbreviations: [], aliases };
+  return {
+    rowNumber,
+    termType: "concept",
+    nameEn,
+    domain: [],
+    status: "active",
+    canonicalNames: [],
+    abbreviations: [],
+    aliases,
+    discouragedNames: [],
+    forbiddenNames: [],
+  };
 }
 
 async function trackAllByPrefix() {
@@ -91,6 +102,15 @@ test("약어가 기존 용어와 겹쳐도 잡아낸다", async () => {
   expect(report.conflicts.map((c) => c.rowNumber)).toContain(2);
 });
 
+test("추가 표준·비권장·금지 표기도 기존 용어와의 충돌 검사에 포함한다", async () => {
+  for (const field of ["canonicalNames", "discouragedNames", "forbiddenNames"] as const) {
+    const candidate = row(2, `${NAME_PREFIX}${field} Conflict Probe`);
+    candidate[field] = [`${NAME_PREFIX}Lens Shading`];
+    const report = await dryRunImport([candidate], []);
+    expect(report.conflicts.map((conflict) => conflict.rowNumber), field).toContain(2);
+  }
+});
+
 test("total은 파싱 실패 행까지 세고 ready는 세지 않는다", async () => {
   const report = await dryRunImport([row(2, `${NAME_PREFIX}Gain`)], [{ rowNumber: 3, message: "표기 없음" }]);
 
@@ -144,6 +164,33 @@ test("R117: 파일 내 중복 행도 기본적으로 건너뛴다(duplicate_in_f
     { rowNumber: 2, reason: "duplicate_in_file" },
     { rowNumber: 3, reason: "duplicate_in_file" },
   ]);
+});
+
+test("반영하면 모든 추가 표기 종류가 원래 종류로 저장된다", async () => {
+  const nameEn = `${NAME_PREFIX}Surface Kinds`;
+  const candidate = row(2, nameEn, ["ID14 Surface Alias"]);
+  candidate.canonicalNames = ["ID14 Surface Standard"];
+  candidate.abbreviations = ["ID14SK"];
+  candidate.discouragedNames = ["ID14 Surface Old"];
+  candidate.forbiddenNames = ["ID14 Surface Banned"];
+
+  const result = await applyImport([candidate], null, null);
+  expect(result.created).toBe(1);
+
+  const [term] = await db.select({ id: terms.id }).from(terms).where(eq(terms.nameEn, nameEn));
+  expect(term).toBeDefined();
+  const stored = await db
+    .select({ text: termSurfaces.text, kind: termSurfaces.kind })
+    .from(termSurfaces)
+    .where(eq(termSurfaces.termId, term!.id));
+
+  expect(stored).toEqual(expect.arrayContaining([
+    { text: "ID14 Surface Standard", kind: "canonical" },
+    { text: "ID14SK", kind: "abbreviation" },
+    { text: "ID14 Surface Alias", kind: "alias" },
+    { text: "ID14 Surface Old", kind: "discouraged" },
+    { text: "ID14 Surface Banned", kind: "forbidden" },
+  ]));
 });
 
 // --- R120: API 키로 임포트해도 리비전에 작성자가 남는다 ---
