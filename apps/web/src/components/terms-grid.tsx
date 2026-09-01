@@ -16,6 +16,8 @@ import {
   cellText,
   clampColumnWidth,
   clampMenuPosition,
+  columnByKey,
+  defaultColumnOrder,
   defaultHiddenColumns,
   DENSITIES,
   DENSITY_LABEL,
@@ -24,9 +26,12 @@ import {
   inRange,
   inversePatch,
   isDensity,
+  moveColumn,
   normalizeRange,
+  normalizeColumnOrder,
   opensOnClick,
   opensUp,
+  orderedColumns,
   parseClipboardMatrix,
   planCell,
   planClear,
@@ -42,6 +47,7 @@ import {
   type Bounds,
   type CellRange,
   type CellRef,
+  type ColumnDropSide,
   type ColumnKey,
   type Density,
   type GridColumn,
@@ -59,6 +65,7 @@ import { cx, isoDate, relativeTime } from "@/lib/ui/format";
 
 const HIDDEN_KEY = "grossary.grid.hidden";
 const WIDTH_KEY = "grossary.grid.widths";
+const ORDER_KEY = "grossary.grid.order";
 const DENSITY_KEY = "grossary.grid.density";
 
 /** 행 번호 + 체크박스 + 열기 버튼이 들어가는 왼쪽 고정 칸의 너비(px). */
@@ -128,6 +135,10 @@ function readDensity(raw: unknown): Density | null {
   return isDensity(raw) ? raw : null;
 }
 
+function readOrder(raw: unknown): ColumnKey[] | null {
+  return normalizeColumnOrder(raw);
+}
+
 /**
  * 표 설정(숨긴 열·너비·밀도)은 사람마다 다르고 서버에 남길 이유가 없다.
  * 첫 렌더는 반드시 기본값으로 그린다 — localStorage를 렌더 중에 읽으면
@@ -136,7 +147,7 @@ function readDensity(raw: unknown): Density | null {
 function useStoredPref<T>(key: string, initial: T, read: (raw: unknown) => T | null) {
   const [value, setValue] = useState<T>(initial);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     try {
       const raw = localStorage.getItem(key);
       if (raw === null) return;
@@ -173,6 +184,7 @@ export function TermsGrid(props: TermsGridProps) {
 
   const [hidden, setHidden] = useStoredPref<ColumnKey[]>(HIDDEN_KEY, defaultHiddenColumns(), readHidden);
   const [widths, setWidths] = useStoredPref<Partial<Record<ColumnKey, number>>>(WIDTH_KEY, {}, readWidths);
+  const [order, setOrder] = useStoredPref<ColumnKey[]>(ORDER_KEY, defaultColumnOrder(), readOrder);
   const [density, setDensity] = useStoredPref<Density>(DENSITY_KEY, "normal", readDensity);
 
   const [menu, setMenu] = useState<"columns" | "density" | "export" | "help" | null>(null);
@@ -195,6 +207,13 @@ export function TermsGrid(props: TermsGridProps) {
   const [redoStack, setRedoStack] = useState<Batch[]>([]);
   const [drag, setDrag] = useState<"select" | "fill" | null>(null);
   const [resizing, setResizing] = useState<{ key: ColumnKey; width: number } | null>(null);
+  const [columnDrag, setColumnDrag] = useState<{
+    source: ColumnKey;
+    over: ColumnKey;
+    side: ColumnDropSide;
+  } | null>(null);
+  const [settledColumn, setSettledColumn] = useState<ColumnKey | null>(null);
+  const [layoutAnnouncement, setLayoutAnnouncement] = useState("");
   const [scrolledX, setScrolledX] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
   const [draft, setDraft] = useState({ nameEn: "", nameKo: "" });
@@ -204,8 +223,10 @@ export function TermsGrid(props: TermsGridProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef<HTMLInputElement>(null);
   const toastSeq = useRef(0);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const columns = useMemo(() => visibleColumns(hidden), [hidden]);
+  const allColumns = useMemo(() => orderedColumns(order), [order]);
+  const columns = useMemo(() => visibleColumns(hidden, order), [hidden, order]);
   const range: CellRange | null = sel ? normalizeRange(sel.anchor, sel.focus) : null;
   const rowH = DENSITY_ROW_PX[density];
 
@@ -255,6 +276,10 @@ export function TermsGrid(props: TermsGridProps) {
     window.addEventListener("mouseup", stop);
     return () => window.removeEventListener("mouseup", stop);
   }, [drag]);
+
+  useEffect(() => () => {
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+  }, []);
 
   // 활성 셀로 포커스를 옮기고, sticky 머리글·고정 열을 뺀 실제 가시 영역 안에
   // 넣는다. scrollIntoView는 가려진 부분도 보인다고 판단해 직접 보정해야 한다.
@@ -517,6 +542,114 @@ export function TermsGrid(props: TermsGridProps) {
     const next = { ...widths };
     delete next[key];
     setWidths(next);
+    setLayoutAnnouncement(`${columnByKey(key).label} 열을 기본 너비로 되돌렸습니다.`);
+  }
+
+  function resetWidths() {
+    setWidths({});
+    setLayoutAnnouncement("모든 열 너비를 기본값으로 되돌렸습니다.");
+  }
+
+  function resetColumnLayout() {
+    setHidden(defaultHiddenColumns());
+    setWidths({});
+    setOrder(defaultColumnOrder());
+    setSel(null);
+    setColumnDrag(null);
+    setLayoutAnnouncement("열 표시, 순서와 너비를 기본값으로 되돌렸습니다.");
+    pushToast({ tone: "ok", text: "열 레이아웃을 초기화했습니다." });
+  }
+
+  function finishColumnMove(source: ColumnKey, target: ColumnKey, side: ColumnDropSide) {
+    const next = moveColumn(order, source, target, side);
+    if (next.every((key, index) => key === order[index])) {
+      setColumnDrag(null);
+      return;
+    }
+    setOrder(next);
+    setColumnDrag(null);
+    setSel(null);
+    setSettledColumn(source);
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+    settleTimer.current = setTimeout(() => setSettledColumn(null), 220);
+    const targetLabel = columnByKey(target).label;
+    setLayoutAnnouncement(
+      `${columnByKey(source).label} 열을 ${targetLabel} ${side === "before" ? "앞" : "뒤"}로 옮겼습니다.`,
+    );
+  }
+
+  function moveVisibleColumn(key: ColumnKey, direction: -1 | 1) {
+    const index = columns.findIndex((column) => column.key === key);
+    const target = columns[index + direction];
+    if (index < 0 || !target) return;
+    finishColumnMove(key, target.key, direction < 0 ? "before" : "after");
+  }
+
+  function moveAnyColumn(key: ColumnKey, direction: -1 | 1) {
+    const index = allColumns.findIndex((column) => column.key === key);
+    const target = allColumns[index + direction];
+    if (index < 0 || !target) return;
+    finishColumnMove(key, target.key, direction < 0 ? "before" : "after");
+  }
+
+  function startColumnDrag(event: React.DragEvent, column: GridColumn) {
+    if ((event.target as HTMLElement).closest("[data-column-resize]")) {
+      event.preventDefault();
+      return;
+    }
+    event.stopPropagation();
+    flushEdit();
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-grossary-column", column.key);
+    event.dataTransfer.setData("text/plain", column.label);
+    setColumnDrag({ source: column.key, over: column.key, side: "before" });
+    setSel(null);
+
+    const ghost = document.createElement("div");
+    ghost.textContent = column.label;
+    Object.assign(ghost.style, {
+      position: "fixed",
+      left: "-9999px",
+      top: "-9999px",
+      padding: "8px 12px",
+      border: "1px solid rgb(var(--brand) / 0.45)",
+      borderRadius: "10px",
+      background: "rgb(var(--panel))",
+      color: "rgb(var(--ink))",
+      boxShadow: "0 10px 30px rgb(0 0 0 / 0.16)",
+      fontSize: "12px",
+      fontWeight: "600",
+    });
+    document.body.appendChild(ghost);
+    event.dataTransfer.setDragImage(ghost, 16, 16);
+    requestAnimationFrame(() => ghost.remove());
+  }
+
+  function dragColumnOver(event: React.DragEvent<HTMLTableCellElement>, target: ColumnKey) {
+    if (!columnDrag) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const side: ColumnDropSide = event.clientX < bounds.left + bounds.width / 2 ? "before" : "after";
+    setColumnDrag((current) =>
+      current && current.over === target && current.side === side
+        ? current
+        : { source: columnDrag.source, over: target, side },
+    );
+  }
+
+  function dropColumn(event: React.DragEvent<HTMLTableCellElement>, target: ColumnKey) {
+    event.preventDefault();
+    const transferred = event.dataTransfer.getData("application/x-grossary-column");
+    const source = defaultColumnOrder().includes(transferred as ColumnKey)
+      ? transferred as ColumnKey
+      : columnDrag?.source;
+    if (!source) {
+      setColumnDrag(null);
+      return;
+    }
+    const side = columnDrag?.over === target ? columnDrag.side : "before";
+    finishColumnMove(source, target, side);
   }
 
   function startResize(event: React.MouseEvent, col: GridColumn) {
@@ -536,10 +669,17 @@ export function TermsGrid(props: TermsGridProps) {
       window.removeEventListener("mouseup", onUp);
       setResizing(null);
       setWidths({ ...widths, [col.key]: last });
+      setLayoutAnnouncement(`${col.label} 열 너비를 ${last}px로 저장했습니다.`);
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     setResizing({ key: col.key, width: startWidth });
+  }
+
+  function resizeColumnBy(column: GridColumn, delta: number) {
+    const width = clampColumnWidth(widthOf(column) + delta);
+    setWidths({ ...widths, [column.key]: width });
+    setLayoutAnnouncement(`${column.label} 열 너비를 ${width}px로 저장했습니다.`);
   }
 
   // --- 셀 편집 --------------------------------------------------------------
@@ -822,18 +962,22 @@ export function TermsGrid(props: TermsGridProps) {
 
   const allPicked = rows.length > 0 && picked.size === rows.length;
   const frozenKey = columns[0]?.key;
+  const fixedTableWidth = GUTTER_W + columns.reduce((total, column) => total + widthOf(column), 0) + 1;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <GridToolbar
         columns={columns}
+        allColumns={allColumns}
         hidden={hidden}
         density={density}
         menu={menu}
         setMenu={setMenu}
         onToggleColumn={toggleColumn}
+        onMoveColumn={moveAnyColumn}
         onDensity={setDensity}
-        onResetWidths={() => setWidths({})}
+        onResetWidths={resetWidths}
+        onResetLayout={resetColumnLayout}
         onCsv={downloadCsv}
         onCopyAll={() => void copyText(toTsv(picked.size ? rows.filter((r) => picked.has(r.id)) : rows, columns))}
         canUndo={undoStack.length > 0}
@@ -854,9 +998,10 @@ export function TermsGrid(props: TermsGridProps) {
       >
         <table
           className={cx(
-            "w-max min-w-full table-fixed border-separate border-spacing-0 text-[13px]",
-            resizing && "select-none",
+            "min-w-full table-fixed border-separate border-spacing-0 text-[13px]",
+            (resizing || columnDrag) && "select-none",
           )}
+          style={{ width: `max(100%, ${fixedTableWidth}px)` }}
         >
           <colgroup>
             <col style={{ width: GUTTER_W }} />
@@ -893,9 +1038,18 @@ export function TermsGrid(props: TermsGridProps) {
                   sortHrefs={props.sortHrefs}
                   sortState={props.sortState}
                   resizing={resizing?.key === col.key}
+                  dragging={columnDrag?.source === col.key}
+                  dropSide={columnDrag?.over === col.key ? columnDrag.side : null}
+                  settled={settledColumn === col.key}
                   onResizeStart={(e) => startResize(e, col)}
+                  onResizeBy={(delta) => resizeColumnBy(col, delta)}
                   onAutoWidth={() => autoWidth(col.key)}
                   onContextMenu={(e) => openHeaderMenu(e, col)}
+                  onDragStart={(event) => startColumnDrag(event, col)}
+                  onDragOver={(event) => dragColumnOver(event, col.key)}
+                  onDrop={(event) => dropColumn(event, col.key)}
+                  onDragEnd={() => setColumnDrag(null)}
+                  onMove={(direction) => moveVisibleColumn(col.key, direction)}
                 />
               ))}
 
@@ -1007,8 +1161,10 @@ export function TermsGrid(props: TermsGridProps) {
                         }}
                         onKeyDown={(e) => onKeyDown(e, r, c)}
                         className={cx(
-                          "group/cell relative border-b border-r border-grid px-2 align-middle outline-none",
+                          "group/cell relative border-b border-r border-grid px-2 align-middle outline-none transition-[background-color] motion-reduce:transition-none",
                           frozen && "sticky z-10",
+                          settledColumn === col.key && "column-settle",
+                          col.kind === "readonly" ? "cursor-default" : "cursor-cell",
                           // 활성 셀은 이웃 위로 떠야 테두리가 잘리지 않지만,
                           // 고정된 머리글(z-30/40)보다는 낮아야 세로로 스크롤할 때
                           // 머리글을 뚫고 올라오지 않는다.
@@ -1152,6 +1308,7 @@ export function TermsGrid(props: TermsGridProps) {
       {headerMenu && (
         <HeaderMenu
           column={headerMenu.column}
+          allColumns={allColumns}
           x={headerMenu.x}
           y={headerMenu.y}
           hidden={hidden}
@@ -1160,7 +1317,7 @@ export function TermsGrid(props: TermsGridProps) {
           sortState={props.sortState}
           onToggleColumn={toggleColumn}
           onAutoWidth={autoWidth}
-          onResetWidths={() => setWidths({})}
+          onResetWidths={resetWidths}
           onShowAll={() => {
             setHidden([]);
             setSel(null);
@@ -1168,6 +1325,8 @@ export function TermsGrid(props: TermsGridProps) {
           onClose={() => setHeaderMenu(null)}
         />
       )}
+
+      <p className="sr-only" aria-live="polite">{layoutAnnouncement}</p>
 
       {toasts.length > 0 && (
         <div className="pointer-events-none fixed bottom-16 right-5 z-50 flex flex-col items-end gap-2">
@@ -1233,6 +1392,8 @@ function cellShadow(
 // --- 도구 막대 --------------------------------------------------------------
 
 const SHORTCUTS: Array<[string, string]> = [
+  ["머리글 드래그", "열 순서 변경 (머리글에 포커스 후 ← →도 같음)"],
+  ["머리글 경계 드래그", "열 너비 변경 (경계에 포커스 후 ← →도 같음)"],
   ["↑ ↓ ← →", "셀 이동 (Ctrl+방향키: 끝으로)"],
   ["Shift+방향키", "범위 선택 (드래그도 같음)"],
   ["클릭", "종류·상태·정의·본문은 한 번에 편집 시작"],
@@ -1249,13 +1410,16 @@ const SHORTCUTS: Array<[string, string]> = [
 
 function GridToolbar(props: {
   columns: readonly GridColumn[];
+  allColumns: readonly GridColumn[];
   hidden: ColumnKey[];
   density: Density;
   menu: "columns" | "density" | "export" | "help" | null;
   setMenu: (m: "columns" | "density" | "export" | "help" | null) => void;
   onToggleColumn: (key: ColumnKey) => void;
+  onMoveColumn: (key: ColumnKey, direction: -1 | 1) => void;
   onDensity: (d: Density) => void;
   onResetWidths: () => void;
+  onResetLayout: () => void;
   onCsv: () => void;
   onCopyAll: () => void;
   canUndo: boolean;
@@ -1334,25 +1498,61 @@ function GridToolbar(props: {
         </Menu>
 
         <Menu
-          label={`열 ${props.columns.length}/${GRID_COLUMNS.length}`}
+          label={`열 설정 ${props.columns.length}/${GRID_COLUMNS.length}`}
           open={props.menu === "columns"}
           onToggle={() => props.setMenu(props.menu === "columns" ? null : "columns")}
-          width="w-44"
+          width="w-72"
         >
-          {GRID_COLUMNS.map((col) => (
-            <label
-              key={col.key}
-              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-ink-2 hover:bg-panel-2"
-            >
-              <input
-                type="checkbox"
-                checked={!props.hidden.includes(col.key)}
-                onChange={() => props.onToggleColumn(col.key)}
-                className="h-3.5 w-3.5 accent-brand"
-              />
-              {col.label}
-            </label>
-          ))}
+          <p className="px-2 pb-2 pt-1 text-[11px] leading-4 text-ink-3">
+            머리글을 끌어 순서를 바꿀 수 있습니다. 표시·순서·너비는 이 브라우저에 저장됩니다.
+          </p>
+          <div className="max-h-72 overflow-y-auto overscroll-contain">
+            {props.allColumns.map((col, index) => (
+              <div
+                key={col.key}
+                className="group/column flex min-h-9 items-center gap-1 rounded-md px-1 hover:bg-panel-2"
+              >
+                <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-1 py-1.5 text-xs text-ink-2">
+                  <input
+                    type="checkbox"
+                    checked={!props.hidden.includes(col.key)}
+                    onChange={() => props.onToggleColumn(col.key)}
+                    className="h-3.5 w-3.5 shrink-0 accent-brand"
+                  />
+                  <span className="truncate">{col.label}</span>
+                </label>
+                <button
+                  type="button"
+                  className="grid h-8 w-8 place-items-center rounded text-ink-3 hover:bg-panel hover:text-ink disabled:opacity-25"
+                  onClick={() => props.onMoveColumn(col.key, -1)}
+                  disabled={index === 0}
+                  aria-label={`${col.label} 열을 왼쪽으로 이동`}
+                  title="왼쪽으로 이동"
+                >
+                  ←
+                </button>
+                <button
+                  type="button"
+                  className="grid h-8 w-8 place-items-center rounded text-ink-3 hover:bg-panel hover:text-ink disabled:opacity-25"
+                  onClick={() => props.onMoveColumn(col.key, 1)}
+                  disabled={index === props.allColumns.length - 1}
+                  aria-label={`${col.label} 열을 오른쪽으로 이동`}
+                  title="오른쪽으로 이동"
+                >
+                  →
+                </button>
+              </div>
+            ))}
+          </div>
+          <span className="my-1 block h-px bg-line" />
+          <button
+            type="button"
+            onClick={props.onResetLayout}
+            className="w-full rounded px-2 py-1.5 text-left text-xs text-ink-2 hover:bg-panel-2"
+          >
+            열 레이아웃 초기화
+            <span className="mt-0.5 block text-[10px] text-ink-3">표시·순서·너비를 기본값으로 되돌립니다</span>
+          </button>
         </Menu>
 
         <Menu
@@ -1433,6 +1633,7 @@ function Menu({
  */
 function HeaderMenu({
   column,
+  allColumns,
   x,
   y,
   hidden,
@@ -1446,6 +1647,7 @@ function HeaderMenu({
   onClose,
 }: {
   column: GridColumn | null;
+  allColumns: readonly GridColumn[];
   x: number;
   y: number;
   hidden: ColumnKey[];
@@ -1543,7 +1745,7 @@ function HeaderMenu({
           아래의 "모든 열 보이기")는 메뉴를 닫지 않는다. 어느 열이 켜졌는지
           그 자리에서 바로 보이기도 한다. */}
       <div className="max-h-64 overflow-auto">
-        {GRID_COLUMNS.map((col) => (
+        {allColumns.map((col) => (
           <label
             key={col.key}
             className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-ink-2 hover:bg-panel-2"
@@ -1681,9 +1883,18 @@ function HeaderCell({
   sortHrefs,
   sortState,
   resizing,
+  dragging,
+  dropSide,
+  settled,
   onResizeStart,
+  onResizeBy,
   onAutoWidth,
   onContextMenu,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  onMove,
 }: {
   column: GridColumn;
   frozen: boolean;
@@ -1691,14 +1902,23 @@ function HeaderCell({
   sortHrefs: Partial<Record<SortKey, string>>;
   sortState: { key: SortKey; dir: SortDir };
   resizing: boolean;
+  dragging: boolean;
+  dropSide: ColumnDropSide | null;
+  settled: boolean;
   onResizeStart: (e: React.MouseEvent) => void;
+  onResizeBy: (delta: number) => void;
   onAutoWidth: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragOver: (e: React.DragEvent<HTMLTableCellElement>) => void;
+  onDrop: (e: React.DragEvent<HTMLTableCellElement>) => void;
+  onDragEnd: () => void;
+  onMove: (direction: -1 | 1) => void;
 }) {
   const href = column.sortKey ? sortHrefs[column.sortKey] : undefined;
   const on = column.sortKey !== undefined && column.sortKey === sortState.key;
 
-  const inner = (
+  const label = (
     <>
       <span className="truncate">{column.label}</span>
       {/* 정렬 가능한 열은 마우스를 올렸을 때 화살표 자리를 미리 보여준다 —
@@ -1714,40 +1934,86 @@ function HeaderCell({
   return (
     <th
       scope="col"
+      data-column-key={column.key}
+      draggable
+      tabIndex={0}
       onContextMenu={onContextMenu}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        onMove(event.key === "ArrowLeft" ? -1 : 1);
+      }}
+      title="끌어서 열 이동 · 방향키로 한 칸 이동"
       className={cx(
-        "group/th sticky top-0 border-b bg-panel-2 px-2 text-left text-[11px] font-semibold",
+        "group/th sticky top-0 cursor-grab border-b bg-panel-2 px-2 text-left text-[11px] font-semibold active:cursor-grabbing",
+        "focus-visible:z-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/55",
+        "transition-[transform,opacity,background-color] duration-150 motion-reduce:transition-none",
         frozen ? "z-40 border-r border-line-strong" : "z-30 border-r border-grid",
         on ? "border-b-brand text-brand" : "border-b-line-strong text-ink-2",
+        dragging && "scale-[0.985] opacity-45",
+        dropSide === "before" && "translate-x-1 bg-brand-soft/70",
+        dropSide === "after" && "-translate-x-1 bg-brand-soft/70",
+        settled && "column-settle",
       )}
       style={{
         ...(frozen ? { left: GUTTER_W } : null),
         ...(frozen && scrolledX ? { boxShadow: "6px 0 8px -8px rgb(0 0 0 / 0.45)" } : null),
       }}
     >
-      {href ? (
-        <Link
-          href={href}
-          scroll={false}
-          // 우클릭은 메뉴를 여는 동작이다. 막지 않으면 브라우저에 따라 링크가
-          // 따라가 정렬이 바뀐 채로 메뉴가 열린다.
-          onContextMenu={onContextMenu}
-          className="flex items-center gap-1 hover:text-ink"
+      <span className="flex min-w-0 items-center">
+        {href ? (
+          <Link
+            href={href}
+            scroll={false}
+            draggable={false}
+            // 우클릭은 메뉴를 여는 동작이다. 막지 않으면 브라우저에 따라 링크가
+            // 따라가 정렬이 바뀐 채로 메뉴가 열린다.
+            onContextMenu={onContextMenu}
+            className="flex min-w-0 flex-1 items-center gap-1 rounded px-1 py-2 hover:bg-panel hover:text-ink"
+          >
+            {label}
+          </Link>
+        ) : (
+          <span className="flex min-w-0 flex-1 items-center gap-1 px-1 py-2">{label}</span>
+        )}
+      </span>
+
+      {dropSide && (
+        <span
+          aria-hidden="true"
+          className={cx(
+            "pointer-events-none absolute bottom-1 top-1 z-20 w-0.5 rounded-full bg-brand shadow-[0_0_0_2px_rgb(var(--panel)),0_0_12px_rgb(var(--brand)/0.55)]",
+            dropSide === "before" ? "-left-px" : "-right-px",
+          )}
         >
-          {inner}
-        </Link>
-      ) : (
-        <span className="flex items-center gap-1">{inner}</span>
+          <span className="absolute -left-[3px] -top-0.5 h-2 w-2 rounded-full bg-brand ring-2 ring-panel" />
+        </span>
       )}
 
-      <span
-        role="presentation"
+      <button
+        type="button"
+        draggable={false}
+        data-column-resize
         onMouseDown={onResizeStart}
         onDoubleClick={onAutoWidth}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          onResizeBy(event.key === "ArrowLeft" ? -8 : 8);
+        }}
+        aria-label={`${column.label} 열 너비 조절. 왼쪽·오른쪽 방향키를 사용하세요`}
         title="끌어서 너비 조절 · 더블클릭하면 기본값"
         className={cx(
-          "absolute -right-[3px] top-0 z-10 h-full w-[7px] cursor-col-resize",
-          resizing ? "bg-brand/60" : "hover:bg-brand/40",
+          "absolute -right-[3px] top-0 z-10 h-full w-[7px] cursor-col-resize touch-manipulation",
+          "focus-visible:bg-brand/60 focus-visible:ring-0",
+          resizing
+            ? "bg-brand/60 after:absolute after:-right-px after:top-0 after:h-[100dvh] after:w-px after:bg-brand/45"
+            : "hover:bg-brand/40",
         )}
       />
     </th>

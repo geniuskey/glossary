@@ -114,9 +114,55 @@ export function defaultHiddenColumns(): ColumnKey[] {
   return GRID_COLUMNS.filter((c) => c.hiddenByDefault).map((c) => c.key);
 }
 
-/** 보이는 열. 순서는 언제나 GRID_COLUMNS의 순서다(숨겼다 켜도 자리가 바뀌지 않는다). */
-export function visibleColumns(hidden: readonly ColumnKey[]): GridColumn[] {
-  return GRID_COLUMNS.filter((c) => !hidden.includes(c.key));
+export function defaultColumnOrder(): ColumnKey[] {
+  return GRID_COLUMNS.map((column) => column.key);
+}
+
+/**
+ * localStorage의 열 순서를 현재 스키마에 맞춘다. 삭제된 키·중복은 버리고 새로 생긴
+ * 열은 기본 순서의 뒤에 붙인다. 버전 업데이트 뒤에도 저장된 레이아웃이 깨지지 않는다.
+ */
+export function normalizeColumnOrder(raw: unknown): ColumnKey[] | null {
+  if (!Array.isArray(raw)) return null;
+  const known = new Set<ColumnKey>(defaultColumnOrder());
+  const seen = new Set<ColumnKey>();
+  const order: ColumnKey[] = [];
+  for (const value of raw) {
+    if (typeof value !== "string" || !known.has(value as ColumnKey) || seen.has(value as ColumnKey)) continue;
+    const key = value as ColumnKey;
+    seen.add(key);
+    order.push(key);
+  }
+  for (const key of defaultColumnOrder()) if (!seen.has(key)) order.push(key);
+  return order;
+}
+
+export function orderedColumns(order: readonly ColumnKey[]): GridColumn[] {
+  const normalized = normalizeColumnOrder(order) ?? defaultColumnOrder();
+  return normalized.map(columnByKey);
+}
+
+/** 저장된 순서를 유지하면서 숨긴 열만 걷어 낸다. */
+export function visibleColumns(hidden: readonly ColumnKey[], order: readonly ColumnKey[] = defaultColumnOrder()): GridColumn[] {
+  return orderedColumns(order).filter((column) => !hidden.includes(column.key));
+}
+
+export type ColumnDropSide = "before" | "after";
+
+/** source 열을 target의 앞/뒤로 옮긴 새 순서를 만든다. */
+export function moveColumn(
+  order: readonly ColumnKey[],
+  source: ColumnKey,
+  target: ColumnKey,
+  side: ColumnDropSide,
+): ColumnKey[] {
+  const normalized = normalizeColumnOrder(order) ?? defaultColumnOrder();
+  if (source === target) return normalized;
+  const withoutSource = normalized.filter((key) => key !== source);
+  const targetIndex = withoutSource.indexOf(target);
+  if (targetIndex < 0) return normalized;
+  const insertAt = targetIndex + (side === "after" ? 1 : 0);
+  return [...withoutSource.slice(0, insertAt), source, ...withoutSource.slice(insertAt)];
 }
 
 /**

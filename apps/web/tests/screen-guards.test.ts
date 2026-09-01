@@ -184,6 +184,20 @@ test("PROTO G: '+' 줄 붙여넣기 표식이 핸들러와 JSX 양쪽에 있다 
   expect(/fetch\(\s*["'`]\/api\/v1\/terms["'`]/.test(content)).toBe(true);
 });
 
+test("PROTO I: 시트 열 레이아웃은 내용과 무관한 고정 폭·저장된 순서·실제 drop을 사용한다", () => {
+  const content = stripComments(readFileSync(path.join(componentsDir, "terms-grid.tsx"), "utf8"));
+
+  expect(content).toContain('const ORDER_KEY = "grossary.grid.order"');
+  expect(content).toContain('style={{ width: `max(100%, ${fixedTableWidth}px)` }}');
+  expect(content).not.toContain('"w-max min-w-full table-fixed');
+  expect(content).toContain("draggable");
+  expect(content).toContain("data-column-key={column.key}");
+  expect(content).not.toContain("IconGrip");
+  expect(content).toContain("onDrop={onDrop}");
+  expect(content).toContain('event.key !== "ArrowLeft" && event.key !== "ArrowRight"');
+  expect(content).toContain('aria-live="polite"');
+});
+
 // PROTO H: 검색창 자동완성 드롭다운(R136). 이 목록이 조용히 죽는 방식은 두
 // 가지이고, 둘 다 "열리는 것까지는 멀쩡해 보인다"라 눈으로 잡히지 않는다.
 //

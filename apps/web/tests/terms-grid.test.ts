@@ -10,10 +10,13 @@ import {
   COLUMN_MAX_WIDTH,
   COLUMN_MIN_WIDTH,
   defaultHiddenColumns,
+  defaultColumnOrder,
   GRID_COLUMNS,
   inRange,
   inversePatch,
   isDensity,
+  moveColumn,
+  normalizeColumnOrder,
   normalizeRange,
   opensOnClick,
   opensUp,
@@ -534,6 +537,34 @@ test("visibleColumns: 숨겼다 켜도 열 순서는 GRID_COLUMNS 그대로다",
   expect(visibleColumns(toggleHiddenColumn(hidden, "nameKo")!).map((c) => c.key)).toEqual(
     GRID_COLUMNS.map((c) => c.key),
   );
+});
+
+test("normalizeColumnOrder: 중복·알 수 없는 키를 버리고 새 열은 기본 순서로 보충한다", () => {
+  const order = normalizeColumnOrder(["status", "nameEn", "status", "unknown"]);
+
+  expect(order?.slice(0, 2)).toEqual(["status", "nameEn"]);
+  expect(order).toHaveLength(GRID_COLUMNS.length);
+  expect(new Set(order).size).toBe(GRID_COLUMNS.length);
+  expect(normalizeColumnOrder(null)).toBeNull();
+});
+
+test("moveColumn: 열을 대상 앞·뒤로 옮기고 원본 순서는 건드리지 않는다", () => {
+  const original = defaultColumnOrder();
+  const before = moveColumn(original, "status", "nameEn", "before");
+  const after = moveColumn(original, "nameEn", "status", "after");
+
+  expect(before.slice(0, 3)).toEqual(["status", "nameEn", "nameKo"]);
+  expect(after.indexOf("nameEn")).toBe(after.indexOf("status") + 1);
+  expect(original).toEqual(GRID_COLUMNS.map((column) => column.key));
+});
+
+test("visibleColumns: 저장된 순서와 숨김 상태를 함께 적용한다", () => {
+  const order = moveColumn(defaultColumnOrder(), "status", "nameEn", "before");
+  expect(visibleColumns(["nameKo"], order).slice(0, 3).map((column) => column.key)).toEqual([
+    "status",
+    "nameEn",
+    "fullNameEn",
+  ]);
 });
 
 test("clampMenuPosition: 화면 안이면 커서 자리 그대로다", () => {
