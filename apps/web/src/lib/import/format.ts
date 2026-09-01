@@ -18,8 +18,10 @@ export type ImportField =
   | "termType"
   | "domain"
   | "category"
+  | "topic"
   | "status"
   | "definitionMd"
+  | "abbreviations"
   | "aliases";
 
 /**
@@ -97,10 +99,10 @@ export const IMPORT_COLUMNS: readonly ImportColumn[] = [
   },
   {
     field: "termType",
-    header: "종류",
-    otherHeaders: ["term_type", "유형"],
+    header: "Type",
+    otherHeaders: ["term_type", "종류", "유형"],
     requirement: "optional",
-    hint: "정해진 값만 인정합니다. 비어 있거나 모르는 값이면 '일반 용어'가 됩니다.",
+    hint: "concept, proper_name, identifier, unit 중 하나. 비어 있으면 concept입니다.",
     width: 14,
   },
   {
@@ -113,10 +115,18 @@ export const IMPORT_COLUMNS: readonly ImportColumn[] = [
   },
   {
     field: "category",
-    header: "카테고리",
+    header: "업무 분류",
     otherHeaders: ["category", "분류"],
     requirement: "optional",
-    hint: "도메인 안의 한 단계 좁은 분류. 예: 노출 제어",
+    hint: "제품·프로젝트·설계처럼 정해진 업무 분류 값 하나.",
+    width: 18,
+  },
+  {
+    field: "topic",
+    header: "주제",
+    otherHeaders: ["topic", "세부_주제"],
+    requirement: "optional",
+    hint: "자유 입력 세부 주제. 예: 노출 제어",
     width: 18,
   },
   {
@@ -134,6 +144,14 @@ export const IMPORT_COLUMNS: readonly ImportColumn[] = [
     requirement: "optional",
     hint: "설명 본문. 마크다운을 그대로 씁니다.",
     width: 40,
+  },
+  {
+    field: "abbreviations",
+    header: "약어",
+    otherHeaders: ["abbreviations", "약어_표기"],
+    requirement: "optional",
+    hint: "같은 개념의 약어 표기. 쉼표로 여러 개.",
+    width: 18,
   },
   {
     field: "aliases",
@@ -160,15 +178,17 @@ export const HEADER_TO_FIELD: Record<string, ImportField> = Object.fromEntries(
  */
 export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
   {
-    nameEn: "AE",
+    nameEn: "Auto Exposure",
     nameKo: "자동노출",
-    fullNameEn: "Auto Exposure",
+    fullNameEn: "",
     fullNameKo: "자동 노출 조절",
-    termType: "abbreviation",
+    termType: "concept",
     domain: "ISP, HW",
-    category: "노출 제어",
+    category: "design",
+    topic: "노출 제어",
     status: "active",
     definitionMd: "장면 밝기에 맞춰 노출을 자동으로 맞추는 기능.",
+    abbreviations: "AE",
     aliases: "오토익스포저, 자동노출제어",
   },
   {
@@ -176,11 +196,13 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     nameKo: "게인",
     fullNameEn: "",
     fullNameKo: "",
-    termType: "term",
+    termType: "concept",
     domain: "ISP",
-    category: "신호 처리",
+    category: "design",
+    topic: "신호 처리",
     status: "active",
     definitionMd: "센서가 받은 신호를 증폭하는 배율.",
+    abbreviations: "",
     aliases: "이득",
   },
   {
@@ -188,11 +210,13 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     nameKo: "노바",
     fullNameEn: "Project Nova",
     fullNameKo: "노바 프로젝트",
-    termType: "project",
+    termType: "proper_name",
     domain: "PM",
-    category: "프로젝트",
+    category: "project",
+    topic: "",
     status: "active",
     definitionMd: "차기 카메라 모듈 과제.",
+    abbreviations: "",
     aliases: "",
   },
   {
@@ -200,11 +224,13 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     nameKo: "",
     fullNameEn: "",
     fullNameKo: "",
-    termType: "term",
+    termType: "concept",
     domain: "",
-    category: "포용적 표현",
+    category: "other",
+    topic: "포용적 표현",
     status: "forbidden",
     definitionMd: "쓰지 않습니다. 대신 '차단 목록'을 씁니다.",
+    abbreviations: "",
     aliases: "",
   },
 ];

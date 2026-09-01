@@ -5,15 +5,16 @@
 ## 목록 조회
 
 ```http
-GET /api/v1/terms?q=exposure&type=abbreviation&domain=ISP&category=노출%20제어&status=active&page=1&pageSize=20
+GET /api/v1/terms?q=exposure&type=concept&domain=ISP&category=design&topic=노출%20제어&status=active&page=1&pageSize=20
 ```
 
 | 파라미터 | 기본값 | 설명 |
 |---|---|---|
 | `q` | — | 검색어. **Term이 아니라 Surface를 향한다** |
-| `type` | — | `term` \| `abbreviation` \| `project` \| `product_id` \| `code` \| `unit` |
+| `type` | — | `concept` \| `proper_name` \| `identifier` \| `unit` |
 | `domain` | — | 도메인 태그 하나 |
-| `category` | — | 카테고리 하나 |
+| `category` | — | 관리자가 구성한 업무 분류의 안정적인 key 하나 |
+| `topic` | — | 자유 입력 세부 주제 하나 |
 | `status` | — | `active` \| `deprecated` \| `forbidden` |
 | `page` | 1 | |
 | `pageSize` | 20 | 1~100으로 클램프된다 |
@@ -22,8 +23,11 @@ GET /api/v1/terms?q=exposure&type=abbreviation&domain=ISP&category=노출%20제�
 { "items": [ /* TermSummary[] */ ], "total": 137, "page": 1, "pageSize": 20 }
 ```
 
-`TermSummary`는 `id`, `slug`, `termType`, `nameEn`, `nameKo`, `domain`, `category`,
+`TermSummary`는 `id`, `slug`, `termType`, `nameEn`, `nameKo`, `domain`, `category`, `categoryLabel`, `topic`,
 `ownerId`, `ownerName`, `status`다.
+
+`category`는 URL·API용 key이고 `categoryLabel`은 현재 표시 이름이다. 관리자가 표시 이름을
+바꿔도 key와 기존 링크는 유지된다.
 
 ::: tip 검색이 Surface를 향하는 이유
 "오토익스포저"나 `auto-exposure`로 검색해도 AE 개념 페이지에 도착해야 한다.
@@ -51,16 +55,18 @@ POST /api/v1/terms
 Content-Type: application/json
 
 {
-  "termType": "abbreviation",
+  "termType": "concept",
   "nameEn": "AE",
   "nameKo": "자동노출",
   "fullNameEn": "Auto Exposure",
   "domain": ["ISP"],
-  "category": "노출 제어",
+  "category": "design",
+  "topic": "노출 제어",
   "ownerId": "11111111-1111-1111-1111-111111111111",
   "status": "active",
   "definitionMd": "장면 밝기에 따라 노출을 자동으로 맞추는 기능.",
   "surfaces": [
+    { "text": "AE", "lang": "en", "kind": "abbreviation" },
     { "text": "오토익스포저", "lang": "ko", "kind": "alias" },
     { "text": "auto exposure control", "lang": "en", "kind": "discouraged" }
   ]
@@ -75,7 +81,7 @@ Content-Type: application/json
 
 | 필드 | 파생되는 kind |
 |---|---|
-| `nameEn` | `termType`이 `abbreviation`이면 `abbreviation`, 아니면 `canonical` |
+| `nameEn` | 기본은 `canonical`. 같은 표기를 `abbreviation`으로 명시하면 약어 속성을 우선 보존 |
 | `nameKo` | `canonical` |
 | `fullNameEn`, `fullNameKo` | `full_name` |
 
@@ -83,6 +89,8 @@ Content-Type: application/json
 된다. `AE`는 대소문자를 구분하고 `Auto Exposure`는 구분하지 않는다.
 
 정규화 키와 kind가 같으면 먼저 온 쪽이 남는다. 파생 표기가 명시 표기보다 앞이다.
+약어는 Type이 아니므로 `surfaces`에 `kind: "abbreviation"`으로 명시한다. 대표 영문명과
+약어 텍스트가 같으면 두 표기를 중복 생성하지 않고 약어 표기 하나로 저장한다.
 
 ### 201, 409가 아니다
 
@@ -120,7 +128,7 @@ GET /api/v1/terms/ae
 ```json
 {
   "term": {
-    "id": "…", "slug": "ae", "termType": "abbreviation",
+    "id": "…", "slug": "ae", "termType": "concept",
     "nameEn": "AE", "nameKo": "자동노출",
     "fullNameEn": "Auto Exposure", "fullNameKo": null,
     "domain": ["ISP"], "status": "active",
@@ -274,7 +282,7 @@ Content-Type: application/json
       "found": true,
       "matchKind": "abbreviation",
       "terms": [
-        { "id": "t_ae", "slug": "ae", "termType": "abbreviation",
+        { "id": "t_ae", "slug": "ae", "termType": "concept",
           "nameEn": "AE", "nameKo": "자동노출", "domain": ["ISP"], "status": "active" }
       ],
       "similar": []

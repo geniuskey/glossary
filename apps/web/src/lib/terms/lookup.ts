@@ -1,7 +1,7 @@
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
-import { surfaceKeys, terms, termSurfaces, type Db } from "@grossary/db";
+import { businessCategories, surfaceKeys, terms, termSurfaces, type Db } from "@grossary/db";
 import { getDb } from "@/lib/db";
-import type { SurfaceKind, TermStatus, TermSummary, TermType } from "./query";
+import type { BusinessCategory, SurfaceKind, TermStatus, TermSummary, TermType } from "./query";
 import { ownerDisplayLabelSql } from "./owners";
 
 export interface LookupResult {
@@ -109,7 +109,9 @@ interface MatchRow {
   nameEn: string | null;
   nameKo: string | null;
   domain: string[];
-  category: string | null;
+  category: BusinessCategory | null;
+  categoryLabel: string | null;
+  topic: string | null;
   ownerId: string | null;
   ownerName: string | null;
   status: TermStatus;
@@ -135,6 +137,8 @@ export async function lookupTerms(texts: string[]): Promise<LookupResult[]> {
           nameKo: terms.nameKo,
           domain: terms.domain,
           category: terms.category,
+          categoryLabel: sql<string | null>`(select ${businessCategories.label} from ${businessCategories} where ${businessCategories.key} = ${terms.category})`,
+          topic: terms.topic,
           ownerId: terms.ownerId,
           ownerName: ownerDisplayLabelSql,
           status: terms.status,
@@ -169,7 +173,7 @@ export async function lookupTerms(texts: string[]): Promise<LookupResult[]> {
       matchedTerms.push({
         id: m.id, slug: m.slug, termType: m.termType,
         nameEn: m.nameEn, nameKo: m.nameKo, domain: m.domain,
-        category: m.category, ownerId: m.ownerId, ownerName: m.ownerName, status: m.status,
+        category: m.category, categoryLabel: m.categoryLabel, topic: m.topic, ownerId: m.ownerId, ownerName: m.ownerName, status: m.status,
       });
     }
 

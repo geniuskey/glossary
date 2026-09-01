@@ -46,20 +46,24 @@ beforeAll(async () => {
 
   const ae = await createTerm(
     {
-      termType: "abbreviation",
+      termType: "concept",
       nameEn: "AE",
       fullNameEn: "Auto Exposure",
       nameKo: "자동노출",
       domain: ["ISP"],
-      category: "QueryRelationProbe",
+      category: "design",
+      topic: "QueryRelationProbe",
       status: "active",
-      surfaces: [{ text: "오토익스포저", lang: "ko", kind: "discouraged" }],
+      surfaces: [
+        { text: "AE", lang: "en", kind: "abbreviation" },
+        { text: "오토익스포저", lang: "ko", kind: "discouraged" },
+      ],
     },
     null,
   );
   const hw = await createTerm(
     {
-      termType: "term",
+      termType: "proper_name",
       nameEn: "AE",
       fullNameEn: "Application Engineer",
       domain: ["PM"],
@@ -74,7 +78,7 @@ beforeAll(async () => {
   // term이 homonyms에 두 번 나온다.
   const dupe = await createTerm(
     {
-      termType: "term",
+      termType: "concept",
       nameEn: "AE Dedup Probe",
       domain: ["QA"],
       status: "active",
@@ -87,7 +91,7 @@ beforeAll(async () => {
   );
   const naked = await createTerm(
     {
-      termType: "abbreviation",
+      termType: "concept",
       nameEn: `NKT${Date.now()}`,
       domain: [],
       status: "active",
@@ -97,7 +101,7 @@ beforeAll(async () => {
   );
   const draft = await createTerm(
     {
-      termType: "term",
+      termType: "concept",
       nameEn: "CompleteDraftQueryProbe",
       domain: ["QA"],
       status: "draft",
@@ -108,10 +112,11 @@ beforeAll(async () => {
   );
   const related = await createTerm(
     {
-      termType: "term",
+      termType: "concept",
       nameEn: `Related Exposure ${Date.now()}`,
       domain: ["ISP", "Sensor"],
-      category: "QueryRelationProbe",
+      category: "design",
+      topic: "QueryRelationProbe",
       status: "active",
       definitionMd: "상세 화면 관련 용어 테스트.",
       surfaces: [],
@@ -168,13 +173,13 @@ test("관련 용어는 같은 도메인·카테고리에서 찾고 자기 자신
 
   const related = await listRelatedTerms(detail, 20);
   const probe = related.find((term) => term.id === relatedTermId);
-  expect(probe).toMatchObject({ sameCategory: true, sharedDomains: ["ISP"] });
+  expect(probe).toMatchObject({ sameCategory: true, sameTopic: true, sharedDomains: ["ISP"] });
   expect(related.map((term) => term.id)).not.toContain(detail.id);
   expect(related.map((term) => term.id)).not.toContain(completeDraftId);
 });
 
 test("도메인과 카테고리가 모두 없으면 관련 용어 조회는 빈 배열이다", async () => {
-  await expect(listRelatedTerms({ id: ids[3]!, termType: "abbreviation", domain: [], category: null })).resolves.toEqual([]);
+  await expect(listRelatedTerms({ id: ids[3]!, termType: "concept", domain: [], category: null, topic: null })).resolves.toEqual([]);
 });
 
 test("비권장 표기로 검색해도 해당 용어가 나온다", async () => {
@@ -194,14 +199,14 @@ test("구분 기호만 있는 검색어는 빈 결과를 반환하고 DB 유사�
   });
 });
 
-test("정리 대기열은 약어만 등록된 항목과 비어 있는 핵심 정보를 함께 돌려준다", async () => {
+test("정리 대기열은 비어 있는 핵심 정보를 함께 돌려준다", async () => {
   const queue = await listContributionTerms(500);
   const naked = queue.items.find((item) => item.id === nakedAbbreviationId);
   expect(naked?.completion).toMatchObject({
     complete: false,
     completed: 0,
-    total: 3,
-    missing: ["expansion", "definition", "domain"],
+    total: 2,
+    missing: ["definition", "domain"],
   });
   expect(queue.total).toBeGreaterThanOrEqual(queue.items.length);
 });
@@ -254,7 +259,7 @@ test("상세 응답은 TermDetail 필드만 싣고 원본 테이블의 다른 �
   const keys = Object.keys(detail ?? {}).sort();
   expect(keys).toEqual(
     [
-      "id", "slug", "termType", "nameEn", "nameKo", "domain", "category",
+      "id", "slug", "termType", "nameEn", "nameKo", "domain", "category", "categoryLabel", "topic",
       "ownerId", "ownerName", "status",
       "fullNameEn", "fullNameKo", "definitionMd", "bodyMd", "updatedAt",
       "surfaces", "homonyms",
@@ -267,7 +272,7 @@ test("상세 응답은 TermDetail 필드만 싣고 원본 테이블의 다른 �
 // 동작은 terms-route.test.ts에서 별도로 확인한다(F9: 파일명 오기 수정). 여기서는 listTerms가
 // 유효한 termType/status로 정확히 필터링하는지만 확인한다.
 test("termType으로 필터링한다", async () => {
-  const { items } = await listTerms({ termType: "abbreviation", q: "AE", page: 1, pageSize: 20 });
+  const { items } = await listTerms({ termType: "concept", q: "AE", page: 1, pageSize: 20 });
   expect(items.map((t) => t.id)).toContain(ids[0]);
   expect(items.map((t) => t.id)).not.toContain(ids[1]);
 });

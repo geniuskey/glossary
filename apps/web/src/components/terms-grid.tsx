@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { STATUS_TONE } from "@/components/term-badges";
 import {
+  businessCategoryLabel,
   TERM_STATUSES,
   TERM_STATUS_LABEL,
   TERM_TYPE_LABEL,
@@ -111,6 +112,8 @@ export interface TermsGridProps {
   query?: string;
   /** 도메인 입력 도우미에 띄울 기존 값들(이 페이지 밖의 것도 포함한다). */
   knownDomains: string[];
+  /** 관리자 설정에서 관리하는 업무 분류. enum 셀의 선택지와 붙여넣기 검증에 함께 쓴다. */
+  categoryOptions: Array<{ key: string; label: string }>;
 }
 
 // --- 저장된 표 설정 ---------------------------------------------------------
@@ -225,8 +228,15 @@ export function TermsGrid(props: TermsGridProps) {
   const toastSeq = useRef(0);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const allColumns = useMemo(() => orderedColumns(order), [order]);
-  const columns = useMemo(() => visibleColumns(hidden, order), [hidden, order]);
+  const categoryOptions = useMemo(
+    () => props.categoryOptions.map((category) => ({ value: category.key, label: category.label })),
+    [props.categoryOptions],
+  );
+  const allColumns = useMemo(
+    () => orderedColumns(order).map((column) => column.key === "category" ? { ...column, options: categoryOptions } : column),
+    [categoryOptions, order],
+  );
+  const columns = useMemo(() => allColumns.filter((column) => !hidden.includes(column.key)), [allColumns, hidden]);
   const range: CellRange | null = sel ? normalizeRange(sel.anchor, sel.focus) : null;
   const rowH = DENSITY_ROW_PX[density];
 
@@ -923,7 +933,13 @@ export function TermsGrid(props: TermsGridProps) {
           const body = (await res.json()) as TermWriteResponse;
           if (body.warnings.length > 0) flagged += 1;
           // 방금 만든 행의 리비전은 언제나 1이다(createTerm이 리비전 1을 함께 쓴다).
-          made.push({ ...body.term, ownerName: null, revision: 1, editorName: props.viewerName });
+          made.push({
+            ...body.term,
+            categoryLabel: props.categoryOptions.find((category) => category.key === body.term.category)?.label ?? null,
+            ownerName: null,
+            revision: 1,
+            editorName: props.viewerName,
+          });
         } catch {
           failures.push(`${draft.line}번째 줄: 네트워크 오류로 만들지 못했습니다.`);
         }
@@ -2078,6 +2094,15 @@ function CellView({
     return (
       <PickCell>
         <span className="text-[12px] text-ink-2">{TERM_TYPE_LABEL[row.termType]}</span>
+      </PickCell>
+    );
+  }
+
+  if (column.key === "category") {
+    if (!row.category) return null;
+    return (
+      <PickCell>
+        <span className="text-[12px] text-ink-2">{businessCategoryLabel(row.category, row.categoryLabel)}</span>
       </PickCell>
     );
   }

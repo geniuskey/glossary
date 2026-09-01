@@ -9,6 +9,7 @@ import {
 } from "./limits";
 import { deriveSurfaces } from "./surfaces";
 import { slugify, slugValidationMessage } from "./slug";
+import { BUSINESS_CATEGORIES, TERM_TYPES } from "./enums";
 
 // R46: `.trim()`이 없으면 `z.string().min(1)`은 공백뿐인 문자열("   ")을 통과시킨다.
 // 그 값은 surfaceKeys(...).normLoose === ""로 정규화되는데, findDuplicates가
@@ -27,14 +28,44 @@ export const surfaceInputSchema = z.object({
 // "안 건드림"을 뜻하기 때문이다. 표에서 셀을 비우는 동작(엑셀에서 Delete)이
 // 바로 이 경우라서, 명시적인 null을 "지운다"로 받는다. 공백만 남은 값도
 // 여전히 400이다(R46 — trim 후 min(1)).
+const LEGACY_TERM_TYPE: Record<string, (typeof TERM_TYPES)[number]> = {
+  term: "concept",
+  abbreviation: "concept",
+  project: "proper_name",
+  product_id: "identifier",
+  code: "identifier",
+  unit: "unit",
+};
+
+/** v0.1.x 요청을 새 2축 분류로 옮긴다. 자유 입력 category는 topic으로 보존한다. */
+export function normalizeLegacyTermInput(raw: unknown): unknown {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const next = { ...(raw as Record<string, unknown>) };
+  const oldType = typeof next.termType === "string" ? next.termType : undefined;
+  if (oldType && LEGACY_TERM_TYPE[oldType]) next.termType = LEGACY_TERM_TYPE[oldType];
+
+  if (
+    oldType && LEGACY_TERM_TYPE[oldType]
+    && typeof next.category === "string"
+    && !(BUSINESS_CATEGORIES as readonly string[]).includes(next.category)
+  ) {
+    if (next.topic === undefined) next.topic = next.category;
+    delete next.category;
+  }
+  if ((next.category === undefined || next.category === null) && oldType === "project") next.category = "project";
+  if ((next.category === undefined || next.category === null) && oldType === "product_id") next.category = "product";
+  return next;
+}
+
 export const termInputBaseSchema = z.object({
-  termType: z.enum(["term", "abbreviation", "project", "product_id", "code", "unit"]).default("term"),
+  termType: z.enum(TERM_TYPES).default("concept"),
   nameEn: z.string().trim().min(1).max(TERM_NAME_MAX).nullable().optional(),
   nameKo: z.string().trim().min(1).max(TERM_NAME_MAX).nullable().optional(),
   fullNameEn: z.string().trim().min(1).max(TERM_NAME_MAX).nullable().optional(),
   fullNameKo: z.string().trim().min(1).max(TERM_NAME_MAX).nullable().optional(),
   domain: z.array(z.string().trim().min(1).max(DOMAIN_VALUE_MAX)).max(TERM_DOMAIN_MAX).default([]),
-  category: z.string().trim().min(1).max(DOMAIN_VALUE_MAX).nullable().optional(),
+  category: z.string().trim().min(1).max(64).regex(/^[\p{Letter}\p{Number}]+(?:-[\p{Letter}\p{Number}]+)*$/u).nullable().optional(),
+  topic: z.string().trim().min(1).max(DOMAIN_VALUE_MAX).nullable().optional(),
   ownerId: z.string().uuid().nullable().optional(),
   status: z.enum(["draft", "active", "deprecated", "forbidden"]).default("draft"),
   definitionMd: z.string().max(TERM_MARKDOWN_MAX).optional(),
@@ -107,25 +138,29 @@ function checkSurfaceIntegrity(v: z.infer<typeof termInputBaseSchema>, ctx: z.Re
 }
 
 /** 생성용. 표준 표기가 최소 하나는 있어야 한다. */
-export const termInputSchema = termInputBaseSchema
+const currentTermInputSchema = termInputBaseSchema
   .refine((v) => Boolean(v.nameEn ?? v.nameKo), {
     message: "nameEn 또는 nameKo 중 최소 하나가 필요합니다.",
     path: ["nameEn"],
   })
   .superRefine(checkSurfaceIntegrity);
 
+export const termInputSchema = z.preprocess(normalizeLegacyTermInput, currentTermInputSchema);
+
 /**
  * 수정용. 부분 갱신이라 표준 표기 필수 조건을 걸지 않는다.
  * termInputSchema는 .refine()이 붙은 ZodEffects라서 .partial()을 부를 수 없다.
  * base를 따로 두고 여기서 파생시키는 이유가 이것이다.
  */
-export const termPatchSchema = termInputBaseSchema.partial().extend({
+const currentTermPatchSchema = termInputBaseSchema.partial().extend({
   slug: z.string().trim().transform(slugify).superRefine((slug, ctx) => {
     const message = slugValidationMessage(slug);
     if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
   }).optional(),
   expectedRevision: z.number().int().positive().optional(),
 });
+
+export const termPatchSchema = z.preprocess(normalizeLegacyTermInput, currentTermPatchSchema);
 
 export type TermInput = z.infer<typeof termInputBaseSchema>;
 export type SurfaceInput = z.infer<typeof surfaceInputSchema>;

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { surfaceKeys, terms, termSurfaces } from "@grossary/db";
+import { businessCategories, surfaceKeys, terms, termSurfaces } from "@grossary/db";
 import { getDb } from "@/lib/db";
 import { SUGGEST_LIMIT, type Suggestion } from "./search-ui";
 import type { SurfaceKind, TermSummary } from "./query";
@@ -62,6 +62,14 @@ export async function searchTerms(query: string, limit = 20): Promise<SearchHit[
     )
     SELECT t.id AS "id", t.slug AS "slug", t.term_type AS "termType",
            t.name_en AS "nameEn", t.name_ko AS "nameKo", t.domain AS "domain",
+           t.category AS "category",
+           (SELECT bc.label FROM ${businessCategories} bc WHERE bc.key = t.category) AS "categoryLabel",
+           t.topic AS "topic", t.owner_id AS "ownerId",
+           (SELECT CASE
+              WHEN coalesce(cardinality(owner_user.sso_groups), 0) > 0
+              THEN owner_user.name || ' · ' || array_to_string(owner_user.sso_groups, ', ')
+              ELSE owner_user.name || ' · ' || owner_user.email
+            END FROM users owner_user WHERE owner_user.id = t.owner_id) AS "ownerName",
            t.status AS "status", t.definition_md AS "definitionMd",
            b.text AS "matchedText", b.kind AS "matchedKind", b.exact AS "exact",
            b.score AS "score"

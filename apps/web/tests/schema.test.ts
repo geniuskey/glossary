@@ -10,7 +10,7 @@ import { termInputSchema, termPatchSchema, type TermInput } from "../src/lib/ter
 
 function base(overrides: Partial<TermInput> = {}): TermInput {
   return {
-    termType: "term",
+    termType: "concept",
     nameEn: "Probe",
     domain: [],
     status: "active",
@@ -79,7 +79,7 @@ test("같은 정규화 키라도 승인군끼리(canonical + abbreviation)는 �
   const result = termInputSchema.safeParse(
     base({
       nameEn: "AE",
-      termType: "abbreviation",
+      termType: "concept",
       surfaces: [{ text: "ae", lang: "en", kind: "alias" }],
     }),
   );

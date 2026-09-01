@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { CompletionBadge, CompletionProgress, MissingFields } from "@/components/term-completion";
-import { CategoryBadge, DomainBadges, OwnerBadge, StatusBadge } from "@/components/term-badges";
+import { CategoryBadge, DomainBadges, OwnerBadge, StatusBadge, TopicBadge } from "@/components/term-badges";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { TERM_TYPE_LABEL } from "@/lib/terms/enums";
 import { listContributionTerms } from "@/lib/terms/query";
@@ -81,7 +81,8 @@ export default async function ContributePage() {
 
                 <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-line pt-4 mt-4">
                   <DomainBadges domain={term.domain} />
-                  <CategoryBadge category={term.category} />
+                  <CategoryBadge category={term.category} label={term.categoryLabel} />
+                  <TopicBadge topic={term.topic} />
                   <OwnerBadge ownerName={term.ownerName} mine={term.ownerId === user.id} />
                   <span className="text-xs text-ink-3">최근 수정 {relativeTime(new Date(term.updatedAt))}</span>
                   <Link href={`/edit/${term.slug}`} className="btn-primary btn-sm ml-auto">

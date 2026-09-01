@@ -22,6 +22,8 @@ import * as termRevertRoute from "../src/app/api/v1/terms/[idOrSlug]/revisions/[
 import * as ssoRoute from "../src/app/api/v1/sso/route.js";
 import * as ssoDiscoverRoute from "../src/app/api/v1/sso/discover/route.js";
 import * as adminHomeContentRoute from "../src/app/api/v1/admin/home-content/route.js";
+import * as adminCategoriesRoute from "../src/app/api/v1/admin/categories/route.js";
+import * as adminCategoryRoute from "../src/app/api/v1/admin/categories/[key]/route.js";
 import * as adminUsersRoute from "../src/app/api/v1/admin/users/route.js";
 import * as adminUserRoute from "../src/app/api/v1/admin/users/[id]/route.js";
 import * as adminUserSessionsRoute from "../src/app/api/v1/admin/users/[id]/sessions/route.js";
@@ -91,6 +93,8 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "sso", mod: ssoRoute, allowed: ["GET", "PUT"], allow: "GET, HEAD, PUT" },
   { name: "sso/discover", mod: ssoDiscoverRoute, allowed: ["POST"], allow: "POST" },
   { name: "admin/home-content", mod: adminHomeContentRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
+  { name: "admin/categories", mod: adminCategoriesRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
+  { name: "admin/categories/[key]", mod: adminCategoryRoute, allowed: ["PATCH", "DELETE"], allow: "PATCH, DELETE" },
   { name: "admin/users", mod: adminUsersRoute, allowed: ["GET"], allow: "GET, HEAD" },
   { name: "admin/users/[id]", mod: adminUserRoute, allowed: ["PATCH"], allow: "PATCH" },
   { name: "admin/users/[id]/sessions", mod: adminUserSessionsRoute, allowed: ["DELETE"], allow: "DELETE" },

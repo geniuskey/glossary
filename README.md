@@ -23,7 +23,7 @@ API 한 번으로 문서의 표기를 검증할 수 있게 만든다.
 2. **기계 판독 가능** — OpenAPI 3.1 스펙을 서빙하고, `POST /terms/lookup` 한 번으로
    문서에 등장한 표기 전체를 확인한다.
 3. **위키 수준의 문서성** — 각 용어를 마크다운과 이미지로 설명한다.
-4. **역할 분담과 맥락 탐색** — 용어별 담당자·카테고리를 두고, 도메인/카테고리 관계도와
+4. **역할 분담과 맥락 탐색** — 용어별 담당자와 Type·업무 분류·주제를 두고, 관계도와
    Confluence용 읽기 전용 임베드 화면으로 정리 범위를 공유한다.
 5. **사내 계정 로그인** — 관리 화면에서 OIDC 또는 OAuth 2.0을 고르고 엔드포인트와
    claim 매핑을 설정한다. OIDC는 JWKS 서명·Issuer·Audience·Nonce까지 검증한다.
@@ -65,12 +65,13 @@ pnpm --filter @grossary/web dev   # http://localhost:3000
 
 ## 시트 공유와 Confluence 임베드
 
-`/sheet`의 **공유하기**에서 표시할 열과 촘촘한 행·상세 링크·테두리를 체크하면 현재
-필터·정렬을 담은 공유 URL과 iframe 코드를 각각 복사할 수 있다. Confluence iframe
+`/sheet`의 **공유하기**에서 검색어·Type·공개 상태·도메인·업무 분류·주제를 공유용으로
+따로 정하고 표시할 열과 촘촘한 행·상세 링크·테두리를 체크하면 공유 URL과 iframe 코드를
+각각 복사할 수 있다. Confluence iframe
 매크로에는 다음처럼 열 정의까지 포함된 읽기 전용 주소를 넣는다.
 
 ```text
-https://glossary.example.com/embed?domain=ISP&category=노출%20제어&columns=nameEn,nameKo,domain,definitionMd&compact=1&links=1&border=1
+https://glossary.example.com/embed?domain=ISP&category=design&topic=노출%20제어&columns=nameEn,nameKo,domain,category,definitionMd&compact=1&links=1&border=1
 ```
 
 `GROSSARY_EMBED_ANCESTORS=https://confluence.example.com`을 설정해야 해당 Confluence 출처에서만

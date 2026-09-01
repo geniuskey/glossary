@@ -1,4 +1,4 @@
-import type { TermStatusLiteral } from "./enums";
+import type { BusinessCategoryLiteral, TermStatusLiteral } from "./enums";
 
 // R116: term-form.tsx는 Client Component라 vitest.config.ts에 jsdom 환경이 없는
 // 이 저장소(R97)에서는 렌더 테스트를 할 수 없다. logout.ts/list-params.ts와
@@ -19,6 +19,7 @@ export interface TermFormState {
   fullNameKo: string;
   domain: string;
   category: string;
+  topic: string;
   ownerId: string;
   status: TermStatusLiteral;
   definitionMd: string;
@@ -33,7 +34,8 @@ export interface TermWritePayload {
   fullNameEn?: string;
   fullNameKo?: string;
   domain: string[];
-  category: string | null;
+  category: BusinessCategoryLiteral | null;
+  topic: string | null;
   ownerId: string | null;
   status: TermStatusLiteral;
   definitionMd?: string;
@@ -79,7 +81,8 @@ export function buildTermPayload(form: TermFormState, expectedRevision?: number)
       .split(",")
       .map((d) => d.trim())
       .filter(Boolean),
-    category: form.category.trim() || null,
+    category: (form.category || null) as BusinessCategoryLiteral | null,
+    topic: form.topic.trim() || null,
     ownerId: form.ownerId || null,
     status: form.status,
     definitionMd: form.definitionMd.trim() || undefined,

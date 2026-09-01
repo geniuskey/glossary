@@ -5,12 +5,12 @@ import { defaultCaseSensitive, deriveSurfaces, pickExplicitSurfaces } from "../s
 // 비어있지 않은 surfaces를 넘기는 테스트가 하나도 없었다. 순수 함수라 DB 없이
 // 직접 테스트한다.
 
-test("nameEn은 termType이 term이면 canonical, abbreviation이면 abbreviation kind로 파생된다", () => {
-  const canonical = deriveSurfaces({ termType: "term", nameEn: "Auto Exposure" }, []);
+test("nameEn은 Type과 무관하게 canonical 표기로 파생된다", () => {
+  const canonical = deriveSurfaces({ termType: "concept", nameEn: "Auto Exposure" }, []);
   expect(canonical.find((s) => s.text === "Auto Exposure")?.kind).toBe("canonical");
 
-  const abbrev = deriveSurfaces({ termType: "abbreviation", nameEn: "AE" }, []);
-  expect(abbrev.find((s) => s.text === "AE")?.kind).toBe("abbreviation");
+  const identifier = deriveSurfaces({ termType: "identifier", nameEn: "AE" }, []);
+  expect(identifier.find((s) => s.text === "AE")?.kind).toBe("canonical");
 });
 
 // term_surfaces_unique는 (term_id, norm_loose, kind)로 걸려 있다. deriveSurfaces의
@@ -18,7 +18,7 @@ test("nameEn은 termType이 term이면 canonical, abbreviation이면 abbreviatio
 // 같으면 하나만 남아야 저장 시 unique violation을 피한다.
 test("명시 표기가 파생 표기와 같은 정규화 키 + kind이면 하나로 합쳐진다", () => {
   const result = deriveSurfaces(
-    { termType: "term", nameEn: "Auto Exposure" },
+    { termType: "concept", nameEn: "Auto Exposure" },
     [{ text: "auto-exposure", lang: "en", kind: "canonical" }],
   );
   const canonicalSurfaces = result.filter((s) => s.kind === "canonical");
@@ -30,7 +30,7 @@ test("명시 표기가 파생 표기와 같은 정규화 키 + kind이면 하나
 
 test("같은 정규화 키라도 kind가 다르면 둘 다 남는다", () => {
   const result = deriveSurfaces(
-    { termType: "term", nameEn: "Auto Exposure" },
+    { termType: "concept", nameEn: "Auto Exposure" },
     [{ text: "Auto Exposure", lang: "en", kind: "alias" }],
   );
   expect(result).toHaveLength(2);
@@ -49,7 +49,7 @@ test("defaultCaseSensitive는 2~6자 대문자/숫자 조합에서만 참이다"
 // 여기서 직접 왕복시켜 확인한다.
 
 test("표준 이름에서 파생된 표기는 명시 표기 목록에서 빠진다 (R110)", () => {
-  const names = { termType: "term", nameEn: "Auto Exposure", nameKo: "자동노출" };
+  const names = { termType: "concept", nameEn: "Auto Exposure", nameKo: "자동노출" };
   const stored = [
     { text: "Auto Exposure", kind: "canonical" },
     { text: "자동노출", kind: "canonical" },
@@ -58,7 +58,7 @@ test("표준 이름에서 파생된 표기는 명시 표기 목록에서 빠진�
 });
 
 test("사용자가 직접 추가한 표기는 명시 표기 목록에 남는다 (R110)", () => {
-  const names = { termType: "term", nameEn: "Auto Exposure" };
+  const names = { termType: "concept", nameEn: "Auto Exposure" };
   const stored = [
     { text: "Auto Exposure", kind: "canonical" }, // 파생 가능 → 제외
     { text: "AE-legacy", kind: "alias" }, // 파생 불가 → 유지
@@ -68,21 +68,28 @@ test("사용자가 직접 추가한 표기는 명시 표기 목록에 남는다 
   expect(result[0]!.text).toBe("AE-legacy");
 });
 
-// abbreviation 타입은 nameEn이 canonical이 아니라 abbreviation kind로 파생된다
-// (deriveSurfaces:27) — 같은 텍스트라도 kind가 canonical로 저장돼 있으면 파생
-// 키(`정규화:abbreviation`)와 안 맞아서 명시 표기로 잘못 남을 수 있다. kind까지
-// 맞아야 정확히 걸러지는지 확인한다.
-test("kind가 파생 결과와 다르면(같은 텍스트라도) 명시 표기로 남는다 (R110)", () => {
-  const names = { termType: "abbreviation", nameEn: "AE" };
-  const stored = [{ text: "AE", kind: "canonical" }]; // 파생은 abbreviation kind
+// Type과 표기 kind는 서로 독립된 축이다. 표준명과 같은 텍스트라도 사용자가
+// 약어라고 지정했다면 그 속성은 편집 후에도 명시 표기로 남아야 한다.
+test("표준명과 같은 텍스트의 약어 속성은 명시 표기로 남는다 (R110)", () => {
+  const names = { termType: "concept", nameEn: "AE" };
+  const stored = [{ text: "AE", kind: "abbreviation" }];
   expect(pickExplicitSurfaces(names, stored)).toEqual(stored);
+});
+
+test("대표 영문명과 같은 약어를 명시하면 중복 없이 약어 속성을 보존한다", () => {
+  const result = deriveSurfaces(
+    { termType: "concept", nameEn: "AE" },
+    [{ text: "AE", lang: "en", kind: "abbreviation" }],
+  );
+  expect(result.filter((surface) => surface.text === "AE")).toHaveLength(1);
+  expect(result[0]?.kind).toBe("abbreviation");
 });
 
 // updateTerm의 실제 사용처는 T가 normLoose 등 추가 필드를 가진 DB 행이다 —
 // pickExplicitSurfaces가 필터만 하고 원본 객체를 그대로 돌려주는지(제네릭
 // T가 유지되는지) 확인한다.
 test("여분 필드가 있는 행도 그대로 유지된 채 걸러진다 (R110)", () => {
-  const names = { termType: "term", nameEn: "Auto Exposure" };
+  const names = { termType: "concept", nameEn: "Auto Exposure" };
   const stored = [
     { text: "Auto Exposure", kind: "canonical", normLoose: "autoexposure", lang: "en", caseSensitive: false },
     { text: "AE-legacy", kind: "alias", normLoose: "aelegacy", lang: "en", caseSensitive: true },

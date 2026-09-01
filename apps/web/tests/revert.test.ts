@@ -15,7 +15,7 @@ afterEach(async () => {
 async function seed() {
   const { term } = await createTerm(
     {
-      termType: "term",
+      termType: "concept",
       nameEn: "Black Level",
       nameKo: "블랙레벨",
       domain: ["ISP"],
@@ -92,7 +92,7 @@ test("대상 리비전 이후에 추가된 표기는 되돌리면 사라진다",
 // "안 건드림"으로 읽는다. 정의가 없던 리비전으로 되돌리면 비워져야 한다.
 test("정의가 없던 리비전으로 되돌리면 나중에 쓴 정의가 지워진다", async () => {
   const { term } = await createTerm(
-    { termType: "term", nameEn: "Lens Shading", domain: [], status: "active", surfaces: [] },
+    { termType: "concept", nameEn: "Lens Shading", domain: [], status: "active", surfaces: [] },
     null,
   );
   created.push(term.id);

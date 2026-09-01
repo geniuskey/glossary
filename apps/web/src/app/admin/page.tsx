@@ -3,9 +3,11 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { listManagedUsers } from "@/lib/admin/users";
 import { getCurrentUser } from "@/lib/auth/current-user";
+import { listManagedBusinessCategories } from "@/lib/terms/categories";
 import { getHomeContent } from "@/lib/workspace/home-content";
 import { HomeContentPanel } from "./home-content-panel";
 import { UsersPanel } from "./users-panel";
+import { CategoriesPanel } from "./categories-panel";
 
 export const metadata = { title: "관리자" };
 
@@ -14,9 +16,10 @@ export default async function AdminPage() {
   if (!user) redirect("/login");
   if (user.role !== "admin") redirect("/");
 
-  const [managedUsers, homeContent] = await Promise.all([
+  const [managedUsers, homeContent, categories] = await Promise.all([
     listManagedUsers(),
     getHomeContent(),
+    listManagedBusinessCategories(),
   ]);
 
   return (
@@ -27,7 +30,7 @@ export default async function AdminPage() {
             <p className="text-xs font-semibold tracking-[0.16em] text-brand">워크스페이스 관리</p>
             <p className="mt-2 text-xl font-semibold tracking-tight text-balance lg:hidden">관리자 패널</p>
             <p className="mt-1.5 max-w-2xl text-sm leading-6 text-ink-2">
-              워크스페이스의 첫인상과 구성원의 접근 권한을 관리합니다.
+              워크스페이스의 첫인상, 업무 분류와 구성원의 접근 권한을 관리합니다.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 self-start sm:self-auto">
@@ -38,6 +41,8 @@ export default async function AdminPage() {
       </header>
 
       <HomeContentPanel initialContent={homeContent} />
+      <div className="my-10 border-t border-line" />
+      <CategoriesPanel initialCategories={categories} />
       <div className="my-10 border-t border-line" />
       <UsersPanel initialUsers={managedUsers} viewerId={user.id} />
     </AppShell>

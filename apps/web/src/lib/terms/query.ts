@@ -1,5 +1,6 @@
 import { and, arrayContains, desc, eq, inArray, ne, or, sql, type AnyColumn } from "drizzle-orm";
 import {
+  businessCategories,
   surfaceKeys,
   surfaceKindEnum,
   terms,
@@ -16,6 +17,7 @@ import { termCompletion, type TermCompletion } from "./completion";
 import { ownerDisplayLabelSql } from "./owners";
 
 export type TermType = (typeof termTypeEnum.enumValues)[number];
+export type BusinessCategory = string;
 export type TermStatus = (typeof termStatusEnum.enumValues)[number];
 export type SurfaceKind = (typeof surfaceKindEnum.enumValues)[number];
 
@@ -37,7 +39,9 @@ export interface TermSummary {
   nameEn: string | null;
   nameKo: string | null;
   domain: string[];
-  category: string | null;
+  category: BusinessCategory | null;
+  categoryLabel: string | null;
+  topic: string | null;
   ownerId: string | null;
   ownerName: string | null;
   status: TermStatus;
@@ -70,6 +74,12 @@ export interface TermDetail extends TermSummary {
 // 타입으로 재사용하면 런타임에 터진다. 라우트는 이 wire 타입으로 명시 직렬화한다.
 export type TermDetailResponse = Omit<TermDetail, "updatedAt"> & { updatedAt: string };
 
+const categoryLabelSql = sql<string | null>`(
+  select ${businessCategories.label}
+  from ${businessCategories}
+  where ${businessCategories.key} = ${terms.category}
+)`;
+
 const summaryColumns = {
   id: terms.id,
   slug: terms.slug,
@@ -78,6 +88,8 @@ const summaryColumns = {
   nameKo: terms.nameKo,
   domain: terms.domain,
   category: terms.category,
+  categoryLabel: categoryLabelSql,
+  topic: terms.topic,
   ownerId: terms.ownerId,
   ownerName: ownerDisplayLabelSql,
   status: terms.status,
@@ -142,6 +154,7 @@ export async function getTermByIdOrSlug(idOrSlug: string): Promise<TermDetail | 
 export interface RelatedTerm extends TermSummary {
   sharedDomains: string[];
   sameCategory: boolean;
+  sameTopic: boolean;
 }
 
 /**
@@ -151,12 +164,13 @@ export interface RelatedTerm extends TermSummary {
  * 다시 구현해 화면과 DB 사이에 별도 규칙을 만들지 않기 위해서다.
  */
 export async function listRelatedTerms(
-  source: Pick<TermSummary, "id" | "termType" | "domain" | "category">,
+  source: Pick<TermSummary, "id" | "termType" | "domain" | "category" | "topic">,
   limit = 6,
 ): Promise<RelatedTerm[]> {
   const relationshipFilters = [
     ...source.domain.map((domain) => arrayContains(terms.domain, [domain])),
     ...(source.category ? [eq(terms.category, source.category)] : []),
+    ...(source.topic ? [eq(terms.topic, source.topic)] : []),
   ];
   if (relationshipFilters.length === 0) return [];
 
@@ -178,12 +192,14 @@ export async function listRelatedTerms(
       ...term,
       sharedDomains,
       sameCategory: Boolean(source.category && term.category === source.category),
+      sameTopic: Boolean(source.topic && term.topic === source.topic),
     };
   });
 
   const score = (term: RelatedTerm) => (
     term.sharedDomains.length * 3
     + (term.sameCategory ? 4 : 0)
+    + (term.sameTopic ? 3 : 0)
     + (term.termType === source.termType ? 1 : 0)
     + (term.status === "active" ? 1 : 0)
   );
@@ -197,7 +213,8 @@ export interface ListParams {
   q?: string;
   termType?: TermType;
   domain?: string;
-  category?: string;
+  category?: BusinessCategory;
+  topic?: string;
   ownerId?: string;
   status?: TermStatus;
   sort?: SortKey;
@@ -220,6 +237,7 @@ function listFilters(params: ListParams) {
   else if (!params.includeDraft) filters.push(ne(terms.status, "draft"));
   if (params.domain) filters.push(arrayContains(terms.domain, [params.domain]));
   if (params.category) filters.push(eq(terms.category, params.category));
+  if (params.topic) filters.push(eq(terms.topic, params.topic));
   if (params.ownerId) filters.push(eq(terms.ownerId, params.ownerId));
 
   if (params.q) {
@@ -354,9 +372,14 @@ export interface Facet<T extends string = string> {
   count: number;
 }
 
+export interface CategoryFacet extends Facet<BusinessCategory> {
+  label: string;
+}
+
 export interface TermFacets {
   domains: Facet[];
-  categories: Facet[];
+  categories: CategoryFacet[];
+  topics: Facet[];
   types: Facet<TermType>[];
   statuses: Facet<TermStatus>[];
   /** 필터 UI에서 "전체"가 뜻하는 수. 각 항목의 count와 같은 기준(사전 전체)이라야
@@ -366,18 +389,12 @@ export interface TermFacets {
   needsContribution: number;
 }
 
-const missingExpansion = sql`(
-  ${terms.termType} = 'abbreviation'
-  and nullif(btrim(coalesce(${terms.fullNameEn}, '')), '') is null
-  and nullif(btrim(coalesce(${terms.fullNameKo}, '')), '') is null
-)`;
 const missingDefinition = sql`nullif(btrim(coalesce(${terms.definitionMd}, '')), '') is null`;
 const missingDomain = sql`cardinality(${terms.domain}) = 0`;
-const incompleteTerm = or(missingExpansion, missingDefinition, missingDomain)!;
+const incompleteTerm = or(missingDefinition, missingDomain)!;
 const needsContribution = or(eq(terms.status, "draft"), incompleteTerm)!;
 const missingCount = sql<number>`(
-  case when ${missingExpansion} then 1 else 0 end
-  + case when ${missingDefinition} then 1 else 0 end
+  case when ${missingDefinition} then 1 else 0 end
   + case when ${missingDomain} then 1 else 0 end
 )`;
 
@@ -434,7 +451,7 @@ export async function termFacets(): Promise<TermFacets> {
   // 둘 수 없다(Postgres 10+) — 먼저 펼친 서브쿼리를 만들고 그 결과를 센다.
   const unnested = db.select({ value: sql<string>`unnest(${terms.domain})`.as("value") }).from(terms).as("d");
 
-  const [domains, categories, types, statuses, [counted], [contribution]] = await Promise.all([
+  const [domains, categories, topics, types, statuses, [counted], [contribution]] = await Promise.all([
     db
       .select({ value: unnested.value, count: sql<number>`count(*)::int` })
       .from(unnested)
@@ -442,11 +459,21 @@ export async function termFacets(): Promise<TermFacets> {
       .orderBy(sql`count(*) desc`, unnested.value)
       .limit(40),
     db
-      .select({ value: sql<string>`${terms.category}`, count: sql<number>`count(*)::int` })
+      .select({
+        value: businessCategories.key,
+        label: businessCategories.label,
+        count: sql<number>`count(${terms.id})::int`,
+      })
+      .from(businessCategories)
+      .leftJoin(terms, eq(terms.category, businessCategories.key))
+      .groupBy(businessCategories.key, businessCategories.label, businessCategories.sortOrder)
+      .orderBy(businessCategories.sortOrder, businessCategories.key),
+    db
+      .select({ value: sql<string>`${terms.topic}`, count: sql<number>`count(*)::int` })
       .from(terms)
-      .where(sql`${terms.category} is not null`)
-      .groupBy(terms.category)
-      .orderBy(sql`count(*) desc`, terms.category)
+      .where(sql`${terms.topic} is not null`)
+      .groupBy(terms.topic)
+      .orderBy(sql`count(*) desc`, terms.topic)
       .limit(80),
     db
       .select({ value: terms.termType, count: sql<number>`count(*)::int` })
@@ -463,6 +490,7 @@ export async function termFacets(): Promise<TermFacets> {
   return {
     domains,
     categories,
+    topics,
     types,
     statuses,
     total: counted?.total ?? 0,
@@ -475,10 +503,11 @@ export interface GraphTerm extends TermSummary {
 }
 
 /** 도메인·카테고리를 허브로 그릴 읽기 전용 용어 집합. */
-export async function listGraphTerms(filters: { domain?: string; category?: string; limit?: number; includeDraft?: boolean } = {}): Promise<GraphTerm[]> {
+export async function listGraphTerms(filters: { domain?: string; category?: BusinessCategory; topic?: string; limit?: number; includeDraft?: boolean } = {}): Promise<GraphTerm[]> {
   const where = listFilters({
     domain: filters.domain,
     category: filters.category,
+    topic: filters.topic,
     page: 1,
     pageSize: filters.limit ?? 120,
     includeDraft: filters.includeDraft ?? true,

@@ -5,7 +5,8 @@ import { termInputSchema } from "@/lib/terms/schema";
 import { createTerm } from "@/lib/terms/create";
 import { DOMAIN_VALUE_MAX, TERM_QUERY_MAX } from "@/lib/terms/limits";
 import { isAssignableUserId } from "@/lib/terms/owners";
-import { listTerms, type TermStatus, type TermType } from "@/lib/terms/query";
+import { businessCategoryExists } from "@/lib/terms/categories";
+import { listTerms, type BusinessCategory, type TermStatus, type TermType } from "@/lib/terms/query";
 import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
 
 // R25: 새 라우트도 처리하지 않는 메서드를 명시 export한다.
@@ -45,6 +46,15 @@ function parseEnumParam<T extends string>(
   );
 }
 
+const LEGACY_TYPE_QUERY: Record<string, TermType> = {
+  term: "concept",
+  abbreviation: "concept",
+  project: "proper_name",
+  product_id: "identifier",
+  code: "identifier",
+  unit: "unit",
+};
+
 /**
  * R59: `Number("1e999")`는 `Infinity`다 — 그 값이 그대로 `.offset()`까지
  * 흘러가면 Postgres가 예외를 던지고 withApiErrors가 500으로 바꾼다. 이 입력도
@@ -82,19 +92,27 @@ export const GET = withApiErrors(async (request: Request) => {
 
   const q = url.searchParams.get("q");
   const domain = url.searchParams.get("domain");
-  const category = url.searchParams.get("category");
+  const rawCategory = url.searchParams.get("category");
+  const categoryIsKnown = rawCategory ? await businessCategoryExists(rawCategory) : false;
+  const topic = url.searchParams.get("topic") ?? (rawCategory && !categoryIsKnown ? rawCategory : null);
   if (q && q.length > TERM_QUERY_MAX) {
     return apiError("validation_failed", `q는 ${TERM_QUERY_MAX}자 이하여야 합니다.`, 400, { field: "q" });
   }
   if (domain && domain.length > DOMAIN_VALUE_MAX) {
     return apiError("validation_failed", `domain은 ${DOMAIN_VALUE_MAX}자 이하여야 합니다.`, 400, { field: "domain" });
   }
-  if (category && category.length > DOMAIN_VALUE_MAX) {
+  if (rawCategory && rawCategory.length > DOMAIN_VALUE_MAX) {
     return apiError("validation_failed", `category는 ${DOMAIN_VALUE_MAX}자 이하여야 합니다.`, 400, { field: "category" });
   }
+  if (topic && topic.length > DOMAIN_VALUE_MAX) {
+    return apiError("validation_failed", `topic은 ${DOMAIN_VALUE_MAX}자 이하여야 합니다.`, 400, { field: "topic" });
+  }
 
-  const termType = parseEnumParam<TermType>(url.searchParams.get("type"), termTypeEnum.enumValues, "type");
+  const rawType = url.searchParams.get("type");
+  const termType = parseEnumParam<TermType>(rawType ? LEGACY_TYPE_QUERY[rawType] ?? rawType : rawType, termTypeEnum.enumValues, "type");
   if (isResponse(termType)) return termType;
+
+  const category: BusinessCategory | undefined = rawCategory && categoryIsKnown ? rawCategory : undefined;
 
   const status = parseEnumParam<TermStatus>(url.searchParams.get("status"), termStatusEnum.enumValues, "status");
   if (isResponse(status)) return status;
@@ -110,6 +128,7 @@ export const GET = withApiErrors(async (request: Request) => {
     termType,
     domain: domain ?? undefined,
     category: category ?? undefined,
+    topic: topic ?? undefined,
     status,
     page,
     pageSize,
@@ -130,6 +149,9 @@ export const POST = withApiErrors(async (request: Request) => {
   }
   if (parsed.data.ownerId && !(await isAssignableUserId(parsed.data.ownerId))) {
     return apiError("validation_failed", "담당자 계정을 찾을 수 없습니다.", 400, { field: "ownerId" });
+  }
+  if (parsed.data.category && !(await businessCategoryExists(parsed.data.category))) {
+    return apiError("validation_failed", "업무 분류를 찾을 수 없습니다.", 400, { field: "category" });
   }
 
   const authorId = auth.kind === "user" ? auth.user.id : null;

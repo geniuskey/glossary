@@ -7,17 +7,28 @@ import {
   DEFAULT_EMBED_OPTIONS,
   buildEmbedPath,
   buildIframeCode,
+  type EmbedShareFilters,
   type EmbedTableOptions,
 } from "@/lib/embed/sheet-share";
+import { TERM_STATUSES, TERM_STATUS_LABEL, TERM_TYPES, TERM_TYPE_LABEL } from "@/lib/terms/enums";
 import { GRID_COLUMNS, type ColumnKey } from "@/lib/terms/grid";
 import { cx } from "@/lib/ui/format";
 
 type CopyKind = "url" | "iframe";
 
-export function SheetShare({ baseQuery }: { baseQuery: string }) {
+interface SheetShareProps {
+  baseQuery: string;
+  filters: EmbedShareFilters;
+  domains: string[];
+  categories: Array<{ key: string; label: string }>;
+  topics: string[];
+}
+
+export function SheetShare({ baseQuery, filters, domains, categories, topics }: SheetShareProps) {
   const [open, setOpen] = useState(false);
   const [columns, setColumns] = useState<ColumnKey[]>([...DEFAULT_EMBED_COLUMN_KEYS]);
   const [options, setOptions] = useState<EmbedTableOptions>(DEFAULT_EMBED_OPTIONS);
+  const [shareFilters, setShareFilters] = useState<EmbedShareFilters>(filters);
   const [origin, setOrigin] = useState("");
   const [announcement, setAnnouncement] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -35,7 +46,7 @@ export function SheetShare({ baseQuery }: { baseQuery: string }) {
         return;
       }
       if (event.key !== "Tab") return;
-      const focusable = [...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), textarea:not([disabled])') ?? [])];
+      const focusable = [...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])') ?? [])];
       const first = focusable[0];
       const last = focusable.at(-1);
       if (!first || !last) return;
@@ -51,7 +62,7 @@ export function SheetShare({ baseQuery }: { baseQuery: string }) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open]);
 
-  const embedPath = useMemo(() => buildEmbedPath(baseQuery, columns, options), [baseQuery, columns, options]);
+  const embedPath = useMemo(() => buildEmbedPath(baseQuery, columns, options, shareFilters), [baseQuery, columns, options, shareFilters]);
   const url = origin ? `${origin}${embedPath}` : embedPath;
   const iframe = buildIframeCode(url, options.border);
 
@@ -72,6 +83,10 @@ export function SheetShare({ baseQuery }: { baseQuery: string }) {
       const selected = new Set([...current, key]);
       return GRID_COLUMNS.filter((column) => selected.has(column.key)).map((column) => column.key);
     });
+  }
+
+  function updateFilter(key: keyof EmbedShareFilters, value: string) {
+    setShareFilters((current) => ({ ...current, [key]: value }));
   }
 
   async function copy(kind: CopyKind) {
@@ -107,13 +122,29 @@ export function SheetShare({ baseQuery }: { baseQuery: string }) {
             <header className="flex items-start gap-4 border-b border-line px-5 py-4">
               <div>
                 <h2 id="sheet-share-title" className="text-base font-semibold">시트 공유</h2>
-                <p className="mt-1 text-xs leading-5 text-ink-3">현재 필터와 정렬을 유지한 읽기 전용 표를 공유합니다.</p>
+                <p className="mt-1 text-xs leading-5 text-ink-3">읽기 전용 표의 필터와 열을 공유용으로 따로 구성합니다.</p>
               </div>
               <button ref={closeRef} type="button" className="btn-quiet ml-auto h-8 w-8 p-0 text-lg" onClick={close} aria-label="공유 창 닫기">×</button>
             </header>
 
             <div className="min-h-0 overflow-y-auto overscroll-contain px-5 py-4">
               <fieldset>
+                <legend className="text-sm font-medium">공유할 범위</legend>
+                <p className="mt-1 text-[11px] leading-4 text-ink-3">현재 시트 설정을 시작점으로 사용합니다. ‘전체’를 고르면 해당 필터가 공유 URL에서 제거됩니다.</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <label className="block sm:col-span-2 lg:col-span-3">
+                    <span className="label">검색어</span>
+                    <input value={shareFilters.q} onChange={(event) => updateFilter("q", event.target.value)} placeholder="전체 용어" className="field h-9 py-0 text-xs" />
+                  </label>
+                  <ShareFilter label="Type" value={shareFilters.type} onChange={(value) => updateFilter("type", value)} options={TERM_TYPES.map((value) => ({ value, label: TERM_TYPE_LABEL[value] }))} />
+                  <ShareFilter label="공개 상태" value={shareFilters.status} onChange={(value) => updateFilter("status", value)} options={TERM_STATUSES.filter((value) => value !== "draft").map((value) => ({ value, label: TERM_STATUS_LABEL[value] }))} />
+                  <ShareFilter label="도메인" value={shareFilters.domain} onChange={(value) => updateFilter("domain", value)} options={domains.map((value) => ({ value, label: value }))} />
+                  <ShareFilter label="업무 분류" value={shareFilters.category} onChange={(value) => updateFilter("category", value)} options={categories.map(({ key, label }) => ({ value: key, label }))} />
+                  <ShareFilter label="주제" value={shareFilters.topic} onChange={(value) => updateFilter("topic", value)} options={topics.map((value) => ({ value, label: value }))} />
+                </div>
+              </fieldset>
+
+              <fieldset className="mt-4 border-t border-line pt-4">
                 <legend className="text-sm font-medium">표시할 열 <span className="font-normal text-ink-3">{columns.length}/{GRID_COLUMNS.length}</span></legend>
                 <div className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-3">
                   {GRID_COLUMNS.map((column) => (
@@ -143,6 +174,18 @@ export function SheetShare({ baseQuery }: { baseQuery: string }) {
         document.body,
       )}
     </>
+  );
+}
+
+function ShareFilter({ label, value, options, onChange }: { label: string; value: string; options: Array<{ value: string; label: string }>; onChange: (value: string) => void }) {
+  return (
+    <label className="block">
+      <span className="label">{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="field h-9 py-0 text-xs">
+        <option value="">전체</option>
+        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+    </label>
   );
 }
 

@@ -29,9 +29,11 @@ const FIELDS: ImportField[] = [
   "termType",
   "domain",
   "category",
+  "topic",
   "status",
   "definitionMd",
   "aliases",
+  "abbreviations",
 ];
 
 test("IMPORT_COLUMNS는 파서가 채우는 필드를 하나도 빠짐없이 덮는다", () => {
@@ -102,7 +104,7 @@ test("샘플 행끼리 표기가 겹치지 않는다", () => {
   // 처음 써 보는 사람이 자기 실수인 줄 알고 헤맨다.
   const rowsByKey = new Map<string, Set<number>>();
   SAMPLE_ROWS.forEach((row, i) => {
-    for (const text of [row.nameEn, row.nameKo, ...row.aliases.split(",")]) {
+    for (const text of [row.nameEn, row.nameKo, ...row.aliases.split(","), ...row.abbreviations.split(",")]) {
       const key = surfaceKeys(text.trim()).normLoose;
       if (!key) continue;
       rowsByKey.set(key, new Set([...(rowsByKey.get(key) ?? []), i]));
@@ -148,7 +150,9 @@ test("샘플 파일을 그대로 파서에 먹이면 경고 없이 SAMPLE_ROWS�
     expect(parsed.definitionMd ?? "").toBe(sample.definitionMd);
     expect(parsed.domain.join(", ")).toBe(sample.domain);
     expect(parsed.category ?? "").toBe(sample.category);
+    expect(parsed.topic ?? "").toBe(sample.topic);
     expect(parsed.aliases.join(", ")).toBe(sample.aliases);
+    expect(parsed.abbreviations.join(", ")).toBe(sample.abbreviations);
   });
 });
 

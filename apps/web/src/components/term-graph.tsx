@@ -1,7 +1,8 @@
 import type { GraphTerm } from "@/lib/terms/query";
+import { businessCategoryLabel } from "@/lib/terms/enums";
 import { displayName, spineHue } from "@/lib/ui/format";
 
-interface Hub { key: string; label: string; kind: "domain" | "category"; x: number; y: number }
+interface Hub { key: string; label: string; kind: "domain" | "category" | "topic"; x: number; y: number }
 interface Node { term: GraphTerm; x: number; y: number; hubs: string[] }
 
 function hash(text: string): number {
@@ -11,10 +12,11 @@ function hash(text: string): number {
 }
 
 export function TermGraph({ terms }: { terms: GraphTerm[] }) {
-  const hubDefs = new Map<string, { label: string; kind: "domain" | "category" }>();
+  const hubDefs = new Map<string, { label: string; kind: "domain" | "category" | "topic" }>();
   for (const term of terms) {
     for (const domain of term.domain) hubDefs.set(`d:${domain}`, { label: domain, kind: "domain" });
-    if (term.category) hubDefs.set(`c:${term.category}`, { label: term.category, kind: "category" });
+    if (term.category) hubDefs.set(`c:${term.category}`, { label: businessCategoryLabel(term.category, term.categoryLabel), kind: "category" });
+    if (term.topic) hubDefs.set(`t:${term.topic}`, { label: term.topic, kind: "topic" });
   }
 
   const defs = [...hubDefs.entries()].slice(0, 18);
@@ -28,6 +30,7 @@ export function TermGraph({ terms }: { terms: GraphTerm[] }) {
   const nodes: Node[] = terms.slice(0, 100).map((term, index) => {
     const keys = [
       ...(term.category ? [`c:${term.category}`] : []),
+      ...(term.topic ? [`t:${term.topic}`] : []),
       ...term.domain.map((domain) => `d:${domain}`),
     ].filter((key) => hubByKey.has(key));
     const anchor = hubByKey.get(keys[0] ?? "");
@@ -48,7 +51,7 @@ export function TermGraph({ terms }: { terms: GraphTerm[] }) {
 
   return (
     <div className="card overflow-hidden bg-panel-2/40">
-      <svg viewBox="0 0 1000 700" role="img" aria-label="도메인과 카테고리로 연결한 용어 관계도" className="h-auto min-h-[520px] w-full">
+      <svg viewBox="0 0 1000 700" role="img" aria-label="도메인, 업무 분류와 주제로 연결한 용어 관계도" className="h-auto min-h-[520px] w-full">
         <g className="stroke-line-strong" strokeWidth="1">
           {nodes.flatMap((node) => node.hubs.map((key) => {
             const hub = hubByKey.get(key)!;
@@ -57,9 +60,9 @@ export function TermGraph({ terms }: { terms: GraphTerm[] }) {
         </g>
         {hubs.map((hub) => (
           <g key={hub.key} transform={`translate(${hub.x} ${hub.y})`}>
-            <circle r={hub.kind === "category" ? 28 : 34} className={hub.kind === "category" ? "fill-brand-soft stroke-brand" : "fill-panel stroke-line-strong"} strokeWidth="2" />
+            <circle r={hub.kind === "domain" ? 34 : 28} className={hub.kind === "category" ? "fill-brand-soft stroke-brand" : hub.kind === "topic" ? "fill-warn-soft stroke-warn" : "fill-panel stroke-line-strong"} strokeWidth="2" />
             <text textAnchor="middle" dy="4" className="fill-ink text-[12px] font-semibold">{hub.label.slice(0, 12)}</text>
-            <title>{`${hub.kind === "category" ? "카테고리" : "도메인"}: ${hub.label}`}</title>
+            <title>{`${hub.kind === "category" ? "업무 분류" : hub.kind === "topic" ? "주제" : "도메인"}: ${hub.label}`}</title>
           </g>
         ))}
         {nodes.map(({ term, x, y }) => (
@@ -74,7 +77,8 @@ export function TermGraph({ terms }: { terms: GraphTerm[] }) {
       </svg>
       <div className="flex flex-wrap gap-4 border-t border-line px-4 py-3 text-xs text-ink-3">
         <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full border border-line-strong bg-panel" />도메인</span>
-        <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full border border-brand bg-brand-soft" />카테고리</span>
+        <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full border border-brand bg-brand-soft" />업무 분류</span>
+        <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full border border-warn bg-warn-soft" />주제</span>
         <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-accent" />용어 · 누르면 상세로 이동</span>
       </div>
     </div>

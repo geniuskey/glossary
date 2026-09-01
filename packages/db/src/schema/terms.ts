@@ -1,12 +1,27 @@
 import { sql } from "drizzle-orm";
 import {
-  boolean, index, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid,
+  boolean, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid,
 } from "drizzle-orm/pg-core";
 import { users } from "./auth";
 
 export const termTypeEnum = pgEnum("term_type", [
-  "term", "abbreviation", "project", "product_id", "code", "unit",
+  "concept", "proper_name", "identifier", "unit",
 ]);
+
+export const businessCategories = pgTable(
+  "business_categories",
+  {
+    key: text("key").primaryKey(),
+    label: text("label").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    labelUnique: uniqueIndex("business_categories_label_unique").on(t.label),
+    orderIdx: index("business_categories_order_idx").on(t.sortOrder, t.key),
+  }),
+);
 
 // draft는 협업 중인 초안이며 기본 검색·추천·AI 조회에는 노출하지 않는다.
 // active는 팀이 찾아보고 실제 문서에서 사용할 수 있는 공개 상태다. 완성도는
@@ -27,13 +42,16 @@ export const terms = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     slug: text("slug").notNull(),
-    termType: termTypeEnum("term_type").notNull().default("term"),
+    termType: termTypeEnum("term_type").notNull().default("concept"),
     nameEn: text("name_en"),
     nameKo: text("name_ko"),
     fullNameEn: text("full_name_en"),
     fullNameKo: text("full_name_ko"),
     domain: text("domain").array().notNull().default([]),
-    category: text("category"),
+    category: text("category").references(() => businessCategories.key, { onDelete: "restrict" }),
+    // 기존 자유 입력 카테고리는 세부 주제였다. 통제형 업무 분류와 섞지 않고
+    // 그대로 보존해 검색·관계 탐색에서 계속 쓸 수 있게 한다.
+    topic: text("topic"),
     ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
     status: termStatusEnum("status").notNull().default("draft"),
     definitionMd: text("definition_md"),
@@ -48,6 +66,7 @@ export const terms = pgTable(
     slugUnique: uniqueIndex("terms_slug_unique").on(t.slug),
     statusIdx: index("terms_status_idx").on(t.status),
     categoryIdx: index("terms_category_idx").on(t.category),
+    topicIdx: index("terms_topic_idx").on(t.topic),
     ownerIdx: index("terms_owner_idx").on(t.ownerId),
   }),
 );

@@ -54,5 +54,5 @@ diff UI는 M3다. 자세한 범위는 [로드맵](/guide/roadmap)을 참고한�
 - [시작하기](/guide/getting-started) — 로컬 개발 환경 구성
 - [아키텍처](/guide/architecture) — 패키지 구조와 의존 방향
 - [데이터 모델](/guide/data-model) — Term과 Surface의 분리
-- [협업과 관계도](/guide/collaboration) — 담당자, 카테고리, 그래프와 Confluence 임베드
+- [협업과 관계도](/guide/collaboration) — 담당자, 업무 분류·주제, 그래프와 Confluence 임베드
 - [API 개요](/api/) — 인증과 에러 규약

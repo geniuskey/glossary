@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { termRevisions } from "@grossary/db";
 import { getDb } from "@/lib/db";
-import { EXPLICIT_SURFACE_KINDS, SURFACE_LANGS, TERM_STATUSES, TERM_TYPES } from "./enums";
+import { BUSINESS_CATEGORIES, EXPLICIT_SURFACE_KINDS, SURFACE_LANGS, TERM_STATUSES, TERM_TYPES, type TermTypeLiteral } from "./enums";
 import { pickExplicitSurfaces } from "./surfaces";
 import { updateTerm, type TermUpdate, type UpdateTermResult } from "./update";
 
@@ -30,13 +30,14 @@ const snapshotSurfaceSchema = z.object({
 
 const snapshotSchema = z.object({
   term: z.object({
-    termType: z.enum(TERM_TYPES).optional(),
+    termType: z.string().optional(),
     nameEn: z.string().nullable().optional(),
     nameKo: z.string().nullable().optional(),
     fullNameEn: z.string().nullable().optional(),
     fullNameKo: z.string().nullable().optional(),
     domain: z.array(z.string()).optional(),
     category: z.string().nullable().optional(),
+    topic: z.string().nullable().optional(),
     ownerId: z.string().uuid().nullable().optional(),
     // R130: 옛 리비전에는 지금은 사라진 approved가 들어 있다. 스냅샷은 일부러
     // 고쳐 쓰지 않으므로 읽는 쪽에서 현재의 active로 옮긴다. draft는 다시 정식
@@ -51,6 +52,29 @@ const snapshotSchema = z.object({
 const LEGACY_STATUS: Record<string, (typeof TERM_STATUSES)[number]> = {
   approved: "active",
 };
+
+const LEGACY_TERM_TYPE: Record<string, TermTypeLiteral> = {
+  term: "concept",
+  abbreviation: "concept",
+  project: "proper_name",
+  product_id: "identifier",
+  code: "identifier",
+  unit: "unit",
+};
+
+function readTermType(raw: string | undefined): TermTypeLiteral | undefined {
+  if (raw === undefined) return undefined;
+  if ((TERM_TYPES as readonly string[]).includes(raw)) return raw as TermTypeLiteral;
+  return LEGACY_TERM_TYPE[raw];
+}
+
+function readCategory(raw: string | null | undefined, oldType: string | undefined): string | null | undefined {
+  if (raw === null) return null;
+  if (raw && (!oldType || !LEGACY_TERM_TYPE[oldType] || (BUSINESS_CATEGORIES as readonly string[]).includes(raw))) return raw;
+  if (oldType === "project") return "project";
+  if (oldType === "product_id") return "product";
+  return undefined;
+}
 
 function readStatus(raw: string | undefined): (typeof TERM_STATUSES)[number] | undefined {
   if (raw === undefined) return undefined;
@@ -69,8 +93,16 @@ function readStatus(raw: string | undefined): (typeof TERM_STATUSES)[number] | u
  */
 function toPatch(snapshot: z.infer<typeof snapshotSchema>): TermUpdate {
   const t = snapshot.term;
+  const termType = readTermType(t.termType);
+  const category = readCategory(t.category, t.termType);
+  const topic = t.topic !== undefined
+    ? t.topic
+    : t.category && t.termType && LEGACY_TERM_TYPE[t.termType]
+      && !(BUSINESS_CATEGORIES as readonly string[]).includes(t.category)
+      ? t.category
+      : undefined;
   const names = {
-    termType: t.termType ?? "term",
+    termType: termType ?? "concept",
     nameEn: t.nameEn ?? null,
     nameKo: t.nameKo ?? null,
     fullNameEn: t.fullNameEn ?? null,
@@ -87,13 +119,14 @@ function toPatch(snapshot: z.infer<typeof snapshotSchema>): TermUpdate {
   const status = readStatus(t.status);
 
   return {
-    ...(t.termType !== undefined ? { termType: t.termType } : {}),
+    ...(termType !== undefined ? { termType } : {}),
     ...(t.nameEn !== undefined ? { nameEn: t.nameEn } : {}),
     ...(t.nameKo !== undefined ? { nameKo: t.nameKo } : {}),
     ...(t.fullNameEn !== undefined ? { fullNameEn: t.fullNameEn } : {}),
     ...(t.fullNameKo !== undefined ? { fullNameKo: t.fullNameKo } : {}),
     ...(t.domain !== undefined ? { domain: t.domain } : {}),
-    ...(t.category !== undefined ? { category: t.category } : {}),
+    ...(category !== undefined ? { category } : {}),
+    ...(topic !== undefined ? { topic } : {}),
     ...(t.ownerId !== undefined ? { ownerId: t.ownerId } : {}),
     ...(status !== undefined ? { status } : {}),
     ...(t.definitionMd !== undefined ? { definitionMd: t.definitionMd ?? "" } : {}),

@@ -15,7 +15,7 @@ export function TemplateDownloadLink({ className }: { className?: string }) {
   );
 }
 
-export function ImportGuide() {
+export function ImportGuide({ categoryOptions }: { categoryOptions: Array<{ key: string; label: string }> }) {
   return (
     <section className="max-w-3xl space-y-5 border-t border-line pt-7">
       <div>
@@ -36,11 +36,16 @@ export function ImportGuide() {
 
       <SamplePreview />
       <ColumnTable />
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <ValueList
-          title="종류"
-          hint="비거나 모르는 값이면 일반 용어"
+          title="Type"
+          hint="비거나 모르는 값이면 일반 개념"
           items={TERM_TYPES.map((t) => ({ value: t, label: TERM_TYPE_LABEL[t] }))}
+        />
+        <ValueList
+          title="업무 분류"
+          hint="비우면 미분류"
+          items={categoryOptions.map((category) => ({ value: category.key, label: category.label }))}
         />
         <ValueList
           title="상태"

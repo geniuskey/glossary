@@ -5,7 +5,8 @@ import { SheetShare } from "@/components/sheet-share";
 import { TermsGrid } from "@/components/terms-grid";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { embedBaseQuery } from "@/lib/embed/sheet-share";
-import { TERM_STATUS_LABEL, TERM_TYPE_LABEL } from "@/lib/terms/enums";
+import { businessCategoryLabel, TERM_STATUS_LABEL, TERM_TYPE_LABEL } from "@/lib/terms/enums";
+import { businessCategoryExists } from "@/lib/terms/categories";
 import { SORT_KEYS, type SortDir, type SortKey } from "@/lib/terms/grid";
 import {
   activeFilters,
@@ -37,7 +38,14 @@ const SORT_FALLBACK_DIR: Record<SortKey, SortDir> = {
   status: "asc",
 };
 
-const FILTER_LABEL: Record<string, string> = { q: "검색", type: "종류", domain: "도메인", category: "카테고리", status: "상태" };
+const FILTER_LABEL: Record<string, string> = { q: "검색", type: "Type", domain: "도메인", category: "업무 분류", topic: "주제", status: "상태" };
+
+function filterValueLabel(name: string, value: string, categoryLabel?: string): string {
+  if (name === "type") return TERM_TYPE_LABEL[value as keyof typeof TERM_TYPE_LABEL];
+  if (name === "category") return businessCategoryLabel(value, categoryLabel);
+  if (name === "status") return TERM_STATUS_LABEL[value as keyof typeof TERM_STATUS_LABEL];
+  return value;
+}
 
 export default async function TermsPage({
   searchParams,
@@ -52,6 +60,12 @@ export default async function TermsPage({
   // 달리 여기서는 잘못된 값을 400이 아니라 조용히 "지정 안 함"으로 무시한다.
   const raw = await searchParams;
   const parsed = parseListParams(raw);
+  // v0.1.x의 자유 입력 category 링크는 0013에서 topic으로 보존됐다. 관리 목록에
+  // 없는 category만 옛 링크로 보고 topic으로 넘겨, 새 사용자 정의 key와 충돌하지 않는다.
+  if (parsed.category && !(await businessCategoryExists(parsed.category))) {
+    parsed.topic ??= parsed.category;
+    parsed.category = undefined;
+  }
 
   const [{ items, total }, facets] = await Promise.all([
     listTermRows({
@@ -59,6 +73,7 @@ export default async function TermsPage({
       termType: parsed.type,
       domain: parsed.domain,
       category: parsed.category,
+      topic: parsed.topic,
       status: parsed.status,
       sort: parsed.sort,
       dir: parsed.dir,
@@ -99,7 +114,20 @@ export default async function TermsPage({
                 정리 필요 {facets.needsContribution}
               </Link>
             )}
-            <SheetShare baseQuery={embedBaseQuery(parsed)} />
+            <SheetShare
+              baseQuery={embedBaseQuery(parsed)}
+              filters={{
+                q: parsed.q ?? "",
+                type: parsed.type ?? "",
+                status: parsed.status === "draft" ? "" : parsed.status ?? "",
+                domain: parsed.domain ?? "",
+                category: parsed.category ?? "",
+                topic: parsed.topic ?? "",
+              }}
+              domains={facets.domains.map((facet) => facet.value)}
+              categories={facets.categories.map((facet) => ({ key: facet.value, label: facet.label }))}
+              topics={facets.topics.map((facet) => facet.value)}
+            />
           </span>
         </div>
 
@@ -119,7 +147,7 @@ export default async function TermsPage({
           <FilterSelect
             name="type"
             value={parsed.type}
-            placeholder={withCount("종류 전체", facets.total)}
+            placeholder={withCount("Type 전체", facets.total)}
             options={facets.types.map((f) => ({ value: f.value, label: withCount(TERM_TYPE_LABEL[f.value], f.count) }))}
           />
           <FilterSelect
@@ -140,8 +168,14 @@ export default async function TermsPage({
           <FilterSelect
             name="category"
             value={parsed.category}
-            placeholder={withCount("카테고리 전체", facets.total)}
-            options={facets.categories.map((f) => ({ value: f.value, label: withCount(f.value, f.count) }))}
+            placeholder={withCount("업무 분류 전체", facets.total)}
+            options={facets.categories.map((f) => ({ value: f.value, label: withCount(f.label, f.count) }))}
+          />
+          <FilterSelect
+            name="topic"
+            value={parsed.topic}
+            placeholder={withCount("주제 전체", facets.total)}
+            options={facets.topics.map((f) => ({ value: f.value, label: withCount(f.value, f.count) }))}
           />
           {hiddenSearchFields(parsed)
             .filter((f) => f.name === "sort" || f.name === "dir")
@@ -156,7 +190,11 @@ export default async function TermsPage({
             <span className="ml-1 flex flex-wrap items-center gap-1">
               {filters.map((f) => (
                 <Link key={f.name} href={buildFilterHref(parsed, f.name)} className="chip chip-on" title="이 필터 지우기">
-                  {FILTER_LABEL[f.name]}: {f.value}
+                  {FILTER_LABEL[f.name]}: {filterValueLabel(
+                    f.name,
+                    f.value,
+                    f.name === "category" ? facets.categories.find((category) => category.value === f.value)?.label : undefined,
+                  )}
                   <span aria-hidden>×</span>
                 </Link>
               ))}
@@ -177,6 +215,7 @@ export default async function TermsPage({
         // 도메인 후보는 이 페이지의 50줄이 아니라 사전 전체에서 뽑는다 — 표에서
         // 도메인을 새로 칠 때 이미 쓰던 값이 후보에 없으면 오타가 새 도메인이 된다.
         knownDomains={facets.domains.map((d) => d.value)}
+        categoryOptions={facets.categories.map((category) => ({ key: category.value, label: category.label }))}
       />
 
       {/* R93: 51번째 용어부터는 이 링크 없이는 UI로 영원히 도달 불가능하다.

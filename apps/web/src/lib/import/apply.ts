@@ -30,11 +30,11 @@ function displayName(row: ImportRow): string {
 interface RowSurface {
   text: string;
   lang: "en" | "ko" | "neutral";
-  kind: "canonical" | "alias";
+  kind: "canonical" | "abbreviation" | "full_name" | "alias";
 }
 
 /**
- * 충돌/중복 판정에 쓰는 표기 전체(표준 이름 + 별칭). createTerm에 실제로
+ * 충돌/중복 판정에 쓰는 표기 전체. createTerm에 실제로
  * 넘기는 표기 목록과는 다르다 — createTerm은 nameEn/nameKo로부터 canonical을
  * 스스로 파생하므로(deriveSurfaces), 여기서 다시 canonical을 surfaces 배열에
  * 넣어 넘기면 같은 정규화 키가 두 번 들어가 R45의 충돌 검증을 잘못 건드린다.
@@ -44,6 +44,9 @@ function verdictSurfacesOf(row: ImportRow): RowSurface[] {
   return [
     ...(row.nameEn ? [{ text: row.nameEn, lang: "en" as const, kind: "canonical" as const }] : []),
     ...(row.nameKo ? [{ text: row.nameKo, lang: "ko" as const, kind: "canonical" as const }] : []),
+    ...(row.fullNameEn ? [{ text: row.fullNameEn, lang: "en" as const, kind: "full_name" as const }] : []),
+    ...(row.fullNameKo ? [{ text: row.fullNameKo, lang: "ko" as const, kind: "full_name" as const }] : []),
+    ...row.abbreviations.map((a) => ({ text: a, lang: "neutral" as const, kind: "abbreviation" as const })),
     ...row.aliases.map((a) => ({ text: a, lang: "neutral" as const, kind: "alias" as const })),
   ];
 }
@@ -178,9 +181,13 @@ export async function applyImport(
         fullNameKo: row.fullNameKo,
         domain: row.domain,
         category: row.category,
+        topic: row.topic,
         status: row.status,
         definitionMd: row.definitionMd,
-        surfaces: row.aliases.map((a) => ({ text: a, lang: "neutral" as const, kind: "alias" as const })),
+        surfaces: [
+          ...row.abbreviations.map((text) => ({ text, lang: "neutral" as const, kind: "abbreviation" as const })),
+          ...row.aliases.map((text) => ({ text, lang: "neutral" as const, kind: "alias" as const })),
+        ],
       },
       authorId,
       authorKeyId,

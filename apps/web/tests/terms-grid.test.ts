@@ -47,13 +47,14 @@ function row(overrides: Partial<TermRow> = {}): TermRow {
   return {
     id: "11111111-1111-1111-1111-111111111111",
     slug: "interstitial-slide-point",
-    termType: "term",
+    termType: "concept",
     nameEn: "Interstitial Slide Point",
     nameKo: "중간 슬라이드 지점",
     fullNameEn: null,
     fullNameKo: null,
     domain: ["ISP"],
     category: null,
+    topic: null,
     ownerId: null,
     ownerName: null,
     status: "active",
@@ -63,6 +64,7 @@ function row(overrides: Partial<TermRow> = {}): TermRow {
     editorName: "김테스트",
     revision: 3,
     ...overrides,
+    categoryLabel: overrides.categoryLabel ?? null,
   };
 }
 
@@ -77,9 +79,11 @@ test("activeCellScrollDelta: 고정 머리글과 열 뒤에 가린 셀만 보이
   ).toEqual({ left: 44, top: 16 });
 });
 
-test("카테고리 셀은 공백을 null로 바꾸고 담당자 열은 읽기 전용이다", () => {
-  expect(patchForCell("category", "  노출 제어 ")).toEqual({ patch: { category: "노출 제어" } });
+test("업무 분류는 enum만 받고 주제는 자유롭게 수정하며 담당자 열은 읽기 전용이다", () => {
+  expect(patchForCell("category", "design")).toEqual({ patch: { category: "design" } });
+  expect(patchForCell("category", "노출 제어")).toHaveProperty("error");
   expect(patchForCell("category", "   ")).toEqual({ patch: { category: null } });
+  expect(patchForCell("topic", "  노출 제어 ")).toEqual({ patch: { topic: "노출 제어" } });
   expect(patchForCell("ownerName", "다른 사람")).toEqual({ error: "이 열은 수정할 수 없습니다." });
 });
 
@@ -176,8 +180,8 @@ test("cellText(domain)와 patchForCell(domain)은 왕복해도 값이 그대로�
 
 test("기본 숨김 열은 실제로 hiddenByDefault가 붙은 열들이다", () => {
   // 풀네임은 더 이상 숨기지 않는다 — 안 보이는 열은 표에서 고칠 방법이 없다.
-  // 본문만 접어 둔다(문서 한 편이 들어가는 칸이라 모든 줄이 덩어리가 된다).
-  expect(defaultHiddenColumns()).toEqual(["bodyMd"]);
+  // 주제와 본문은 기본 표를 간결하게 유지하도록 접어 둔다.
+  expect(defaultHiddenColumns()).toEqual(["topic", "bodyMd"]);
   // 전부 숨겨지면 표가 빈 화면이 된다.
   expect(defaultHiddenColumns().length).toBeLessThan(GRID_COLUMNS.length);
 });
@@ -198,6 +202,7 @@ test("ID 선택이 필요한 담당자를 제외한 상세 폼 필드는 표에�
       "nameKo",
       "status",
       "termType",
+      "topic",
     ].sort(),
   );
 });
@@ -213,11 +218,11 @@ test("담당자 표시·slug·최근 수정은 읽기 전용이다", () => {
   }
 });
 
-test("클릭 한 번에 열리는 열은 종류·상태·정의·본문뿐이다", () => {
+test("클릭 한 번에 열리는 열은 enum과 긴 본문 열뿐이다", () => {
   // 나머지 열까지 클릭으로 열면 드래그로 범위를 잡을 수 없게 되어
   // 복사·붙여넣기·아래로 채우기가 통째로 죽는다.
   const opening = GRID_COLUMNS.filter(opensOnClick).map((c) => c.key);
-  expect(opening).toEqual(["termType", "status", "definitionMd", "bodyMd"]);
+  expect(opening).toEqual(["termType", "status", "category", "definitionMd", "bodyMd"]);
 });
 
 // 스크롤 상자가 0~800이고 한 행이 32px일 때의 좌표. 목록은 178px쯤 된다.

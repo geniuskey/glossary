@@ -1,4 +1,4 @@
-import { TERM_STATUS_LABEL, type TermStatusLiteral } from "@/lib/terms/enums";
+import { businessCategoryLabel, TERM_STATUS_LABEL, type BusinessCategoryLiteral, type TermStatusLiteral } from "@/lib/terms/enums";
 import { cx } from "@/lib/ui/format";
 
 // F6/P1(query.ts의 규약): lookup 테이블은 `Record<유니온, T>`로 선언하고 `??`
@@ -33,9 +33,14 @@ export function DomainBadges({ domain }: { domain: string[] }) {
   );
 }
 
-export function CategoryBadge({ category }: { category: string | null }) {
+export function CategoryBadge({ category, label }: { category: BusinessCategoryLiteral | null; label?: string | null }) {
   if (!category) return null;
-  return <span className="chip border-brand/25 bg-brand-soft/60 text-brand">분류 · {category}</span>;
+  return <span className="chip border-brand/25 bg-brand-soft/60 text-brand">업무 분류 · {businessCategoryLabel(category, label)}</span>;
+}
+
+export function TopicBadge({ topic }: { topic: string | null }) {
+  if (!topic) return null;
+  return <span className="chip">주제 · {topic}</span>;
 }
 
 export function OwnerBadge({ ownerName, mine = false }: { ownerName: string | null; mine?: boolean }) {

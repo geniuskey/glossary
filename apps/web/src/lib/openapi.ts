@@ -41,7 +41,12 @@ const json = (description: string, schema: unknown) => ({
 
 const termTypeSchema = {
   type: "string",
-  enum: ["term", "abbreviation", "project", "product_id", "code", "unit"],
+  enum: ["concept", "proper_name", "identifier", "unit"],
+};
+const businessCategorySchema = {
+  type: ["string", "null"],
+  maxLength: 64,
+  description: "관리자가 구성한 업무 분류의 안정적인 key. 표시 이름은 categoryLabel로 제공됩니다.",
 };
   const statusSchema = {
     type: "string",
@@ -82,7 +87,9 @@ export const openApiSpec = {
           nameEn: { type: ["string", "null"] },
           nameKo: { type: ["string", "null"] },
           domain: { type: "array", items: { type: "string" } },
-          category: { type: ["string", "null"] },
+          category: businessCategorySchema,
+          categoryLabel: { type: ["string", "null"] },
+          topic: { type: ["string", "null"] },
           ownerId: { type: ["string", "null"], format: "uuid" },
           ownerName: { type: ["string", "null"], description: "SSO 그룹/조직이 적용된 담당자 라벨" },
           status: statusSchema,
@@ -282,6 +289,64 @@ export const openApiSpec = {
         },
       },
     },
+    "/admin/categories": {
+      get: {
+        summary: "관리자용 업무 분류 목록과 사용 건수 조회",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("{ categories }", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+      post: {
+        summary: "업무 분류 추가",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["label"], additionalProperties: false, properties: { label: { type: "string", minLength: 1, maxLength: 60 } } } } } },
+        responses: {
+          "201": json("{ category }", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden"),
+          "409": errorResponse("operation_conflict — 같은 이름이 이미 있음"),
+        },
+      },
+      patch: {
+        summary: "업무 분류 표시 순서 변경",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["keys"], additionalProperties: false, properties: { keys: { type: "array", items: { type: "string" } } } } } } },
+        responses: {
+          "200": json("{ ok: true }", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden"),
+          "409": errorResponse("operation_conflict — 목록이 변경됨"),
+        },
+      },
+    },
+    "/admin/categories/{key}": {
+      parameters: [{ name: "key", in: "path", required: true, schema: { type: "string", maxLength: 64 } }],
+      patch: {
+        summary: "업무 분류 표시 이름 변경",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["label"], additionalProperties: false, properties: { label: { type: "string", minLength: 1, maxLength: 60 } } } } } },
+        responses: {
+          "200": json("{ ok: true }", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "404": errorResponse("not_found"),
+          "409": errorResponse("operation_conflict"),
+        },
+      },
+      delete: {
+        summary: "사용되지 않는 업무 분류 삭제",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "204": { description: "삭제됨" },
+          "404": errorResponse("not_found"),
+          "409": errorResponse("operation_conflict — 용어가 사용 중"),
+        },
+      },
+    },
     "/admin/users/{id}": {
       patch: {
         summary: "사용자 역할 변경",
@@ -432,7 +497,8 @@ export const openApiSpec = {
           { name: "q", in: "query", schema: { type: "string" } },
           { name: "type", in: "query", schema: termTypeSchema },
           { name: "domain", in: "query", schema: { type: "string" } },
-          { name: "category", in: "query", schema: { type: "string" } },
+          { name: "category", in: "query", schema: businessCategorySchema },
+          { name: "topic", in: "query", schema: { type: "string" } },
           { name: "status", in: "query", schema: statusSchema },
           { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
           { name: "pageSize", in: "query", schema: { type: "integer" } },
@@ -457,7 +523,8 @@ export const openApiSpec = {
                   definitionMd: { type: ["string", "null"] },
                   bodyMd: { type: ["string", "null"] },
                   domain: { type: "array", items: { type: "string" } },
-                  category: { type: ["string", "null"] },
+                  category: businessCategorySchema,
+                  topic: { type: ["string", "null"] },
                   ownerId: { type: ["string", "null"], format: "uuid" },
                   status: statusSchema,
                   surfaces: { type: "array", items: { type: "object" } },

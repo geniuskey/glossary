@@ -1,7 +1,7 @@
 import { termStatusEnum, termTypeEnum } from "@grossary/db";
 import { DEFAULT_DIR, DEFAULT_SORT, SORT_DIRS, SORT_KEYS, type SortDir, type SortKey } from "./grid";
 import { DOMAIN_VALUE_MAX, TERM_QUERY_MAX } from "./limits";
-import type { TermStatus, TermType } from "./query";
+import type { BusinessCategory, TermStatus, TermType } from "./query";
 
 // R91: `app/api/v1/terms/route.ts`의 parseEnumParam/parsePageParam은 이 모듈과
 // 똑같은 문제(알 수 없는 enum 값, 형식이 잘못된 page)를 다루지만 결론은
@@ -18,7 +18,8 @@ export interface ParsedListParams {
   q?: string;
   type?: TermType;
   domain?: string;
-  category?: string;
+  category?: BusinessCategory;
+  topic?: string;
   status?: TermStatus;
   // 정렬은 필터가 아니라 "보는 방식"이다. 그래도 주소에 실려야 한다 —
   // 표에서 열 머리글을 눌러 정렬한 뒤 새로고침하거나 링크를 공유했을 때
@@ -46,6 +47,21 @@ function narrowEnum<T extends string>(raw: string | string[] | undefined, allowe
   return (allowed as readonly string[]).includes(value) ? (value as T) : undefined;
 }
 
+const LEGACY_TYPE_QUERY: Record<string, TermType> = {
+  term: "concept",
+  abbreviation: "concept",
+  project: "proper_name",
+  product_id: "identifier",
+  code: "identifier",
+  unit: "unit",
+};
+
+function narrowTermType(raw: string | string[] | undefined): TermType | undefined {
+  const value = firstValue(raw);
+  if (value && LEGACY_TYPE_QUERY[value]) return LEGACY_TYPE_QUERY[value];
+  return narrowEnum(raw, termTypeEnum.enumValues);
+}
+
 // R90: `Number("1e999")`는 Infinity, `Number("abc")`는 NaN이다 — 둘 다
 // Number.isFinite로 걸러 기본값 1로 되돌린다. 0/음수/소수는 정수로 내림한 뒤
 // 최소 1로 클램프한다.
@@ -68,9 +84,10 @@ export function parsePage(raw: string | string[] | undefined): number {
 export function parseListParams(raw: RawSearchParams): ParsedListParams {
   return {
     q: firstTextValue(raw.q, TERM_QUERY_MAX),
-    type: narrowEnum(raw.type, termTypeEnum.enumValues),
+    type: narrowTermType(raw.type),
     domain: firstTextValue(raw.domain, DOMAIN_VALUE_MAX),
     category: firstTextValue(raw.category, DOMAIN_VALUE_MAX),
+    topic: firstTextValue(raw.topic, DOMAIN_VALUE_MAX),
     status: narrowEnum(raw.status, termStatusEnum.enumValues),
     sort: narrowEnum(raw.sort, SORT_KEYS),
     dir: narrowEnum(raw.dir, SORT_DIRS),
@@ -98,7 +115,7 @@ export function paginationInfo(page: number, total: number, pageSize: number): P
   };
 }
 
-type FilterName = "q" | "type" | "domain" | "category" | "status";
+type FilterName = "q" | "type" | "domain" | "category" | "topic" | "status";
 type ParamName = FilterName | "sort" | "dir";
 
 // R93/R94: 현재 활성 필터(빈 값이 아닌 것만)를 이름 붙은 목록으로 뽑는다.
@@ -111,6 +128,7 @@ export function activeFilters(params: ParsedListParams): Array<{ name: FilterNam
   if (params.type) out.push({ name: "type", value: params.type });
   if (params.domain) out.push({ name: "domain", value: params.domain });
   if (params.category) out.push({ name: "category", value: params.category });
+  if (params.topic) out.push({ name: "topic", value: params.topic });
   if (params.status) out.push({ name: "status", value: params.status });
   return out;
 }

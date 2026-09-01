@@ -153,6 +153,7 @@ export async function createTerm(
             fullNameKo: input.fullNameKo ?? null,
             domain: input.domain,
             category: input.category ?? null,
+            topic: input.topic ?? null,
             ownerId: input.ownerId ?? null,
             status: input.status,
             definitionMd: input.definitionMd ?? null,

@@ -20,7 +20,7 @@ let draftId = "";
 beforeAll(async () => {
   const soc = await createTerm(
     {
-      termType: "abbreviation",
+      termType: "concept",
       nameEn: "SystemOnChipXSRCH",
       nameKo: "시스템온칩XSRCH",
       domain: ["HW"],
@@ -35,7 +35,7 @@ beforeAll(async () => {
 
   const other = await createTerm(
     {
-      termType: "term",
+      termType: "concept",
       nameEn: "SocketXSRCH",
       domain: ["HW"],
       status: "active",
@@ -48,7 +48,7 @@ beforeAll(async () => {
 
   // R136: 접두사가 짧아 trigram 유사도로는 절대 안 걸리는 자동완성용 fixture.
   const qzz = await createTerm(
-    { termType: "term", nameEn: "QzzThermalXSRCH", domain: [], status: "active", surfaces: [] },
+    { termType: "concept", nameEn: "QzzThermalXSRCH", domain: [], status: "active", surfaces: [] },
     null,
   );
   qzzId = qzz.term.id;
@@ -57,14 +57,14 @@ beforeAll(async () => {
   // R136: LIKE 이스케이프용 한 쌍. 표기에 `%`가 들어간 것과, 그 `%`가
   // 와일드카드로 새면 함께 걸려 버리는 것.
   const pct = await createTerm(
-    { termType: "term", nameEn: "XsrchpctFifty%", domain: [], status: "active", surfaces: [] },
+    { termType: "concept", nameEn: "XsrchpctFifty%", domain: [], status: "active", surfaces: [] },
     null,
   );
   pctId = pct.term.id;
   ids.push(pctId);
 
   const pctPlain = await createTerm(
-    { termType: "term", nameEn: "XsrchpctFiftyAaa", domain: [], status: "active", surfaces: [] },
+    { termType: "concept", nameEn: "XsrchpctFiftyAaa", domain: [], status: "active", surfaces: [] },
     null,
   );
   pctPlainId = pctPlain.term.id;
@@ -72,7 +72,7 @@ beforeAll(async () => {
 
   const draft = await createTerm(
     {
-      termType: "term",
+      termType: "concept",
       nameEn: "HiddenDraftXSRCH",
       domain: ["QA"],
       status: "draft",
@@ -100,6 +100,9 @@ test("별칭으로 찾아도 개념에 닿고, 무엇으로 맞았는지 함께 
   // 결과 줄에 정의 두 줄을 보여준다 — TermSummary에는 없는 필드라 여기서 함께
   // 가져오지 않으면 화면이 조용히 비어 보인다.
   expect(hit!.definitionMd).toContain("칩");
+  expect(hit!.categoryLabel).toBeNull();
+  expect(hit).toHaveProperty("ownerId");
+  expect(hit).toHaveProperty("ownerName");
 });
 
 test("정규화가 다른 표기(대소문자·공백·기호)로도 같은 개념에 닿는다", async () => {

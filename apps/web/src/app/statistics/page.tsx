@@ -4,6 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { CumulativeChart, DailyGrowthChart, RevisionActivityChart } from "@/components/statistics-charts";
 import { getPlatformStatistics } from "@/lib/admin/statistics";
 import { getCurrentUser } from "@/lib/auth/current-user";
+import { listBusinessCategories } from "@/lib/terms/categories";
 import { GroupStatisticsTable } from "./group-statistics-table";
 
 export const metadata = { title: "플랫폼 통계" };
@@ -26,7 +27,8 @@ export default async function StatisticsPage({
   if (user.role !== "admin") redirect("/");
 
   const period = periodOf((await searchParams).days);
-  const statistics = await getPlatformStatistics(period);
+  const [statistics, categories] = await Promise.all([getPlatformStatistics(period), listBusinessCategories()]);
+  const categoryLabels = Object.fromEntries(categories.map((category) => [category.key, category.label]));
   const activeRate = statistics.totals.terms > 0
     ? Math.round((statistics.totals.activeTerms / statistics.totals.terms) * 100)
     : 0;
@@ -72,7 +74,7 @@ export default async function StatisticsPage({
           <CumulativeChart data={statistics.daily} value="cumulativeUsers" title={`누적 사용자 · ${period}일`} unit="명" />
         </div>
 
-        <GroupStatisticsTable kind="category" rows={statistics.categories} />
+        <GroupStatisticsTable kind="category" rows={statistics.categories} categoryLabels={categoryLabels} />
         <GroupStatisticsTable kind="domain" rows={statistics.domains} />
 
         <footer className="mt-6 border-t border-line pt-4 text-xs leading-5 text-ink-3">

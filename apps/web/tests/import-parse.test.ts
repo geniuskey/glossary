@@ -27,7 +27,7 @@ test("헤더를 인식하고 행을 파싱한다", async () => {
     nameEn: "AE",
     nameKo: "자동노출",
     fullNameEn: "Auto Exposure",
-    termType: "abbreviation",
+    termType: "concept",
     domain: ["ISP"],
     status: "active",
     aliases: ["오토익스포저"],
@@ -135,4 +135,18 @@ test("R124: 인식하지 못한 헤더는 ignoredHeaders에 등장 순서대로,
   expect(result.ignoredHeaders).toEqual(["weird_col"]);
   expect(result.rows).toHaveLength(1);
   expect(result.rows[0]).toMatchObject({ nameEn: "Gain", nameKo: "게인" });
+});
+
+test("관리자가 추가한 업무 분류 key는 현재 허용 목록을 받아 그대로 가져온다", async () => {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("glossary");
+  ws.addRow(["name_en", "category"]);
+  ws.addRow(["Secure Boot", "security"]);
+  const buf = (await wb.xlsx.writeBuffer()) as ArrayBuffer;
+
+  const result = await parseGlossaryWorkbook(buf, ["security"]);
+
+  expect(result.errors).toEqual([]);
+  expect(result.rows[0]).toMatchObject({ nameEn: "Secure Boot", category: "security" });
+  expect(result.rows[0]?.topic).toBeUndefined();
 });

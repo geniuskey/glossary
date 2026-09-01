@@ -3,6 +3,7 @@ import { AppShell } from "@/components/app-shell";
 import { ImportForm } from "@/components/import-form";
 import { ImportGuide, TemplateDownloadLink } from "@/components/import-guide";
 import { getCurrentUser } from "@/lib/auth/current-user";
+import { listBusinessCategories } from "@/lib/terms/categories";
 
 // R121: app/new/page.tsx(R92)와 같은 Server-shell 패턴 —
 // getCurrentUser로 미인증 접근을 redirect("/login")로 걷어내고, 실제 폼은
@@ -11,6 +12,7 @@ import { getCurrentUser } from "@/lib/auth/current-user";
 export default async function ImportPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  const categoryOptions = await listBusinessCategories();
 
   return (
     <AppShell user={user} title="엑셀 가져오기" current="import">
@@ -26,7 +28,7 @@ export default async function ImportPage() {
       </header>
       <div className="space-y-8">
         <ImportForm />
-        <ImportGuide />
+        <ImportGuide categoryOptions={categoryOptions} />
       </div>
     </AppShell>
   );

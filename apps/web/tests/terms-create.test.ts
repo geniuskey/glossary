@@ -41,7 +41,7 @@ afterEach(async () => {
 test("표준 표기가 canonical surface로 함께 저장된다", async () => {
   const { term } = await createTerm(
     {
-      termType: "abbreviation",
+      termType: "concept",
       nameEn: "AE",
       fullNameEn: "Auto Exposure",
       nameKo: "자동노출",
@@ -61,13 +61,13 @@ test("표준 표기가 canonical surface로 함께 저장된다", async () => {
 
 test("같은 정규화 키를 가진 기존 용어가 있으면 경고를 반환하되 저장은 한다", async () => {
   const first = await createTerm(
-    { termType: "term", nameEn: "Auto Exposure", domain: ["ISP"], status: "active", surfaces: [] },
+    { termType: "concept", nameEn: "Auto Exposure", domain: ["ISP"], status: "active", surfaces: [] },
     null,
   );
   created.push(first.term.id);
 
   const second = await createTerm(
-    { termType: "term", nameEn: "auto-exposure", domain: ["PM"], status: "active", surfaces: [] },
+    { termType: "concept", nameEn: "auto-exposure", domain: ["PM"], status: "active", surfaces: [] },
     null,
   );
   created.push(second.term.id);
@@ -85,7 +85,7 @@ test("같은 정규화 키를 가진 기존 용어가 있으면 경고를 반환
 
 test("생성 시 1번 리비전이 기록되고 snapshot에 term/surfaces 내용이 담긴다", async () => {
   const { term, surfaces } = await createTerm(
-    { termType: "term", nameEn: "Black Level", domain: ["ISP"], status: "active", surfaces: [] },
+    { termType: "concept", nameEn: "Black Level", domain: ["ISP"], status: "active", surfaces: [] },
     null,
   );
   created.push(term.id);
@@ -106,8 +106,8 @@ test("생성 시 1번 리비전이 기록되고 snapshot에 term/surfaces 내용
 });
 
 test("슬러그가 겹치면 접미사를 붙여 고유하게 만든다", async () => {
-  const a = await createTerm({ termType: "term", nameEn: "Gain", domain: [], status: "active", surfaces: [] }, null);
-  const b = await createTerm({ termType: "term", nameEn: "Gain", domain: [], status: "active", surfaces: [] }, null);
+  const a = await createTerm({ termType: "concept", nameEn: "Gain", domain: [], status: "active", surfaces: [] }, null);
+  const b = await createTerm({ termType: "concept", nameEn: "Gain", domain: [], status: "active", surfaces: [] }, null);
   created.push(a.term.id, b.term.id);
 
   expect(a.term.slug).toBe("gain");
@@ -126,7 +126,7 @@ test("트랜잭션 중간(리비전 insert)이 실패하면 terms/term_surfaces�
   try {
     await expect(
       createTerm(
-        { termType: "term", nameEn: "Rollback Probe", domain: [], status: "active", surfaces: [] },
+        { termType: "concept", nameEn: "Rollback Probe", domain: [], status: "active", surfaces: [] },
         null,
       ),
     ).rejects.toThrow();
@@ -148,7 +148,7 @@ test("트랜잭션 중간(리비전 insert)이 실패하면 terms/term_surfaces�
 test("bodyMd가 저장되고 그대로 반환된다 (R33)", async () => {
   const bodyMd = "# 제목\n\n본문 내용입니다.";
   const { term } = await createTerm(
-    { termType: "term", nameEn: "Body Md Probe", domain: [], status: "active", surfaces: [], bodyMd },
+    { termType: "concept", nameEn: "Body Md Probe", domain: [], status: "active", surfaces: [], bodyMd },
     null,
   );
   created.push(term.id);
@@ -191,7 +191,7 @@ test("슬러그 경합이 나면 재시도해서 -2로 저장한다 (R48)", asyn
   const blockerTx = db.transaction(async (tx) => {
     const [row] = await tx
       .insert(terms)
-      .values({ slug: "retry-probe", termType: "term", nameEn: "Retry Probe Blocker", domain: [], status: "active" })
+      .values({ slug: "retry-probe", termType: "concept", nameEn: "Retry Probe Blocker", domain: [], status: "active" })
       .returning();
     created.push(row!.id);
     signalInserted();
@@ -201,7 +201,7 @@ test("슬러그 경합이 나면 재시도해서 -2로 저장한다 (R48)", asyn
   await inserted;
 
   const createPromise = createTerm(
-    { termType: "term", nameEn: "Retry Probe", domain: [], status: "active", surfaces: [] },
+    { termType: "concept", nameEn: "Retry Probe", domain: [], status: "active", surfaces: [] },
     null,
   );
 
@@ -229,7 +229,7 @@ test("R92: 이름이 New인 용어는 슬러그가 new가 되지 않는다", asy
   expect(RESERVED_SLUGS.has("new")).toBe(true);
 
   const { term } = await createTerm(
-    { termType: "term", nameEn: "New", domain: [], status: "active", surfaces: [] },
+    { termType: "concept", nameEn: "New", domain: [], status: "active", surfaces: [] },
     null,
   );
   created.push(term.id);
@@ -244,7 +244,7 @@ test("R92: 이름이 New인 용어는 슬러그가 new가 되지 않는다", asy
 test("F2: UUID 모양의 이름으로 만든 용어는 slug가 UUID 모양이 되지 않는다", async () => {
   const { term } = await createTerm(
     {
-      termType: "product_id",
+      termType: "identifier",
       nameEn: "550e8400 e29b 41d4 a716 446655440000",
       domain: [],
       status: "active",

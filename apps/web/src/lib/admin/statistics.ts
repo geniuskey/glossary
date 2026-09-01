@@ -93,7 +93,7 @@ export async function getPlatformStatistics(days: 30 | 90 | 180 = 30): Promise<P
     .from(terms)
     .as("domain_terms");
 
-  const categoryName = sql<string>`coalesce(nullif(btrim(${terms.category}), ''), '미분류')`;
+  const categoryName = sql<string>`coalesce(${terms.category}::text, '미분류')`;
   const groupFields = (source: typeof terms | typeof domainTerms) => ({
     total: sql<number>`count(*)::int`,
     active: sql<number>`count(*) filter (where ${source.status} = 'active')::int`,

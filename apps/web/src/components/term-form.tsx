@@ -31,6 +31,7 @@ import { buildTermPayload, parseSurfaceBatch, type SurfaceDraft, type TermFormSt
 import { interpretResponse, type FormOutcome } from "@/lib/terms/form-response";
 import { TERM_DOMAIN_TEXT_MAX, TERM_MARKDOWN_MAX, TERM_NAME_MAX, TERM_SLUG_MAX } from "@/lib/terms/limits";
 import type { AssignableUser } from "@/lib/terms/owners";
+import type { BusinessCategoryOption } from "@/lib/terms/categories";
 import { slugify, slugValidationMessage } from "@/lib/terms/slug";
 
 export interface TermFormInitial extends TermFormState {
@@ -50,13 +51,14 @@ const LANG_LABEL: Record<SurfaceLangLiteral, string> = {
 };
 
 const EMPTY: TermFormState = {
-  termType: "term",
+  termType: "concept",
   nameEn: "",
   nameKo: "",
   fullNameEn: "",
   fullNameKo: "",
   domain: "",
   category: "",
+  topic: "",
   ownerId: "",
   status: "draft",
   definitionMd: "",
@@ -70,7 +72,15 @@ const EMPTY: TermFormState = {
 type ExtractWarnings<T> = T extends { kind: "success"; warnings: infer W } ? W : never;
 type WarningList = ExtractWarnings<FormOutcome>;
 
-export function TermForm({ initial, assignees = [] }: { initial?: TermFormInitial; assignees?: AssignableUser[] }) {
+export function TermForm({
+  initial,
+  assignees = [],
+  categoryOptions = [],
+}: {
+  initial?: TermFormInitial;
+  assignees?: AssignableUser[];
+  categoryOptions?: BusinessCategoryOption[];
+}) {
   const router = useRouter();
   const editSlug = initial?.slug;
 
@@ -100,7 +110,7 @@ export function TermForm({ initial, assignees = [] }: { initial?: TermFormInitia
   const initialSnapshotRef = useRef(JSON.stringify(buildTermPayload(initial ?? EMPTY)));
 
   const locked = saving || renamingSlug || savedSlug !== null;
-  const labels = TERM_FIELD_LABELS[form.termType as TermTypeLiteral] ?? TERM_FIELD_LABELS.term;
+  const labels = TERM_FIELD_LABELS[form.termType as TermTypeLiteral] ?? TERM_FIELD_LABELS.concept;
   const fieldDisplayLabel: Record<string, string> = {
     termType: "용어 종류",
     nameEn: labels.nameEn,
@@ -108,7 +118,8 @@ export function TermForm({ initial, assignees = [] }: { initial?: TermFormInitia
     fullNameEn: labels.fullNameEn,
     fullNameKo: labels.fullNameKo,
     domain: "도메인",
-    category: "카테고리",
+    category: "업무 분류",
+    topic: "주제",
     ownerId: "담당자",
     status: "공개 상태",
     definitionMd: "정의",
@@ -395,8 +406,9 @@ export function TermForm({ initial, assignees = [] }: { initial?: TermFormInitia
           <CompactSectionTitle title="이름과 표기" description="대표 이름과 함께 검색할 약어·별칭을 한곳에서 관리합니다." />
           <div className="space-y-5 p-4 sm:p-5">
             <fieldset>
-              <legend className="label">용어 종류</legend>
-              <div className="grid grid-cols-2 gap-1 rounded-xl bg-panel-2 p-1 sm:grid-cols-3 xl:grid-cols-6">
+              <legend className="label">Type</legend>
+              <p className="mb-2 text-xs leading-5 text-ink-3">항목 자체의 성격을 고릅니다. 약어와 풀네임은 아래 추가 표기에서 관리합니다.</p>
+              <div className="grid grid-cols-2 gap-1 rounded-xl bg-panel-2 p-1 xl:grid-cols-4">
                 {TERM_TYPES.map((type) => (
                   <label key={type} className="cursor-pointer">
                     <input
@@ -670,15 +682,35 @@ export function TermForm({ initial, assignees = [] }: { initial?: TermFormInitia
               hint="여러 값은 쉼표로 구분합니다."
               onChange={(value) => updateField("domain", value)}
             />
+            <label className="block">
+              <span className="label">업무 분류</span>
+              <select
+                name="category"
+                value={form.category}
+                onChange={(event) => updateField("category", event.target.value)}
+                disabled={locked}
+                aria-invalid={errorsFor("category") ? true : undefined}
+                aria-describedby={errorsFor("category") ? "category-error" : "category-hint"}
+                className="field"
+              >
+                <option value="">미분류</option>
+                {categoryOptions.map((category) => (
+                  <option key={category.key} value={category.key}>{category.label}</option>
+                ))}
+              </select>
+              <span id="category-hint" className="mt-1.5 block text-xs leading-5 text-ink-3">제품·프로젝트·설계처럼 이 항목이 속한 주된 업무 맥락입니다.</span>
+              <FormFieldError id="category-error" errors={errorsFor("category")} />
+            </label>
             <FormTextField
-              name="category"
-              label="카테고리"
-              value={form.category}
-              errors={errorsFor("category")}
+              name="topic"
+              label="주제"
+              value={form.topic}
+              errors={errorsFor("topic")}
               maxLength={TERM_NAME_MAX}
               disabled={locked}
-              placeholder="예: 공정…"
-              onChange={(value) => updateField("category", value)}
+              placeholder="예: 노출 제어…"
+              hint="기존 자유 입력 카테고리는 주제로 보존됩니다."
+              onChange={(value) => updateField("topic", value)}
             />
 
             <label className="block">

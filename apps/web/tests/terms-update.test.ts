@@ -23,7 +23,7 @@ afterEach(async () => {
 
 async function seed() {
   const { term } = await createTerm(
-    { termType: "term", nameEn: "Black Level", domain: ["ISP"], status: "active", surfaces: [] },
+    { termType: "concept", nameEn: "Black Level", domain: ["ISP"], status: "active", surfaces: [] },
     null,
   );
   created.push(term.id);
@@ -273,7 +273,7 @@ test("자기 자신의 기존 표기와는 중복 경고가 나지 않는다 (R5
 test("다른 term과 표기가 겹치면 여전히 경고가 뜬다 (R56)", async () => {
   const term = await seed();
   const other = await createTerm(
-    { termType: "term", nameEn: "Update Dup Probe", domain: [], status: "active", surfaces: [] },
+    { termType: "concept", nameEn: "Update Dup Probe", domain: [], status: "active", surfaces: [] },
     null,
   );
   created.push(other.term.id);
@@ -347,7 +347,7 @@ test("리비전 스냅샷에 실제 term/surfaces 내용이 담긴다 (R73)", as
 test("이름을 바꿔서 다른 term과 겹쳐도 중복 경고가 뜬다 (R74)", async () => {
   const term = await seed();
   const other = await createTerm(
-    { termType: "term", nameEn: "Rename Dup Probe", domain: [], status: "active", surfaces: [] },
+    { termType: "concept", nameEn: "Rename Dup Probe", domain: [], status: "active", surfaces: [] },
     null,
   );
   created.push(other.term.id);
@@ -516,7 +516,7 @@ test("slug를 수정하면 새 주소가 저장되고 리비전 스냅샷에도 
 test("이미 사용 중인 slug로 수정하면 저장과 리비전 생성을 모두 거부한다", async () => {
   const term = await seed();
   const other = await createTerm(
-    { termType: "term", nameEn: `Slug Collision ${term.id}`, domain: [], status: "active", surfaces: [] },
+    { termType: "concept", nameEn: `Slug Collision ${term.id}`, domain: [], status: "active", surfaces: [] },
     null,
   );
   created.push(other.term.id);

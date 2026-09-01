@@ -1,10 +1,13 @@
 import {
+  BUSINESS_CATEGORIES,
+  BUSINESS_CATEGORY_LABEL,
   TERM_STATUSES,
   TERM_STATUS_LABEL,
   TERM_TYPES,
   TERM_TYPE_LABEL,
   type TermStatusLiteral,
   type TermTypeLiteral,
+  type BusinessCategoryLiteral,
 } from "./enums";
 
 // R114와 같은 이유로 이 모듈은 @grossary/db를 import하지 않는다 — terms-grid.tsx
@@ -26,7 +29,9 @@ export interface TermRow {
   fullNameEn: string | null;
   fullNameKo: string | null;
   domain: string[];
-  category: string | null;
+  category: BusinessCategoryLiteral | null;
+  categoryLabel: string | null;
+  topic: string | null;
   ownerId: string | null;
   ownerName: string | null;
   status: TermStatusLiteral;
@@ -57,6 +62,7 @@ export type ColumnKey =
   | "status"
   | "domain"
   | "category"
+  | "topic"
   | "ownerName"
   | "definitionMd"
   | "bodyMd"
@@ -83,6 +89,7 @@ export interface GridColumn {
 }
 
 const TYPE_OPTIONS = TERM_TYPES.map((v) => ({ value: v, label: TERM_TYPE_LABEL[v] }));
+const CATEGORY_OPTIONS = BUSINESS_CATEGORIES.map((v) => ({ value: v, label: BUSINESS_CATEGORY_LABEL[v] ?? v }));
 const STATUS_OPTIONS = TERM_STATUSES.map((v) => ({ value: v, label: TERM_STATUS_LABEL[v] }));
 
 export const GRID_COLUMNS: readonly GridColumn[] = [
@@ -90,10 +97,11 @@ export const GRID_COLUMNS: readonly GridColumn[] = [
   { key: "nameKo", label: "대표 국문 표기", kind: "text", width: 180, sortKey: "nameKo" },
   { key: "fullNameEn", label: "영문 확장명", kind: "text", width: 220 },
   { key: "fullNameKo", label: "국문 확장명", kind: "text", width: 200 },
-  { key: "termType", label: "종류", kind: "enum", width: 110, options: TYPE_OPTIONS, sortKey: "termType" },
+  { key: "termType", label: "Type", kind: "enum", width: 110, options: TYPE_OPTIONS, sortKey: "termType" },
   { key: "status", label: "상태", kind: "enum", width: 100, options: STATUS_OPTIONS, sortKey: "status" },
   { key: "domain", label: "도메인", kind: "list", width: 160 },
-  { key: "category", label: "카테고리", kind: "text", width: 160 },
+  { key: "category", label: "업무 분류", kind: "enum", width: 140, options: CATEGORY_OPTIONS },
+  { key: "topic", label: "주제", kind: "text", width: 180, hiddenByDefault: true },
   { key: "ownerName", label: "담당자", kind: "readonly", width: 140 },
   { key: "definitionMd", label: "정의", kind: "longtext", width: 300 },
   // 본문은 문서 한 편이 통째로 들어가는 칸이라 기본으로는 접어 둔다 — 켜 두면
@@ -282,6 +290,7 @@ export type CellPatch = Partial<
     | "status"
     | "domain"
     | "category"
+    | "topic"
     | "definitionMd"
     | "bodyMd"
   >
@@ -295,7 +304,11 @@ export type CellPatch = Partial<
  * 빈 값의 의미가 필드마다 다르다: 표준명/풀네임은 "지운다"(null)이고,
  * 정의는 빈 문자열이다(termInputBaseSchema에서 definitionMd는 nullable이 아니다).
  */
-export function patchForCell(key: ColumnKey, raw: string): { patch: CellPatch } | { error: string } {
+export function patchForCell(
+  key: ColumnKey,
+  raw: string,
+  allowedCategoryKeys: readonly string[] = BUSINESS_CATEGORIES,
+): { patch: CellPatch } | { error: string } {
   const value = raw.trim();
 
   switch (key) {
@@ -311,8 +324,15 @@ export function patchForCell(key: ColumnKey, raw: string): { patch: CellPatch } 
     case "bodyMd":
       return { patch: { bodyMd: value } };
 
-    case "category":
-      return { patch: { category: value === "" ? null : value } };
+    case "topic":
+      return { patch: { topic: value === "" ? null : value } };
+
+    case "category": {
+      if (value === "") return { patch: { category: null } };
+      const found = allowedCategoryKeys.find((category) => category === value);
+      if (!found) return { error: `업무 분류 값이 올바르지 않습니다: ${raw}` };
+      return { patch: { category: found } };
+    }
 
     case "domain": {
       // 엑셀에서 붙여넣으면 쉼표와 줄바꿈이 섞여 들어온다. 둘 다 구분자로 보고
@@ -521,7 +541,7 @@ function buildPlan(entries: readonly PlanEntry[]): WritePlan {
     // 리비전 기록이 의미 없는 줄로 채워진다.
     if (cellText(row, column.key) === raw.trim()) continue;
 
-    const parsed = patchForCell(column.key, raw);
+    const parsed = patchForCell(column.key, raw, column.options?.map((option) => option.value));
     if ("error" in parsed) {
       errors.push(`${rowLabel(row)} · ${column.label}: ${parsed.error}`);
       continue;
@@ -586,7 +606,7 @@ function draftFromLine(
     if (!column || raw === undefined || column.kind === "readonly") continue;
     if (raw.trim() === "") continue;
 
-    const parsed = patchForCell(column.key, raw);
+    const parsed = patchForCell(column.key, raw, column.options?.map((option) => option.value));
     // 종류·상태가 잘못된 줄은 만들지 않는다. 그 값만 기본값으로 밀어 넣으면
     // 사용자가 적은 것과 다른 행이 조용히 생긴다.
     if ("error" in parsed) return { error: `${lineNumber}번째 줄 · ${column.label}: ${parsed.error}` };

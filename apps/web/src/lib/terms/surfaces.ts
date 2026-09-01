@@ -21,10 +21,16 @@ export function defaultCaseSensitive(text: string): boolean {
  */
 export function deriveSurfaces(names: CanonicalNames, explicit: SurfaceInput[]): SurfaceInput[] {
   const derived: SurfaceInput[] = [];
-  const isAbbrev = names.termType === "abbreviation";
+  // Type과 표기 종류는 독립 축이다. 대표 영문 표기와 같은 약어를 명시해 둔
+  // 기존 데이터는 그 kind를 우선해, 다시 저장해도 canonical로 뒤집히지 않는다.
+  const nameEnKey = names.nameEn ? surfaceKeys(names.nameEn).normLoose : "";
+  const nameEnKind = explicit.some((surface) =>
+    surface.kind === "abbreviation" && surfaceKeys(surface.text).normLoose === nameEnKey)
+    ? "abbreviation"
+    : "canonical";
 
   if (names.nameEn) {
-    derived.push({ text: names.nameEn, lang: "en", kind: isAbbrev ? "abbreviation" : "canonical" });
+    derived.push({ text: names.nameEn, lang: "en", kind: nameEnKind });
   }
   if (names.nameKo) derived.push({ text: names.nameKo, lang: "ko", kind: "canonical" });
   if (names.fullNameEn) derived.push({ text: names.fullNameEn, lang: "en", kind: "full_name" });

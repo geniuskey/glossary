@@ -1,6 +1,7 @@
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { requireAuth, isResponse } from "@/lib/auth/require";
 import { parseGlossaryWorkbook } from "@/lib/import/parse-xlsx";
+import { listBusinessCategories } from "@/lib/terms/categories";
 import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS } from "@/lib/import/format";
 import { applyImport, dryRunImport } from "@/lib/import/apply";
 
@@ -52,7 +53,11 @@ export const POST = withApiErrors(async (request: Request) => {
     return apiError("payload_too_large", "파일이 10MB를 넘습니다.", 413);
   }
 
-  const { rows, errors, fileErrors, ignoredHeaders } = await parseGlossaryWorkbook(await file.arrayBuffer());
+  const categoryOptions = await listBusinessCategories();
+  const { rows, errors, fileErrors, ignoredHeaders } = await parseGlossaryWorkbook(
+    await file.arrayBuffer(),
+    categoryOptions.map((category) => category.key),
+  );
 
   // R119: 행 수 상한. computeVerdict(apply.ts)가 findDuplicates를 행마다 부르지
   // 않도록 이미 배치로 바꿨지만, 그래도 상한 자체가 없으면 배치 쿼리 하나가

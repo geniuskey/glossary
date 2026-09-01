@@ -77,7 +77,7 @@ test("편집 페이지는 현재 리비전 번호를 expectedRevision으로 Term
   await loginAs(user.id);
 
   const { term } = await createTerm(
-    { termType: "term", nameEn: "Edit Page Probe", domain: [], status: "active", surfaces: [] },
+    { termType: "concept", nameEn: "Edit Page Probe", domain: [], status: "active", surfaces: [] },
     user.id,
   );
   createdTermIds.push(term.id);
@@ -106,7 +106,7 @@ test("편집 페이지 초기값의 surfaces에는 파생 가능한 canonical �
 
   const { term } = await createTerm(
     {
-      termType: "term",
+      termType: "concept",
       nameEn: "Edit Surfaces Probe",
       domain: [],
       status: "active",

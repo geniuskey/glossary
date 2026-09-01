@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { parseEmbedColumns, parseEmbedOptions } from "@/lib/embed/sheet-share";
-import { TERM_STATUS_LABEL, TERM_TYPE_LABEL } from "@/lib/terms/enums";
+import { businessCategoryLabel, TERM_STATUS_LABEL, TERM_TYPE_LABEL } from "@/lib/terms/enums";
 import { cellText, type ColumnKey, type TermRow } from "@/lib/terms/grid";
 import { parseListParams, type RawSearchParams } from "@/lib/terms/list-params";
 import { listPublishedTermRows } from "@/lib/terms/query";
+import { listBusinessCategories } from "@/lib/terms/categories";
 import { cx } from "@/lib/ui/format";
 
 export const metadata = { title: "공유 시트" };
@@ -27,6 +28,11 @@ export default async function EmbedPage({ searchParams }: { searchParams: Promis
 
   const raw = await searchParams;
   const params = parseListParams(raw);
+  const categories = await listBusinessCategories();
+  if (params.category && !categories.some((category) => category.key === params.category)) {
+    params.topic ??= params.category;
+    params.category = undefined;
+  }
   const columns = parseEmbedColumns(raw.columns);
   const options = parseEmbedOptions(raw);
   const { items, total } = await listPublishedTermRows({
@@ -34,6 +40,7 @@ export default async function EmbedPage({ searchParams }: { searchParams: Promis
     termType: params.type,
     domain: params.domain,
     category: params.category,
+    topic: params.topic,
     status: params.status,
     sort: params.sort,
     dir: params.dir,
@@ -74,6 +81,7 @@ export default async function EmbedPage({ searchParams }: { searchParams: Promis
 function EmbedCell({ row, column, links }: { row: TermRow; column: ColumnKey; links: boolean }) {
   let text = cellText(row, column);
   if (column === "termType") text = TERM_TYPE_LABEL[row.termType];
+  if (column === "category" && row.category) text = businessCategoryLabel(row.category, row.categoryLabel);
   if (column === "status") text = TERM_STATUS_LABEL[row.status];
   if (column === "updatedAt") text = new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium" }).format(new Date(row.updatedAt));
 

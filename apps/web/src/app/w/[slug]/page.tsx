@@ -4,10 +4,10 @@ import { surfaceKeys } from "@grossary/db";
 import { AppShell } from "@/components/app-shell";
 import { MarkdownContent } from "@/components/markdown-content";
 import { CompletionBadge, CompletionProgress, MissingFields } from "@/components/term-completion";
-import { CategoryBadge, DomainBadges, OwnerBadge, StatusBadge } from "@/components/term-badges";
+import { CategoryBadge, DomainBadges, OwnerBadge, StatusBadge, TopicBadge } from "@/components/term-badges";
 import { isUuid } from "@/lib/api-error";
 import { getCurrentUser } from "@/lib/auth/current-user";
-import { TERM_TYPE_LABEL } from "@/lib/terms/enums";
+import { businessCategoryLabel, TERM_TYPE_LABEL } from "@/lib/terms/enums";
 import { termCompletion } from "@/lib/terms/completion";
 import { getTermByIdOrSlug, listRelatedTerms, type SurfaceKind } from "@/lib/terms/query";
 import { displayName, relativeTime, spineHue } from "@/lib/ui/format";
@@ -80,7 +80,9 @@ export default async function TermDetailPage({
   const relatedTerms = await listRelatedTerms(term, 6);
   const graphHref = term.category
     ? `/graph?category=${encodeURIComponent(term.category)}`
-    : term.domain[0]
+    : term.topic
+      ? `/graph?topic=${encodeURIComponent(term.topic)}`
+      : term.domain[0]
       ? `/graph?domain=${encodeURIComponent(term.domain[0])}`
       : "/graph";
 
@@ -140,7 +142,8 @@ export default async function TermDetailPage({
           <CompletionBadge completion={completion} />
           <span className="chip">{TERM_TYPE_LABEL[term.termType]}</span>
           <DomainBadges domain={term.domain} />
-          <CategoryBadge category={term.category} />
+          <CategoryBadge category={term.category} label={term.categoryLabel} />
+          <TopicBadge topic={term.topic} />
           <OwnerBadge ownerName={term.ownerName} mine={term.ownerId === user.id} />
           {/* F4: R40이 updatedAt을 TermDetail에 정식으로 추가한 이유가 "위키
               상세 페이지는 최근 수정을 보여줘야 한다"였는데, 그 화면이 지금
@@ -241,7 +244,7 @@ export default async function TermDetailPage({
             <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
               <div>
                 <h2 id="related-terms-heading" className="text-base font-semibold text-ink text-balance">같이 보면 좋은 용어</h2>
-                <p className="mt-1 text-xs leading-5 text-ink-3">같은 도메인이나 카테고리에서 이어지는 개념입니다.</p>
+                <p className="mt-1 text-xs leading-5 text-ink-3">같은 도메인, 업무 분류나 주제에서 이어지는 개념입니다.</p>
               </div>
               <Link href={graphHref} className="btn-ghost btn-sm shrink-0">
                 관계도에서 보기 <IconArrow />
@@ -266,7 +269,10 @@ export default async function TermDetailPage({
                     </span>
                     <span className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-3">
                       {related.sameCategory && related.category && (
-                        <span className="rounded bg-brand-soft px-1.5 py-0.5 text-brand">같은 카테고리 · {related.category}</span>
+                        <span className="rounded bg-brand-soft px-1.5 py-0.5 text-brand">같은 업무 분류 · {businessCategoryLabel(related.category, related.categoryLabel)}</span>
+                      )}
+                      {related.sameTopic && related.topic && (
+                        <span className="rounded bg-warn-soft px-1.5 py-0.5 text-warn">같은 주제 · {related.topic}</span>
                       )}
                       {related.sharedDomains.map((domain) => (
                         <span key={domain} className="rounded bg-panel-2 px-1.5 py-0.5">같은 도메인 · {domain}</span>

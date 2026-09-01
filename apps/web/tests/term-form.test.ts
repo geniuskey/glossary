@@ -7,13 +7,14 @@ import { interpretResponse } from "../src/lib/terms/form-response.js";
 // interpretResponse)를 직접 두들겨서 커버한다.
 
 const BASE_FORM: TermFormState = {
-  termType: "term",
+  termType: "concept",
   nameEn: "Auto Exposure",
   nameKo: "",
   fullNameEn: "",
   fullNameKo: "",
   domain: "",
   category: "",
+  topic: "",
   ownerId: "",
   status: "active",
   definitionMd: "",
@@ -58,10 +59,10 @@ test("domain이 빈 문자열이면 빈 배열이 된다(undefined가 아님)", 
   expect(payload.domain).toEqual([]);
 });
 
-test("카테고리와 담당자는 빈 값을 null로, 선택한 값은 그대로 보낸다", () => {
-  expect(buildTermPayload(BASE_FORM)).toMatchObject({ category: null, ownerId: null });
-  expect(buildTermPayload({ ...BASE_FORM, category: "  노출 제어  ", ownerId: "11111111-1111-1111-1111-111111111111" }))
-    .toMatchObject({ category: "노출 제어", ownerId: "11111111-1111-1111-1111-111111111111" });
+test("업무 분류·주제와 담당자는 빈 값을 null로, 선택한 값은 그대로 보낸다", () => {
+  expect(buildTermPayload(BASE_FORM)).toMatchObject({ category: null, topic: null, ownerId: null });
+  expect(buildTermPayload({ ...BASE_FORM, category: "design", topic: "  노출 제어  ", ownerId: "11111111-1111-1111-1111-111111111111" }))
+    .toMatchObject({ category: "design", topic: "노출 제어", ownerId: "11111111-1111-1111-1111-111111111111" });
 });
 
 test("공백뿐인 surface는 제거되고, 남은 surface의 text는 trim된다", () => {
@@ -94,8 +95,8 @@ test("expectedRevision이 0이어도 키가 포함된다 (falsy 값 누락 방�
 });
 
 test("termType/status는 변환 없이 그대로 전달된다(pass-through)", () => {
-  const payload = buildTermPayload({ ...BASE_FORM, termType: "abbreviation", status: "active" });
-  expect(payload.termType).toBe("abbreviation");
+  const payload = buildTermPayload({ ...BASE_FORM, termType: "concept", status: "active" });
+  expect(payload.termType).toBe("concept");
   expect(payload.status).toBe("active");
 });
 

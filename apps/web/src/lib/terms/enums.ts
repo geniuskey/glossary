@@ -7,7 +7,12 @@
 // 어긋나면 폼이 존재하지 않는 값을 보내 400을 받거나, 실제로 존재하는 값을
 // 선택지에서 빠뜨린다. tests/terms-enums.test.ts가 termTypeEnum.enumValues 등과
 // 이 배열들의 정확한 일치를 구조 테스트로 고정한다.
-export const TERM_TYPES = ["term", "abbreviation", "project", "product_id", "code", "unit"] as const;
+export const TERM_TYPES = ["concept", "proper_name", "identifier", "unit"] as const;
+
+export const BUSINESS_CATEGORIES = [
+  "product", "customer", "project", "process", "design", "evaluation",
+  "equipment", "organization", "system", "other",
+] as const;
 
 export const TERM_STATUSES = ["draft", "active", "deprecated", "forbidden"] as const;
 
@@ -19,6 +24,9 @@ export const EXPLICIT_SURFACE_KINDS = ["canonical", "abbreviation", "full_name",
 export const SURFACE_LANGS = ["en", "ko", "neutral"] as const;
 
 export type TermTypeLiteral = (typeof TERM_TYPES)[number];
+// 업무 분류 key는 관리자 화면에서 추가할 수 있다. 위 배열은 새 설치의 기본값일
+// 뿐 전체 유니온이 아니므로, 런타임 타입은 string으로 둔다.
+export type BusinessCategoryLiteral = string;
 export type TermStatusLiteral = (typeof TERM_STATUSES)[number];
 export type ExplicitSurfaceKindLiteral = (typeof EXPLICIT_SURFACE_KINDS)[number];
 // DB의 surface_kind 전체. canonical은 사용자가 고르지 못할 뿐, 조회 결과에는
@@ -29,13 +37,29 @@ export type SurfaceKindLiteral = ExplicitSurfaceKindLiteral;
 export type SurfaceLangLiteral = (typeof SURFACE_LANGS)[number];
 
 export const TERM_TYPE_LABEL: Record<TermTypeLiteral, string> = {
-  term: "일반 용어",
-  abbreviation: "약어",
-  project: "프로젝트명",
-  product_id: "제품 ID",
-  code: "코드",
+  concept: "일반 개념",
+  proper_name: "고유명칭",
+  identifier: "식별자",
   unit: "단위",
 };
+
+export const BUSINESS_CATEGORY_LABEL: Record<string, string> = {
+  product: "제품",
+  customer: "고객",
+  project: "프로젝트",
+  process: "공정",
+  design: "설계",
+  evaluation: "평가",
+  equipment: "장비",
+  organization: "조직",
+  system: "시스템",
+  other: "기타",
+};
+
+/** 마이그레이션 기본값은 한글 라벨로, 관리자가 추가한 key는 안전하게 그대로 표시한다. */
+export function businessCategoryLabel(key: string, label?: string | null): string {
+  return label ?? BUSINESS_CATEGORY_LABEL[key] ?? key;
+}
 
 export const TERM_STATUS_LABEL: Record<TermStatusLiteral, string> = {
   draft: "초안",

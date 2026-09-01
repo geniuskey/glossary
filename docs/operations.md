@@ -188,8 +188,9 @@ GROSSARY_EMBED_ANCESTORS=https://confluence.example.com
 인정한다. 이 값은 Proxy가 요청마다 런타임에 읽으므로 Docker Hub의 같은 이미지를 환경별로
 다르게 설정할 수 있다.
 
-사용자는 `/sheet`의 **공유하기**에서 현재 필터·정렬과 표시할 열을 고른 뒤 공유 URL 또는
-iframe 코드를 복사한다. `columns`는 쉼표로 구분한 표준 열 키이며, `compact`, `links`,
+사용자는 `/sheet`의 **공유하기**에서 검색어·Type·공개 상태·도메인·업무 분류·주제를
+공유용으로 따로 고르고 표시할 열을 정한 뒤 공유 URL 또는 iframe 코드를 복사한다.
+`columns`는 쉼표로 구분한 표준 열 키이며, `compact`, `links`,
 `border`는 각각 `1` 또는 `0`이다. 공유 표는 공개 상태 용어를 최대 200개 표시하고 초안은
 제외하지만, 접근 자체에는 Grossary 로그인 세션이 필요하다.
 

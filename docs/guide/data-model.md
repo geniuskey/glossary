@@ -9,11 +9,12 @@
 |---|---|---|
 | `id` | uuid | PK |
 | `slug` | text | 유니크. URL 식별자 |
-| `term_type` | enum | `term` \| `abbreviation` \| `project` \| `product_id` \| `code` \| `unit` |
+| `term_type` | enum | `concept`(일반 개념) \| `proper_name`(고유명칭) \| `identifier`(식별자) \| `unit`(단위) |
 | `name_en`, `name_ko` | text | 목록·제목에 쓸 대표 표기. 최소 하나는 있어야 한다 |
-| `full_name_en`, `full_name_ko` | text | 약어의 대표 풀네임 또는 기존 데이터의 확장명 |
+| `full_name_en`, `full_name_ko` | text | 대표 풀네임 또는 확장명 |
 | `domain` | text[] | ISP, HW, SW, Optics, PM … 동음이의어 구분축 |
-| `category` | text | 도메인 아래에서 화면·기능·공정 등으로 묶는 단일 분류 |
+| `category` | text | → `business_categories.key`. 관리형 업무 분류 하나 |
+| `topic` | text | 팀별 세부 주제. 자유 입력 단일 값 |
 | `owner_id` | uuid | 완성을 책임질 사용자. 삭제되면 null |
 | `status` | enum | `draft` \| `active` \| `deprecated` \| `forbidden` |
 | `definition_md` | text | 1~2문장 정의 (API 응답·툴팁용) |
@@ -21,6 +22,18 @@
 | `replaced_by_id` | uuid | `deprecated`일 때 대체 용어 |
 | `created_by`, `updated_by` | uuid | 감사 컬럼. API 응답에 싣지 않는다 |
 | `created_at`, `updated_at` | timestamptz | |
+
+## business_categories — 관리형 업무 분류
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| `key` | text | PK. 용어와 공유 URL이 참조하는 안정적인 값 |
+| `label` | text | 화면에 표시하는 이름. 관리자가 변경 가능 |
+| `sort_order` | integer | 선택 목록과 필터의 표시 순서 |
+| `created_at`, `updated_at` | timestamptz | |
+
+기본 설치에는 제품·고객·프로젝트·공정·설계·평가·장비·조직·시스템·기타가 들어간다.
+목록은 `/admin`에서 확장할 수 있으며, 사용 중인 행은 외래 키와 관리 API가 삭제를 막는다.
 
 ## term_surfaces — 그 개념을 가리키는 모든 실제 표기
 
@@ -39,6 +52,9 @@
 `norm_loose` GIN + `gin_trgm_ops`(유사 후보), `term_id`.
 유니크 제약은 `(term_id, norm_loose, kind)`다 — 같은 용어에 같은 표기를 같은 종류로
 두 번 넣지 못한다.
+
+`Type`과 표기 `kind`는 독립적이다. 예를 들어 `AE`라는 일반 개념은 `term_type=concept`이고,
+`AE` 표기에는 `kind=abbreviation`을 지정한다. 약어를 Type으로도 중복 분류하지 않는다.
 
 ::: tip 정규화 컬럼은 손으로 채우지 않는다
 `norm_loose`/`norm_space`는 `@grossary/db`의 `surfaceKeys()`가 채운다. 그 함수는

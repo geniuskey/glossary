@@ -3,6 +3,7 @@ import { isResponse, requireAuth } from "@/lib/auth/require";
 import { getTermByIdOrSlug, type TermDetailResponse } from "@/lib/terms/query";
 import { termPatchSchema } from "@/lib/terms/schema";
 import { isAssignableUserId } from "@/lib/terms/owners";
+import { businessCategoryExists } from "@/lib/terms/categories";
 import { deleteTerm, updateTerm, type UpdateTermSuccess } from "@/lib/terms/update";
 import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
 
@@ -47,6 +48,9 @@ export const PATCH = withApiErrors(
     }
     if (parsed.data.ownerId && !(await isAssignableUserId(parsed.data.ownerId))) {
       return apiError("validation_failed", "담당자 계정을 찾을 수 없습니다.", 400, { field: "ownerId" });
+    }
+    if (parsed.data.category && !(await businessCategoryExists(parsed.data.category))) {
+      return apiError("validation_failed", "업무 분류를 찾을 수 없습니다.", 400, { field: "category" });
     }
 
     const { expectedRevision, ...patchInput } = parsed.data;

@@ -51,7 +51,7 @@ test("용어 저장과 수정이 현재 본문의 첨부 참조를 동기화한�
   let termId: string | undefined;
   try {
     const created = await createTerm({
-      termType: "term",
+      termType: "concept",
       nameEn: `Attachment Ref ${Date.now()}`,
       domain: [],
       status: "draft",

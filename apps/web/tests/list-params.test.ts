@@ -25,8 +25,8 @@ test("parseListParams: 알 수 없는 type/status 값은 조용히 무시된다"
   expect(parsed.status).toBeUndefined();
 });
 
-test("parseListParams: 빈 문자열 type/status/domain/category/q는 지정 안 함으로 취급된다", () => {
-  const parsed = parseListParams({ type: "", status: "", domain: "", category: "", q: "" });
+test("parseListParams: 빈 문자열 type/status/domain/category/topic/q는 지정 안 함으로 취급된다", () => {
+  const parsed = parseListParams({ type: "", status: "", domain: "", category: "", topic: "", q: "" });
   expect(parsed.type).toBeUndefined();
   expect(parsed.status).toBeUndefined();
   expect(parsed.domain).toBeUndefined();
@@ -34,12 +34,13 @@ test("parseListParams: 빈 문자열 type/status/domain/category/q는 지정 안
   expect(parsed.q).toBeUndefined();
 });
 
-test("parseListParams: 알려진 type/status 값은 그대로 통과한다", () => {
-  const parsed = parseListParams({ type: "abbreviation", status: "forbidden", domain: "ISP", category: "무선", q: "AE" });
-  expect(parsed.type).toBe("abbreviation");
+test("parseListParams: type/status와 관리형 category key를 그대로 통과한다", () => {
+  const parsed = parseListParams({ type: "concept", status: "forbidden", domain: "ISP", category: "무선", q: "AE" });
+  expect(parsed.type).toBe("concept");
   expect(parsed.status).toBe("forbidden");
   expect(parsed.domain).toBe("ISP");
   expect(parsed.category).toBe("무선");
+  expect(parsed.topic).toBeUndefined();
   expect(parsed.q).toBe("AE");
 });
 
@@ -48,7 +49,7 @@ test("parseListParams: 알려진 type/status 값은 그대로 통과한다", () 
 // 이어지면 안 된다.
 test("parseListParams: 같은 키가 배열로 오면 첫 값만 사용한다", () => {
   const parsed = parseListParams({ type: ["abbreviation", "term"], q: ["first", "second"] });
-  expect(parsed.type).toBe("abbreviation");
+  expect(parsed.type).toBe("concept");
   expect(parsed.q).toBe("first");
 });
 
@@ -141,16 +142,17 @@ test("paginationInfo: page가 totalPages를 넘어가도(빈 결과 페이지) �
 
 // R93/R94: 쿼리스트링 보존 — 현재 필터가 그대로 실리고 page만 바뀌는지. 이
 // 저장소 기준으로 R93/R94를 실제로 방어하는 유일한 테스트다.
-test("buildPageHref: 활성 필터(q/type/domain/category/status)를 전부 보존하며 page만 바뀐다", () => {
-  const parsed = parseListParams({ q: "AE", type: "abbreviation", domain: "ISP", category: "무선", status: "active", page: "1" });
+test("buildPageHref: 활성 필터(q/type/domain/category/topic/status)를 전부 보존하며 page만 바뀐다", () => {
+  const parsed = parseListParams({ q: "AE", type: "concept", domain: "ISP", category: "design", topic: "무선", status: "active", page: "1" });
   const href = buildPageHref(parsed, 2);
 
   const url = new URL(href, "http://x");
   expect(url.pathname).toBe("/sheet");
   expect(url.searchParams.get("q")).toBe("AE");
-  expect(url.searchParams.get("type")).toBe("abbreviation");
+  expect(url.searchParams.get("type")).toBe("concept");
   expect(url.searchParams.get("domain")).toBe("ISP");
-  expect(url.searchParams.get("category")).toBe("무선");
+  expect(url.searchParams.get("category")).toBe("design");
+  expect(url.searchParams.get("topic")).toBe("무선");
   expect(url.searchParams.get("status")).toBe("active");
   expect(url.searchParams.get("page")).toBe("2");
 });
@@ -167,11 +169,11 @@ test("buildPageHref: 필터가 없으면 page만 실린다", () => {
 // 폼의 보이는 입력이라 hidden으로 다시 실으면 안 되고, page는 새 검색이니
 // 1페이지로 가야 하므로 애초에 hiddenSearchFields의 관심사가 아니다(반환값에
 // page라는 이름 자체가 없다).
-test("hiddenSearchFields: q는 제외하고 type/domain/category/status만 반환한다", () => {
-  const parsed = parseListParams({ q: "AE", type: "abbreviation", domain: "ISP", category: "무선", status: "active" });
+test("hiddenSearchFields: q는 제외하고 type/domain/category/topic/status만 반환한다", () => {
+  const parsed = parseListParams({ q: "AE", type: "concept", domain: "ISP", category: "design", topic: "무선", status: "active" });
   const fields = hiddenSearchFields(parsed);
   const names = fields.map((f) => f.name).sort();
-  expect(names).toEqual(["category", "domain", "status", "type"]);
+  expect(names).toEqual(["category", "domain", "status", "topic", "type"]);
   expect(fields.find((f) => f.name === "domain")?.value).toBe("ISP");
 });
 
@@ -180,12 +182,13 @@ test("hiddenSearchFields: 활성 필터가 없으면 빈 배열이다", () => {
   expect(hiddenSearchFields(parsed)).toEqual([]);
 });
 
-test("activeFilters: 지정된 필터만, 지정 순서(q/type/domain/category/status)로 반환한다", () => {
-  const parsed = parseListParams({ status: "active", q: "gain", type: "term", category: "RF" });
+test("activeFilters: 지정된 필터만, 지정 순서(q/type/domain/category/topic/status)로 반환한다", () => {
+  const parsed = parseListParams({ status: "active", q: "gain", type: "concept", category: "design", topic: "RF" });
   expect(activeFilters(parsed)).toEqual([
     { name: "q", value: "gain" },
-    { name: "type", value: "term" },
-    { name: "category", value: "RF" },
+    { name: "type", value: "concept" },
+    { name: "category", value: "design" },
+    { name: "topic", value: "RF" },
     { name: "status", value: "active" },
   ]);
 });
@@ -230,12 +233,13 @@ test("buildSortHref: sort/dir이 없으면 기본 정렬(updatedAt desc)을 현�
 });
 
 test("buildSortHref: 활성 필터를 전부 보존하고 page는 1로 되돌린다", () => {
-  const parsed = parseListParams({ q: "AE", type: "abbreviation", domain: "ISP", category: "무선", status: "active", page: "7" });
+  const parsed = parseListParams({ q: "AE", type: "concept", domain: "ISP", category: "design", topic: "무선", status: "active", page: "7" });
   const usp = new URLSearchParams(buildSortHref(parsed, "slug", "asc").split("?")[1]);
   expect(usp.get("q")).toBe("AE");
-  expect(usp.get("type")).toBe("abbreviation");
+  expect(usp.get("type")).toBe("concept");
   expect(usp.get("domain")).toBe("ISP");
-  expect(usp.get("category")).toBe("무선");
+  expect(usp.get("category")).toBe("design");
+  expect(usp.get("topic")).toBe("무선");
   expect(usp.get("status")).toBe("active");
   // 정렬이 바뀌면 7페이지에 있던 행들은 그 자리에 없다.
   expect(usp.get("page")).toBe("1");
@@ -246,12 +250,12 @@ test("buildPageHref: 정렬도 함께 보존한다(필터만 보존하면 페이
   const usp = new URLSearchParams(buildPageHref(parsed, 3).split("?")[1]);
   expect(usp.get("sort")).toBe("nameKo");
   expect(usp.get("dir")).toBe("asc");
-  expect(usp.get("type")).toBe("term");
+  expect(usp.get("type")).toBe("concept");
   expect(usp.get("page")).toBe("3");
 });
 
 test("buildFilterHref: 지정한 필터 하나만 빠지고 정렬과 나머지 필터는 남는다", () => {
-  const parsed = parseListParams({ q: "AE", type: "abbreviation", sort: "slug", dir: "asc", page: "4" });
+  const parsed = parseListParams({ q: "AE", type: "concept", sort: "slug", dir: "asc", page: "4" });
   const usp = new URLSearchParams(buildFilterHref(parsed, "type").split("?")[1]);
   expect(usp.get("type")).toBeNull();
   expect(usp.get("q")).toBe("AE");

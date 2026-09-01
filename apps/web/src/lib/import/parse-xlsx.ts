@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { TERM_STATUSES, TERM_TYPES, type TermStatusLiteral, type TermTypeLiteral } from "@/lib/terms/enums";
+import { BUSINESS_CATEGORIES, TERM_STATUSES, TERM_TYPES, type BusinessCategoryLiteral, type TermStatusLiteral, type TermTypeLiteral } from "@/lib/terms/enums";
 import { HEADER_TO_FIELD, LIST_SEPARATOR, normalizeHeader, type ImportField } from "./format";
 
 export interface ImportRow {
@@ -10,9 +10,11 @@ export interface ImportRow {
   fullNameEn?: string;
   fullNameKo?: string;
   domain: string[];
-  category?: string;
+  category?: BusinessCategoryLiteral;
+  topic?: string;
   status: TermStatusLiteral;
   definitionMd?: string;
+  abbreviations: string[];
   aliases: string[];
 }
 
@@ -47,6 +49,10 @@ export interface ParseResult {
 // enum과의 드리프트를 막는 tests/terms-enums.test.ts의 사정권 밖에 놓인다.
 const TERM_TYPE_SET = new Set<string>(TERM_TYPES);
 const STATUS_SET = new Set<string>(TERM_STATUSES);
+const LEGACY_TYPE: Record<string, TermTypeLiteral> = {
+  term: "concept", abbreviation: "concept", project: "proper_name",
+  product_id: "identifier", code: "identifier", unit: "unit",
+};
 
 function splitList(value: string): string[] {
   return value
@@ -62,7 +68,11 @@ function cellText(value: ExcelJS.CellValue): string {
   return String(value).trim();
 }
 
-export async function parseGlossaryWorkbook(buffer: ArrayBuffer): Promise<ParseResult> {
+export async function parseGlossaryWorkbook(
+  buffer: ArrayBuffer,
+  categoryKeys: readonly string[] = BUSINESS_CATEGORIES,
+): Promise<ParseResult> {
+  const categorySet = new Set<string>(categoryKeys);
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer);
 
@@ -120,7 +130,15 @@ export async function parseGlossaryWorkbook(buffer: ArrayBuffer): Promise<ParseR
       return;
     }
 
-    const termType = TERM_TYPE_SET.has(raw.termType ?? "") ? (raw.termType as TermTypeLiteral) : "term";
+    const rawType = raw.termType ?? "";
+    const termType = TERM_TYPE_SET.has(rawType) ? rawType as TermTypeLiteral : LEGACY_TYPE[rawType] ?? "concept";
+    const category = categorySet.has(raw.category ?? "")
+      ? raw.category as BusinessCategoryLiteral
+      : rawType === "project"
+        ? "project"
+        : rawType === "product_id"
+          ? "product"
+          : undefined;
     const status = STATUS_SET.has(raw.status ?? "") ? (raw.status as TermStatusLiteral) : "draft";
 
     rows.push({
@@ -131,9 +149,11 @@ export async function parseGlossaryWorkbook(buffer: ArrayBuffer): Promise<ParseR
       fullNameEn: raw.fullNameEn || undefined,
       fullNameKo: raw.fullNameKo || undefined,
       domain: splitList(raw.domain ?? ""),
-      category: raw.category || undefined,
+      category,
+      topic: raw.topic || (raw.category && !categorySet.has(raw.category) ? raw.category : undefined),
       status,
       definitionMd: raw.definitionMd || undefined,
+      abbreviations: splitList(raw.abbreviations ?? ""),
       aliases: splitList(raw.aliases ?? ""),
     });
   });

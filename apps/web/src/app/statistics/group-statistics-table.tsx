@@ -24,13 +24,15 @@ function signal(row: GroupStatistics): { label: string; className: string } {
 export function GroupStatisticsTable({
   kind,
   rows,
+  categoryLabels = {},
 }: {
   kind: "category" | "domain";
   rows: readonly GroupStatistics[];
+  categoryLabels?: Record<string, string>;
 }) {
-  const title = kind === "category" ? "카테고리별 관리 현황" : "도메인별 관리 현황";
+  const title = kind === "category" ? "업무 분류별 관리 현황" : "도메인별 관리 현황";
   const description = kind === "category"
-    ? "카테고리를 조직 단위로 보고 담당 지정과 갱신 상태를 비교합니다."
+    ? "공통 업무 분류를 기준으로 담당 지정과 갱신 상태를 비교합니다."
     : "하나의 용어가 여러 도메인에 포함되면 각 도메인 집계에 한 번씩 포함됩니다.";
 
   return (
@@ -47,7 +49,7 @@ export function GroupStatisticsTable({
         <table className="w-full min-w-[980px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-line bg-panel-2 text-xs text-ink-3">
-              <th scope="col" className="px-4 py-3 font-medium">{kind === "category" ? "카테고리 / 조직" : "도메인"}</th>
+              <th scope="col" className="px-4 py-3 font-medium">{kind === "category" ? "업무 분류" : "도메인"}</th>
               <th scope="col" className="px-3 py-3 text-right font-medium">전체</th>
               <th scope="col" className="px-3 py-3 text-right font-medium">공개</th>
               <th scope="col" className="px-3 py-3 text-right font-medium">초안</th>
@@ -69,7 +71,9 @@ export function GroupStatisticsTable({
                     {kind === "category" && row.name === "미분류" ? (
                       <span className="line-clamp-2">{row.name}</span>
                     ) : (
-                      <Link href={{ pathname: "/sheet", query: { [kind]: row.name } }} className="link line-clamp-2">{row.name}</Link>
+                      <Link href={{ pathname: "/sheet", query: { [kind]: row.name } }} className="link line-clamp-2">
+                        {kind === "category" ? categoryLabels[row.name] ?? row.name : row.name}
+                      </Link>
                     )}
                   </th>
                   <td className="px-3 py-3 text-right font-mono tabular-nums">{row.total.toLocaleString("ko-KR")}</td>

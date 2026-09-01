@@ -66,7 +66,7 @@ for (const pack of selected) {
 
   for (const seed of pack.terms) {
     const input = termInputSchema.parse({
-      termType: seed.termType ?? "term",
+      termType: seed.termType ?? "concept",
       nameEn: seed.nameEn ?? null,
       nameKo: seed.nameKo ?? null,
       fullNameEn: seed.fullNameEn ?? null,
@@ -74,7 +74,12 @@ for (const pack of selected) {
       domain: [...pack.domain],
       status: "active",
       definitionMd: seed.definitionMd,
-      surfaces: (seed.aliases ?? []).map((text) => ({ text, kind: "alias" })),
+      surfaces: [
+        ...(seed.primaryKind === "abbreviation" && seed.nameEn
+          ? [{ text: seed.nameEn, kind: "abbreviation" as const }]
+          : []),
+        ...(seed.aliases ?? []).map((text) => ({ text, kind: "alias" as const })),
+      ],
     });
 
     // 같은 표기가 이미 있으면 건너뛴다 — 이 명령을 두 번 쳐도, 사용자가 이미

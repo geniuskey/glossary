@@ -32,6 +32,27 @@ describe("시트 공유 URL", () => {
     expect(embedBaseQuery({ page: 1 })).toBe("sort=updatedAt&dir=desc");
   });
 
+  test("공유용 필터는 현재 시트와 독립적으로 바꾸거나 전체로 해제한다", () => {
+    const path = buildEmbedPath(
+      "q=AE&type=concept&status=active&domain=ISP&category=design&sort=nameEn&dir=asc",
+      ["nameEn"],
+      { compact: false, links: true, border: true },
+      { q: "", type: "identifier", status: "", domain: "", category: "security", topic: "인증" },
+    );
+    const params = new URL(path, "https://grossary.example.com").searchParams;
+
+    expect(Object.fromEntries(params)).toMatchObject({
+      type: "identifier",
+      category: "security",
+      topic: "인증",
+      sort: "nameEn",
+      dir: "asc",
+    });
+    expect(params.has("q")).toBe(false);
+    expect(params.has("status")).toBe(false);
+    expect(params.has("domain")).toBe(false);
+  });
+
   test("알 수 없는 열을 버리고 제품 열 순서를 유지한다", () => {
     expect(parseEmbedColumns("definitionMd,unknown,nameEn").map((column) => column.key)).toEqual([
       "nameEn",

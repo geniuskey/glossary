@@ -24,7 +24,7 @@ const createdKeys: string[] = [];
 const NAME_PREFIX = "ID14 ";
 
 function row(rowNumber: number, nameEn: string, aliases: string[] = []): ImportRow {
-  return { rowNumber, termType: "term", nameEn, domain: [], status: "active", aliases };
+  return { rowNumber, termType: "concept", nameEn, domain: [], status: "active", abbreviations: [], aliases };
 }
 
 async function trackAllByPrefix() {
@@ -37,7 +37,7 @@ let seedSlug = "";
 
 beforeAll(async () => {
   const { term } = await createTerm(
-    { termType: "term", nameEn: `${NAME_PREFIX}Lens Shading`, domain: ["ISP"], status: "active", surfaces: [] },
+    { termType: "concept", nameEn: `${NAME_PREFIX}Lens Shading`, domain: ["ISP"], status: "active", surfaces: [] },
     null,
   );
   seedTermId = term.id;
@@ -79,6 +79,14 @@ test("파일 안에서 중복된 표기를 행 번호와 함께 보고한다", a
 
 test("별칭이 기존 용어와 겹쳐도 잡아낸다", async () => {
   const report = await dryRunImport([row(2, `${NAME_PREFIX}Vignetting`, [`${NAME_PREFIX}Lens Shading`])], []);
+
+  expect(report.conflicts.map((c) => c.rowNumber)).toContain(2);
+});
+
+test("약어가 기존 용어와 겹쳐도 잡아낸다", async () => {
+  const candidate = row(2, `${NAME_PREFIX}Abbreviation Probe`);
+  candidate.abbreviations = [`${NAME_PREFIX}Lens Shading`];
+  const report = await dryRunImport([candidate], []);
 
   expect(report.conflicts.map((c) => c.rowNumber)).toContain(2);
 });

@@ -23,6 +23,15 @@ export interface EmbedTableOptions {
   border: boolean;
 }
 
+export interface EmbedShareFilters {
+  q: string;
+  type: string;
+  status: string;
+  domain: string;
+  category: string;
+  topic: string;
+}
+
 export const DEFAULT_EMBED_OPTIONS: EmbedTableOptions = {
   compact: false,
   links: true,
@@ -63,6 +72,7 @@ export function embedBaseQuery(params: ParsedListParams): string {
   if (params.type) query.set("type", params.type);
   if (params.domain) query.set("domain", params.domain);
   if (params.category) query.set("category", params.category);
+  if (params.topic) query.set("topic", params.topic);
   if (params.status) query.set("status", params.status);
   if (params.sort) query.set("sort", params.sort);
   if (params.dir) query.set("dir", params.dir);
@@ -75,8 +85,15 @@ export function buildEmbedPath(
   baseQuery: string,
   columns: readonly ColumnKey[],
   options: EmbedTableOptions,
+  filters?: EmbedShareFilters,
 ): string {
   const query = new URLSearchParams(baseQuery);
+  if (filters) {
+    for (const [key, value] of Object.entries(filters)) {
+      if (value.trim()) query.set(key, value.trim());
+      else query.delete(key);
+    }
+  }
   query.set("columns", columns.join(","));
   query.set("compact", options.compact ? "1" : "0");
   query.set("links", options.links ? "1" : "0");
