@@ -45,7 +45,7 @@ A future release may allow another native language to be selected alongside Engl
 - Column-selectable read-only sheet URLs and iframe code for Confluence
 - Search across canonical names and alternate surfaces
 - Revision history and revert support
-- Admin panel for users, SSO, API keys, and home-page messaging
+- Admin panel for OIDC/OAuth 2.0 SSO, users, API keys, and home-page messaging
 - OpenAPI 3.1 API and batch terminology lookup for internal tools
 - Self-hosted Docker Compose deployment with PostgreSQL 16
 

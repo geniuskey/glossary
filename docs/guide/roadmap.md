@@ -87,7 +87,7 @@ M3로 미룬다.
 
 ## 보류 항목
 
-- **SSO(LDAP/SAML) 연동** — 인증 레이어를 분리해두고 실제 연동은 사내 인프라 정보 확보 후.
+- **추가 SSO(LDAP/SAML) 연동** — OIDC/OAuth 2.0 외 방식은 실제 사내 인프라 정보 확보 후.
   `users.external_id` 컬럼이 그 자리다.
 - **컨플루언스 직접 임포트** — M1은 엑셀/CSV만. 컨플루언스는 export 후 변환으로 우회.
 - **docx 등 마크다운 외 포맷 검증** — M2는 markdown/plaintext만.

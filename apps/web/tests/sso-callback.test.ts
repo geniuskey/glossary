@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import { createDb, ssoConfig, users } from "@grossary/db";
+import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { GET as callbackGet } from "../src/app/auth/sso/callback/route.js";
 import { GET as startGet } from "../src/app/auth/sso/start/route.js";
 import { loadSsoConfig, SSO_CONFIG_ID, type SsoConfig } from "../src/lib/auth/sso/config.js";
@@ -16,6 +17,10 @@ const BASE = "https://glossary.example.com";
 const ISSUER = "https://idp.example.com";
 const TOKEN_ENDPOINT = "https://idp.example.com/token";
 const USERINFO_ENDPOINT = "https://idp.example.com/userinfo";
+const JWKS_ENDPOINT = "https://idp.example.com/jwks";
+const { publicKey, privateKey } = await generateKeyPair("RS256");
+const { privateKey: untrustedPrivateKey } = await generateKeyPair("RS256");
+const publicJwk = { ...await exportJWK(publicKey), alg: "RS256", use: "sig", kid: "test-key" };
 
 let original: SsoConfig;
 const createdUserIds: string[] = [];
@@ -34,8 +39,10 @@ beforeEach(async () => {
     .update(ssoConfig)
     .set({
       enabled: true,
+      protocol: "oidc",
       baseUrl: BASE,
       issuer: ISSUER,
+      jwksUri: JWKS_ENDPOINT,
       authorizationEndpoint: "https://idp.example.com/authorize",
       tokenEndpoint: TOKEN_ENDPOINT,
       userinfoEndpoint: "",
@@ -59,12 +66,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const FLOW = { state: "state-token", nonce: "nonce-token", verifier: "verifier-token" };
-
-function idToken(claims: Record<string, unknown>) {
-  const payload = Buffer.from(JSON.stringify(claims), "utf8").toString("base64url");
-  return `eyJhbGciOiJSUzI1NiJ9.${payload}.signature`;
-}
+const FLOW = { state: "state-token", nonce: "nonce-token", verifier: "verifier-token", protocol: "oidc" as const };
 
 function stubIdp(claims: Record<string, unknown>, userinfo?: Record<string, unknown>) {
   vi.stubGlobal("fetch", async (url: string) => {
@@ -75,9 +77,15 @@ function stubIdp(claims: Record<string, unknown>, userinfo?: Record<string, unkn
         exp: Math.floor(Date.now() / 1000) + 300,
         ...claims,
       };
-      return new Response(JSON.stringify({ id_token: idToken(completeClaims), access_token: "at" }), {
+      const idToken = await new SignJWT(completeClaims)
+        .setProtectedHeader({ alg: "RS256", kid: "test-key" })
+        .sign(privateKey);
+      return new Response(JSON.stringify({ id_token: idToken, access_token: "at" }), {
         headers: { "content-type": "application/json" },
       });
+    }
+    if (String(url) === JWKS_ENDPOINT) {
+      return new Response(JSON.stringify({ keys: [publicJwk] }), { headers: { "content-type": "application/json" } });
     }
     if (String(url) === USERINFO_ENDPOINT) {
       return new Response(JSON.stringify(userinfo ?? {}), { headers: { "content-type": "application/json" } });
@@ -86,11 +94,13 @@ function stubIdp(claims: Record<string, unknown>, userinfo?: Record<string, unkn
   });
 }
 
-function callbackRequest(query: Record<string, string>, options: { cookie?: boolean } = {}) {
+function callbackRequest(query: Record<string, string>, options: { cookie?: boolean; protocol?: "oidc" | "oauth2" } = {}) {
   const url = new URL(`${BASE}/auth/sso/callback`);
   for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
   const headers = new Headers();
-  if (options.cookie !== false) headers.set("cookie", flowCookie(FLOW, true).split(";")[0]!);
+  if (options.cookie !== false) {
+    headers.set("cookie", flowCookie({ ...FLOW, protocol: options.protocol ?? "oidc" }, true).split(";")[0]!);
+  }
   return new Request(url, { headers });
 }
 
@@ -141,6 +151,30 @@ test("성공하면 세션 쿠키를 주고 홈으로 보낸다", async () => {
   expect(await userByEmail(email)).toBeDefined();
 });
 
+test("OAuth 2.0은 access token으로 사용자 정보를 조회해 로그인한다", async () => {
+  const email = `oauth2-ok-${Date.now()}@example.com`;
+  await db
+    .update(ssoConfig)
+    .set({ protocol: "oauth2", issuer: "", jwksUri: "", userinfoEndpoint: USERINFO_ENDPOINT, scopes: ["profile", "email"] })
+    .where(eq(ssoConfig.id, SSO_CONFIG_ID));
+  vi.stubGlobal("fetch", async (url: string) => {
+    if (String(url) === TOKEN_ENDPOINT) {
+      return new Response(JSON.stringify({ access_token: "oauth-access" }), { headers: { "content-type": "application/json" } });
+    }
+    if (String(url) === USERINFO_ENDPOINT) {
+      return new Response(JSON.stringify({ sub: `oauth-sub-${Date.now()}`, email, name: "OAuth 사용자" }), {
+        headers: { "content-type": "application/json" },
+      });
+    }
+    throw new Error(`예상하지 못한 요청: ${url}`);
+  });
+
+  const res = await callbackGet(callbackRequest({ code: "code-oauth", state: FLOW.state }, { protocol: "oauth2" }));
+
+  expect(location(res)).toBe(`${BASE}/`);
+  expect(await userByEmail(email)).toBeDefined();
+});
+
 test("흐름 쿠키가 없거나 state가 어긋나면 state 오류로 되돌린다", async () => {
   stubIdp({ sub: "sub-x", email: "x@example.com" });
 
@@ -162,13 +196,54 @@ test("ID 토큰의 nonce가 다르면 로그인시키지 않는다", async () =>
   expect(location(res)).toBe(`${BASE}/login?sso=state`);
 });
 
-test("ID 토큰에 nonce가 없거나 audience가 다르면 로그인시키지 않는다", async () => {
-  stubIdp({ sub: "sub-invalid-token", email: "invalid-token@example.com", aud: "other-client" });
+test("ID 토큰에 nonce가 없으면 로그인시키지 않는다", async () => {
+  stubIdp({ sub: "sub-missing-nonce", email: "missing-nonce@example.com" });
 
   const res = await callbackGet(callbackRequest({ code: "c", state: FLOW.state }));
 
-  // nonce 검증이 먼저이며, 없는 nonce는 다른 nonce와 마찬가지로 흐름 오류다.
   expect(location(res)).toBe(`${BASE}/login?sso=state`);
+});
+
+test("ID 토큰의 audience가 다르면 로그인시키지 않는다", async () => {
+  stubIdp({ sub: "sub-invalid-audience", email: "invalid-audience@example.com", nonce: FLOW.nonce, aud: "other-client" });
+
+  const res = await callbackGet(callbackRequest({ code: "c", state: FLOW.state }));
+
+  expect(location(res)).toBe(`${BASE}/login?sso=token`);
+});
+
+test("JWKS에 없는 키로 서명된 ID 토큰은 거절하고 검증 단계를 로그에 남긴다", async () => {
+  const idToken = await new SignJWT({
+    iss: ISSUER,
+    aud: "grossary",
+    exp: Math.floor(Date.now() / 1000) + 300,
+    sub: "sub-untrusted",
+    email: "untrusted@example.com",
+    nonce: FLOW.nonce,
+  })
+    .setProtectedHeader({ alg: "RS256", kid: "test-key" })
+    .sign(untrustedPrivateKey);
+  vi.stubGlobal("fetch", async (url: string) => {
+    if (String(url) === TOKEN_ENDPOINT) {
+      return new Response(JSON.stringify({ id_token: idToken, access_token: "never-log-this-token" }), {
+        headers: { "content-type": "application/json" },
+      });
+    }
+    if (String(url) === JWKS_ENDPOINT) {
+      return new Response(JSON.stringify({ keys: [publicJwk] }), { headers: { "content-type": "application/json" } });
+    }
+    throw new Error(`예상하지 못한 요청: ${url}`);
+  });
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+  const res = await callbackGet(callbackRequest({ code: "c", state: FLOW.state }));
+
+  expect(location(res)).toBe(`${BASE}/login?sso=token`);
+  const logged = error.mock.calls.flat().join(" ");
+  expect(logged).toContain('"stage":"oidc_verification"');
+  expect(logged).toContain("signature verification failed");
+  expect(logged).not.toContain(idToken);
+  expect(logged).not.toContain("never-log-this-token");
 });
 
 test("IdP가 오류를 알려 오면 그 문구를 화면에 옮기지 않는다", async () => {

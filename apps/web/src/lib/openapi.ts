@@ -365,8 +365,10 @@ export const openApiSpec = {
                 type: "object",
                 properties: {
                   enabled: { type: "boolean" },
+                  protocol: { type: "string", enum: ["oidc", "oauth2"] },
                   buttonLabel: { type: "string" },
                   issuer: { type: "string" },
+                  jwksUri: { type: "string" },
                   authorizationEndpoint: { type: "string" },
                   tokenEndpoint: { type: "string" },
                   userinfoEndpoint: { type: "string" },
@@ -399,12 +401,19 @@ export const openApiSpec = {
     },
     "/sso/discover": {
       post: {
-        summary: "issuer의 /.well-known/openid-configuration을 읽어 엔드포인트를 채운다",
+        summary: "OIDC/OAuth 2.0 발견 문서를 읽어 엔드포인트와 JWKS URI를 채운다",
         requestBody: {
           required: true,
           content: {
             "application/json": {
-              schema: { type: "object", required: ["issuer"], properties: { issuer: { type: "string" } } },
+              schema: {
+                type: "object",
+                required: ["issuer"],
+                properties: {
+                  issuer: { type: "string" },
+                  protocol: { type: "string", enum: ["oidc", "oauth2"], default: "oidc" },
+                },
+              },
             },
           },
         },

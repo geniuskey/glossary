@@ -1,7 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { methodStubs } from "@/lib/api-error";
-import { claimKeys, decideAccess, decodeJwtPayload, resolveIdentity, validateIdTokenClaims } from "@/lib/auth/sso/claims";
+import { claimKeys, decideAccess, resolveIdentity, type Claims } from "@/lib/auth/sso/claims";
 import { loadSsoConfig, recordClaimKeys } from "@/lib/auth/sso/config";
+import { logSsoFailure } from "@/lib/auth/sso/diagnostics";
 import type { SsoErrorCode } from "@/lib/auth/sso/errors";
 import {
   clearFlowCookie,
@@ -11,6 +12,7 @@ import {
   readFlowCookie,
   redirectUriFor,
   resolveBaseUrl,
+  verifyOidcIdToken,
 } from "@/lib/auth/sso/flow";
 import { applySsoLogin } from "@/lib/auth/sso/login";
 import { createSession, purgeExpiredSessions, sessionCookie } from "@/lib/auth/session";
@@ -48,7 +50,12 @@ export async function GET(request: Request): Promise<Response> {
     // IdP가 거절/취소를 알려 온 경우다. 사유는 로그로만 남긴다(사용자 화면에 IdP 문구를 그대로 옮기지 않는다).
     const idpError = url.searchParams.get("error");
     if (idpError) {
-      console.error(`SSO: IdP 오류 ${idpError} ${url.searchParams.get("error_description") ?? ""}`);
+      logSsoFailure("authorization_response", {
+        protocol: cfg.protocol,
+        providerError: idpError,
+        providerDescription: url.searchParams.get("error_description") ?? "",
+        providerErrorUri: url.searchParams.get("error_uri") ?? "",
+      });
       return back(base, "idp");
     }
 
@@ -57,38 +64,118 @@ export async function GET(request: Request): Promise<Response> {
     const code = url.searchParams.get("code");
     // 쿠키가 없다는 것은 다른 브라우저·다른 탭에서 시작했거나 10분이 지났다는 뜻이다.
     // state가 어긋나면 남이 시작한 로그인을 이 브라우저에 심으려는 시도일 수 있다.
-    if (!flow || !state || !sameToken(flow.state, state) || !code) return back(base, "state");
+    if (!flow || !state || !sameToken(flow.state, state) || !code || flow.protocol !== cfg.protocol) {
+      logSsoFailure("flow_validation", {
+        protocol: cfg.protocol,
+        hasFlowCookie: Boolean(flow),
+        hasState: Boolean(state),
+        stateMatches: Boolean(flow && state && sameToken(flow.state, state)),
+        hasAuthorizationCode: Boolean(code),
+        protocolMatches: Boolean(flow && flow.protocol === cfg.protocol),
+      });
+      return back(base, "state");
+    }
 
     const token = await exchangeCode(cfg, {
       code,
       redirectUri: redirectUriFor(request, cfg),
       verifier: flow.verifier,
+    }).catch((error) => {
+      logSsoFailure("token_exchange", {
+        protocol: cfg.protocol,
+        tokenEndpoint: cfg.tokenEndpoint,
+        tokenAuthMethod: cfg.tokenAuthMethod,
+        reason: "request_failed",
+      }, error);
+      return null;
     });
+    if (!token) return back(base, "token");
     if (!token.ok) {
-      console.error(`SSO: 토큰 교환 실패 — ${token.detail}`);
+      logSsoFailure("token_exchange", {
+        protocol: cfg.protocol,
+        tokenEndpoint: cfg.tokenEndpoint,
+        tokenAuthMethod: cfg.tokenAuthMethod,
+        detail: token.detail,
+      });
       return back(base, "token");
     }
 
-    const idClaims = decodeJwtPayload(token.idToken);
-    if (!idClaims) return back(base, "token");
-    const claimsValidation = validateIdTokenClaims(idClaims, {
-      issuer: cfg.issuer || undefined,
-      clientId: cfg.clientId,
-      nonce: flow.nonce,
-    });
-    if (!claimsValidation.ok) {
-      // nonce는 브라우저의 로그인 흐름, 나머지는 IdP가 발급한 토큰 자체의 문제다.
-      return back(base, claimsValidation.reason === "nonce" ? "state" : "token");
-    }
+    let claims: Claims;
+    if (cfg.protocol === "oidc") {
+      if (!token.idToken) {
+        logSsoFailure("oidc_token", { protocol: cfg.protocol, detail: "토큰 응답에 id_token이 없습니다." });
+        return back(base, "token");
+      }
+      const verified = await verifyOidcIdToken(cfg, token.idToken, flow.nonce);
+      if (!verified.ok) {
+        logSsoFailure("oidc_verification", {
+          protocol: cfg.protocol,
+          issuer: cfg.issuer,
+          jwksUri: cfg.jwksUri,
+          clientId: cfg.clientId,
+          reason: verified.reason,
+          detail: verified.detail,
+        });
+        return back(base, verified.reason === "nonce" ? "state" : "token");
+      }
+      claims = verified.claims;
 
-    const userinfo =
-      cfg.userinfoEndpoint && token.accessToken ? await fetchUserinfo(cfg.userinfoEndpoint, token.accessToken) : null;
-    const claims = mergeClaims(idClaims, userinfo);
+      if (cfg.userinfoEndpoint && token.accessToken) {
+        const userinfo = await fetchUserinfo(cfg.userinfoEndpoint, token.accessToken).catch((error) => {
+          logSsoFailure("userinfo_request", {
+            protocol: cfg.protocol,
+            userinfoEndpoint: cfg.userinfoEndpoint,
+            reason: "request_failed",
+          }, error);
+          return null;
+        });
+        if (!userinfo) return back(base, "token");
+        if (!userinfo.ok) {
+          logSsoFailure("userinfo_request", {
+            protocol: cfg.protocol,
+            userinfoEndpoint: cfg.userinfoEndpoint,
+            detail: userinfo.detail,
+          });
+          return back(base, "token");
+        }
+        claims = mergeClaims(claims, userinfo.claims);
+      }
+    } else {
+      if (!token.accessToken) {
+        logSsoFailure("oauth2_token", { protocol: cfg.protocol, detail: "토큰 응답에 access_token이 없습니다." });
+        return back(base, "token");
+      }
+      const userinfo = await fetchUserinfo(cfg.userinfoEndpoint, token.accessToken).catch((error) => {
+        logSsoFailure("userinfo_request", {
+          protocol: cfg.protocol,
+          userinfoEndpoint: cfg.userinfoEndpoint,
+          reason: "request_failed",
+        }, error);
+        return null;
+      });
+      if (!userinfo) return back(base, "token");
+      if (!userinfo.ok) {
+        logSsoFailure("userinfo_request", {
+          protocol: cfg.protocol,
+          userinfoEndpoint: cfg.userinfoEndpoint,
+          detail: userinfo.detail,
+        });
+        return back(base, "token");
+      }
+      claims = userinfo.claims;
+    }
 
     const identity = resolveIdentity(claims, cfg);
     if (!identity.ok) {
       // 매핑이 틀렸을 때가 운영자에게 claim 이름 목록이 가장 필요한 순간이다.
       await recordClaimKeys(claimKeys(claims));
+      logSsoFailure("identity_mapping", {
+        protocol: cfg.protocol,
+        reason: identity.reason,
+        claimKeys: claimKeys(claims),
+        subjectClaims: cfg.subjectClaims,
+        emailClaims: cfg.emailClaims,
+      });
       return back(base, identity.reason);
     }
 
@@ -97,14 +184,25 @@ export async function GET(request: Request): Promise<Response> {
       allowedGroups: cfg.allowedGroups,
       adminGroups: cfg.adminGroups,
     });
-    if (!access.allowed) return back(base, "not_allowed");
+    if (!access.allowed) {
+      logSsoFailure("access_policy", {
+        protocol: cfg.protocol,
+        reason: "not_allowed",
+        receivedGroupCount: identity.identity.groups.length,
+        allowedGroupCount: cfg.allowedGroups.length,
+      });
+      return back(base, "not_allowed");
+    }
 
     const result = await applySsoLogin({
       identity: identity.identity,
       isAdmin: access.isAdmin,
       autoCreate: cfg.autoCreate,
     });
-    if (!result.ok) return back(base, result.reason);
+    if (!result.ok) {
+      logSsoFailure("account_link", { protocol: cfg.protocol, reason: result.reason });
+      return back(base, result.reason);
+    }
 
     await recordClaimKeys(claimKeys(claims));
     await purgeExpiredSessions();
@@ -115,7 +213,7 @@ export async function GET(request: Request): Promise<Response> {
     headers.append("set-cookie", clearFlowCookie());
     return new Response(null, { status: 302, headers });
   } catch (err) {
-    console.error(err);
+    logSsoFailure("callback_unhandled", { callbackOrigin: url.origin }, err);
     return back(base, "server");
   }
 }

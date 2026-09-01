@@ -9,6 +9,7 @@ import {
   resolveBaseUrl,
 } from "@/lib/auth/sso/flow";
 import type { SsoErrorCode } from "@/lib/auth/sso/errors";
+import { logSsoFailure } from "@/lib/auth/sso/diagnostics";
 
 /**
  * R132: 이 두 라우트(start·callback)만 /api/v1 밖에 있다.
@@ -30,13 +31,16 @@ function loginRedirect(base: string, code: SsoErrorCode): Response {
 }
 
 export async function GET(request: Request): Promise<Response> {
-  const cfg = await loadSsoConfig().catch(() => null);
+  const cfg = await loadSsoConfig().catch((error) => {
+    logSsoFailure("config_load", { route: "start" }, error);
+    return null;
+  });
   const base = resolveBaseUrl(request, { baseUrl: cfg?.baseUrl ?? "" });
   if (!cfg) return loginRedirect(base, "server");
   if (!cfg.enabled || !cfg.authorizationEndpoint || !cfg.clientId) return loginRedirect(base, "disabled");
 
   const verifier = randomToken();
-  const flow = { state: randomToken(), nonce: randomToken(), verifier };
+  const flow = { state: randomToken(), nonce: randomToken(), verifier, protocol: cfg.protocol };
 
   try {
     const url = buildAuthorizeUrl(cfg, {
@@ -52,7 +56,11 @@ export async function GET(request: Request): Promise<Response> {
   } catch (err) {
     // 인가 엔드포인트가 URL이 아니면 여기서 던진다(설정 저장 때 걸러지지만,
     // 저장 이후에 DB를 직접 고친 경우가 남는다).
-    console.error(err);
+    logSsoFailure("authorize_redirect", {
+      protocol: cfg.protocol,
+      authorizationEndpoint: cfg.authorizationEndpoint,
+      clientId: cfg.clientId,
+    }, err);
     return loginRedirect(base, "disabled");
   }
 }

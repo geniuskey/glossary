@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";
-import { loadSsoConfig, publicSsoConfig, saveSsoConfig } from "@/lib/auth/sso/config";
+import { loadSsoConfig, publicSsoConfig, saveSsoConfig, SSO_PROTOCOLS } from "@/lib/auth/sso/config";
 import { redirectUriFor } from "@/lib/auth/sso/flow";
 
 const ALLOWED_METHODS = ["GET", "PUT"];
@@ -22,8 +22,10 @@ const nameList = z.array(z.string().trim().min(1)).max(20);
 const patchSchema = z
   .object({
     enabled: z.boolean(),
+    protocol: z.enum(SSO_PROTOCOLS),
     buttonLabel: z.string().trim().min(1).max(60),
     issuer: endpoint,
+    jwksUri: endpoint,
     authorizationEndpoint: endpoint,
     tokenEndpoint: endpoint,
     userinfoEndpoint: endpoint,

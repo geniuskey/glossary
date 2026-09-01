@@ -87,10 +87,13 @@ alias가 먼저 나오면 린터가 금지 표기를 놓친다.
 ## 인증 테이블
 
 - **users** — `email`(유니크), `name`, `password_hash`, `role`(`admin` \| `editor`),
-  `external_id`(SSO 자리).
+  `external_id`(OIDC/OAuth 사용자 식별자), `sso_groups`.
 - **sessions** — `id`(쿠키에 실리는 값), `user_id`, `expires_at`.
 - **api_keys** — 해시만 저장한다. `prefix`(유니크)로 식별하고 `scopes`로 제한하며
   `revoked_at`/`expires_at`으로 수명을 관리한다.
+- **sso_config** — `protocol`(`oidc` \| `oauth2`), Issuer/JWKS/엔드포인트, 클라이언트
+  정보, claim 후보와 접근 그룹을 담는 단일 설정 행. 클라이언트 시크릿은 API 응답에
+  내보내지 않는다.
 
 ## 중복 방지
 

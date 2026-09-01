@@ -14,6 +14,7 @@ test("시트 머리글은 자세히 추가 대신 공유 진입점을 제공한�
 });
 
 test("공유 창은 열 체크박스와 URL·iframe 복사를 모두 제공한다", () => {
+  expect(share).toContain("createPortal");
   expect(share).toContain('type="checkbox"');
   expect(share).toContain('copy("url")');
   expect(share).toContain('copy("iframe")');

@@ -26,7 +26,7 @@ Grossary는 특정 조직·팀·제품군이 사용하는 용어집을 관리하
 | 네임스페이스 | 단일 사전 + 동음이의어 허용 (domain 태그로 구분) |
 | 거버넌스 | 위키형 자유 편집 + 전체 이력 + 되돌리기 (승인 워크플로우 없음) |
 | 추출 엔진 | 규칙 기반 코어, LLM은 선택적 보조 |
-| 인증 | 자체 계정(로그인 화면에서 누구나 가입) + SSO 어댑터 자리, 도구는 API Key |
+| 인증 | 자체 계정 + OIDC/OAuth 2.0 SSO, 도구는 API Key |
 | 아키텍처 | Next.js 모놀리스 + Postgres, 검증 엔진은 독립 TS 패키지 |
 | 첨부 저장 | Postgres bytea, content-addressed, WebP 변환, 파일당 2MB 상한 |
 

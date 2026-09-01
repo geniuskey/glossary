@@ -100,11 +100,16 @@ test("관리자에게도 시크릿은 돌려주지 않고, 등록할 리디렉�
   expect(body.redirectUri).toBe("https://glossary.example.com/auth/sso/callback");
 });
 
-test("관리자는 claim 매핑을 저장할 수 있다", async () => {
+test("관리자는 로그인 방식과 claim 매핑을 저장할 수 있다", async () => {
   await loginAs("admin");
 
   const res = await ssoPut(
     putRequest({
+      protocol: "oauth2",
+      issuer: "",
+      jwksUri: "",
+      userinfoEndpoint: "https://idp.example.com/userinfo",
+      scopes: ["profile", "email"],
       nameClaims: ["displayName", "name", "preferred_username"],
       groupClaims: ["roles"],
       clientSecret: "",
@@ -113,6 +118,7 @@ test("관리자는 claim 매핑을 저장할 수 있다", async () => {
 
   expect(res.status).toBe(200);
   const body = await res.json();
+  expect(body.sso.protocol).toBe("oauth2");
   expect(body.sso.nameClaims).toEqual(["displayName", "name", "preferred_username"]);
   expect((await loadSsoConfig()).groupClaims).toEqual(["roles"]);
 });
@@ -161,6 +167,7 @@ test("발견 문서를 읽어 엔드포인트를 돌려준다", async () => {
         issuer: "https://idp.example.com",
         authorization_endpoint: "https://idp.example.com/authorize",
         token_endpoint: "https://idp.example.com/token",
+        jwks_uri: "https://idp.example.com/jwks",
         claims_supported: ["sub", "email", "preferred_username"],
       }),
       { headers: { "content-type": "application/json" } },
@@ -178,6 +185,7 @@ test("발견 문서를 읽어 엔드포인트를 돌려준다", async () => {
   expect(res.status).toBe(200);
   const body = await res.json();
   expect(body.discovery.tokenEndpoint).toBe("https://idp.example.com/token");
+  expect(body.discovery.jwksUri).toBe("https://idp.example.com/jwks");
   // 이 목록이 곧 설정 화면의 "고를 수 있는 claim 이름" 힌트가 된다.
   expect(body.discovery.claimsSupported).toContain("preferred_username");
   vi.unstubAllGlobals();

@@ -110,7 +110,7 @@ POST /api/v1/auth/logout
 GET이 아니라 POST다. CSRF 방어가 `SameSite=Lax` 쿠키 하나뿐이라 상태를 바꾸는 GET을
 만들면 그 방어가 즉시 무너진다.
 
-## SSO (OpenID Connect)
+## SSO (OpenID Connect / OAuth 2.0)
 
 회사 계정으로 로그인하는 경로다. 붙이는 방법과 claim 매핑 설명은
 [SSO 연결](/guide/sso)에 있고, 여기서는 창구만 적는다.
@@ -121,8 +121,8 @@ JSON 에러 봉투를 쓸 수 없다 — 이 저장소의 "모든 에러는 JSON
 
 | 경로 | 하는 일 |
 |---|---|
-| `GET /auth/sso/start` | PKCE·state·nonce를 만들어 흐름 쿠키에 담고 IdP로 302 |
-| `GET /auth/sso/callback` | 코드를 토큰으로 바꾸고 세션 쿠키를 발급한 뒤 `/`로 302 |
+| `GET /auth/sso/start` | PKCE·state(및 OIDC nonce)를 만들어 흐름 쿠키에 담고 인증 서버로 302 |
+| `GET /auth/sso/callback` | 코드를 토큰으로 바꾸고 OIDC 검증 또는 OAuth userinfo 조회 후 세션 발급 |
 
 둘 다 응답은 302뿐이다. 실패하면 `/login?sso=<코드>`로 돌아온다
 (`disabled` `state` `idp` `token` `no_subject` `no_email` `not_allowed` `no_account`
@@ -142,8 +142,10 @@ GET /api/v1/sso
 {
   "sso": {
     "enabled": true,
+    "protocol": "oidc",
     "buttonLabel": "회사 계정으로 로그인",
     "issuer": "https://login.example.com/realms/company",
+    "jwksUri": "https://login.example.com/realms/company/protocol/openid-connect/certs",
     "authorizationEndpoint": "…", "tokenEndpoint": "…", "userinfoEndpoint": "…",
     "clientId": "grossary",
     "hasClientSecret": true,
@@ -169,7 +171,7 @@ GET /api/v1/sso
 PUT /api/v1/sso
 Content-Type: application/json
 
-{ "nameClaims": ["displayName", "name"], "adminGroups": ["Glossary-Admins"], "clientSecret": "" }
+{ "protocol": "oauth2", "userinfoEndpoint": "https://login.example.com/userinfo", "nameClaims": ["displayName", "name"], "clientSecret": "" }
 ```
 
 부분 갱신이다. 보낸 필드만 바뀐다.
@@ -186,20 +188,22 @@ Content-Type: application/json
   때마다 SSO가 조용히 꺼진다.
 - 서버가 채우는 값(`lastClaimKeys`, `lastLoginAt`, `updatedBy`)은 본문으로 받지 않는다.
   보내면 400이다.
-- 엔드포인트 4종은 `http(s)`만 받는다. 서버가 그 주소로 직접 요청을 보내기 때문이다.
+- Issuer/JWKS/엔드포인트/외부 주소는 `http(s)`만 받는다. 서버가 이 중 일부 주소로
+  직접 요청하기 때문이다.
 
 ```http
 POST /api/v1/sso/discover
 Content-Type: application/json
 
-{ "issuer": "https://login.example.com/realms/company" }
+{ "issuer": "https://login.example.com/realms/company", "protocol": "oidc" }
 ```
 
-`<issuer>/.well-known/openid-configuration`을 읽어 엔드포인트와 `claims_supported`를
-돌려준다. 저장하지는 않는다.
+OIDC는 `<issuer>/.well-known/openid-configuration`, OAuth 2.0은
+`<issuer>/.well-known/oauth-authorization-server`를 읽어 엔드포인트, JWKS URI와
+`claims_supported`를 돌려준다. 저장하지는 않는다.
 
 ```
-200  { "discovery": { "issuer", "authorizationEndpoint", "tokenEndpoint", "userinfoEndpoint", "scopesSupported", "claimsSupported" } }
+200  { "discovery": { "issuer", "authorizationEndpoint", "tokenEndpoint", "userinfoEndpoint", "jwksUri", "scopesSupported", "claimsSupported" } }
 400  validation_failed — 그 주소에서 설정을 읽지 못했다
 403  forbidden — 관리자만
 ```

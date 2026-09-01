@@ -1,6 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { Claims } from "./claims";
+import { validateIdTokenClaims } from "./claims";
 import type { SsoConfig } from "./config";
+import type { SsoProtocol } from "./config";
+import { sanitizeSsoValue } from "./diagnostics";
 
 /**
  * R132: 인가 코드 흐름(Authorization Code + PKCE)의 배선. 브라우저를 IdP로 보내고
@@ -20,6 +24,7 @@ export interface FlowState {
   state: string;
   nonce: string;
   verifier: string;
+  protocol: SsoProtocol;
 }
 
 export function randomToken(bytes = 32): string {
@@ -40,10 +45,11 @@ export function decodeFlowState(raw: string | undefined | null): FlowState | nul
   try {
     const parsed: unknown = JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
     if (!parsed || typeof parsed !== "object") return null;
-    const { state, nonce, verifier } = parsed as Record<string, unknown>;
+    const { state, nonce, verifier, protocol } = parsed as Record<string, unknown>;
     if (typeof state !== "string" || typeof nonce !== "string" || typeof verifier !== "string") return null;
+    if (protocol !== "oidc" && protocol !== "oauth2") return null;
     if (!state || !nonce || !verifier) return null;
-    return { state, nonce, verifier };
+    return { state, nonce, verifier, protocol };
   } catch {
     return null;
   }
@@ -100,7 +106,7 @@ export function redirectUriFor(request: Request, cfg: Pick<SsoConfig, "baseUrl">
 }
 
 export function buildAuthorizeUrl(
-  cfg: Pick<SsoConfig, "authorizationEndpoint" | "clientId" | "scopes">,
+  cfg: Pick<SsoConfig, "protocol" | "authorizationEndpoint" | "clientId" | "scopes">,
   input: { redirectUri: string; state: string; nonce: string; challenge: string },
 ): string {
   const url = new URL(cfg.authorizationEndpoint);
@@ -109,22 +115,22 @@ export function buildAuthorizeUrl(
   url.searchParams.set("response_type", "code");
   url.searchParams.set("client_id", cfg.clientId);
   url.searchParams.set("redirect_uri", input.redirectUri);
-  // openid가 빠지면 ID 토큰이 안 오고, 그러면 sub를 읽을 곳이 없다.
-  const scopes = cfg.scopes.includes("openid") ? cfg.scopes : ["openid", ...cfg.scopes];
+  // OIDC만 openid scope와 nonce를 요구한다. OAuth 2.0은 사용자 정보를 access token으로 조회한다.
+  const scopes = cfg.protocol === "oidc" && !cfg.scopes.includes("openid") ? ["openid", ...cfg.scopes] : cfg.scopes;
   url.searchParams.set("scope", scopes.join(" "));
   url.searchParams.set("state", input.state);
-  url.searchParams.set("nonce", input.nonce);
+  if (cfg.protocol === "oidc") url.searchParams.set("nonce", input.nonce);
   url.searchParams.set("code_challenge", input.challenge);
   url.searchParams.set("code_challenge_method", "S256");
   return url.toString();
 }
 
 export type TokenResult =
-  | { ok: true; idToken: string; accessToken: string | null }
+  | { ok: true; idToken: string | null; accessToken: string | null }
   | { ok: false; detail: string };
 
 export async function exchangeCode(
-  cfg: Pick<SsoConfig, "tokenEndpoint" | "clientId" | "clientSecret" | "tokenAuthMethod">,
+  cfg: Pick<SsoConfig, "protocol" | "tokenEndpoint" | "clientId" | "clientSecret" | "tokenAuthMethod">,
   input: { code: string; redirectUri: string; verifier: string },
 ): Promise<TokenResult> {
   const body = new URLSearchParams({
@@ -153,28 +159,82 @@ export async function exchangeCode(
   const payload: unknown = await res.json().catch(() => null);
   if (!res.ok || !payload || typeof payload !== "object") {
     // 본문에는 시크릿이 없다(에러 코드와 설명뿐). 운영자가 원인을 볼 수 있게 그대로 남긴다.
-    return { ok: false, detail: `token ${res.status} ${JSON.stringify(payload)}` };
+    return { ok: false, detail: `token ${res.status} ${JSON.stringify(sanitizeSsoValue(payload))}` };
   }
 
   const data = payload as Record<string, unknown>;
-  if (typeof data.id_token !== "string" || !data.id_token) {
+  const idToken = typeof data.id_token === "string" && data.id_token ? data.id_token : null;
+  const accessToken = typeof data.access_token === "string" && data.access_token ? data.access_token : null;
+  if (cfg.protocol === "oidc" && !idToken) {
     return { ok: false, detail: "id_token 없음 — scope에 openid가 포함됐는지 확인하세요." };
   }
-  return {
-    ok: true,
-    idToken: data.id_token,
-    accessToken: typeof data.access_token === "string" ? data.access_token : null,
-  };
+  if (cfg.protocol === "oauth2" && !accessToken) {
+    return { ok: false, detail: "access_token 없음 — OAuth 2.0 토큰 응답 설정을 확인하세요." };
+  }
+  return { ok: true, idToken, accessToken };
 }
 
-export async function fetchUserinfo(userinfoEndpoint: string, accessToken: string): Promise<Claims | null> {
+export type UserinfoResult = { ok: true; claims: Claims } | { ok: false; detail: string };
+
+export async function fetchUserinfo(userinfoEndpoint: string, accessToken: string): Promise<UserinfoResult> {
   const res = await fetch(userinfoEndpoint, {
     headers: { authorization: `Bearer ${accessToken}`, accept: "application/json" },
   });
-  if (!res.ok) return null;
+  const contentType = res.headers.get("content-type") ?? "";
   const payload: unknown = await res.json().catch(() => null);
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
-  return payload as Claims;
+  if (!res.ok) return { ok: false, detail: `userinfo ${res.status} ${JSON.stringify(sanitizeSsoValue(payload))}` };
+  if (!contentType.toLowerCase().includes("application/json")) {
+    return { ok: false, detail: `userinfo ${res.status} content-type=${contentType || "없음"}` };
+  }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { ok: false, detail: "userinfo 응답이 JSON 객체가 아닙니다." };
+  }
+  return { ok: true, claims: payload as Claims };
+}
+
+const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
+
+function remoteJwks(uri: string): ReturnType<typeof createRemoteJWKSet> {
+  const cached = jwksCache.get(uri);
+  if (cached) return cached;
+  if (jwksCache.size >= 8) jwksCache.clear();
+  const created = createRemoteJWKSet(new URL(uri), { timeoutDuration: 5000, cooldownDuration: 30000 });
+  jwksCache.set(uri, created);
+  return created;
+}
+
+export type OidcVerification =
+  | { ok: true; claims: Claims }
+  | { ok: false; reason: "nonce" | "token"; detail: string };
+
+/** JWKS 서명과 표준 claim을 검증한 뒤에만 ID 토큰 payload를 신뢰한다. */
+export async function verifyOidcIdToken(
+  cfg: Pick<SsoConfig, "issuer" | "jwksUri" | "clientId">,
+  idToken: string,
+  nonce: string,
+): Promise<OidcVerification> {
+  try {
+    const { payload, protectedHeader } = await jwtVerify(idToken, remoteJwks(cfg.jwksUri), {
+      issuer: cfg.issuer,
+      audience: cfg.clientId,
+      clockTolerance: 5,
+    });
+    const claims = payload as Claims;
+    const validation = validateIdTokenClaims(claims, { issuer: cfg.issuer, clientId: cfg.clientId, nonce });
+    if (!validation.ok) {
+      return {
+        ok: false,
+        reason: validation.reason === "nonce" ? "nonce" : "token",
+        detail: `ID 토큰 claim 검증 실패: ${validation.reason}; alg=${protectedHeader.alg ?? "없음"}; kid=${protectedHeader.kid ?? "없음"}`,
+      };
+    }
+    return { ok: true, claims };
+  } catch (error) {
+    const detail = error instanceof Error
+      ? `${error.name}${"code" in error ? `(${String((error as { code?: unknown }).code)})` : ""}: ${error.message}`
+      : String(error);
+    return { ok: false, reason: "token", detail: `ID 토큰 서명/claim 검증 실패: ${detail}` };
+  }
 }
 
 /**

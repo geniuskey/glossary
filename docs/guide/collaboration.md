@@ -35,6 +35,8 @@ SSO 사용자는 로그인할 때 IdP가 확인해 준 group/조직이 이름 �
 - **공유 URL**: 새 탭에서 열거나 Confluence URL 매크로에 붙인다.
 - **iframe 코드**: HTML/iframe 삽입을 지원하는 매크로에 붙인다.
 
+<img src="/images/sheet-share.png" width="1440" height="960" loading="lazy" alt="시트 공유 창에서 표시할 열과 공유 옵션을 선택하는 화면">
+
 열 정의는 `columns` 쿼리에 표준 열 키의 쉼표 목록으로 들어간다. 주소를 직접 만들 수도
 있지만, 알 수 없는 열 키는 무시되고 유효한 열이 하나도 없으면 기본 열 구성을 사용한다.
 
@@ -45,6 +47,8 @@ https://glossary.example.com/embed?domain=ISP&category=노출%20제어&sort=name
 ```html
 <iframe src="https://glossary.example.com/embed?..." title="Grossary 용어 시트" width="100%" height="560" loading="lazy" style="border:1px solid #e7e3dc;border-radius:8px"></iframe>
 ```
+
+<img src="/images/sheet-embed.png" width="1440" height="960" loading="lazy" alt="선택한 열만 표시하는 읽기 전용 용어 시트 임베드 화면">
 
 운영 환경에는 iframe을 허용할 Confluence origin을 설정한다.
 

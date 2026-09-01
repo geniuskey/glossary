@@ -21,8 +21,8 @@ export default async function SsoSettingsPage() {
         </Link>
         <p className="text-xl font-semibold tracking-tight lg:hidden">SSO 연결</p>
         <p className="mt-1.5 max-w-xl text-sm text-ink-2">
-          회사 계정(OpenID Connect)으로 로그인하게 만듭니다. IdP가 보내는 값의 이름은 회사마다
-          달라서, 어떤 값을 이름과 그룹으로 쓸지 여기서 직접 정합니다.
+          회사 계정을 OpenID Connect 또는 OAuth 2.0으로 연결합니다. 인증 서버가 보내는 값의
+          이름은 회사마다 달라서, 어떤 값을 이름과 그룹으로 쓸지 여기서 직접 정합니다.
         </p>
       </header>
 

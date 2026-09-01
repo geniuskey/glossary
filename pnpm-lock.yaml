@@ -44,6 +44,9 @@ importers:
       exceljs:
         specifier: ^4.4.0
         version: 4.4.0
+      jose:
+        specifier: ^6.2.10
+        version: 6.2.10
       next:
         specifier: ^16.0.0
         version: 16.3.2(@types/node@22.20.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -2034,6 +2037,9 @@ packages:
   jiti@1.21.7:
     resolution: {integrity: sha512-/imKNG4EbWNrVjoNC/1H5/9GFy+tqjGBHCaSsN+P2RnPqjsLmv6UD3Ej+Kj8nBWaRAwyk7kK5ZUc+OEatnTR3A==}
     hasBin: true
+
+  jose@6.2.10:
+    resolution: {integrity: sha512-iiW7J9qRFlGxvCOIBDBDxFePQSn7ZMAnrYGhrrOo6siO/MIqwfyilLR27pkfDgUk+raLuzADS8A3S/KLBisc0g==}
 
   jszip@3.10.1:
     resolution: {integrity: sha512-xXDvecyTpGLrqFrvkrUSoxxfJI5AH7U8zxxtVclpsUtMCq4JQ290LY8AW5c7Ggnr/Y/oK+bQMbqK2qmtk3pN4g==}
@@ -4522,6 +4528,8 @@ snapshots:
   isarray@1.0.0: {}
 
   jiti@1.21.7: {}
+
+  jose@6.2.10: {}
 
   jszip@3.10.1:
     dependencies:

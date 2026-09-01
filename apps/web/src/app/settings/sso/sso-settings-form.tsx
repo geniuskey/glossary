@@ -8,8 +8,10 @@ import { formatClaimList, parseClaimList } from "@/lib/auth/sso/claims";
 
 interface SsoView {
   enabled: boolean;
+  protocol: "oidc" | "oauth2";
   buttonLabel: string;
   issuer: string;
+  jwksUri: string;
   authorizationEndpoint: string;
   tokenEndpoint: string;
   userinfoEndpoint: string;
@@ -31,8 +33,10 @@ interface SsoView {
 
 interface Form {
   enabled: boolean;
+  protocol: "oidc" | "oauth2";
   buttonLabel: string;
   issuer: string;
+  jwksUri: string;
   authorizationEndpoint: string;
   tokenEndpoint: string;
   userinfoEndpoint: string;
@@ -52,8 +56,10 @@ interface Form {
 function toForm(sso: SsoView): Form {
   return {
     enabled: sso.enabled,
+    protocol: sso.protocol,
     buttonLabel: sso.buttonLabel,
     issuer: sso.issuer,
+    jwksUri: sso.jwksUri,
     authorizationEndpoint: sso.authorizationEndpoint,
     tokenEndpoint: sso.tokenEndpoint,
     userinfoEndpoint: sso.userinfoEndpoint,
@@ -105,6 +111,18 @@ export function SsoSettingsForm() {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
+  function selectProtocol(protocol: Form["protocol"]) {
+    setForm((prev) => {
+      if (!prev) return prev;
+      const scopes = parseClaimList(prev.scopes).filter((scope) => scope !== "openid");
+      return {
+        ...prev,
+        protocol,
+        scopes: formatClaimList(protocol === "oidc" ? ["openid", ...scopes] : scopes),
+      };
+    });
+  }
+
   async function discover() {
     if (!form) return;
     setBusy(true);
@@ -113,7 +131,7 @@ export function SsoSettingsForm() {
       const res = await fetch("/api/v1/sso/discover", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ issuer: form.issuer }),
+        body: JSON.stringify({ issuer: form.issuer, protocol: form.protocol }),
       });
       const body = await res.json().catch(() => null);
       if (!res.ok) {
@@ -127,6 +145,7 @@ export function SsoSettingsForm() {
           ? {
               ...prev,
               issuer: d.issuer || prev.issuer,
+              jwksUri: d.jwksUri,
               authorizationEndpoint: d.authorizationEndpoint,
               tokenEndpoint: d.tokenEndpoint,
               userinfoEndpoint: d.userinfoEndpoint,
@@ -157,8 +176,10 @@ export function SsoSettingsForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           enabled: form.enabled,
+          protocol: form.protocol,
           buttonLabel: form.buttonLabel,
           issuer: form.issuer,
+          jwksUri: form.jwksUri,
           authorizationEndpoint: form.authorizationEndpoint,
           tokenEndpoint: form.tokenEndpoint,
           userinfoEndpoint: form.userinfoEndpoint,
@@ -208,7 +229,7 @@ export function SsoSettingsForm() {
       <section className="card p-5">
         <h2 className="text-sm font-semibold text-ink">연결</h2>
         <p className="mt-1 text-xs text-ink-3">
-          OpenID Connect(인가 코드 + PKCE)로 붙습니다. IdP에는 아래 리디렉션 URI를 등록하세요.
+          인증 서버에는 아래 리디렉션 URI를 등록하세요. 두 방식 모두 인가 코드 + PKCE를 사용합니다.
         </p>
 
         <div className="mt-3 rounded-lg border border-line bg-panel-2 px-3 py-2">
@@ -221,12 +242,32 @@ export function SsoSettingsForm() {
           로그인 화면에 SSO 버튼 보이기
         </label>
 
+        <fieldset className="mt-4">
+          <legend className="label">로그인 방식</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <ProtocolOption
+              value="oidc"
+              checked={form.protocol === "oidc"}
+              title="OpenID Connect (OIDC)"
+              description="ID 토큰의 JWKS 서명·Issuer·Audience·Nonce를 검증합니다. 가능하면 이 방식을 권장합니다."
+              onChange={selectProtocol}
+            />
+            <ProtocolOption
+              value="oauth2"
+              checked={form.protocol === "oauth2"}
+              title="OAuth 2.0"
+              description="Access Token으로 사용자 정보 API를 호출합니다. OIDC를 제공하지 않는 사내 서버에 사용합니다."
+              onChange={selectProtocol}
+            />
+          </div>
+        </fieldset>
+
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <TextField label="버튼 문구" value={form.buttonLabel} onChange={(v) => set("buttonLabel", v)} />
 
           <div className="sm:col-span-2">
             <label className="label" htmlFor="sso-issuer">
-              Issuer
+              {form.protocol === "oidc" ? "OIDC Issuer" : "OAuth 인증 서버 URL"}
             </label>
             <div className="flex gap-2">
               <input
@@ -242,27 +283,35 @@ export function SsoSettingsForm() {
                 placeholder="https://login.example.com/realms/company…"
               />
               <button type="button" className="btn-ghost shrink-0" onClick={discover} disabled={busy || !form.issuer}>
-                불러오기
+                메타데이터 불러오기
               </button>
             </div>
             <p className="mt-1 text-[11px] text-ink-3">
-              불러오기를 누르면 /.well-known/openid-configuration에서 아래 엔드포인트를 채웁니다.
+              {form.protocol === "oidc"
+                ? "/.well-known/openid-configuration에서 엔드포인트와 JWKS URI를 채웁니다."
+                : "/.well-known/oauth-authorization-server에서 지원하는 엔드포인트를 채웁니다."}
             </p>
           </div>
 
+          {form.protocol === "oidc" && (
+            <TextField label="JWKS URI" type="url" mono value={form.jwksUri} onChange={(v) => set("jwksUri", v)} hint="ID 토큰 서명 키를 읽는 주소" />
+          )}
+
           <TextField
             label="인가 엔드포인트"
+            type="url"
             mono
             value={form.authorizationEndpoint}
             onChange={(v) => set("authorizationEndpoint", v)}
           />
-          <TextField label="토큰 엔드포인트" mono value={form.tokenEndpoint} onChange={(v) => set("tokenEndpoint", v)} />
+          <TextField label="토큰 엔드포인트" type="url" mono value={form.tokenEndpoint} onChange={(v) => set("tokenEndpoint", v)} />
           <TextField
-            label="userinfo 엔드포인트 (선택)"
+            label={form.protocol === "oidc" ? "userinfo 엔드포인트 (선택)" : "사용자 정보 엔드포인트"}
+            type="url"
             mono
             value={form.userinfoEndpoint}
             onChange={(v) => set("userinfoEndpoint", v)}
-            hint="그룹을 여기서만 주는 IdP가 많습니다"
+            hint={form.protocol === "oidc" ? "설정하면 ID 토큰 claim과 합칩니다" : "OAuth 2.0 로그인에는 반드시 필요합니다"}
           />
           <TextField label="클라이언트 ID" mono value={form.clientId} onChange={(v) => set("clientId", v)} />
 
@@ -301,6 +350,7 @@ export function SsoSettingsForm() {
 
           <TextField
             label="외부 주소 (선택)"
+            type="url"
             mono
             value={form.baseUrl}
             onChange={(v) => set("baseUrl", v)}
@@ -400,12 +450,14 @@ function TextField({
   onChange,
   hint,
   mono = false,
+  type = "text",
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   hint?: string;
   mono?: boolean;
+  type?: "text" | "url";
 }) {
   const id = `sso-${label.replace(/[^a-zA-Z가-힣]+/g, "-")}`;
   return (
@@ -416,6 +468,8 @@ function TextField({
       <input
         id={id}
         name={id}
+        type={type}
+        inputMode={type === "url" ? "url" : undefined}
         autoComplete="off"
         spellCheck={!mono}
         className={mono ? "field font-mono text-xs" : "field"}
@@ -424,5 +478,36 @@ function TextField({
       />
       {hint && <p className="mt-1 text-[11px] text-ink-3">{hint}</p>}
     </div>
+  );
+}
+
+function ProtocolOption({
+  value,
+  checked,
+  title,
+  description,
+  onChange,
+}: {
+  value: Form["protocol"];
+  checked: boolean;
+  title: string;
+  description: string;
+  onChange: (value: Form["protocol"]) => void;
+}) {
+  return (
+    <label className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors ${checked ? "border-brand bg-brand-soft/55" : "border-line hover:border-line-strong hover:bg-panel-2"}`}>
+      <input
+        type="radio"
+        name="sso-protocol"
+        value={value}
+        checked={checked}
+        onChange={() => onChange(value)}
+        className="mt-0.5 h-4 w-4 shrink-0 accent-brand"
+      />
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-ink">{title}</span>
+        <span className="mt-1 block text-xs leading-5 text-ink-3">{description}</span>
+      </span>
+    </label>
   );
 }

@@ -3,6 +3,8 @@ import { ssoConfig } from "@grossary/db";
 import { getDb } from "@/lib/db";
 
 export type SsoConfig = InferSelectModel<typeof ssoConfig>;
+export const SSO_PROTOCOLS = ["oidc", "oauth2"] as const;
+export type SsoProtocol = (typeof SSO_PROTOCOLS)[number];
 
 /** 행은 언제나 이 하나다(sso_config_single_row 체크 제약이 이 값을 강제한다). */
 export const SSO_CONFIG_ID = "default";
@@ -50,9 +52,11 @@ export function validateSsoConfig(cfg: SsoConfig): string[] {
   if (!cfg.enabled) return [];
 
   const problems: string[] = [];
-  if (!cfg.issuer) problems.push("Issuer가 비어 있습니다.");
+  if (cfg.protocol === "oidc" && !cfg.issuer) problems.push("OIDC Issuer가 비어 있습니다.");
+  if (cfg.protocol === "oidc" && !cfg.jwksUri) problems.push("OIDC JWKS URI가 비어 있습니다. Issuer에서 설정을 불러오세요.");
   if (!cfg.authorizationEndpoint) problems.push("인가 엔드포인트가 비어 있습니다.");
   if (!cfg.tokenEndpoint) problems.push("토큰 엔드포인트가 비어 있습니다.");
+  if (cfg.protocol === "oauth2" && !cfg.userinfoEndpoint) problems.push("OAuth 2.0 사용자 정보 엔드포인트가 비어 있습니다.");
   if (!cfg.clientId) problems.push("클라이언트 ID가 비어 있습니다.");
   if (!cfg.clientSecret) problems.push("클라이언트 시크릿이 비어 있습니다.");
   if (cfg.subjectClaims.length === 0) problems.push("주체(sub) claim 후보가 비어 있습니다.");
@@ -101,9 +105,10 @@ export async function recordClaimKeys(keys: string[]): Promise<void> {
     .where(eq(ssoConfig.id, SSO_CONFIG_ID));
 }
 
-export function discoveryUrl(issuer: string): string {
+export function discoveryUrl(issuer: string, protocol: SsoProtocol = "oidc"): string {
   // issuer 끝의 /를 그대로 두면 //.well-known이 되어 404를 주는 IdP가 있다.
-  return `${issuer.trim().replace(/\/+$/, "")}/.well-known/openid-configuration`;
+  const suffix = protocol === "oidc" ? "openid-configuration" : "oauth-authorization-server";
+  return `${issuer.trim().replace(/\/+$/, "")}/.well-known/${suffix}`;
 }
 
 export interface Discovered {
@@ -111,6 +116,7 @@ export interface Discovered {
   authorizationEndpoint: string;
   tokenEndpoint: string;
   userinfoEndpoint: string;
+  jwksUri: string;
   scopesSupported: string[];
   claimsSupported: string[];
 }
@@ -131,14 +137,15 @@ export function readDiscovery(doc: unknown): Discovered | null {
     authorizationEndpoint,
     tokenEndpoint,
     userinfoEndpoint: text(d.userinfo_endpoint),
+    jwksUri: text(d.jwks_uri),
     scopesSupported: list(d.scopes_supported),
     // 이 목록이 곧 "이 IdP에서 고를 수 있는 claim 이름"이라 설정 화면의 힌트가 된다.
     claimsSupported: list(d.claims_supported),
   };
 }
 
-export async function discoverOidc(issuer: string): Promise<Discovered | null> {
-  const res = await fetch(discoveryUrl(issuer), { headers: { accept: "application/json" } });
+export async function discoverSso(issuer: string, protocol: SsoProtocol): Promise<Discovered | null> {
+  const res = await fetch(discoveryUrl(issuer, protocol), { headers: { accept: "application/json" } });
   if (!res.ok) return null;
   return readDiscovery(await res.json().catch(() => null));
 }

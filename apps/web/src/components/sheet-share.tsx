@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   DEFAULT_EMBED_COLUMN_KEYS,
   DEFAULT_EMBED_OPTIONS,
@@ -89,9 +90,9 @@ export function SheetShare({ baseQuery }: { baseQuery: string }) {
         <IconShare /> 공유하기
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
-          className="fixed inset-0 z-[100] grid place-items-center bg-ink/35 p-3 backdrop-blur-[2px]"
+          className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto overscroll-contain bg-ink/35 p-3 backdrop-blur-[2px]"
           onMouseDown={(event) => {
             if (event.currentTarget === event.target) close();
           }}
@@ -111,7 +112,7 @@ export function SheetShare({ baseQuery }: { baseQuery: string }) {
               <button ref={closeRef} type="button" className="btn-quiet ml-auto h-8 w-8 p-0 text-lg" onClick={close} aria-label="공유 창 닫기">×</button>
             </header>
 
-            <div className="overflow-y-auto px-5 py-4">
+            <div className="min-h-0 overflow-y-auto overscroll-contain px-5 py-4">
               <fieldset>
                 <legend className="text-sm font-medium">표시할 열 <span className="font-normal text-ink-3">{columns.length}/{GRID_COLUMNS.length}</span></legend>
                 <div className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-3">
@@ -138,7 +139,8 @@ export function SheetShare({ baseQuery }: { baseQuery: string }) {
               <p aria-live="polite" className={cx("mt-3 min-h-5 text-xs", announcement.includes("실패") ? "text-danger" : "text-ok")}>{announcement}</p>
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

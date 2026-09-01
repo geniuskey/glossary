@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import { createDb, ssoConfig } from "@grossary/db";
 import {
-  discoverOidc,
+  discoverSso,
   discoveryUrl,
   loadSsoConfig,
   publicSsoConfig,
@@ -33,7 +33,9 @@ afterEach(() => {
 
 const READY = {
   enabled: true,
+  protocol: "oidc" as const,
   issuer: "https://idp.example.com",
+  jwksUri: "https://idp.example.com/jwks",
   authorizationEndpoint: "https://idp.example.com/authorize",
   tokenEndpoint: "https://idp.example.com/token",
   clientId: "grossary",
@@ -117,6 +119,7 @@ test("발견 문서에서 필요한 것만 꺼내고, 엔드포인트가 없으�
     authorizationEndpoint: "https://idp.example.com/authorize",
     tokenEndpoint: "https://idp.example.com/token",
     userinfoEndpoint: "https://idp.example.com/userinfo",
+    jwksUri: "https://idp.example.com/jwks",
     scopesSupported: [],
     claimsSupported: ["sub", "email", "preferred_username"],
   });
@@ -129,10 +132,19 @@ test("발견 URL은 issuer 끝의 슬래시를 먹는다", () => {
   expect(discoveryUrl("https://idp.example.com/realms/co/")).toBe(
     "https://idp.example.com/realms/co/.well-known/openid-configuration",
   );
+  expect(discoveryUrl("https://idp.example.com/", "oauth2")).toBe(
+    "https://idp.example.com/.well-known/oauth-authorization-server",
+  );
 });
 
 test("발견 요청이 실패하면 null이다", async () => {
   vi.stubGlobal("fetch", async () => new Response("nope", { status: 404 }));
 
-  expect(await discoverOidc("https://idp.example.com")).toBeNull();
+  expect(await discoverSso("https://idp.example.com", "oidc")).toBeNull();
+});
+
+test("OAuth 2.0은 userinfo가 필수지만 Issuer와 JWKS는 요구하지 않는다", () => {
+  const oauth = { ...original, ...READY, protocol: "oauth2" as const, issuer: "", jwksUri: "", userinfoEndpoint: "" };
+  expect(validateSsoConfig(oauth).join(" ")).toContain("사용자 정보");
+  expect(validateSsoConfig({ ...oauth, userinfoEndpoint: "https://idp.example.com/me" })).toEqual([]);
 });

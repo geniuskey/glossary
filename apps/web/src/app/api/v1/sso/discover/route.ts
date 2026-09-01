@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";
-import { discoverOidc, discoveryUrl } from "@/lib/auth/sso/config";
+import { discoverSso, discoveryUrl, SSO_PROTOCOLS } from "@/lib/auth/sso/config";
+import { logSsoFailure } from "@/lib/auth/sso/diagnostics";
 
 const ALLOWED_METHODS = ["POST"];
 const { GET, PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -9,6 +10,7 @@ export { GET, PUT, PATCH, DELETE, OPTIONS };
 
 const bodySchema = z.object({
   issuer: z.string().trim().refine((v) => /^https?:\/\/\S+$/.test(v), { message: "http(s) 주소여야 합니다." }),
+  protocol: z.enum(SSO_PROTOCOLS).default("oidc"),
 });
 
 /**
@@ -27,9 +29,12 @@ export const POST = withApiErrors(async (request: Request) => {
     return apiError("validation_failed", "issuer 주소가 필요합니다.", 400, parsed.error.flatten());
   }
 
-  const discovered = await discoverOidc(parsed.data.issuer).catch(() => null);
+  const discovered = await discoverSso(parsed.data.issuer, parsed.data.protocol).catch((error) => {
+    logSsoFailure("discovery_request", { protocol: parsed.data.protocol, issuer: parsed.data.issuer }, error);
+    return null;
+  });
   if (!discovered) {
-    return apiError("validation_failed", `${discoveryUrl(parsed.data.issuer)} 에서 설정을 읽지 못했습니다.`, 400);
+    return apiError("validation_failed", `${discoveryUrl(parsed.data.issuer, parsed.data.protocol)} 에서 설정을 읽지 못했습니다.`, 400);
   }
 
   return Response.json({ discovery: discovered });

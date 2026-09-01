@@ -17,6 +17,7 @@ import {
 } from "../src/lib/auth/sso/flow.js";
 
 const CFG = {
+  protocol: "oidc" as const,
   authorizationEndpoint: "https://idp.example.com/authorize?p=b2c_1_signin",
   tokenEndpoint: "https://idp.example.com/token",
   clientId: "grossary",
@@ -39,7 +40,7 @@ test("PKCE 챌린지는 검증자의 SHA-256(base64url)이다", () => {
 });
 
 test("흐름 상태는 쿠키 헤더에서 그대로 되살아난다", () => {
-  const flow = { state: "st", nonce: "no", verifier: "ve" };
+  const flow = { state: "st", nonce: "no", verifier: "ve", protocol: "oidc" as const };
   const request = new Request("http://localhost:3000/auth/sso/callback", {
     headers: { cookie: `theme=dark; ${flowCookie(flow, false).split(";")[0]}` },
   });
@@ -53,14 +54,14 @@ test("흐름 상태는 쿠키 헤더에서 그대로 되살아난다", () => {
 
 // 쿠키가 남아 있으면 같은 state로 콜백을 다시 먹일 수 있다(코드 재사용).
 test("흐름 쿠키는 HttpOnly이고 지울 때 Max-Age=0이다", () => {
-  const cookie = flowCookie({ state: "st", nonce: "no", verifier: "ve" }, true);
+  const cookie = flowCookie({ state: "st", nonce: "no", verifier: "ve", protocol: "oidc" }, true);
 
   expect(cookie).toContain(`${SSO_FLOW_COOKIE}=`);
   expect(cookie).toContain("HttpOnly");
   expect(cookie).toContain("SameSite=Lax");
   expect(cookie).toContain("Secure");
   expect(clearFlowCookie()).toContain("Max-Age=0");
-  expect(flowCookie({ state: "st", nonce: "no", verifier: "ve" }, false)).not.toContain("Secure");
+  expect(flowCookie({ state: "st", nonce: "no", verifier: "ve", protocol: "oidc" }, false)).not.toContain("Secure");
 });
 
 // 프록시 뒤에서는 Host가 내부 주소다. redirect_uri가 인가 요청과 토큰 요청에서
@@ -108,6 +109,18 @@ test("scope에 openid가 이미 있으면 중복해서 넣지 않는다", () => 
   expect(url.searchParams.get("scope")).toBe("openid email");
 });
 
+test("OAuth 2.0 인가 요청은 openid와 nonce를 강제로 넣지 않는다", () => {
+  const url = new URL(
+    buildAuthorizeUrl(
+      { ...CFG, protocol: "oauth2", scopes: ["profile", "email"] },
+      { redirectUri: "https://x/cb", state: "s", nonce: "n", challenge: "c" },
+    ),
+  );
+
+  expect(url.searchParams.get("scope")).toBe("profile email");
+  expect(url.searchParams.has("nonce")).toBe(false);
+});
+
 test("토큰 교환은 코드 검증자를 함께 보내고 id_token을 돌려준다", async () => {
   const calls: Array<{ url: string; init: RequestInit }> = [];
   vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
@@ -153,6 +166,17 @@ test("id_token이 없으면 실패로 보고 이유를 남긴다", async () => {
 
   expect(result.ok).toBe(false);
   expect(result.ok === false && result.detail).toContain("openid");
+});
+
+test("OAuth 2.0 토큰 교환은 access_token만 있어도 성공한다", async () => {
+  vi.stubGlobal("fetch", async () =>
+    new Response(JSON.stringify({ access_token: "at" }), { headers: { "content-type": "application/json" } }),
+  );
+
+  await expect(exchangeCode(
+    { ...CFG, protocol: "oauth2" },
+    { code: "c", redirectUri: "https://x/cb", verifier: "v" },
+  )).resolves.toEqual({ ok: true, idToken: null, accessToken: "at" });
 });
 
 // OIDC Core 5.3.2. 이걸 지키지 않으면 access token만 바꿔치기해 남의 이름과 그룹을 얹을 수 있다.

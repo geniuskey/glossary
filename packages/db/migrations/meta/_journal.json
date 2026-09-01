@@ -85,6 +85,13 @@
       "when": 1788181730169,
       "tag": "0011_remarkable_penance",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788256419794,
+      "tag": "0012_sweet_snowbird",
+      "breakpoints": true
     }
   ]
 }

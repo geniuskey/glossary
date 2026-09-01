@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { boolean, check, index, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 export const userRoleEnum = pgEnum("user_role", ["admin", "editor"]);
+export const ssoProtocolEnum = pgEnum("sso_protocol", ["oidc", "oauth2"]);
 
 export const users = pgTable(
   "users",
@@ -77,8 +78,10 @@ export const ssoConfig = pgTable(
     id: text("id").primaryKey().default("default"),
     enabled: boolean("enabled").notNull().default(false),
     buttonLabel: text("button_label").notNull().default("회사 계정으로 로그인"),
+    protocol: ssoProtocolEnum("protocol").notNull().default("oidc"),
 
     issuer: text("issuer").notNull().default(""),
+    jwksUri: text("jwks_uri").notNull().default(""),
     authorizationEndpoint: text("authorization_endpoint").notNull().default(""),
     tokenEndpoint: text("token_endpoint").notNull().default(""),
     userinfoEndpoint: text("userinfo_endpoint").notNull().default(""),

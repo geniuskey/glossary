@@ -98,7 +98,7 @@ unset ADMIN_PASSWORD
 로그인을 요구하는 이유는 권한을 나누기 위해서가 아니라 **수정 이력에 이름을 남기기**
 위해서다. 승인 절차가 없는 대신 모든 수정이 이력에 남고 언제든 되돌릴 수 있다.
 
-회사 계정(OpenID Connect)으로 로그인하게 하려면 관리자로 **설정 → SSO**에서 붙인다 —
+회사 계정(OpenID Connect 또는 OAuth 2.0)으로 로그인하게 하려면 관리자로 **설정 → SSO**에서 붙인다 —
 [SSO 연결](/guide/sso). 재배포 없이 화면에서 고치는 값이고, 이름·그룹을 어떤 claim에서
 읽을지도 거기서 정한다(회사마다 `name` / `displayName` / `preferred_username`으로 갈린다).
 

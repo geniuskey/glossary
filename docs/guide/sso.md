@@ -1,11 +1,18 @@
 # SSO 연결
 
-회사 계정(OpenID Connect)으로 로그인하게 만드는 설정이다. 관리자로 로그인해
+회사 계정으로 로그인하게 만드는 설정이다. 관리자로 로그인해
 **설정 → SSO**(`/settings/sso`)에서 채운다. 환경변수가 아니라 화면에서 고치는 값이다 —
 사내 IdP를 붙이는 사람과 컨테이너를 띄우는 사람이 다르고, claim 이름은 몇 번 고쳐 봐야
 맞는 값을 찾는 종류라 재배포 없이 바꿀 수 있어야 한다.
 
-프로토콜은 **인가 코드 흐름 + PKCE(S256)** 하나만 지원한다. SAML은 없다.
+로그인 방식은 **OpenID Connect(OIDC)**와 **OAuth 2.0 + 사용자 정보 API** 중에서
+고를 수 있다. 둘 다 인가 코드 흐름 + PKCE(S256)를 사용하며 SAML은 지원하지 않는다.
+
+- **OIDC(권장)**: `id_token`의 JWKS 서명, Issuer, Audience, 만료와 Nonce를 검증한다.
+- **OAuth 2.0**: Access Token으로 설정한 사용자 정보 API를 호출해 계정 claim을 얻는다.
+  일반 OAuth 2.0만으로는 사용자 신원을 정의하지 않으므로 사용자 정보 엔드포인트가 필수다.
+
+<img src="/images/sso-login-method.png" width="1440" height="960" loading="lazy" alt="SSO 설정에서 OpenID Connect와 OAuth 2.0 로그인 방식을 선택하는 화면">
 
 ## 1. IdP에 앱 등록
 
@@ -23,16 +30,24 @@ https://<이 사전의 주소>/auth/sso/callback
 `X-Forwarded-Host` / `X-Forwarded-Proto`를, 그것도 없으면 `Host`를 쓴다.
 :::
 
-## 2. 엔드포인트 채우기
+## 2. 로그인 방식과 엔드포인트 채우기
 
-**Issuer**만 적고 **불러오기**를 누르면 `<issuer>/.well-known/openid-configuration`을
-읽어 인가·토큰·userinfo 엔드포인트를 채운다. 이때 그 IdP가 알린 claim 이름
-(`claims_supported`)도 함께 보여준다 — 다음 단계에서 쓸 목록이다.
+먼저 **OpenID Connect(OIDC)** 또는 **OAuth 2.0**을 고른다. 인증 서버 주소를 적고
+**메타데이터 불러오기**를 누르면 방식에 맞는 발견 문서를 읽어 설정을 채운다.
 
-발견 문서를 제공하지 않는 IdP라면 세 칸을 손으로 채운다. 클라이언트 ID와 시크릿,
+| 방식 | 발견 문서 | 필수 값 |
+|---|---|---|
+| OIDC | `<issuer>/.well-known/openid-configuration` | Issuer, JWKS URI, 인가·토큰 엔드포인트 |
+| OAuth 2.0 | `<server>/.well-known/oauth-authorization-server` | 인가·토큰·사용자 정보 엔드포인트 |
+
+발견 문서가 `claims_supported`를 제공하면 다음 단계에서 쓸 claim 이름도 함께 보여준다.
+OAuth 메타데이터에는 사용자 정보 엔드포인트가 없는 경우가 많으므로 그 칸은 직접 입력할
+수 있다.
+
+발견 문서를 제공하지 않는 서버라면 각 칸을 손으로 채운다. 클라이언트 ID와 시크릿,
 토큰 요청 인증 방식(`client_secret_post` / `client_secret_basic`)은 IdP가 알려준 대로 고른다.
 
-::: tip userinfo는 비워도 되지만
+::: tip OIDC의 userinfo는 비워도 되지만
 그룹을 ID 토큰에 넣지 않고 userinfo에서만 주는 IdP가 많다. 그룹으로 접근·관리자
 권한을 가를 생각이면 채워 두는 편이 안전하다.
 :::
@@ -94,9 +109,10 @@ group/조직 표시와 권한 판단을 위해 해당 사용자 계정에 저장
 
 ## 5. 켜기
 
-**로그인 화면에 SSO 버튼 보이기**를 켜고 저장한다. 켤 때 필요한 값(엔드포인트 2개,
-클라이언트 ID·시크릿, `sub`/이메일 claim 후보)이 비어 있으면 저장이 거절되고 무엇이
-빠졌는지 알려준다 — 빈 설정으로 켜면 버튼을 누른 사용자가 대신 실패를 보게 된다.
+**로그인 화면에 SSO 버튼 보이기**를 켜고 저장한다. 공통으로 인가·토큰 엔드포인트,
+클라이언트 ID·시크릿과 `sub`/이메일 claim 후보가 필요하다. OIDC는 Issuer·JWKS URI,
+OAuth 2.0은 사용자 정보 엔드포인트도 필수다. 빠진 값이 있으면 저장이 거절되고 무엇이
+필요한지 알려준다 — 빈 설정으로 켜면 버튼을 누른 사용자가 대신 실패를 보게 된다.
 
 시크릿 칸은 저장 후 언제나 비어 보인다(저장된 값을 되돌려주지 않는다). **빈 칸은
 "그대로 두기"**이므로 버튼 문구만 고쳐도 시크릿이 지워지지 않는다.
@@ -119,21 +135,40 @@ group/조직 표시와 권한 판단을 위해 해당 사용자 계정에 저장
 |---|---|---|
 | `disabled` | SSO가 꺼져 있다 | 설정 화면의 체크박스 |
 | `state` | 10분이 지났거나 다른 브라우저·탭에서 시작했다. `nonce` 불일치도 여기로 온다 | 다시 시도 |
-| `idp` | IdP가 거절·취소를 알려 왔다 | 서버 로그(`SSO: IdP 오류 …`) |
-| `token` | 토큰 교환이 실패했다 | 서버 로그(`SSO: 토큰 교환 실패 …`) — 시크릿·인증 방식·`redirect_uri` |
+| `idp` | IdP가 거절·취소를 알려 왔다 | 서버 로그의 `authorization_response` |
+| `token` | 토큰 교환·ID 토큰 검증·userinfo 요청이 실패했다 | 서버 로그의 `token_exchange`, `oidc_verification`, `userinfo_request` |
 | `no_subject` / `no_email` | 매핑이 틀렸다 | 설정 화면의 **IdP가 보낸 claim 이름** |
 | `not_allowed` | 허용 그룹에 없다 | 그룹 claim 후보와 허용 그룹 |
 | `no_account` | 계정이 없고 자동 생성이 꺼져 있다 | 자동 생성 |
 | `email_conflict` | 같은 이메일이 다른 `sub`에 묶여 있다 | `users` 테이블 |
 | `server` | 그 외 | 서버 로그 |
 
-IdP가 돌려준 원문(에러 설명, 토큰 응답)은 **서버 로그에만** 남는다. 로그인 화면에는
-다음에 무엇을 하면 되는지만 나온다.
+오류 상세는 앱 컨테이너의 표준 오류 출력에 `[Grossary SSO]`로 시작하는 한 줄 JSON으로
+남는다. 로그인 화면에는 다음에 무엇을 하면 되는지만 나온다.
+
+```bash
+docker compose -f docker-compose.prod.yml logs -f app
+```
+
+`stage`로 실패 지점을 찾고 `detail`, `providerError`, `providerDescription`, `error`를 본다.
+로그에는 시간·방식·엔드포인트·JWT 검증 예외·IdP 오류 설명이 포함되지만 `id_token`,
+`access_token`, 인가 코드, state/nonce/PKCE verifier, 클라이언트 시크릿은 값 대신
+`[redacted]`로 기록한다.
+
+| stage | 먼저 확인할 것 |
+|---|---|
+| `authorization_response` | IdP 정책, 등록된 리디렉션 URI, 사용자 동의 |
+| `flow_validation` | 콜백 쿠키, state, 10분 제한, 설정 방식 변경 여부 |
+| `token_exchange` | 클라이언트 시크릿, 인증 방식, 토큰 엔드포인트, `redirect_uri` |
+| `oidc_verification` | JWKS URI, 서명 키 `kid`, Issuer, Audience(client ID), 만료, nonce |
+| `userinfo_request` | 사용자 정보 URL, Access Token 권한(scope), JSON 응답 여부 |
+| `identity_mapping` | 설정 화면의 실제 claim 이름과 sub/이메일 매핑 |
 
 ## 보안 메모
 
-- ID 토큰은 IdP의 토큰 엔드포인트에서 TLS로 직접 받은 것만 쓰고, 그 경우 서명 검증을
-  생략한다(OIDC Core 3.1.3.7). 브라우저가 실어 오는 토큰(implicit)은 받지 않는다.
+- OIDC ID 토큰은 발견 문서 또는 설정에 저장한 JWKS URI의 공개 키로 서명을 검증한다.
+  Issuer, Audience(client ID), 만료와 nonce 검증을 모두 통과한 payload만 사용한다.
+  브라우저가 직접 실어 오는 토큰(implicit)은 받지 않는다.
 - userinfo는 `sub`가 ID 토큰과 같을 때만 합친다(OIDC Core 5.3.2). 다르면 통째로 버린다 —
   그러지 않으면 access token만 바꿔치기해 남의 이름과 그룹을 얹을 수 있다.
 - `state` / `nonce` / PKCE 검증자는 10분짜리 HttpOnly 쿠키(`Path=/auth/sso`)에 담기고
