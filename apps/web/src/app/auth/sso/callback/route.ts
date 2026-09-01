@@ -15,6 +15,7 @@ import {
   verifyOidcIdToken,
 } from "@/lib/auth/sso/flow";
 import { applySsoLogin } from "@/lib/auth/sso/login";
+import { oauth2SubjectClaims } from "@/lib/auth/sso/proxy-headers";
 import { createSession, purgeExpiredSessions, sessionCookie } from "@/lib/auth/session";
 
 // start/route.ts와 같은 이유로 /api/v1 밖에 있고, 에러 응답 대신 302로만 답한다.
@@ -165,7 +166,10 @@ export async function GET(request: Request): Promise<Response> {
       claims = userinfo.claims;
     }
 
-    const identity = resolveIdentity(claims, cfg);
+    const identity = resolveIdentity(claims, {
+      ...cfg,
+      subjectClaims: oauth2SubjectClaims(cfg.protocol, cfg.subjectClaims),
+    });
     if (!identity.ok) {
       // 매핑이 틀렸을 때가 운영자에게 claim 이름 목록이 가장 필요한 순간이다.
       await recordClaimKeys(claimKeys(claims));

@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, expect, test, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import { createDb, ssoConfig, users } from "@grossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
@@ -7,8 +7,10 @@ import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
 // revert-route.test.ts와 같은 이유 — 인증을 통째로 지워도 그린으로 남지 않도록
 // 라우트 함수를 직접 두들긴다. 세션 쿠키만 next/headers로 흉내 낸다.
 let currentCookieValue: string | undefined;
+let currentHeaders = new Headers();
 
 vi.mock("next/headers", () => ({
+  headers: async () => currentHeaders,
   cookies: async () => ({
     get: (name: string) =>
       name === SESSION_COOKIE && currentCookieValue !== undefined ? { name, value: currentCookieValue } : undefined,
@@ -17,6 +19,7 @@ vi.mock("next/headers", () => ({
 
 const { GET: ssoGet, PUT: ssoPut } = await import("../src/app/api/v1/sso/route.js");
 const { POST: discoverPost } = await import("../src/app/api/v1/sso/discover/route.js");
+const { GET: proxyCheckGet } = await import("../src/app/api/v1/sso/proxy-check/route.js");
 const { loadSsoConfig, SSO_CONFIG_ID } = await import("../src/lib/auth/sso/config.js");
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -25,6 +28,13 @@ let original: Awaited<ReturnType<typeof loadSsoConfig>>;
 
 beforeAll(async () => {
   original = await loadSsoConfig();
+});
+
+afterEach(() => {
+  currentCookieValue = undefined;
+  currentHeaders = new Headers();
+  delete process.env.AUTH_MODE;
+  delete process.env.SSO_TRUST_PROXY_HEADERS;
 });
 
 afterAll(async () => {
@@ -189,4 +199,31 @@ test("발견 문서를 읽어 엔드포인트를 돌려준다", async () => {
   // 이 목록이 곧 설정 화면의 "고를 수 있는 claim 이름" 힌트가 된다.
   expect(body.discovery.claimsSupported).toContain("preferred_username");
   vi.unstubAllGlobals();
+});
+
+test("관리자 연결 확인은 그 요청에 도착한 oauth2-proxy 헤더를 그대로 진단한다", async () => {
+  const admin = await loginAs("admin");
+  process.env.AUTH_MODE = "oauth2-proxy";
+  currentHeaders = new Headers({
+    "x-forwarded-email": admin.email,
+    "x-forwarded-preferred-username": encodeURIComponent("김의윤"),
+    "x-forwarded-groups": encodeURIComponent("보안팀,플랫폼팀"),
+  });
+  const request = new Request("https://x/api/v1/sso/proxy-check", { headers: currentHeaders });
+
+  const res = await proxyCheckGet(request);
+
+  expect(res.status).toBe(200);
+  const body = await res.json();
+  expect(body.proxyHeaders).toMatchObject({
+    authMode: "oauth2-proxy",
+    trusted: true,
+    detected: true,
+    identity: {
+      email: admin.email,
+      name: "김의윤",
+      groups: ["보안팀", "플랫폼팀"],
+      organization: "보안팀",
+    },
+  });
 });

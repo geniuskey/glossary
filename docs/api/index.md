@@ -28,6 +28,7 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | GET | [`/sso`](/api/auth#sso-openid-connect) | 세션(admin) | SSO 설정 조회 (시크릿 제외) |
 | PUT | [`/sso`](/api/auth#sso-설정) | 세션(admin) | SSO 설정 저장 |
 | POST | [`/sso/discover`](/api/auth#sso-설정) | 세션(admin) | issuer의 발견 문서로 엔드포인트 채우기 |
+| GET | [`/sso/proxy-check`](/api/auth#oauth2-proxy-헤더-확인) | 세션(admin) | 현재 요청에 실제 도착한 프록시 헤더 진단 |
 | GET | [`/terms`](/api/terms#목록-조회) | `read` | 용어 목록·검색 |
 | POST | [`/terms`](/api/terms#등록) | `write` | 용어 등록 |
 | GET | [`/terms/{idOrSlug}`](/api/terms#상세) | `read` | 용어 상세 |
@@ -51,7 +52,7 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 
 | 주체 | 방식 |
 |---|---|
-| 사람(웹 UI) | `grossary_session` 쿠키 |
+| 사람(웹 UI) | `grossary_session` 쿠키 또는 신뢰하도록 구성한 oauth2-proxy 헤더 |
 | 도구(AI-Lint, CI) | `Authorization: Bearer glk_<prefix>_<secret>` |
 
 `Authorization` 헤더가 있으면 API 키 경로를, 없으면 세션 경로를 탄다.

@@ -12,6 +12,108 @@
 - **OAuth 2.0**: Access Token으로 설정한 사용자 정보 API를 호출해 계정 claim을 얻는다.
   일반 OAuth 2.0만으로는 사용자 신원을 정의하지 않으므로 사용자 정보 엔드포인트가 필수다.
 
+## oauth2-proxy 헤더 방식
+
+Grossary 앞의 oauth2-proxy와 nginx가 인증을 끝내고 사용자 헤더를 넘기는 배포도 지원한다.
+이 방식은 Grossary가 IdP의 인가·토큰 엔드포인트를 직접 호출하지 않는다.
+
+새 설치라면 먼저 `/setup`에서 프록시 사용자의 이메일과 같은 이메일로 최초 관리자를
+만든 뒤 아래 모드로 전환한다. 그래야 일반 프록시 사용자의 자동 생성이 최초 관리자
+설정을 먼저 닫지 않는다.
+
+```dotenv
+AUTH_MODE=oauth2-proxy
+OAUTH2_PROXY_PREFERRED_USERNAME_HEADER=X-Forwarded-Preferred-Username
+OAUTH2_PROXY_EMAIL_HEADER=X-Forwarded-Email
+OAUTH2_PROXY_GROUPS_HEADER=X-Forwarded-Groups
+OAUTH2_SUBJECT_FIELD=email
+```
+
+| 값 | 사용법 |
+|---|---|
+| `X-Forwarded-Preferred-Username` | 화면에 표시할 닉네임. UTF-8 한글과 percent-encoded 값 모두 복원한다 |
+| `X-Forwarded-Email` | 사용자 이메일이자 기본 계정 식별자. 소문자로 맞춰 저장한다 |
+| `X-Forwarded-Groups` | 쉼표로 구분한 그룹. 전체는 권한 판단에 쓰고 **첫 번째 항목은 표시 조직**으로 쓴다 |
+
+`AUTH_MODE=oauth2-proxy`에서는 헤더가 인증의 존재 이유이므로
+`SSO_TRUST_PROXY_HEADERS` 값과 무관하게 신뢰한다. 반대로 헤더가 없으면 로컬 세션으로
+우회하지 않는다. 기존 OIDC/OAuth2 인가 코드 로그인을 유지하면서 헤더도 받는 혼합
+구성은 `AUTH_MODE=oidc` 또는 `AUTH_MODE=oauth2`와
+`SSO_TRUST_PROXY_HEADERS=true`를 함께 쓴다. `local`에서는 이 스위치를 켜도 헤더를
+인증에 사용하지 않는다.
+
+기존 배포의 헤더명 환경변수도 그대로 받는다.
+
+- 닉네임: `OAUTH2_PROXY_PREFERRED_USERNAME_HEADER`, `OAUTH2_PROXY_USER_HEADER`,
+  `OAUTH2_PROXY_NAME_HEADER`
+- 이메일: `OAUTH2_PROXY_EMAIL_HEADER`
+- 그룹: `OAUTH2_PROXY_GROUPS_HEADER`
+- 새 이름인 `SSO_PROXY_PREFERRED_USERNAME_HEADER`, `SSO_PROXY_EMAIL_HEADER`,
+  `SSO_PROXY_GROUPS_HEADER`도 사용할 수 있으며 둘 다 있으면 새 이름이 우선한다.
+
+### nginx auth_request 예시
+
+oauth2-proxy에는 `--reverse-proxy=true --set-xauthrequest=true`가 필요하다.
+oauth2-proxy가 응답한 `X-Auth-Request-*`를 nginx 변수로 받은 다음 Grossary가 읽는
+`X-Forwarded-*`로 **항상 다시 설정**한다. 플래그와 nginx 연동의 원래 규약은
+[oauth2-proxy 공식 nginx 문서](https://oauth2-proxy.github.io/oauth2-proxy/7.11.x/configuration/integration/)에서도
+확인할 수 있다.
+
+```nginx
+location = /oauth2/auth {
+    proxy_pass http://oauth2-proxy:4180;
+    proxy_pass_request_body off;
+    proxy_set_header Content-Length "";
+    proxy_set_header X-Original-URL $scheme://$host$request_uri;
+}
+
+location @oauth2_signin {
+    return 302 /oauth2/sign_in?rd=$scheme://$host$request_uri;
+}
+
+location / {
+    auth_request /oauth2/auth;
+    error_page 401 = @oauth2_signin;
+
+    auth_request_set $auth_name   $upstream_http_x_auth_request_preferred_username;
+    auth_request_set $auth_email  $upstream_http_x_auth_request_email;
+    auth_request_set $auth_groups $upstream_http_x_auth_request_groups;
+
+    # 클라이언트가 같은 이름으로 보낸 값을 전달하지 않고 인증 결과로 덮어쓴다.
+    proxy_set_header X-Forwarded-Preferred-Username $auth_name;
+    proxy_set_header X-Forwarded-Email              $auth_email;
+    proxy_set_header X-Forwarded-Groups             $auth_groups;
+    proxy_set_header X-Forwarded-Host                $host;
+    proxy_set_header X-Forwarded-Proto               $scheme;
+
+    proxy_pass http://grossary:3000;
+}
+```
+
+::: danger 앱 직접 접속을 막아야 한다
+이 모드는 nginx가 넣은 헤더와 클라이언트가 위조한 헤더를 앱 자체에서 구분할 수 없다.
+Grossary의 3000 포트는 nginx만 접근할 수 있는 내부 네트워크에 두고, 방화벽·포트 바인딩으로
+외부 직접 접속을 막아야 한다. nginx도 위 예시처럼 인증 헤더를 전달이 아니라 덮어써야 한다.
+:::
+
+### 계정 중복을 막는 식별자 설정
+
+헤더 경로의 기본 사용자 식별자는 이메일이다. OAuth2 인가 코드 흐름도 함께 쓰면
+`OAUTH2_SUBJECT_FIELD=email`을 설정한다. 그러면 OAuth2 userinfo의 `email`을 `sub`보다
+먼저 계정 식별자로 사용해 두 경로가 같은 `external_id`에 수렴한다. OIDC 코드 흐름과
+함께 쓸 때는 **설정 → SSO → 사용자 식별자(sub)**의 첫 후보를 `email`로 바꿔야 한다.
+기존 계정이 이미 다른 `sub`에 연결돼 있으면 앱은 자동으로 덮어쓰지 않고
+`email_conflict`로 막는다.
+
+관리자 화면의 **연결 확인**은 관리자의 현재 요청에 도착한 실제 헤더를 검사한다.
+성공하면 `프록시 헤더 확인됨 · 김의윤 (보안팀)`처럼 닉네임과 첫 그룹을 보여준다.
+이 검사는 IdP에 직접 요청하지 않으므로 인가 서버 연결이 실패하는 상황에서도 헤더
+경로가 정상인지 따로 확인할 수 있다.
+
+oauth2-proxy 세션은 Grossary 밖에서 유지된다. 앱의 **로그아웃**은 로컬 쿠키만 지우므로
+전용 모드에서는 다음 요청에 곧바로 다시 인증될 수 있다. 완전한 로그아웃은
+oauth2-proxy 또는 IdP의 로그아웃 URL에서 처리한다.
+
 <img src="/images/sso-login-method.png" width="1440" height="960" loading="lazy" alt="SSO 설정에서 OpenID Connect와 OAuth 2.0 로그인 방식을 선택하는 화면">
 
 ## 1. IdP에 앱 등록

@@ -490,6 +490,19 @@ export const openApiSpec = {
         },
       },
     },
+    "/sso/proxy-check": {
+      get: {
+        summary: "관리자 요청에 실제 도착한 OAuth2-proxy 헤더와 신뢰 상태 확인",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("{ proxyHeaders: { authMode, trusted, detected, headerNames, identity } }", {
+            type: "object",
+          }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만"),
+        },
+      },
+    },
     "/terms": {
       get: {
         summary: "용어 목록·검색",

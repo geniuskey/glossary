@@ -47,6 +47,12 @@ services:
       DATABASE_URL: postgres://grossary:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD가 필요합니다}@postgres:5432/grossary
       NODE_ENV: production
       GROSSARY_EMBED_ANCESTORS: ${GROSSARY_EMBED_ANCESTORS:-}
+      AUTH_MODE: ${AUTH_MODE:-local}
+      SSO_TRUST_PROXY_HEADERS: ${SSO_TRUST_PROXY_HEADERS:-false}
+      OAUTH2_PROXY_PREFERRED_USERNAME_HEADER: ${OAUTH2_PROXY_PREFERRED_USERNAME_HEADER:-X-Forwarded-Preferred-Username}
+      OAUTH2_PROXY_EMAIL_HEADER: ${OAUTH2_PROXY_EMAIL_HEADER:-X-Forwarded-Email}
+      OAUTH2_PROXY_GROUPS_HEADER: ${OAUTH2_PROXY_GROUPS_HEADER:-X-Forwarded-Groups}
+      OAUTH2_SUBJECT_FIELD: ${OAUTH2_SUBJECT_FIELD:-}
     ports:
       # R130: 평문 HTTP다. 로그인 비밀번호와 세션 쿠키가 그대로 흐른다.
       # 리버스 프록시로 TLS를 씌우는 것을 권장한다 — docs/operations.md 참조.

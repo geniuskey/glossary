@@ -53,6 +53,16 @@ interface Form {
   adminGroups: string;
 }
 
+interface ProxyHeaderCheck {
+  authMode: "local" | "oidc" | "oauth2" | "oauth2-proxy";
+  trusted: boolean;
+  detected: boolean;
+  headerNames: { preferredUsername: string; email: string; groups: string };
+  presentHeaders: string[];
+  missingHeaders: string[];
+  identity: { email: string; name: string; groups: string[]; organization: string | null } | null;
+}
+
 function toForm(sso: SsoView): Form {
   return {
     enabled: sso.enabled,
@@ -85,6 +95,8 @@ export function SsoSettingsForm() {
   const [message, setMessage] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [proxyCheck, setProxyCheck] = useState<ProxyHeaderCheck | null>(null);
+  const [checkingProxy, setCheckingProxy] = useState(false);
 
   async function load() {
     try {
@@ -213,6 +225,25 @@ export function SsoSettingsForm() {
       setMessage({ kind: "bad", text: "네트워크 오류로 저장하지 못했습니다." });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function checkProxyHeaders() {
+    setCheckingProxy(true);
+    setProxyCheck(null);
+    try {
+      const res = await fetch("/api/v1/sso/proxy-check", { cache: "no-store" });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        setMessage({ kind: "bad", text: body?.error?.message ?? "프록시 헤더를 확인하지 못했습니다." });
+        return;
+      }
+      setProxyCheck(body.proxyHeaders);
+      setMessage(null);
+    } catch {
+      setMessage({ kind: "bad", text: "네트워크 오류로 프록시 헤더를 확인하지 못했습니다." });
+    } finally {
+      setCheckingProxy(false);
     }
   }
 
@@ -360,6 +391,52 @@ export function SsoSettingsForm() {
       </section>
 
       <section className="card p-5">
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-ink">oauth2-proxy 헤더</h2>
+            <p className="mt-1 text-xs leading-5 text-ink-3">
+              관리자의 현재 요청에 실제로 도착한 이름·이메일·그룹 헤더를 검사합니다. IdP에 직접 연결하지 않으므로
+              인가 서버가 닿지 않아도 프록시 헤더 경로는 따로 확인할 수 있습니다.
+            </p>
+          </div>
+          <button type="button" className="btn-ghost shrink-0" onClick={checkProxyHeaders} disabled={checkingProxy}>
+            {checkingProxy ? "확인 중…" : "연결 확인"}
+          </button>
+        </div>
+
+        {proxyCheck && (
+          <div aria-live="polite" className={`mt-4 ${proxyCheck.detected ? "note-ok" : "note-warn"}`}>
+            {proxyCheck.identity ? (
+              <p className="font-medium">
+                프록시 헤더 확인됨 · {proxyCheck.identity.name}
+                {proxyCheck.identity.organization ? ` (${proxyCheck.identity.organization})` : ""}
+              </p>
+            ) : (
+              <p className="font-medium">
+                {proxyCheck.presentHeaders.length > 0 && !proxyCheck.trusted
+                  ? "헤더는 도착했지만 신뢰 설정이 꺼져 있습니다."
+                  : `인증에 필요한 헤더를 확인하지 못했습니다${proxyCheck.missingHeaders.length ? `: ${proxyCheck.missingHeaders.join(", ")}` : "."}`}
+              </p>
+            )}
+            <p className="mt-1 text-xs">
+              AUTH_MODE={proxyCheck.authMode} · {proxyCheck.trusted ? "헤더 신뢰 사용" : "헤더 신뢰 안 함"}
+            </p>
+          </div>
+        )}
+
+        <div className="mt-4 grid gap-2 text-xs text-ink-2 sm:grid-cols-3">
+          <HeaderName label="닉네임" value={proxyCheck?.headerNames.preferredUsername ?? "X-Forwarded-Preferred-Username"} />
+          <HeaderName label="사용자 식별·이메일" value={proxyCheck?.headerNames.email ?? "X-Forwarded-Email"} />
+          <HeaderName label="그룹·조직" value={proxyCheck?.headerNames.groups ?? "X-Forwarded-Groups"} />
+        </div>
+
+        <p className="note-warn mt-4 text-xs leading-5">
+          앱 포트를 외부에 직접 공개하지 말고, nginx가 클라이언트의 동일한 X-Forwarded-* 헤더를 제거한 뒤
+          oauth2-proxy가 확인한 값으로 덮어쓰게 구성하세요. 직접 접속이 가능하면 헤더를 위조해 다른 사용자를 사칭할 수 있습니다.
+        </p>
+      </section>
+
+      <section className="card p-5">
         <h2 className="text-sm font-semibold text-ink">값 매핑</h2>
         <p className="mt-1 text-xs leading-relaxed text-ink-3">
           회사마다 같은 값을 다른 이름으로 줍니다(name / displayName / preferred_username). 후보를 쉼표로 여러 개
@@ -440,6 +517,15 @@ export function SsoSettingsForm() {
           {busy ? "저장 중…" : "SSO 설정 저장"}
         </button>
       </div>
+    </div>
+  );
+}
+
+function HeaderName({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-line bg-panel-2 px-3 py-2">
+      <span className="block text-[10px] text-ink-3">{label}</span>
+      <code className="mt-0.5 block break-all font-mono text-[11px] text-ink" translate="no">{value}</code>
     </div>
   );
 }

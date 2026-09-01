@@ -213,6 +213,18 @@ OIDC는 `<issuer>/.well-known/openid-configuration`, OAuth 2.0은
 사내망 스캐너가 된다.
 :::
 
+### oauth2-proxy 헤더 확인
+
+```http
+GET /api/v1/sso/proxy-check
+```
+
+관리자의 현재 요청에 실제 도착한 헤더를 읽어 `authMode`, `trusted`, `detected`, 사용한
+헤더명과 복원된 사용자 정보를 반환한다. 저장된 샘플 값을 검사하는 API가 아니다.
+`AUTH_MODE=oauth2-proxy`에서는 관리자 자신도 이메일 헤더로 식별되어야 하며, 혼합
+OIDC/OAuth2 모드에서는 `SSO_TRUST_PROXY_HEADERS=true`일 때만 인증 헤더로 사용한다.
+구성과 보안 전제는 [SSO 연결](/guide/sso)을 따른다.
+
 ## API 키
 
 키는 `glk_<prefix>_<secret>` 형태다. `prefix`는 8자리 hex 고정폭이라 `secret`에

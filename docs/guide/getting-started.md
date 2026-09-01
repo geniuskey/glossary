@@ -29,6 +29,11 @@ cp .env.example .env
 | `DATABASE_URL` | 앱이 붙는 개발 DB |
 | `DATABASE_URL_TEST` | `packages/db` 통합 테스트 전용 DB |
 | `POSTGRES_PASSWORD` | 프로덕션 Compose에서만 쓴다 |
+| `AUTH_MODE` | 기본 `local`; oauth2-proxy 헤더 인증은 `oauth2-proxy` |
+| `SSO_TRUST_PROXY_HEADERS` | OIDC/OAuth2 혼합 모드의 헤더 신뢰 여부. 기본 `false` |
+
+oauth2-proxy 배포의 헤더명·nginx 덮어쓰기·계정 연결 설정은 [SSO 연결](/guide/sso)을
+따른다.
 
 개발용 Postgres는 호스트 **5434** 포트에 뜬다(로컬에 이미 5432를 쓰는 Postgres가
 있어도 부딪히지 않게 한 것이다).

@@ -49,7 +49,7 @@ export function AccountMenu({
         aria-controls="account-submenu"
         aria-expanded={open}
         aria-label={`${label} 계정 메뉴`}
-        title={`${label} · ${ROLE_LABEL[user.role]}`}
+        title={`${label}${user.organization ? ` · ${user.organization}` : ""} · ${ROLE_LABEL[user.role]}`}
         className={cx(
           "flex items-center gap-2 rounded-lg px-1 py-1 text-left transition hover:bg-panel-2",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
@@ -65,7 +65,9 @@ export function AccountMenu({
           placement === "sidebar" && "sidebar-expanded-only",
         )}>
           <span className="truncate text-xs font-medium">{label}</span>
-          <span className="text-[10px] text-ink-3">{ROLE_LABEL[user.role]}</span>
+          <span className="truncate text-[10px] text-ink-3">
+            {[user.organization, ROLE_LABEL[user.role]].filter(Boolean).join(" · ")}
+          </span>
         </span>
         <ChevronIcon open={open} placement={placement} />
       </button>

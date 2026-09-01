@@ -21,6 +21,7 @@ import * as setupRoute from "../src/app/api/v1/setup/route.js";
 import * as termRevertRoute from "../src/app/api/v1/terms/[idOrSlug]/revisions/[number]/revert/route.js";
 import * as ssoRoute from "../src/app/api/v1/sso/route.js";
 import * as ssoDiscoverRoute from "../src/app/api/v1/sso/discover/route.js";
+import * as ssoProxyCheckRoute from "../src/app/api/v1/sso/proxy-check/route.js";
 import * as adminHomeContentRoute from "../src/app/api/v1/admin/home-content/route.js";
 import * as adminCategoriesRoute from "../src/app/api/v1/admin/categories/route.js";
 import * as adminCategoryRoute from "../src/app/api/v1/admin/categories/[key]/route.js";
@@ -92,6 +93,7 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   // 302 전용이라 이 표(= /api/v1 규약)의 대상이 아니다.
   { name: "sso", mod: ssoRoute, allowed: ["GET", "PUT"], allow: "GET, HEAD, PUT" },
   { name: "sso/discover", mod: ssoDiscoverRoute, allowed: ["POST"], allow: "POST" },
+  { name: "sso/proxy-check", mod: ssoProxyCheckRoute, allowed: ["GET"], allow: "GET, HEAD" },
   { name: "admin/home-content", mod: adminHomeContentRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
   { name: "admin/categories", mod: adminCategoriesRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "admin/categories/[key]", mod: adminCategoryRoute, allowed: ["PATCH", "DELETE"], allow: "PATCH, DELETE" },
