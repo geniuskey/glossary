@@ -109,8 +109,10 @@ interface MatchRow {
   nameEn: string | null;
   nameKo: string | null;
   domain: string[];
+  categories: BusinessCategory[];
   category: BusinessCategory | null;
   categoryLabel: string | null;
+  categoryLabels: string[];
   topic: string | null;
   ownerId: string | null;
   ownerName: string | null;
@@ -136,8 +138,10 @@ export async function lookupTerms(texts: string[]): Promise<LookupResult[]> {
           nameEn: terms.nameEn,
           nameKo: terms.nameKo,
           domain: terms.domain,
-          category: terms.category,
-          categoryLabel: sql<string | null>`(select ${businessCategories.label} from ${businessCategories} where ${businessCategories.key} = ${terms.category})`,
+          categories: terms.category,
+          category: sql<BusinessCategory | null>`${terms.category}[1]`,
+          categoryLabel: sql<string | null>`(select ${businessCategories.label} from ${businessCategories} where ${businessCategories.key} = ${terms.category}[1])`,
+          categoryLabels: sql<string[]>`coalesce((select array_agg(category_catalog.label order by selected.ordinality) from unnest(${terms.category}) with ordinality selected(category_key, ordinality) join business_categories category_catalog on category_catalog.key = selected.category_key), array[]::text[])`,
           topic: terms.topic,
           ownerId: terms.ownerId,
           ownerName: ownerDisplayLabelSql,
@@ -173,7 +177,8 @@ export async function lookupTerms(texts: string[]): Promise<LookupResult[]> {
       matchedTerms.push({
         id: m.id, slug: m.slug, termType: m.termType,
         nameEn: m.nameEn, nameKo: m.nameKo, domain: m.domain,
-        category: m.category, categoryLabel: m.categoryLabel, topic: m.topic, ownerId: m.ownerId, ownerName: m.ownerName, status: m.status,
+        categories: m.categories, category: m.category, categoryLabel: m.categoryLabel, categoryLabels: m.categoryLabels,
+        topic: m.topic, ownerId: m.ownerId, ownerName: m.ownerName, status: m.status,
       });
     }
 

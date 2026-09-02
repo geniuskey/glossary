@@ -76,6 +76,18 @@ test("표준명과 같은 텍스트의 약어 속성은 명시 표기로 남는�
   expect(pickExplicitSurfaces(names, stored)).toEqual(stored);
 });
 
+test("명시 표기의 잘못된 lang도 문자열 기준으로 다시 판정한다", () => {
+  const result = deriveSurfaces(
+    { termType: "concept", nameKo: "테스트" },
+    [
+      { text: "T/O", lang: "ko", kind: "abbreviation" },
+      { text: "티오", lang: "en", kind: "alias" },
+    ],
+  );
+  expect(result.find((surface) => surface.text === "T/O")?.lang).toBe("en");
+  expect(result.find((surface) => surface.text === "티오")?.lang).toBe("ko");
+});
+
 test("대표 영문명과 같은 약어를 명시하면 중복 없이 약어 속성을 보존한다", () => {
   const result = deriveSurfaces(
     { termType: "concept", nameEn: "AE" },

@@ -91,6 +91,9 @@ export function AccountMenu({
             <AdminIcon />
           </AccountLink>
         )}
+        <AccountLink href="/help" label="도움말" hint="사용 안내" active={false} onSelect={() => setOpen(false)}>
+          <HelpIcon />
+        </AccountLink>
         <div className="my-1 border-t border-line" />
         <div className="flex items-center justify-between gap-2 px-2 py-1">
           <span className="text-xs text-ink-3">화면 테마</span>
@@ -157,6 +160,16 @@ function AdminIcon() {
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
       <circle cx="8" cy="5" r="2.5" />
       <path d="M3.5 13.5c.25-3 1.75-4.5 4.5-4.5s4.25 1.5 4.5 4.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function HelpIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M6.5 6.1a1.6 1.6 0 0 1 3.1.55c0 1.35-1.6 1.45-1.6 2.55" strokeLinecap="round" />
+      <circle cx="8" cy="11.65" r=".7" fill="currentColor" stroke="none" />
     </svg>
   );
 }

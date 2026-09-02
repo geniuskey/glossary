@@ -1,4 +1,5 @@
 import type { DailyStatisticsPoint } from "@/lib/admin/statistics-series";
+import { HelpTip } from "@/components/help-tip";
 
 const WIDTH = 720;
 const HEIGHT = 230;
@@ -151,9 +152,9 @@ function ChartFrame({
   return (
     <section className="card min-w-0 p-4 sm:p-5">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
-        <div>
+        <div className="flex items-center gap-1.5">
           <h2 className="text-sm font-semibold text-ink">{title}</h2>
-          <p className="mt-1 text-xs text-ink-3">{description}</p>
+          <HelpTip text={description} />
         </div>
         {legend.length > 0 && (
           <div className="flex flex-wrap gap-3 text-[11px] text-ink-3">

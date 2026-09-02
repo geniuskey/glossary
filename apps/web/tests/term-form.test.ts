@@ -60,9 +60,15 @@ test("domain이 빈 문자열이면 빈 배열이 된다(undefined가 아님)", 
 });
 
 test("업무 분류·주제와 담당자는 빈 값을 null로, 선택한 값은 그대로 보낸다", () => {
-  expect(buildTermPayload(BASE_FORM)).toMatchObject({ category: null, topic: null, ownerId: null });
+  expect(buildTermPayload(BASE_FORM)).toMatchObject({ category: [], topic: null, ownerId: null });
   expect(buildTermPayload({ ...BASE_FORM, category: "design", topic: "  노출 제어  ", ownerId: "11111111-1111-1111-1111-111111111111" }))
-    .toMatchObject({ category: "design", topic: "노출 제어", ownerId: "11111111-1111-1111-1111-111111111111" });
+    .toMatchObject({ category: ["design"], topic: "노출 제어", ownerId: "11111111-1111-1111-1111-111111111111" });
+});
+
+test("도메인과 업무 분류를 여러 개 선택하면 배열 순서를 유지해 보낸다", () => {
+  const payload = buildTermPayload({ ...BASE_FORM, domain: "ISP, Sensor", category: "design, process" });
+  expect(payload.domain).toEqual(["ISP", "Sensor"]);
+  expect(payload.category).toEqual(["design", "process"]);
 });
 
 test("공백뿐인 surface는 제거되고, 남은 surface의 text는 trim된다", () => {
@@ -75,6 +81,22 @@ test("공백뿐인 surface는 제거되고, 남은 surface의 text는 trim된다
     ],
   });
   expect(payload.surfaces).toEqual([{ text: "AE", lang: "en", kind: "abbreviation" }]);
+});
+
+test("surface 언어는 사용자가 보낸 값 대신 표기 문자열로 다시 판정한다", () => {
+  const payload = buildTermPayload({
+    ...BASE_FORM,
+    surfaces: [
+      { text: "T/O", lang: "ko", kind: "abbreviation" },
+      { text: "티오", lang: "en", kind: "alias" },
+      { text: "123", lang: "en", kind: "alias" },
+    ],
+  });
+  expect(payload.surfaces.map(({ text, lang }) => ({ text, lang }))).toEqual([
+    { text: "T/O", lang: "en" },
+    { text: "티오", lang: "ko" },
+    { text: "123", lang: "neutral" },
+  ]);
 });
 
 test("expectedRevision을 넘기지 않으면 페이로드에 키 자체가 없다 (R109)", () => {

@@ -1,4 +1,5 @@
 import type { BusinessCategoryLiteral, TermStatusLiteral } from "./enums";
+import { inferSurfaceLang } from "./surface-language";
 
 // R116: term-form.tsx는 Client Component라 vitest.config.ts에 jsdom 환경이 없는
 // 이 저장소(R97)에서는 렌더 테스트를 할 수 없다. logout.ts/list-params.ts와
@@ -34,7 +35,7 @@ export interface TermWritePayload {
   fullNameEn?: string;
   fullNameKo?: string;
   domain: string[];
-  category: BusinessCategoryLiteral | null;
+  category: BusinessCategoryLiteral[];
   topic: string | null;
   ownerId: string | null;
   status: TermStatusLiteral;
@@ -81,7 +82,10 @@ export function buildTermPayload(form: TermFormState, expectedRevision?: number)
       .split(",")
       .map((d) => d.trim())
       .filter(Boolean),
-    category: (form.category || null) as BusinessCategoryLiteral | null,
+    category: form.category
+      .split(",")
+      .map((category) => category.trim())
+      .filter(Boolean) as BusinessCategoryLiteral[],
     topic: form.topic.trim() || null,
     ownerId: form.ownerId || null,
     status: form.status,
@@ -89,7 +93,10 @@ export function buildTermPayload(form: TermFormState, expectedRevision?: number)
     bodyMd: form.bodyMd.trim() || undefined,
     surfaces: form.surfaces
       .filter((s) => s.text.trim().length > 0)
-      .map((s) => ({ text: s.text.trim(), lang: s.lang, kind: s.kind })),
+      .map((s) => {
+        const text = s.text.trim();
+        return { text, lang: inferSurfaceLang(text), kind: s.kind };
+      }),
   };
 
   if (expectedRevision !== undefined) {

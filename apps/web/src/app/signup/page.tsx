@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BrandMark } from "@/components/app-shell";
+import { InfoFooter } from "@/components/info-links";
 import { needsSetup } from "@/lib/auth/setup";
 import { SignupForm } from "./signup-form";
 
@@ -42,6 +43,7 @@ export default async function SignupPage() {
             </Link>
           </p>
         </div>
+        <InfoFooter className="mt-6" />
       </div>
     </main>
   );

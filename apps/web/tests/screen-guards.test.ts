@@ -95,6 +95,10 @@ const PROTO_B_ALLOWLIST = new Set<string>([
   // iframe 안에서는 로그인 화면 자체가 frame-ancestors로 막히므로, 새 창 로그인
   // 안내를 자체 렌더링한다. getCurrentUser로 보호되는 읽기 전용 화면이다.
   path.join("embed", "page.tsx"),
+  path.join("help", "page.tsx"),
+  path.join("support", "page.tsx"),
+  path.join("about", "page.tsx"),
+  path.join("legal", "page.tsx"),
 ]);
 
 test('PROTO B: 허용목록 밖의 모든 page.tsx는 getCurrentUser(와 redirect("/login")를 모두 포함한다 (R3/R6)', () => {
@@ -115,6 +119,23 @@ test("관리자 화면은 사용자 목록을 읽기 전에 관리자 역할을 
   const userQuery = content.indexOf("listManagedUsers()");
   expect(roleGuard).toBeGreaterThan(-1);
   expect(userQuery).toBeGreaterThan(roleGuard);
+});
+
+test("관리자 화면은 홈·작성 수준·사용자를 탭으로 분리한다", () => {
+  const content = stripComments(readFileSync(path.join(appDir, "admin", "page.tsx"), "utf8"));
+  expect(content).toContain('aria-label="관리자 하위 메뉴"');
+  expect(content).toContain('{ key: "home", label: "홈 화면" }');
+  expect(content).toContain('{ key: "quality", label: "작성 수준" }');
+  expect(content).toContain('{ key: "users", label: "사용자" }');
+  expect(content).toContain('tab === "quality" && <TermQualityPanel');
+});
+
+test("시트 도구 막대는 가로 스크롤 밖에서 현재 필터와 붙여넣기 도움말을 보여준다", () => {
+  const content = stripComments(readFileSync(path.join(componentsDir, "terms-grid.tsx"), "utf8"));
+  expect(content).toContain('aria-label="현재 적용된 필터"');
+  expect(content).toContain('엑셀에서 복사한 범위를 Ctrl+V로 그대로 붙여넣을 수 있습니다.');
+  expect(content).not.toContain('엑셀에서 복사한 범위를 <span');
+  expect(content.indexOf("<GridToolbar")).toBeLessThan(content.indexOf('className="min-h-0 flex-1 overflow-auto"'));
 });
 
 // PROTO D: 로그아웃 요청은 반드시 POST다(logout.ts:22의 문자열 검사 —
@@ -182,6 +203,20 @@ test("PROTO G: '+' 줄 붙여넣기 표식이 핸들러와 JSX 양쪽에 있다 
   // 새 행은 POST로 만들어진다 — 계획만 세우고 보내지 않으면 표에만 잠깐 보였다
   // 사라진다.
   expect(/fetch\(\s*["'`]\/api\/v1\/terms["'`]/.test(content)).toBe(true);
+});
+
+test("PROTO G: 마지막 빈 줄에서 만든 용어는 현재 표의 마지막 행에 붙는다", () => {
+  const content = stripComments(readFileSync(path.join(componentsDir, "terms-grid.tsx"), "utf8"));
+  const start = content.indexOf("async function createFromDraft()");
+  const end = content.indexOf("function bulkStatus", start);
+  const createFromDraft = content.slice(start, end);
+
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+  expect(createFromDraft).toContain("setRows((prev) => [...prev, made])");
+  // router.refresh()는 기본 정렬(최근 수정 내림차순)을 즉시 다시 적용해 새 행을
+  // 1번으로 올린다. 사용자가 새로고침하기 전에는 입력한 마지막 위치를 지킨다.
+  expect(createFromDraft).not.toContain("router.refresh()");
 });
 
 test("PROTO I: 시트 열 레이아웃은 내용과 무관한 고정 폭·저장된 순서·실제 drop을 사용한다", () => {

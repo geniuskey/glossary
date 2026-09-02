@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth/current-user";
 import { getTermByIdOrSlug } from "@/lib/terms/query";
 import { listAssignableUsers } from "@/lib/terms/owners";
 import { listBusinessCategories } from "@/lib/terms/categories";
+import { listDomains } from "@/lib/terms/domains";
 import { pickExplicitSurfaces } from "@/lib/terms/surfaces";
 import { listRevisions } from "@/lib/terms/update";
 import { displayName } from "@/lib/ui/format";
@@ -21,9 +22,10 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
   // R109: 편집 폼은 지금 이 서버 렌더 시점의 리비전 번호를 expectedRevision으로
   // 들고 가야, 그 사이 다른 사람이 먼저 저장했을 때 PATCH가 조용히 덮어쓰지
   // 않고 409로 막을 수 있다. listRevisions는 최신순이므로 [0]이 현재 리비전이다.
-  const [revisions, assignees, categoryOptions] = await Promise.all([
+  const [revisions, assignees, domainOptions, categoryOptions] = await Promise.all([
     listRevisions(term.id),
     listAssignableUsers(),
+    listDomains(),
     listBusinessCategories(),
   ]);
   const expectedRevision = revisions[0]?.revisionNumber ?? 0;
@@ -42,7 +44,7 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
     fullNameEn: term.fullNameEn ?? "",
     fullNameKo: term.fullNameKo ?? "",
     domain: term.domain.join(", "),
-    category: term.category ?? "",
+    category: term.categories.join(", "),
     topic: term.topic ?? "",
     ownerId: term.ownerId ?? "",
     status: term.status,
@@ -52,18 +54,18 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
   };
 
   return (
-    <AppShell user={user} title={`${displayName(term)} 편집`} current="sheet" roomy>
-      <header className="mb-4 flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <Link href="/sheet" className="mb-2 inline-flex text-xs text-ink-3 hover:text-ink">
-            ← 시트로 돌아가기
-          </Link>
-          <h1 className="truncate text-xl font-semibold tracking-tight text-ink">{displayName(term)}</h1>
+    <AppShell user={user} title={`${displayName(term)} 편집`} current="sheet" roomy dense>
+      <header className="mb-3 flex min-h-9 flex-wrap items-center gap-x-3 gap-y-2 border-b border-line pb-2">
+        <Link href="/sheet" className="shrink-0 text-xs text-ink-3 hover:text-ink">
+          ← 시트
+        </Link>
+        <div className="flex min-w-0 items-baseline gap-2">
+          <h1 className="truncate text-base font-semibold tracking-tight text-ink">{displayName(term)}</h1>
           {/* 함께 쓰는 사전이라 "지금 몇 번째 판을 고치는 중인지"가 보여야
               409(다른 사람이 먼저 저장함)를 만났을 때 상황이 납득된다. */}
-          <p className="mt-1 text-xs text-ink-3">용어 편집 · 리비전 #{expectedRevision} 기준</p>
+          <p className="shrink-0 text-[11px] text-ink-3">편집 · r{expectedRevision}</p>
         </div>
-        <div className="flex gap-1.5">
+        <div className="ml-auto flex gap-1.5">
           {/* R135: 시트에서 용어를 누르면 곧장 이 화면으로 온다(보기 화면을
               거치지 않는다) — 읽기만 하려던 사람이 되돌아갈 문이 있어야 한다. */}
           <Link href={`/w/${term.slug}`} className="btn-ghost btn-sm">
@@ -75,7 +77,13 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
         </div>
       </header>
 
-      <TermForm initial={initial} assignees={assignees} categoryOptions={categoryOptions} />
+      <TermForm
+        initial={initial}
+        assignees={assignees}
+        domainOptions={domainOptions.map((domain) => domain.label)}
+        categoryOptions={categoryOptions}
+        canDelete={user.role === "admin"}
+      />
     </AppShell>
   );
 }

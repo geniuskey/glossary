@@ -31,13 +31,14 @@ const db = createDb(process.env.DATABASE_URL_TEST!);
 const createdTermIds: string[] = [];
 const createdUserIds: string[] = [];
 
-async function makeUser() {
+async function makeUser(role: "admin" | "editor" = "editor") {
   const [row] = await db
     .insert(users)
     .values({
       email: `term-edit-page-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`,
       name: "편집 페이지 테스트 사용자",
       passwordHash: await hashPassword("irrelevant"),
+      role,
     })
     .returning();
   createdUserIds.push(row!.id);
@@ -123,4 +124,19 @@ test("편집 페이지 초기값의 surfaces에는 파생 가능한 canonical �
   const texts = initial?.surfaces?.map((s) => s.text) ?? [];
   expect(texts).not.toContain("Edit Surfaces Probe"); // canonical, 파생 가능 -> 빠져야 함
   expect(texts).toContain("ESP-alias"); // 명시 표기 -> 남아야 함
+});
+
+test("관리자에게만 편집 폼의 삭제 권한을 넘긴다", async () => {
+  const admin = await makeUser("admin");
+  await loginAs(admin.id);
+  const { term } = await createTerm(
+    { termType: "concept", nameEn: "Delete Button Probe", domain: [], status: "active", surfaces: [] },
+    admin.id,
+  );
+  createdTermIds.push(term.id);
+
+  const element = await EditTermPage({ params: Promise.resolve({ slug: term.slug }) });
+  const formElement = findElement(element, TermForm);
+
+  expect((formElement!.props as { canDelete?: boolean }).canDelete).toBe(true);
 });

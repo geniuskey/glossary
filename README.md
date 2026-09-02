@@ -1,10 +1,21 @@
 # Grossary
 
+[![CI](https://github.com/geniuskey/grossary/actions/workflows/ci.yml/badge.svg)](https://github.com/geniuskey/grossary/actions/workflows/ci.yml)
+[![Docs](https://github.com/geniuskey/grossary/actions/workflows/docs.yml/badge.svg)](https://github.com/geniuskey/grossary/actions/workflows/docs.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
+
 특정 조직·팀·제품군이 실제로 사용하는 용어를 함께 정리하는 **셀프호스팅 용어집 관리
 플랫폼**. 엑셀과 컨플루언스에 흩어진 용어를 단일 사전으로 모으고, AI-Lint 같은 도구가
 API 한 번으로 문서의 표기를 검증할 수 있게 만든다.
 
 **문서: https://geniuskey.github.io/grossary/**
+
+[도움말](https://geniuskey.github.io/grossary/help) ·
+[지원](./SUPPORT.md) ·
+[기여 안내](./CONTRIBUTING.md) ·
+[보안 정책](./SECURITY.md) ·
+[변경 이력](./CHANGELOG.md) ·
+[GitHub Issues](https://github.com/geniuskey/grossary/issues)
 
 ## 언어 지원 범위
 
@@ -130,10 +141,10 @@ Docker Hub에는 웹 앱과 마이그레이터를 같은 저장소의 서로 다
 
 ```bash
 IMAGE=euiyun/grossary
-VERSION=0.1.4
+VERSION=0.1.5
 
-docker build --target app -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
-docker build --target migrator -t "$IMAGE:$VERSION-migrator" -t "$IMAGE:latest-migrator" .
+docker build --build-arg APP_VERSION="$VERSION" --target app -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
+docker build --build-arg APP_VERSION="$VERSION" --target migrator -t "$IMAGE:$VERSION-migrator" -t "$IMAGE:latest-migrator" .
 
 docker push "$IMAGE:$VERSION"
 docker push "$IMAGE:$VERSION-migrator"
@@ -145,8 +156,8 @@ docker push "$IMAGE:latest-migrator"
 `latest`보다 앱·마이그레이터 양쪽을 같은 버전으로 고정하는 편이 안전하다.
 
 ```bash
-docker pull euiyun/grossary:0.1.4
-docker pull euiyun/grossary:0.1.4-migrator
+docker pull euiyun/grossary:0.1.5
+docker pull euiyun/grossary:0.1.5-migrator
 ```
 
 ```bash
@@ -179,3 +190,20 @@ docker compose -f docker-compose.prod.yml up -d --build
   리비전 조회/revert는 구현됨. mermaid, diff 화면, 위키 링크·역참조, 병합 UI는 남음.
 
 [로드맵](https://geniuskey.github.io/grossary/guide/roadmap)에 자세한 범위가 있다.
+
+## 기여와 지원
+
+버그, 문서 수정과 기능 제안을 환영한다. 큰 변경은 구현 전에 이슈에서 사용 흐름과
+영향을 먼저 논의한다. 개발 환경, 검사와 Pull Request 기준은
+[CONTRIBUTING.md](./CONTRIBUTING.md)를 따른다.
+
+- 사용·설치·운영 질문: [프로젝트 문서](https://geniuskey.github.io/grossary/)
+- 제품 오류: [버그 신고](https://github.com/geniuskey/grossary/issues/new?template=bug_report.yml)
+- 기능 제안: [기능 제안](https://github.com/geniuskey/grossary/issues/new?template=feature_request.yml)
+- 보안 취약점: 공개 이슈 대신 [비공개 신고 절차](./SECURITY.md)
+
+## 라이선스
+
+Grossary의 소스 코드와 문서는 [Apache License 2.0](./LICENSE)에 따라 배포됩니다.
+Copyright 2026 Euiyun Kim. 저작권 및 귀속 고지는 [NOTICE](./NOTICE)를 확인하세요.
+프로젝트 제작자 소개는 [euiyun.com](https://euiyun.com)에서 볼 수 있습니다.

@@ -23,6 +23,8 @@ export default defineConfig({
       { text: "가이드", link: "/guide/", activeMatch: "/guide/" },
       { text: "API", link: "/api/", activeMatch: "/api/" },
       { text: "운영", link: "/operations" },
+      { text: "도움말", link: "/help" },
+      { text: "지원", link: "/support" },
       { text: "Docker Hub", link: "https://hub.docker.com/r/euiyun/grossary" },
     ],
 
@@ -54,6 +56,16 @@ export default defineConfig({
         text: "운영",
         items: [{ text: "운영 안내서", link: "/operations" }],
       },
+      {
+        text: "프로젝트",
+        items: [
+          { text: "제품 도움말", link: "/help" },
+          { text: "지원", link: "/support" },
+          { text: "기여 안내", link: "https://github.com/geniuskey/grossary/blob/main/CONTRIBUTING.md" },
+          { text: "보안 정책", link: "https://github.com/geniuskey/grossary/blob/main/SECURITY.md" },
+          { text: "라이선스", link: "https://github.com/geniuskey/grossary/blob/main/LICENSE" },
+        ],
+      },
     ],
 
     socialLinks: [{ icon: "github", link: "https://github.com/geniuskey/grossary" }],
@@ -73,8 +85,8 @@ export default defineConfig({
     sidebarMenuLabel: "메뉴",
 
     footer: {
-      message: "사내망 온프레미스 배포를 전제로 만든 프로젝트입니다.",
-      copyright: "geniuskey/grossary",
+      message: "사내망 온프레미스 배포를 전제로 만든 Apache-2.0 프로젝트입니다.",
+      copyright: "© 2026 Euiyun Kim",
     },
   },
 });

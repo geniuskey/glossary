@@ -5,6 +5,7 @@ import { TermForm } from "@/components/term-form";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { listAssignableUsers } from "@/lib/terms/owners";
 import { listBusinessCategories } from "@/lib/terms/categories";
+import { listDomains } from "@/lib/terms/domains";
 
 // R135: 이 화면은 이제 `/new`(최상위)다. 슬러그는 `/w/` 아래에만 있으므로 더는
 // 같은 네임스페이스에서 부딪히지 않지만, RESERVED_SLUGS의 "new"는 그대로 둔다 —
@@ -13,7 +14,7 @@ import { listBusinessCategories } from "@/lib/terms/categories";
 export default async function NewTermPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const [assignees, categoryOptions] = await Promise.all([listAssignableUsers(), listBusinessCategories()]);
+  const [assignees, domainOptions, categoryOptions] = await Promise.all([listAssignableUsers(), listDomains(), listBusinessCategories()]);
 
   return (
     <AppShell user={user} title="새 용어" current="sheet" roomy>
@@ -34,7 +35,7 @@ export default async function NewTermPage() {
         </p>
       </header>
 
-      <TermForm assignees={assignees} categoryOptions={categoryOptions} />
+      <TermForm assignees={assignees} domainOptions={domainOptions.map((domain) => domain.label)} categoryOptions={categoryOptions} />
     </AppShell>
   );
 }

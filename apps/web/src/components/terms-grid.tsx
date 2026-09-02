@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { HelpTip } from "@/components/help-tip";
 import { STATUS_TONE } from "@/components/term-badges";
 import {
   businessCategoryLabel,
@@ -114,6 +115,8 @@ export interface TermsGridProps {
   knownDomains: string[];
   /** 관리자 설정에서 관리하는 업무 분류. enum 셀의 선택지와 붙여넣기 검증에 함께 쓴다. */
   categoryOptions: Array<{ key: string; label: string }>;
+  /** 표의 가로 스크롤과 무관하게 도구 막대에 계속 보일 현재 검색·필터 조건. */
+  activeFilters: Array<{ key: string; label: string; value: string; href: string }>;
 }
 
 // --- 저장된 표 설정 ---------------------------------------------------------
@@ -469,9 +472,20 @@ export function TermsGrid(props: TermsGridProps) {
         pushToast({ tone: "error", text: body?.error?.message ?? `추가하지 못했습니다 (${res.status}).` });
         return;
       }
+      const body = (await res.json()) as TermWriteResponse;
+      const made = createdRow(body);
+
+      // 이 입력칸은 표의 마지막 빈 줄이다. 서버 목록을 곧바로 새로고침하면 기본
+      // 정렬(최근 수정 내림차순)이 새 용어를 1번으로 끌어올려, 사용자가 방금 입력한
+      // 위치와 결과 위치가 달라진다. 붙여넣기로 만든 행과 똑같이 현재 표 끝에 붙이고
+      // 다음 명시적 새로고침부터 선택한 정렬을 적용한다.
+      setRows((prev) => [...prev, made]);
       setDraft({ nameEn: "", nameKo: "" });
       draftRef.current?.focus();
-      router.refresh();
+      pushToast({ tone: "ok", text: "마지막 행에 용어를 추가했습니다." });
+      if (body.warnings.length > 0) {
+        pushToast({ tone: "conflict", text: "기존 용어와 겹치는 표기가 있습니다." });
+      }
     } catch {
       pushToast({ tone: "error", text: "네트워크 오류로 추가하지 못했습니다." });
     } finally {
@@ -932,14 +946,7 @@ export function TermsGrid(props: TermsGridProps) {
           }
           const body = (await res.json()) as TermWriteResponse;
           if (body.warnings.length > 0) flagged += 1;
-          // 방금 만든 행의 리비전은 언제나 1이다(createTerm이 리비전 1을 함께 쓴다).
-          made.push({
-            ...body.term,
-            categoryLabel: props.categoryOptions.find((category) => category.key === body.term.category)?.label ?? null,
-            ownerName: null,
-            revision: 1,
-            editorName: props.viewerName,
-          });
+          made.push(createdRow(body));
         } catch {
           failures.push(`${draft.line}번째 줄: 네트워크 오류로 만들지 못했습니다.`);
         }
@@ -965,6 +972,17 @@ export function TermsGrid(props: TermsGridProps) {
       });
     }
     return made.length;
+  }
+
+  function createdRow(body: TermWriteResponse): TermRow {
+    // 방금 만든 행의 리비전은 언제나 1이다(createTerm이 리비전 1을 함께 쓴다).
+    return {
+      ...body.term,
+      categoryLabel: props.categoryOptions.find((category) => category.key === body.term.category)?.label ?? null,
+      ownerName: null,
+      revision: 1,
+      editorName: props.viewerName,
+    };
   }
 
   function togglePick(id: string) {
@@ -1000,6 +1018,7 @@ export function TermsGrid(props: TermsGridProps) {
         canRedo={redoStack.length > 0}
         onUndo={undo}
         onRedo={redo}
+        activeFilters={props.activeFilters}
       />
 
       <div
@@ -1442,6 +1461,7 @@ function GridToolbar(props: {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  activeFilters: TermsGridProps["activeFilters"];
 }) {
   // 메뉴는 바깥 클릭으로 닫힌다(문서 리스너). 여기서 전파를 막지 않으면
   // 메뉴를 여는 클릭이 곧바로 닫기 리스너에 잡힌다.
@@ -1477,10 +1497,26 @@ function GridToolbar(props: {
 
       <span className="mx-1 h-4 w-px bg-line" />
 
-      <span className="hidden text-ink-3 md:inline">
-        엑셀에서 복사한 범위를 <span className="kbd">Ctrl</span>
-        <span className="kbd ml-0.5">V</span>로 그대로 붙여넣을 수 있습니다
-      </span>
+      <HelpTip text="엑셀에서 복사한 범위를 Ctrl+V로 그대로 붙여넣을 수 있습니다." />
+
+      {props.activeFilters.length > 0 && (
+        <div className="flex min-w-0 flex-wrap items-center gap-1" aria-label="현재 적용된 필터">
+          <span className="mr-0.5 font-medium text-ink-3">필터</span>
+          {props.activeFilters.map((filter) => (
+            <Link
+              key={filter.key}
+              href={filter.href}
+              aria-label={`${filter.label} ${filter.value} 필터 해제`}
+              title={`${filter.label}: ${filter.value}`}
+              className="chip chip-on inline-flex h-6 max-w-48 items-center gap-1 px-2 py-0 text-[11px]"
+            >
+              <span className="shrink-0 opacity-70">{filter.label}</span>
+              <span className="truncate font-semibold">{filter.value}</span>
+              <span aria-hidden className="shrink-0 opacity-70">×</span>
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="ml-auto flex items-center gap-1.5">
         <Menu
@@ -2361,7 +2397,7 @@ function EnumEditor({
   );
 }
 
-/** 도메인은 자유 입력이라 오타가 곧 새 도메인이 된다. 쓰던 값을 눌러 넣게 한다. */
+/** 분류 체계에 등록된 도메인과 현재 데이터에 남아 있는 값을 선택지로 보여 준다. */
 function ListEditor({
   value,
   knownDomains,

@@ -24,6 +24,11 @@ test("새 용어는 명시적으로 공개하기 전까지 draft로 시작한다
   expect(parsed.status).toBe("draft");
 });
 
+test("업무 분류는 복수 선택을 보존하고 기존 단일 문자열 요청도 배열로 정규화한다", () => {
+  expect(termInputSchema.parse(base({ category: ["design", "process"] })).category).toEqual(["design", "process"]);
+  expect(termInputSchema.parse({ ...base(), category: "design" }).category).toEqual(["design"]);
+});
+
 test("용어 입력의 문자열과 배열은 서버 자원을 보호하는 상한을 가진다", () => {
   expect(termInputSchema.safeParse(base({ nameEn: "x".repeat(TERM_NAME_MAX + 1) })).success).toBe(false);
   expect(termInputSchema.safeParse(base({ domain: ["x".repeat(DOMAIN_VALUE_MAX + 1)] })).success).toBe(false);
@@ -141,4 +146,17 @@ test("앞뒤 공백이 붙은 정상 값은 거부가 아니라 다듬어져서 
   expect(result.data.fullNameEn).toBe("Gain Probe Full");
   expect(result.data.domain).toEqual(["ISP"]);
   expect(result.data.surfaces[0]!.text).toBe("GP");
+});
+
+test("API surface 언어는 전달값을 신뢰하지 않고 문자열로 자동 판정한다", () => {
+  const parsed = termInputSchema.parse(base({
+    surfaces: [
+      { text: "T/O", lang: "ko", kind: "abbreviation" },
+      { text: "티오", lang: "en", kind: "alias" },
+    ],
+  }));
+  expect(parsed.surfaces.map(({ text, lang }) => ({ text, lang }))).toEqual([
+    { text: "T/O", lang: "en" },
+    { text: "티오", lang: "ko" },
+  ]);
 });

@@ -38,6 +38,17 @@ export function CategoryBadge({ category, label }: { category: BusinessCategoryL
   return <span className="chip border-brand/25 bg-brand-soft/60 text-brand">업무 분류 · {businessCategoryLabel(category, label)}</span>;
 }
 
+export function CategoryBadges({ categories, labels = [] }: { categories: BusinessCategoryLiteral[]; labels?: string[] }) {
+  if (categories.length === 0) return null;
+  return (
+    <span className="flex flex-wrap gap-1">
+      {categories.map((category, index) => (
+        <CategoryBadge key={category} category={category} label={labels[index]} />
+      ))}
+    </span>
+  );
+}
+
 export function TopicBadge({ topic }: { topic: string | null }) {
   if (!topic) return null;
   return <span className="chip">주제 · {topic}</span>;

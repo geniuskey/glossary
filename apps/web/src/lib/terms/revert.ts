@@ -36,7 +36,7 @@ const snapshotSchema = z.object({
     fullNameEn: z.string().nullable().optional(),
     fullNameKo: z.string().nullable().optional(),
     domain: z.array(z.string()).optional(),
-    category: z.string().nullable().optional(),
+    category: z.union([z.string(), z.array(z.string())]).nullable().optional(),
     topic: z.string().nullable().optional(),
     ownerId: z.string().uuid().nullable().optional(),
     // R130: 옛 리비전에는 지금은 사라진 approved가 들어 있다. 스냅샷은 일부러
@@ -68,11 +68,12 @@ function readTermType(raw: string | undefined): TermTypeLiteral | undefined {
   return LEGACY_TERM_TYPE[raw];
 }
 
-function readCategory(raw: string | null | undefined, oldType: string | undefined): string | null | undefined {
-  if (raw === null) return null;
-  if (raw && (!oldType || !LEGACY_TERM_TYPE[oldType] || (BUSINESS_CATEGORIES as readonly string[]).includes(raw))) return raw;
-  if (oldType === "project") return "project";
-  if (oldType === "product_id") return "product";
+function readCategory(raw: string | string[] | null | undefined, oldType: string | undefined): string[] | undefined {
+  if (Array.isArray(raw)) return raw;
+  if (raw === null) return [];
+  if (raw && (!oldType || !LEGACY_TERM_TYPE[oldType] || (BUSINESS_CATEGORIES as readonly string[]).includes(raw))) return [raw];
+  if (oldType === "project") return ["project"];
+  if (oldType === "product_id") return ["product"];
   return undefined;
 }
 
@@ -97,7 +98,7 @@ function toPatch(snapshot: z.infer<typeof snapshotSchema>): TermUpdate {
   const category = readCategory(t.category, t.termType);
   const topic = t.topic !== undefined
     ? t.topic
-    : t.category && t.termType && LEGACY_TERM_TYPE[t.termType]
+    : typeof t.category === "string" && t.category && t.termType && LEGACY_TERM_TYPE[t.termType]
       && !(BUSINESS_CATEGORIES as readonly string[]).includes(t.category)
       ? t.category
       : undefined;

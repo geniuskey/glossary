@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { AccountMenu } from "@/components/account-menu";
-import { BrandMark } from "@/components/app-shell";
+import { InfoFooter } from "@/components/info-links";
+import { APP_NAV_ITEMS, BrandMark, type NavKey } from "@/components/app-shell";
 import { SearchBox } from "@/components/search-box";
 import { DomainBadges, StatusBadge } from "@/components/term-badges";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth/current-user";
@@ -17,6 +18,13 @@ import { DEFAULT_HOME_CONTENT, type HomeContent } from "@/lib/workspace/home-con
 
 export const dynamic = "force-dynamic";
 const RESULT_LIMIT = 20;
+const HOME_NAV_VISIBILITY: Partial<Record<NavKey, string>> = {
+  contribute: "hidden md:inline-flex",
+  sheet: "hidden sm:inline-flex",
+  graph: "hidden lg:inline-flex",
+  import: "hidden xl:inline-flex",
+  statistics: "hidden xl:inline-flex",
+};
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   if (await needsSetup()) redirect("/setup");
@@ -57,32 +65,35 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
           <Results q={q} hits={hits} />
         </main>
       ) : <HomeLanding facets={facets} homeContent={homeContent} />}
+      <InfoFooter className="relative z-10 mx-auto max-w-7xl border-t border-line px-5 py-6 sm:px-8" />
     </div>
   );
 }
 
 function HomeHeader({ user }: { user: CurrentUser }) {
   return (
-    <header className="sticky top-0 z-30 border-b border-line/80 bg-paper/90 backdrop-blur">
-      <div className="mx-auto flex h-20 w-full max-w-7xl items-center gap-3 px-5 sm:px-8">
-        <Link href="/" className="group flex shrink-0 items-center gap-3" aria-label="Grossary 홈">
-          <BrandMark size={38} />
+    <header className="sticky top-0 z-30 border-b border-line bg-panel/90 backdrop-blur">
+      <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-2 px-4 sm:px-6">
+        <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="Grossary 홈" aria-current="page">
+          <BrandMark />
           <span className="flex flex-col leading-none">
-            <span className="text-[17px] font-bold tracking-[-0.035em] text-ink">Grossary</span>
-            <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-ink-3">Shared language</span>
+            <span className="text-[15px] font-semibold tracking-tight text-ink">Grossary</span>
+            <span className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-ink-3">용어집</span>
           </span>
         </Link>
         <nav className="ml-auto flex shrink-0 items-center gap-1" aria-label="주요 메뉴">
           <Link href="/sheet" className="btn-quiet h-9 w-9 touch-manipulation p-0 sm:hidden" aria-label="용어 시트 열기" title="용어 시트">
             <IconGrid />
           </Link>
-          <Link href="/sheet" className="btn-quiet hidden sm:inline-flex">용어 둘러보기</Link>
-          <Link href="/contribute" className="btn-quiet hidden md:inline-flex">함께 정리</Link>
-          <Link href="/import" className="btn-quiet hidden lg:inline-flex">가져오기</Link>
-          <AccountMenu user={user} placement="topbar" />
-          <Link href="/new" className="btn-primary ml-1 rounded-full px-4 py-2 shadow-sm">
-            <IconPlus /><span className="hidden sm:inline">용어 제안하기</span><span className="sm:hidden">추가</span>
+          {APP_NAV_ITEMS.filter((item) => !item.adminOnly || user.role === "admin").map((item) => (
+            <Link key={item.key} href={item.href} className={`btn-quiet ${HOME_NAV_VISIBILITY[item.key] ?? "hidden"}`}>
+              {item.label}
+            </Link>
+          ))}
+          <Link href="/new" className="btn-primary h-9 shrink-0 px-3" aria-label="새 용어 추가">
+            <IconPlus /><span className="hidden sm:inline">용어 추가</span>
           </Link>
+          <AccountMenu user={user} placement="topbar" />
         </nav>
       </div>
     </header>
@@ -94,7 +105,7 @@ function HomeLanding({ facets, homeContent }: { facets: TermFacets; homeContent:
   const domains = facets.domains.slice(0, 6);
   return (
     <main id="main-content" tabIndex={-1} className="relative z-10 mx-auto w-full max-w-7xl px-5 pb-16 sm:px-8 sm:pb-24">
-      <section className="flex min-h-[calc(100svh-5rem)] items-center justify-center pb-16">
+      <section className="flex min-h-[calc(100svh-3.5rem)] items-center justify-center pb-16">
         <div className="w-full max-w-3xl -translate-y-4 animate-fade-up text-center sm:-translate-y-8">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">{homeContent.eyebrow}</p>
           <h1 className="mt-5 text-[clamp(2.35rem,5vw,4rem)] font-semibold leading-[1.12] tracking-[-0.05em] text-ink">

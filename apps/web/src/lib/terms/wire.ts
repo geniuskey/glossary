@@ -24,6 +24,7 @@ export interface TermWire {
   fullNameEn: string | null;
   fullNameKo: string | null;
   domain: string[];
+  categories: BusinessCategory[];
   category: BusinessCategory | null;
   topic: string | null;
   ownerId: string | null;
@@ -43,7 +44,8 @@ export function toTermWire(term: typeof terms.$inferSelect): TermWire {
     fullNameEn: term.fullNameEn,
     fullNameKo: term.fullNameKo,
     domain: term.domain,
-    category: term.category,
+    categories: term.category,
+    category: term.category[0] ?? null,
     topic: term.topic,
     ownerId: term.ownerId,
     status: term.status,

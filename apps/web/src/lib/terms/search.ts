@@ -62,8 +62,11 @@ export async function searchTerms(query: string, limit = 20): Promise<SearchHit[
     )
     SELECT t.id AS "id", t.slug AS "slug", t.term_type AS "termType",
            t.name_en AS "nameEn", t.name_ko AS "nameKo", t.domain AS "domain",
-           t.category AS "category",
-           (SELECT bc.label FROM ${businessCategories} bc WHERE bc.key = t.category) AS "categoryLabel",
+           t.category AS "categories", t.category[1] AS "category",
+           (SELECT bc.label FROM ${businessCategories} bc WHERE bc.key = t.category[1]) AS "categoryLabel",
+           coalesce((SELECT array_agg(category_catalog.label ORDER BY selected.ordinality)
+             FROM unnest(t.category) WITH ORDINALITY selected(category_key, ordinality)
+             JOIN business_categories category_catalog ON category_catalog.key = selected.category_key), array[]::text[]) AS "categoryLabels",
            t.topic AS "topic", t.owner_id AS "ownerId",
            (SELECT CASE
               WHEN coalesce(cardinality(owner_user.sso_groups), 0) > 0

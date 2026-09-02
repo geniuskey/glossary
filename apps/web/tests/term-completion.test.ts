@@ -8,6 +8,7 @@ test("Type과 무관하게 정의·분야를 정리 대상으로 본다", () => 
     total: 2,
     percent: 0,
     missing: ["definition", "domain"],
+    minimums: { definitionMinChars: 1, bodyMinChars: 0 },
   });
 });
 
@@ -35,4 +36,23 @@ test("공백뿐인 값은 채워진 정보로 세지 않는다", () => {
     domain: ["  "],
   });
   expect(completion.missing).toEqual(["definition", "domain"]);
+});
+
+test("관리자가 정한 정의·본문 최소 글자 수를 완성도에 적용한다", () => {
+  const settings = { definitionMinChars: 5, bodyMinChars: 10 };
+  const short = termCompletion({
+    termType: "concept",
+    definitionMd: "1234",
+    bodyMd: "123456789",
+    domain: ["IT"],
+  }, settings);
+  expect(short).toMatchObject({ complete: false, completed: 1, total: 3, missing: ["definition", "body"] });
+
+  const complete = termCompletion({
+    termType: "concept",
+    definitionMd: "12345",
+    bodyMd: "1234567890",
+    domain: ["IT"],
+  }, settings);
+  expect(complete).toMatchObject({ complete: true, completed: 3, total: 3, missing: [] });
 });

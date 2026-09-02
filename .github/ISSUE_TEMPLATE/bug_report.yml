@@ -1,0 +1,61 @@
+name: 버그 신고
+description: 재현 가능한 제품 오류를 알려 주세요.
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: 비밀번호, API 키, 세션 쿠키, SSO secret과 실제 사내 데이터를 첨부하지 마세요.
+  - type: textarea
+    id: problem
+    attributes:
+      label: 문제
+      description: 어떤 작업에서 무엇이 잘못되었나요?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 재현 절차
+      placeholder: |
+        1. … 화면으로 이동
+        2. … 선택
+        3. … 오류 확인
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대한 결과
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 결과와 로그
+      description: 민감 정보를 제거한 오류 메시지와 화면을 첨부해 주세요.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 버전 또는 이미지 태그
+      placeholder: 예: 0.1.5 또는 commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 실행 환경
+      description: 브라우저, OS, Node.js, DB와 배포 방식을 적어 주세요.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 확인
+      options:
+        - label: 기존 이슈와 문서를 검색했습니다.
+          required: true
+        - label: 이 내용에는 비밀 값이나 개인정보가 없습니다.
+          required: true

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BrandMark } from "@/components/app-shell";
+import { InfoFooter } from "@/components/info-links";
 import { needsSetup } from "@/lib/auth/setup";
 import { loadSsoConfig } from "@/lib/auth/sso/config";
 import { ssoErrorMessage } from "@/lib/auth/sso/errors";
@@ -71,6 +72,7 @@ export default async function LoginPage({
             </Link>
           </p>
         </div>
+        <InfoFooter className="mt-6" />
       </div>
     </main>
   );

@@ -1,14 +1,14 @@
 # Grossary on Docker Hub
 
-> **Development preview — `0.1.4`**
+> **Development preview — `0.1.5`**
 >
 > Grossary is under active development. Use this release for evaluation and internal pilots,
-> pin both container tags to `0.1.4`, and keep tested database backups before upgrading.
+> pin both container tags to `0.1.5`, and keep tested database backups before upgrading.
 >
-> **개발 미리보기 — `0.1.4`**
+> **개발 미리보기 — `0.1.5`**
 >
 > 현재 활발히 개발 중인 초기 버전입니다. 기능 검토와 사내 파일럿 용도로 사용하고,
-> 앱과 마이그레이터 이미지를 모두 `0.1.4`로 고정한 뒤 업그레이드 전 백업을 보관하세요.
+> 앱과 마이그레이터 이미지를 모두 `0.1.5`로 고정한 뒤 업그레이드 전 백업을 보관하세요.
 
 ## Short description
 
@@ -55,8 +55,8 @@ Grossary publishes two tags from the same Docker Hub repository:
 
 | Tag | Purpose |
 |---|---|
-| `0.1.4` | Version-pinned web application (recommended) |
-| `0.1.4-migrator` | Matching database migrations (recommended) |
+| `0.1.5` | Version-pinned web application (recommended) |
+| `0.1.5-migrator` | Matching database migrations (recommended) |
 | `latest` | Most recently published web application |
 | `latest-migrator` | Migrations matching `latest` |
 
@@ -65,8 +65,8 @@ For production, pin both images to the same version instead of using `latest`.
 사내 서버에서 명시적으로 받으려면 두 태그를 함께 pull합니다.
 
 ```bash
-docker pull euiyun/grossary:0.1.4
-docker pull euiyun/grossary:0.1.4-migrator
+docker pull euiyun/grossary:0.1.5
+docker pull euiyun/grossary:0.1.5-migrator
 ```
 
 ## Quick start with Docker Compose
@@ -79,7 +79,7 @@ curl -LO https://raw.githubusercontent.com/geniuskey/grossary/main/docker-compos
 curl -L https://raw.githubusercontent.com/geniuskey/grossary/main/.env.dockerhub.example -o .env
 ```
 
-The environment template pins both images to the `0.1.4` development release. Set a long, URL-safe database password, then pull and start the stack:
+The environment template pins both images to the `0.1.5` development release. Set a long, URL-safe database password, then pull and start the stack:
 
 ```bash
 # 비공개 저장소라면 먼저 실행합니다.
@@ -103,8 +103,8 @@ docker compose --env-file .env -f docker-compose.hub.yml ps
 
 | Variable | Description |
 |---|---|
-| `GROSSARY_IMAGE` | Web image, for example `euiyun/grossary:0.1.4` |
-| `GROSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/grossary:0.1.4-migrator` |
+| `GROSSARY_IMAGE` | Web image, for example `euiyun/grossary:0.1.5` |
+| `GROSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/grossary:0.1.5-migrator` |
 | `GROSSARY_PORT` | Host port; defaults to `3000` |
 | `POSTGRES_PASSWORD` | Internal PostgreSQL password; use URL-safe characters |
 | `GROSSARY_EMBED_ANCESTORS` | Optional comma-separated Confluence origins allowed to frame `/embed` |
@@ -129,3 +129,7 @@ Project documentation: [https://geniuskey.github.io/grossary/](https://geniuskey
 Source: [https://github.com/geniuskey/grossary](https://github.com/geniuskey/grossary)
 
 Docker Hub: [https://hub.docker.com/r/euiyun/grossary](https://hub.docker.com/r/euiyun/grossary)
+
+License: [Apache-2.0](https://github.com/geniuskey/grossary/blob/main/LICENSE)
+
+Created and maintained by [Euiyun Kim (Edwin)](https://euiyun.com).

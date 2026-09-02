@@ -8,6 +8,7 @@ import {
   TERM_SURFACE_MAX,
 } from "./limits";
 import { deriveSurfaces } from "./surfaces";
+import { inferSurfaceLang } from "./surface-language";
 import { slugify, slugValidationMessage } from "./slug";
 import { BUSINESS_CATEGORIES, TERM_TYPES } from "./enums";
 
@@ -18,10 +19,12 @@ import { BUSINESS_CATEGORIES, TERM_TYPES } from "./enums";
 // 잠식한다. text/nameEn/nameKo/fullNameEn/fullNameKo/domain 각 항목에 trim을 건다.
 export const surfaceInputSchema = z.object({
   text: z.string().trim().min(1).max(TERM_NAME_MAX),
-  lang: z.enum(["en", "ko", "neutral"]).default("neutral"),
+  // 이전 API 요청의 lang은 호환을 위해 받되 신뢰하지 않는다. 문자열이 항상
+  // 단일 진실 공급원이 되어 T/O를 ko로 저장하는 모순을 원천 차단한다.
+  lang: z.enum(["en", "ko", "neutral"]).optional(),
   kind: z.enum(["canonical", "abbreviation", "full_name", "alias", "discouraged", "forbidden"]),
   caseSensitive: z.boolean().optional(),
-});
+}).transform((surface) => ({ ...surface, lang: inferSurfaceLang(surface.text) }));
 
 // R117: 표준명/풀네임은 nullable이다. `.min(1).optional()`만으로는 "값을
 // 지운다"를 표현할 방법이 없다 — 빈 문자열은 400이고, 필드를 빼면 PATCH에서는
@@ -52,8 +55,10 @@ export function normalizeLegacyTermInput(raw: unknown): unknown {
     if (next.topic === undefined) next.topic = next.category;
     delete next.category;
   }
-  if ((next.category === undefined || next.category === null) && oldType === "project") next.category = "project";
-  if ((next.category === undefined || next.category === null) && oldType === "product_id") next.category = "product";
+  if (typeof next.category === "string") next.category = next.category ? [next.category] : [];
+  if (next.category === null) next.category = [];
+  if (next.category === undefined && oldType === "project") next.category = ["project"];
+  if (next.category === undefined && oldType === "product_id") next.category = ["product"];
   return next;
 }
 
@@ -64,7 +69,9 @@ export const termInputBaseSchema = z.object({
   fullNameEn: z.string().trim().min(1).max(TERM_NAME_MAX).nullable().optional(),
   fullNameKo: z.string().trim().min(1).max(TERM_NAME_MAX).nullable().optional(),
   domain: z.array(z.string().trim().min(1).max(DOMAIN_VALUE_MAX)).max(TERM_DOMAIN_MAX).default([]),
-  category: z.string().trim().min(1).max(64).regex(/^[\p{Letter}\p{Number}]+(?:-[\p{Letter}\p{Number}]+)*$/u).nullable().optional(),
+  category: z.array(
+    z.string().trim().min(1).max(64).regex(/^[\p{Letter}\p{Number}]+(?:-[\p{Letter}\p{Number}]+)*$/u),
+  ).max(TERM_DOMAIN_MAX).default([]),
   topic: z.string().trim().min(1).max(DOMAIN_VALUE_MAX).nullable().optional(),
   ownerId: z.string().uuid().nullable().optional(),
   status: z.enum(["draft", "active", "deprecated", "forbidden"]).default("draft"),
@@ -162,5 +169,5 @@ const currentTermPatchSchema = termInputBaseSchema.partial().extend({
 
 export const termPatchSchema = z.preprocess(normalizeLegacyTermInput, currentTermPatchSchema);
 
-export type TermInput = z.infer<typeof termInputBaseSchema>;
+export type TermInput = Omit<z.infer<typeof termInputBaseSchema>, "category"> & { category?: string[] };
 export type SurfaceInput = z.infer<typeof surfaceInputSchema>;

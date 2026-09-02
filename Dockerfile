@@ -28,6 +28,8 @@ RUN pnpm install --frozen-lockfile
 
 # ---- 빌드 ----
 FROM deps AS builder
+ARG APP_VERSION
+ENV NEXT_PUBLIC_APP_VERSION=${APP_VERSION}
 COPY . .
 RUN pnpm turbo run build --filter=@grossary/web
 
@@ -36,7 +38,8 @@ FROM base AS runner
 ENV NODE_ENV=production
 LABEL org.opencontainers.image.title="Grossary" \
       org.opencontainers.image.description="Self-hosted collaborative glossary for organization-specific terminology, optimized for Korean and English." \
-      org.opencontainers.image.source="https://github.com/geniuskey/grossary"
+      org.opencontainers.image.source="https://github.com/geniuskey/grossary" \
+      org.opencontainers.image.licenses="Apache-2.0"
 RUN addgroup -g 1001 -S nodejs && adduser -S -u 1001 -G nodejs nextjs
 
 # standalone은 outputFileTracingRoot(워크스페이스 루트) 기준으로 트리를 만든다.
@@ -58,7 +61,8 @@ FROM builder AS migrator
 ENV NODE_ENV=production
 LABEL org.opencontainers.image.title="Grossary Database Migrator" \
       org.opencontainers.image.description="Database migration companion for the matching Grossary application image." \
-      org.opencontainers.image.source="https://github.com/geniuskey/grossary"
+      org.opencontainers.image.source="https://github.com/geniuskey/grossary" \
+      org.opencontainers.image.licenses="Apache-2.0"
 CMD ["pnpm", "--filter", "@grossary/db", "db:migrate"]
 
 # Docker Hub에 `docker build -t ... .`로 올릴 기본 산출물은 반드시 웹 앱이어야

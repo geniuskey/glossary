@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HelpTip } from "@/components/help-tip";
 import type { GroupStatistics } from "@/lib/admin/statistics";
 import { cx } from "@/lib/ui/format";
 
@@ -31,18 +32,16 @@ export function GroupStatisticsTable({
   categoryLabels?: Record<string, string>;
 }) {
   const title = kind === "category" ? "업무 분류별 관리 현황" : "도메인별 관리 현황";
-  const description = kind === "category"
-    ? "공통 업무 분류를 기준으로 담당 지정과 갱신 상태를 비교합니다."
-    : "하나의 용어가 여러 도메인에 포함되면 각 도메인 집계에 한 번씩 포함됩니다.";
+  const help = [
+    kind === "domain" ? "하나의 용어가 여러 도메인에 포함되면 각 도메인 집계에 한 번씩 포함됩니다." : "",
+    "관리 신호는 담당 지정 80% 이상, 90일 미갱신 20% 미만이면 양호로 표시합니다.",
+  ].filter(Boolean).join(" ");
 
   return (
     <section className="mt-8" aria-labelledby={`${kind}-statistics-heading`}>
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 id={`${kind}-statistics-heading`} className="text-base font-semibold text-ink">{title}</h2>
-          <p className="mt-1 text-xs leading-5 text-ink-3">{description}</p>
-        </div>
-        <p className="text-[11px] text-ink-3">양호 기준: 담당 지정 80% 이상 · 90일 미갱신 20% 미만</p>
+      <div className="mb-3 flex items-center gap-1.5">
+        <h2 id={`${kind}-statistics-heading`} className="text-base font-semibold text-ink">{title}</h2>
+        <HelpTip text={help} />
       </div>
 
       <div className="card overflow-x-auto">

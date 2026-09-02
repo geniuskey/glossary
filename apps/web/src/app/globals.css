@@ -26,6 +26,8 @@
   --brand-on: 255 255 255;
   --accent: 225 103 72;
   --accent-soft: 255 235 227;
+  --info: 37 99 235;
+  --info-soft: 232 240 254;
   --ok: 21 128 61;
   --ok-soft: 226 244 232;
   --warn: 180 111 8;
@@ -34,6 +36,12 @@
   --danger-soft: 253 232 232;
   --grid-line: 227 223 215;
   --selection: 67 56 202;
+  --graph-category-fill-s: 52%;
+  --graph-category-fill-l: 87%;
+  --graph-category-stroke-s: 38%;
+  --graph-category-stroke-l: 56%;
+  --graph-category-text-s: 34%;
+  --graph-category-text-l: 24%;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -53,6 +61,8 @@
     --brand-on: 17 17 26;
     --accent: 250 143 108;
     --accent-soft: 59 37 34;
+    --info: 110 157 255;
+    --info-soft: 27 41 68;
     --ok: 74 194 118;
     --ok-soft: 26 48 36;
     --warn: 226 168 62;
@@ -61,6 +71,12 @@
     --danger-soft: 56 30 32;
     --grid-line: 43 48 56;
     --selection: 141 133 246;
+    --graph-category-fill-s: 28%;
+    --graph-category-fill-l: 27%;
+    --graph-category-stroke-s: 43%;
+    --graph-category-stroke-l: 65%;
+    --graph-category-text-s: 38%;
+    --graph-category-text-l: 88%;
   }
 }
 
@@ -79,6 +95,8 @@
   --brand-on: 17 17 26;
   --accent: 250 143 108;
   --accent-soft: 59 37 34;
+  --info: 110 157 255;
+  --info-soft: 27 41 68;
   --ok: 74 194 118;
   --ok-soft: 26 48 36;
   --warn: 226 168 62;
@@ -87,6 +105,25 @@
   --danger-soft: 56 30 32;
   --grid-line: 43 48 56;
   --selection: 141 133 246;
+  --graph-category-fill-s: 28%;
+  --graph-category-fill-l: 27%;
+  --graph-category-stroke-s: 43%;
+  --graph-category-stroke-l: 65%;
+  --graph-category-text-s: 38%;
+  --graph-category-text-l: 88%;
+}
+
+.graph-category-node {
+  fill: hsl(var(--graph-category-hue) var(--graph-category-fill-s) var(--graph-category-fill-l));
+  stroke: hsl(var(--graph-category-hue) var(--graph-category-stroke-s) var(--graph-category-stroke-l));
+}
+
+.graph-category-label {
+  fill: hsl(var(--graph-category-hue) var(--graph-category-text-s) var(--graph-category-text-l));
+}
+
+.graph-category-swatch {
+  background-color: hsl(var(--graph-category-hue) var(--graph-category-stroke-s) var(--graph-category-stroke-l));
 }
 
 @layer utilities {
@@ -221,6 +258,37 @@
     @apply w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink
       placeholder:text-ink-3 focus:border-brand focus:outline-none
       focus:ring-2 focus:ring-brand/25 disabled:opacity-55;
+  }
+
+  /* 선택 필드는 일반 입력창과 형태가 비슷해도 별도 컨트롤임이 즉시 보여야 한다.
+     네이티브 동작은 유지하고 표면·화살표·상태 피드백만 앱 전반에서 통일한다. */
+  select.field {
+    @apply cursor-pointer appearance-none border-line-strong bg-panel-2 pr-9 font-medium shadow-sm
+      transition-[background-color,border-color,box-shadow]
+      hover:border-brand/50 hover:bg-panel
+      focus:bg-panel focus:ring-brand/35
+      disabled:cursor-not-allowed;
+    background-image:
+      linear-gradient(45deg, transparent 50%, rgb(var(--ink-3)) 50%),
+      linear-gradient(135deg, rgb(var(--ink-3)) 50%, transparent 50%);
+    background-position:
+      calc(100% - 15px) calc(50% - 2px),
+      calc(100% - 10px) calc(50% - 2px);
+    background-repeat: no-repeat;
+    background-size: 5px 5px, 5px 5px;
+  }
+
+  select.field:hover,
+  select.field:focus {
+    background-image:
+      linear-gradient(45deg, transparent 50%, rgb(var(--brand)) 50%),
+      linear-gradient(135deg, rgb(var(--brand)) 50%, transparent 50%);
+  }
+
+  select.field option {
+    background: rgb(var(--panel));
+    color: rgb(var(--ink));
+    font-weight: 400;
   }
 
   .label {

@@ -2,10 +2,15 @@ import { termStatusEnum, termTypeEnum } from "@grossary/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { requireAuth, isResponse } from "@/lib/auth/require";
 import { termInputSchema } from "@/lib/terms/schema";
-import { createTerm } from "@/lib/terms/create";
+import {
+  createTerm,
+  findRepresentativeDuplicates,
+  representativeDuplicateFieldErrors,
+} from "@/lib/terms/create";
 import { DOMAIN_VALUE_MAX, TERM_QUERY_MAX } from "@/lib/terms/limits";
 import { isAssignableUserId } from "@/lib/terms/owners";
-import { businessCategoryExists } from "@/lib/terms/categories";
+import { businessCategoriesExist, businessCategoryExists } from "@/lib/terms/categories";
+import { domainsExist } from "@/lib/terms/domains";
 import { listTerms, type BusinessCategory, type TermStatus, type TermType } from "@/lib/terms/query";
 import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
 
@@ -137,8 +142,9 @@ export const GET = withApiErrors(async (request: Request) => {
   return Response.json({ ...result, page, pageSize });
 });
 
-// 중복이 있어도 409를 던지지 않는다. 동음이의어를 허용하기로 했으므로 저장은
-// 진행하고 warnings로만 알린다.
+// 추가 표기는 동음이의어 경고를 허용하지만, 새 대표 영문·국문 표기는 기존의
+// 어떤 검색 표기와도 겹치면 안 된다. 시트 빠른 추가와 전체 폼이 모두 이 POST를
+// 쓰므로 화면별로 판정이 갈리지 않는다.
 export const POST = withApiErrors(async (request: Request) => {
   const auth = await requireAuth(request, "write");
   if (isResponse(auth)) return auth;
@@ -150,8 +156,21 @@ export const POST = withApiErrors(async (request: Request) => {
   if (parsed.data.ownerId && !(await isAssignableUserId(parsed.data.ownerId))) {
     return apiError("validation_failed", "담당자 계정을 찾을 수 없습니다.", 400, { field: "ownerId" });
   }
-  if (parsed.data.category && !(await businessCategoryExists(parsed.data.category))) {
+  if (!(await domainsExist(parsed.data.domain))) {
+    return apiError("validation_failed", "분류 체계에 없는 도메인이 포함되어 있습니다.", 400, { field: "domain" });
+  }
+  if (!(await businessCategoriesExist(parsed.data.category))) {
     return apiError("validation_failed", "업무 분류를 찾을 수 없습니다.", 400, { field: "category" });
+  }
+
+  const representativeDuplicates = await findRepresentativeDuplicates(parsed.data);
+  if (representativeDuplicates.length > 0) {
+    return apiError(
+      "validation_failed",
+      "같은 대표 표기가 이미 있어 등록할 수 없습니다.",
+      400,
+      { fieldErrors: representativeDuplicateFieldErrors(representativeDuplicates), formErrors: [] },
+    );
   }
 
   const authorId = auth.kind === "user" ? auth.user.id : null;

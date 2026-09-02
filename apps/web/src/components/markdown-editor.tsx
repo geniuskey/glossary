@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "r
 import { basicSetup, EditorView } from "codemirror";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
+import { cx } from "@/lib/ui/format";
 import {
   insertMarkdownBlock,
   toggleCodeBlockMarkdown,
@@ -28,6 +29,8 @@ interface MarkdownEditorProps {
   onChange: (value: string) => void;
   disabled?: boolean;
   maxLength?: number;
+  compact?: boolean;
+  resizable?: boolean;
   onUploadingChange?: (uploading: boolean) => void;
 }
 
@@ -80,6 +83,8 @@ export function MarkdownEditor({
   onChange,
   disabled = false,
   maxLength,
+  compact = false,
+  resizable = false,
   onUploadingChange,
 }: MarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -202,8 +207,9 @@ export function MarkdownEditor({
             },
           }),
           EditorView.theme({
-            "&": { minHeight: "16rem", backgroundColor: "transparent", color: "rgb(var(--ink))" },
-            ".cm-content": { minHeight: "16rem", padding: "1rem", caretColor: "rgb(var(--brand))" },
+            "&": { height: resizable ? "100%" : "auto", minHeight: compact ? "10rem" : "16rem", backgroundColor: "transparent", color: "rgb(var(--ink))" },
+            ".cm-scroller": { overflow: "auto" },
+            ".cm-content": { minHeight: resizable ? "100%" : compact ? "10rem" : "16rem", padding: compact ? "0.75rem" : "1rem", caretColor: "rgb(var(--brand))" },
             ".cm-gutters": { backgroundColor: "rgb(var(--panel-2))", color: "rgb(var(--ink-3))", border: "none" },
             ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "rgb(var(--brand) / 0.06)" },
             ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { backgroundColor: "rgb(var(--selection) / 0.2)" },
@@ -218,7 +224,7 @@ export function MarkdownEditor({
       viewRef.current = null;
     };
     // disabled 변경 시 인스턴스를 다시 만들어 readOnly 상태까지 정확히 반영한다.
-  }, [describedBy, disabled, invalid, label]);
+  }, [compact, describedBy, disabled, invalid, label, resizable]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -240,7 +246,10 @@ export function MarkdownEditor({
       aria-label={fullscreen ? `${label} 전체 화면 편집기` : undefined}
       className={fullscreen
         ? "fixed inset-0 z-[100] flex h-[100dvh] flex-col overflow-hidden bg-panel"
-        : "overflow-hidden rounded-xl border border-line bg-panel"}
+        : cx(
+          "overflow-hidden rounded-xl border border-line bg-panel",
+          resizable && "flex h-80 min-h-64 max-h-[75dvh] flex-col resize-y",
+        )}
     >
       <div className="shrink-0 border-b border-line bg-panel-2">
         <div className="flex flex-wrap items-center gap-2 border-b border-line/70 px-2 py-1.5">
@@ -318,9 +327,9 @@ export function MarkdownEditor({
         <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={chooseFiles} />
       </div>
       {uploadError && <div className="border-b border-danger/35 bg-danger-soft px-3 py-2 text-xs text-danger" aria-live="polite">{uploadError}</div>}
-      <div className={`grid ${fullscreen ? "min-h-0 flex-1" : ""}`}>
-        <div className={`${mode === "preview" ? "hidden" : "block"} min-h-0 overflow-auto`} ref={hostRef} />
-        <div className={`${mode === "edit" ? "hidden" : "block"} min-h-[16rem] overflow-auto p-4 ${fullscreen ? "min-h-0" : ""}`}>
+      <div className={`grid ${fullscreen || resizable ? "min-h-0 flex-1" : ""}`}>
+        <div className={`${mode === "preview" ? "hidden" : "block"} h-full min-h-0 overflow-auto`} ref={hostRef} />
+        <div className={`${mode === "edit" ? "hidden" : "block"} ${resizable ? "min-h-0" : compact ? "min-h-40" : "min-h-[16rem]"} h-full overflow-auto ${compact ? "p-3" : "p-4"} ${fullscreen ? "min-h-0" : ""}`}>
           {value.trim() ? <MarkdownContent>{value}</MarkdownContent> : <p className="text-sm text-ink-3">미리보기가 여기에 표시됩니다.</p>}
         </div>
       </div>

@@ -3,7 +3,9 @@ import { isResponse, requireAuth } from "@/lib/auth/require";
 import { getTermByIdOrSlug, type TermDetailResponse } from "@/lib/terms/query";
 import { termPatchSchema } from "@/lib/terms/schema";
 import { isAssignableUserId } from "@/lib/terms/owners";
-import { businessCategoryExists } from "@/lib/terms/categories";
+import { businessCategoriesExist } from "@/lib/terms/categories";
+import { domainsExist } from "@/lib/terms/domains";
+import { representativeDuplicateFieldErrors } from "@/lib/terms/create";
 import { deleteTerm, updateTerm, type UpdateTermSuccess } from "@/lib/terms/update";
 import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
 
@@ -30,9 +32,8 @@ export const GET = withApiErrors(
   },
 );
 
-// 중복이 있어도 409를 던지지 않는다(POST와 동일). 동음이의어를 허용하므로 저장은
-// 진행하고 warnings로만 알린다. 표기 모순(R52)이나 리비전 경합(R54)만 각각
-// 400/409로 거부한다.
+// 추가 표기의 동음이의어는 warnings로 알리지만, 대표 영문·국문 이름이 다른
+// 용어의 표기와 겹치면 생성과 마찬가지로 저장을 거부한다.
 export const PATCH = withApiErrors(
   async (request: Request, ctx: { params: Promise<{ idOrSlug: string }> }) => {
     const auth = await requireAuth(request, "write");
@@ -49,7 +50,10 @@ export const PATCH = withApiErrors(
     if (parsed.data.ownerId && !(await isAssignableUserId(parsed.data.ownerId))) {
       return apiError("validation_failed", "담당자 계정을 찾을 수 없습니다.", 400, { field: "ownerId" });
     }
-    if (parsed.data.category && !(await businessCategoryExists(parsed.data.category))) {
+    if (parsed.data.domain && !(await domainsExist(parsed.data.domain))) {
+      return apiError("validation_failed", "분류 체계에 없는 도메인이 포함되어 있습니다.", 400, { field: "domain" });
+    }
+    if (parsed.data.category && !(await businessCategoriesExist(parsed.data.category))) {
       return apiError("validation_failed", "업무 분류를 찾을 수 없습니다.", 400, { field: "category" });
     }
 
@@ -70,6 +74,14 @@ export const PATCH = withApiErrors(
     }
     if ("invalid" in result) {
       return apiError("validation_failed", "표기 구성이 올바르지 않습니다.", 400, { issues: result.issues });
+    }
+    if ("representativeConflict" in result) {
+      return apiError(
+        "validation_failed",
+        "같은 대표 표기가 이미 있어 저장할 수 없습니다.",
+        400,
+        { fieldErrors: representativeDuplicateFieldErrors(result.duplicates), formErrors: [] },
+      );
     }
     if ("slugConflict" in result) {
       return apiError("slug_conflict", "이미 사용 중인 URL 주소입니다.", 409, { field: "slug" });

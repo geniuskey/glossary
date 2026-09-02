@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { check, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { users } from "./auth";
 
 /**
@@ -13,6 +13,8 @@ export const workspaceSettings = pgTable(
     homeEyebrow: text("home_eyebrow").notNull(),
     homeTitle: text("home_title").notNull(),
     homeDescription: text("home_description").notNull(),
+    definitionMinChars: integer("definition_min_chars").notNull().default(1),
+    bodyMinChars: integer("body_min_chars").notNull().default(0),
     // 이전 버전의 고정 담당자 표시 설정. 기존 설치의 데이터를 파괴하지 않기 위해
     // 컬럼은 유지하지만 화면과 조회에서는 더 이상 사용하지 않는다.
     memberEmailDomain: text("member_email_domain"),
@@ -20,5 +22,9 @@ export const workspaceSettings = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
   },
-  (t) => ({ singleRow: check("workspace_settings_single_row", sql`${t.id} = 'default'`) }),
+  (t) => ({
+    singleRow: check("workspace_settings_single_row", sql`${t.id} = 'default'`),
+    definitionMinCharsRange: check("workspace_settings_definition_min_chars_range", sql`${t.definitionMinChars} between 0 and 10000`),
+    bodyMinCharsRange: check("workspace_settings_body_min_chars_range", sql`${t.bodyMinChars} between 0 and 10000`),
+  }),
 );

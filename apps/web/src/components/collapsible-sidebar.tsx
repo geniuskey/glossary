@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useLayoutEffect, useState, type ReactNode } from "react";
+import { APP_VERSION_LABEL } from "@/lib/app-version";
 import { cx } from "@/lib/ui/format";
 
 const STORAGE_KEY = "grossary.sidebar-collapsed";
@@ -56,6 +58,15 @@ export function CollapsibleSidebar({
           </button>
         </div>
         {navigation}
+        <Link
+          href="/about"
+          aria-label={`Grossary 앱 버전 ${APP_VERSION_LABEL}`}
+          title={`Grossary ${APP_VERSION_LABEL}`}
+          className="mt-auto hidden shrink-0 items-center justify-center gap-2 border-t border-line px-3 pt-4 text-[10px] text-ink-3 transition hover:text-ink lg:flex"
+        >
+          <span className="sidebar-expanded-only hidden lg:inline">Grossary</span>
+          <span className="font-mono tabular-nums">{APP_VERSION_LABEL}</span>
+        </Link>
       </div>
     </aside>
   );

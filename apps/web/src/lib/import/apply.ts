@@ -183,7 +183,7 @@ export async function applyImport(
         fullNameEn: row.fullNameEn,
         fullNameKo: row.fullNameKo,
         domain: row.domain,
-        category: row.category,
+        category: row.category ? [row.category] : [],
         topic: row.topic,
         status: row.status,
         definitionMd: row.definitionMd,

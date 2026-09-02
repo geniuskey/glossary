@@ -115,7 +115,7 @@ export function paginationInfo(page: number, total: number, pageSize: number): P
   };
 }
 
-type FilterName = "q" | "type" | "domain" | "category" | "topic" | "status";
+export type FilterName = "q" | "type" | "domain" | "category" | "topic" | "status";
 type ParamName = FilterName | "sort" | "dir";
 
 // R93/R94: 현재 활성 필터(빈 값이 아닌 것만)를 이름 붙은 목록으로 뽑는다.

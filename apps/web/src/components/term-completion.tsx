@@ -36,6 +36,8 @@ export function MissingFields({ completion }: { completion: TermCompletion }) {
       {completion.missing.map((field) => (
         <li key={field} className="chip border-warn/30 bg-warn-soft text-warn">
           {MISSING_TERM_FIELD_LABEL[field]}
+          {field === "definition" && completion.minimums.definitionMinChars > 1 ? ` ${completion.minimums.definitionMinChars}자 이상` : ""}
+          {field === "body" ? ` ${completion.minimums.bodyMinChars}자 이상` : ""}
         </li>
       ))}
     </ul>

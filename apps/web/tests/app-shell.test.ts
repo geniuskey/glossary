@@ -23,14 +23,19 @@ test("사이드바 탐색과 상단 검색·생성·계정 영역을 분리한�
   expect(html).toContain('placeholder="용어 · 약어 · 별칭 · 금지 표기…"');
   expect(html).toContain('aria-keyshortcuts="/"');
   expect(html).toContain('aria-label="새 용어 추가"');
+  expect(html).toContain('href="/help"');
   expect(html).toContain('aria-label="편집자 계정 메뉴"');
+  expect(html).toContain('aria-label="Grossary 앱 버전 v0.1.5"');
+  expect(html).toContain('mt-auto hidden shrink-0');
   expect(html).toContain('aria-label="함께 정리 · 미완성"');
+  expect(html).toContain('aria-label="분류 체계 · 도메인 · 업무"');
   expect(html).toContain('sidebar-expanded-only hidden whitespace-nowrap lg:inline');
   expect(html).toContain('title="사이드바 접기"');
+  expect(html).toContain('sticky top-14 z-[70]');
   expect(html.indexOf('role="search"')).toBeLessThan(html.indexOf('aria-label="편집자 계정 메뉴"'));
 });
 
-test("설정과 관리자 링크는 개인 계정 하위 메뉴에 있다", () => {
+test("설정과 관리자, 도움말 링크는 개인 계정 하위 메뉴에 있다", () => {
   const html = renderToStaticMarkup(createElement(AccountMenu, {
     user: { id: "admin-1", email: "admin@example.com", name: "관리자", role: "admin" },
     current: "admin",
@@ -39,7 +44,10 @@ test("설정과 관리자 링크는 개인 계정 하위 메뉴에 있다", () =
   expect(html).toContain('aria-haspopup="menu"');
   expect(html).toContain('href="/settings"');
   expect(html).toContain('href="/admin"');
+  expect(html).toContain('href="/help"');
+  expect(html).toContain('>도움말</span>');
   expect(html).toContain('id="account-submenu"');
+  expect(html).not.toContain('앱 버전 v0.1.5');
 });
 
 test("roomy 본문은 문서 여백을 유지하면서 편집 화면 폭을 넓힌다", () => {
@@ -53,4 +61,16 @@ test("roomy 본문은 문서 여백을 유지하면서 편집 화면 폭을 넓�
   expect(html).toContain("max-w-6xl");
   expect(html).toContain("px-5 py-8 lg:px-8");
   expect(html).not.toContain("max-w-4xl");
+});
+
+test("dense 본문은 작업 화면의 바깥 여백을 줄이고 더 넓게 쓴다", () => {
+  const html = renderToStaticMarkup(AppShell({
+    user: null,
+    title: "용어 편집",
+    dense: true,
+    children: "편집 폼",
+  }));
+
+  expect(html).toContain("max-w-[90rem]");
+  expect(html).toContain("px-4 py-3 lg:px-6");
 });

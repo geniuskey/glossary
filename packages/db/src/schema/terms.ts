@@ -8,8 +8,8 @@ export const termTypeEnum = pgEnum("term_type", [
   "concept", "proper_name", "identifier", "unit",
 ]);
 
-export const businessCategories = pgTable(
-  "business_categories",
+export const domains = pgTable(
+  "domains",
   {
     key: text("key").primaryKey(),
     label: text("label").notNull(),
@@ -18,7 +18,24 @@ export const businessCategories = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
+    labelUnique: uniqueIndex("domains_label_unique").on(t.label),
+    orderIdx: index("domains_order_idx").on(t.sortOrder, t.key),
+  }),
+);
+
+export const businessCategories = pgTable(
+  "business_categories",
+  {
+    key: text("key").primaryKey(),
+    label: text("label").notNull(),
+    labelEn: text("label_en").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
     labelUnique: uniqueIndex("business_categories_label_unique").on(t.label),
+    labelEnUnique: uniqueIndex("business_categories_label_en_unique").on(t.labelEn),
     orderIdx: index("business_categories_order_idx").on(t.sortOrder, t.key),
   }),
 );
@@ -48,7 +65,9 @@ export const terms = pgTable(
     fullNameEn: text("full_name_en"),
     fullNameKo: text("full_name_ko"),
     domain: text("domain").array().notNull().default([]),
-    category: text("category").references(() => businessCategories.key, { onDelete: "restrict" }),
+    // 도메인처럼 하나의 용어가 여러 업무 분류에 걸칠 수 있다. 카탈로그 존재
+    // 여부는 쓰기 API에서 검증하고, 분류 삭제 시 연결 배열에서도 함께 제거한다.
+    category: text("category").array().notNull().default([]),
     // 기존 자유 입력 카테고리는 세부 주제였다. 통제형 업무 분류와 섞지 않고
     // 그대로 보존해 검색·관계 탐색에서 계속 쓸 수 있게 한다.
     topic: text("topic"),
@@ -65,7 +84,7 @@ export const terms = pgTable(
   (t) => ({
     slugUnique: uniqueIndex("terms_slug_unique").on(t.slug),
     statusIdx: index("terms_status_idx").on(t.status),
-    categoryIdx: index("terms_category_idx").on(t.category),
+    categoryIdx: index("terms_category_idx").using("gin", t.category),
     topicIdx: index("terms_topic_idx").on(t.topic),
     ownerIdx: index("terms_owner_idx").on(t.ownerId),
   }),

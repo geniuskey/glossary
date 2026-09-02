@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { CompletionBadge, CompletionProgress, MissingFields } from "@/components/term-completion";
-import { CategoryBadge, DomainBadges, OwnerBadge, StatusBadge, TopicBadge } from "@/components/term-badges";
+import { CategoryBadges, DomainBadges, OwnerBadge, StatusBadge, TopicBadge } from "@/components/term-badges";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { TERM_TYPE_LABEL } from "@/lib/terms/enums";
 import { listContributionTerms } from "@/lib/terms/query";
@@ -29,7 +29,7 @@ export default async function ContributePage() {
 
       <section className="grid gap-3 sm:grid-cols-3" aria-label="참여 방법">
         <Guide number="1" title="아는 용어 고르기" body="제품이나 업무에서 자주 본 표현을 고릅니다." />
-        <Guide number="2" title="한 항목만 채우기" body="풀네임, 한 줄 정의, 분야 중 아는 것만 적습니다." />
+        <Guide number="2" title="한 항목만 채우기" body="정의, 본문, 분야 중 아는 것부터 적습니다." />
         <Guide number="3" title="검토 후 공개하기" body="충분히 읽을 수 있는 수준이 되면 상태를 공개 · 사용으로 바꿉니다." />
       </section>
 
@@ -81,7 +81,7 @@ export default async function ContributePage() {
 
                 <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-line pt-4 mt-4">
                   <DomainBadges domain={term.domain} />
-                  <CategoryBadge category={term.category} label={term.categoryLabel} />
+                  <CategoryBadges categories={term.categories} labels={term.categoryLabels} />
                   <TopicBadge topic={term.topic} />
                   <OwnerBadge ownerName={term.ownerName} mine={term.ownerId === user.id} />
                   <span className="text-xs text-ink-3">최근 수정 {relativeTime(new Date(term.updatedAt))}</span>

@@ -6,11 +6,12 @@ import { AccountMenu } from "./account-menu";
 import { CollapsibleSidebar } from "./collapsible-sidebar";
 import { SearchBox } from "./search-box";
 
-export type NavKey = "contribute" | "sheet" | "graph" | "import" | "statistics" | "settings" | "admin";
+export type NavKey = "contribute" | "sheet" | "classifications" | "graph" | "import" | "statistics" | "settings" | "admin";
 
-const NAV: Array<{ key: NavKey; href: string; label: string; hint: string; icon: ReactNode; adminOnly?: true }> = [
+export const APP_NAV_ITEMS: Array<{ key: NavKey; href: string; label: string; hint: string; icon: ReactNode; adminOnly?: true }> = [
   { key: "contribute", href: "/contribute", label: "함께 정리", hint: "미완성", icon: <IconContribute /> },
   { key: "sheet", href: "/sheet", label: "시트", hint: "표 편집", icon: <IconGrid /> },
+  { key: "classifications", href: "/classifications", label: "분류 체계", hint: "도메인 · 업무", icon: <IconClassification /> },
   { key: "graph", href: "/graph", label: "관계도", hint: "맥락 탐색", icon: <IconGraph /> },
   { key: "import", href: "/import", label: "가져오기", hint: "엑셀", icon: <IconImport /> },
   { key: "statistics", href: "/statistics", label: "통계", hint: "운영 현황", icon: <IconStatistics />, adminOnly: true },
@@ -30,6 +31,7 @@ export function AppShell({
   current,
   wide = false,
   roomy = false,
+  dense = false,
   children,
 }: {
   user: CurrentUser | null;
@@ -38,6 +40,8 @@ export function AppShell({
   wide?: boolean;
   /** 문서형 여백은 유지하되, 편집기처럼 가로 공간이 더 필요한 화면에 쓴다. */
   roomy?: boolean;
+  /** 편집기처럼 한 화면에 많은 정보를 보여줘야 하는 작업 화면의 여백을 줄인다. */
+  dense?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -64,7 +68,7 @@ export function AppShell({
         )}
         navigation={(
           <nav id="primary-navigation" aria-label="주 메뉴" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto lg:flex-none lg:flex-col lg:items-stretch lg:gap-0.5 lg:px-2">
-            {NAV.filter((item) => !item.adminOnly || user?.role === "admin").map((item) => {
+            {APP_NAV_ITEMS.filter((item) => !item.adminOnly || user?.role === "admin").map((item) => {
               const active = item.key === current;
               return (
                 <Link
@@ -97,7 +101,10 @@ export function AppShell({
         "min-w-0 flex-1",
         wide && "flex min-h-[calc(100svh-3.5rem)] flex-col lg:h-screen lg:min-h-0 lg:overflow-hidden",
       )}>
-        <header className="sticky top-14 z-20 shrink-0 border-b border-line bg-panel/90 px-4 py-2 backdrop-blur lg:top-0 lg:px-6">
+        {/* 시트의 필터 바와 고정 표 머리글보다 높은 쌓임 맥락을 만든다. 자식인
+            계정 팝오버의 z-index가 아무리 높아도 이 부모가 낮으면 표 아래로
+            들어가므로, 앱 전역 상단 바 자체가 작업 영역보다 위에 있어야 한다. */}
+        <header className="sticky top-14 z-[70] shrink-0 border-b border-line bg-panel/90 px-4 py-2 backdrop-blur lg:top-0 lg:px-6">
           <div className="flex w-full items-center gap-2 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(16rem,42rem)_minmax(0,1fr)] lg:gap-4">
             <h1 className="sr-only min-w-0 truncate text-sm font-semibold tracking-tight text-ink lg:not-sr-only">
               {title}
@@ -121,7 +128,9 @@ export function AppShell({
             "min-w-0 flex-1",
             wide
               ? "flex min-h-0 flex-col"
-              : cx("mx-auto w-full px-5 py-8 lg:px-8", roomy ? "max-w-6xl" : "max-w-4xl"),
+              : dense
+                ? "mx-auto w-full max-w-[90rem] px-4 py-3 lg:px-6"
+                : cx("mx-auto w-full px-5 py-8 lg:px-8", roomy ? "max-w-6xl" : "max-w-4xl"),
           )}
         >
           {children}
@@ -170,6 +179,17 @@ function IconGraph() {
       <circle cx="11.5" cy="3.5" r="1.6" />
       <circle cx="12" cy="12" r="1.6" />
       <path d="m4.4 7.2 5.7-3M4.5 8.7l6 2.5M11.7 5.1l.2 5.3" />
+    </svg>
+  );
+}
+
+function IconClassification() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <rect x="1.75" y="2" width="4" height="4" rx="1" />
+      <rect x="10.25" y="2" width="4" height="4" rx="1" />
+      <rect x="6" y="10" width="4" height="4" rx="1" />
+      <path d="M3.75 6v1.25H8m4.25-1.25v1.25H8M8 7.25V10" strokeLinecap="round" />
     </svg>
   );
 }

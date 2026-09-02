@@ -4,13 +4,14 @@ import { surfaceKeys } from "@grossary/db";
 import { AppShell } from "@/components/app-shell";
 import { MarkdownContent } from "@/components/markdown-content";
 import { CompletionBadge, CompletionProgress, MissingFields } from "@/components/term-completion";
-import { CategoryBadge, DomainBadges, OwnerBadge, StatusBadge, TopicBadge } from "@/components/term-badges";
+import { CategoryBadges, DomainBadges, OwnerBadge, StatusBadge, TopicBadge } from "@/components/term-badges";
 import { isUuid } from "@/lib/api-error";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { businessCategoryLabel, TERM_TYPE_LABEL } from "@/lib/terms/enums";
 import { termCompletion } from "@/lib/terms/completion";
 import { getTermByIdOrSlug, listRelatedTerms, type SurfaceKind } from "@/lib/terms/query";
 import { displayName, relativeTime, spineHue } from "@/lib/ui/format";
+import { getTermQualitySettings } from "@/lib/workspace/term-quality";
 
 // F6/P1: `Record<유니온, T>` + 폴백 없음. SurfaceKind에 값이 추가되면 tsc가 여기서 막는다.
 const KIND_LABEL: Record<SurfaceKind, string> = {
@@ -76,8 +77,11 @@ export default async function TermDetailPage({
     : undefined;
 
   const hue = spineHue(term.slug);
-  const completion = termCompletion(term);
-  const relatedTerms = await listRelatedTerms(term, 6);
+  const [qualitySettings, relatedTerms] = await Promise.all([
+    getTermQualitySettings(),
+    listRelatedTerms(term, 6),
+  ]);
+  const completion = termCompletion(term, qualitySettings);
   const graphHref = term.category
     ? `/graph?category=${encodeURIComponent(term.category)}`
     : term.topic
@@ -142,7 +146,7 @@ export default async function TermDetailPage({
           <CompletionBadge completion={completion} />
           <span className="chip">{TERM_TYPE_LABEL[term.termType]}</span>
           <DomainBadges domain={term.domain} />
-          <CategoryBadge category={term.category} label={term.categoryLabel} />
+          <CategoryBadges categories={term.categories} labels={term.categoryLabels} />
           <TopicBadge topic={term.topic} />
           <OwnerBadge ownerName={term.ownerName} mine={term.ownerId === user.id} />
           {/* F4: R40이 updatedAt을 TermDetail에 정식으로 추가한 이유가 "위키

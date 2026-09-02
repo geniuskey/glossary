@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL_TEST: postgres://grossary:grossary@localhost:5434/grossary_test
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Start PostgreSQL
+        run: docker compose up -d --wait
+
+      - name: Migrate databases
+        run: |
+          DATABASE_URL=postgres://grossary:grossary@localhost:5434/grossary pnpm --filter @grossary/db db:migrate
+          DATABASE_URL=postgres://grossary:grossary@localhost:5434/grossary_test pnpm --filter @grossary/db db:migrate
+
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm docs:build
+
+      - name: Stop PostgreSQL
+        if: always()
+        run: docker compose down -v

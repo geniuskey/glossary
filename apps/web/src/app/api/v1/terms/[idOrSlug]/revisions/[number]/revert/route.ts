@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAuth } from "@/lib/auth/require";
 import { getTermByIdOrSlug } from "@/lib/terms/query";
+import { representativeDuplicateFieldErrors } from "@/lib/terms/create";
 import { revertTerm } from "@/lib/terms/revert";
 import type { UpdateTermSuccess } from "@/lib/terms/update";
 import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
@@ -63,6 +64,14 @@ export const POST = withApiErrors(
     }
     if ("invalid" in result) {
       return apiError("validation_failed", "되돌릴 수 없는 리비전입니다.", 400, { issues: result.issues });
+    }
+    if ("representativeConflict" in result) {
+      return apiError(
+        "validation_failed",
+        "다른 용어와 대표 표기가 겹쳐 되돌릴 수 없습니다.",
+        400,
+        { fieldErrors: representativeDuplicateFieldErrors(result.duplicates), formErrors: [] },
+      );
     }
     if ("slugConflict" in result) {
       return apiError("slug_conflict", "이미 사용 중인 URL 주소입니다.", 409, { field: "slug" });

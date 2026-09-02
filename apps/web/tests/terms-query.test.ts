@@ -51,7 +51,7 @@ beforeAll(async () => {
       fullNameEn: "Auto Exposure",
       nameKo: "자동노출",
       domain: ["ISP"],
-      category: "design",
+      category: ["design", "process"],
       topic: "QueryRelationProbe",
       status: "active",
       surfaces: [
@@ -115,7 +115,7 @@ beforeAll(async () => {
       termType: "concept",
       nameEn: `Related Exposure ${Date.now()}`,
       domain: ["ISP", "Sensor"],
-      category: "design",
+      category: ["design"],
       topic: "QueryRelationProbe",
       status: "active",
       definitionMd: "상세 화면 관련 용어 테스트.",
@@ -137,7 +137,14 @@ afterAll(async () => {
 test("슬러그로 상세를 조회한다", async () => {
   const detail = await getTermByIdOrSlug(aeSlug);
   expect(detail?.nameEn).toBe("AE");
+  expect(detail?.categories).toEqual(["design", "process"]);
+  expect(detail?.categoryLabels).toEqual(["설계", "공정"]);
   expect(detail?.surfaces.length).toBeGreaterThanOrEqual(3);
+});
+
+test("두 번째 업무 분류로도 용어를 필터링한다", async () => {
+  const result = await listTerms({ category: "process", page: 1, pageSize: 20 });
+  expect(result.items.map((term) => term.id)).toContain(ids[0]);
 });
 
 // R60(F3): isUuid 분기의 반대쪽(byId)은 아무도 실행하지 않았다 — query.ts:70의
@@ -179,7 +186,7 @@ test("관련 용어는 같은 도메인·카테고리에서 찾고 자기 자신
 });
 
 test("도메인과 카테고리가 모두 없으면 관련 용어 조회는 빈 배열이다", async () => {
-  await expect(listRelatedTerms({ id: ids[3]!, termType: "concept", domain: [], category: null, topic: null })).resolves.toEqual([]);
+  await expect(listRelatedTerms({ id: ids[3]!, termType: "concept", domain: [], categories: [], category: null, topic: null })).resolves.toEqual([]);
 });
 
 test("비권장 표기로 검색해도 해당 용어가 나온다", async () => {
@@ -259,7 +266,7 @@ test("상세 응답은 TermDetail 필드만 싣고 원본 테이블의 다른 �
   const keys = Object.keys(detail ?? {}).sort();
   expect(keys).toEqual(
     [
-      "id", "slug", "termType", "nameEn", "nameKo", "domain", "category", "categoryLabel", "topic",
+      "id", "slug", "termType", "nameEn", "nameKo", "domain", "categories", "category", "categoryLabel", "categoryLabels", "topic",
       "ownerId", "ownerName", "status",
       "fullNameEn", "fullNameKo", "definitionMd", "bodyMd", "updatedAt",
       "surfaces", "homonyms",

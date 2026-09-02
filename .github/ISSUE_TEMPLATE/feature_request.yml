@@ -1,0 +1,35 @@
+name: 기능 제안
+description: 해결하려는 문제와 원하는 사용 흐름을 제안해 주세요.
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 해결하려는 문제
+      description: 현재 누가 어떤 상황에서 불편한가요?
+    validations:
+      required: true
+  - type: textarea
+    id: flow
+    attributes:
+      label: 원하는 사용 흐름
+      description: 사용자가 무엇을 보고 어떤 행동을 하게 되는지 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 고려한 대안
+  - type: textarea
+    id: impact
+    attributes:
+      label: API·데이터·운영 영향
+      description: 호환성, 마이그레이션이나 새 설정이 필요하다면 적어 주세요.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 확인
+      options:
+        - label: 기존 이슈와 로드맵을 검색했습니다.
+          required: true

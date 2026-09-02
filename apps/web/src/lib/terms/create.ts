@@ -97,6 +97,52 @@ export async function findDuplicates(
   }));
 }
 
+export type RepresentativeField = "nameEn" | "nameKo";
+
+export interface RepresentativeDuplicate {
+  field: RepresentativeField;
+  text: string;
+  matches: DuplicateWarning[];
+}
+
+/**
+ * 새 용어의 대표 영문·국문 표기가 기존의 어떤 검색 표기와 겹치는지 찾는다.
+ * 대표명끼리만 비교하면 기존 약어를 새 대표명으로 다시 등록할 수 있어 검색 결과가
+ * 둘로 갈라지므로, 대상은 term_surfaces의 전체 승인·비승인 표기다.
+ */
+export async function findRepresentativeDuplicates(
+  input: Pick<TermInput, "nameEn" | "nameKo">,
+  excludeTermId?: string,
+): Promise<RepresentativeDuplicate[]> {
+  const representatives = (["nameEn", "nameKo"] as const)
+    .map((field) => ({ field, text: input[field]?.trim() ?? "" }))
+    .filter((entry) => entry.text.length > 0);
+  const warnings = await findDuplicates(
+    representatives.map(({ text }) => ({ text, lang: "neutral", kind: "canonical" })),
+    excludeTermId,
+  );
+
+  return representatives.flatMap(({ field, text }) => {
+    const key = surfaceKeys(text).normLoose;
+    const uniqueMatches = new Map(
+      warnings.filter((warning) => warning.normLoose === key).map((warning) => [warning.conflictingTermId, warning]),
+    );
+    return uniqueMatches.size > 0 ? [{ field, text, matches: [...uniqueMatches.values()] }] : [];
+  });
+}
+
+export function representativeDuplicateFieldErrors(
+  duplicates: readonly RepresentativeDuplicate[],
+): Partial<Record<RepresentativeField, string[]>> {
+  const fieldErrors: Partial<Record<RepresentativeField, string[]>> = {};
+  for (const duplicate of duplicates) {
+    fieldErrors[duplicate.field] = duplicate.matches.map(
+      (match) => `"${duplicate.text}" 표기가 기존 용어 ${match.conflictingSlug}에 이미 등록되어 있습니다.`,
+    );
+  }
+  return fieldErrors;
+}
+
 // R48: postgres-js 에러 객체는 SQLSTATE를 `.code`로, 위반한 제약 이름을
 // `.constraint_name`으로 싣는다(v3.4.9 connection.js 필드 매핑 확인). 슬러그
 // 충돌(23505 on terms_slug_unique)만 재시도 대상이다 — term_surfaces_unique
@@ -152,7 +198,7 @@ export async function createTerm(
             fullNameEn: input.fullNameEn ?? null,
             fullNameKo: input.fullNameKo ?? null,
             domain: input.domain,
-            category: input.category ?? null,
+            category: input.category ?? [],
             topic: input.topic ?? null,
             ownerId: input.ownerId ?? null,
             status: input.status,

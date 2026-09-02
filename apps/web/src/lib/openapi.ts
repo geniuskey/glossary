@@ -48,6 +48,12 @@ const businessCategorySchema = {
   maxLength: 64,
   description: "관리자가 구성한 업무 분류의 안정적인 key. 표시 이름은 categoryLabel로 제공됩니다.",
 };
+const businessCategoriesSchema = {
+  type: "array",
+  maxItems: 12,
+  items: { type: "string", maxLength: 64 },
+  description: "분류 체계에 등록된 업무 분류 key 목록. 기존 단일 문자열 요청도 호환됩니다.",
+};
   const statusSchema = {
     type: "string",
     enum: ["draft", "active", "deprecated", "forbidden"],
@@ -62,6 +68,10 @@ export const openApiSpec = {
     description:
       "센서 제품군 용어집. 사내망 온프레미스 배포이며 평문 HTTP로 동작할 수 있다 " +
       "(docs/operations.md 참조). 모든 에러 응답은 { error: { code, message, details? } } 형태다.",
+    license: {
+      name: "Apache License 2.0",
+      identifier: "Apache-2.0",
+    },
   },
   servers: [{ url: "/api/v1" }],
   // 인증 수단은 둘이다. 화면은 세션 쿠키를, AI-Lint 같은 외부 도구는 API 키를 쓴다.
@@ -79,7 +89,7 @@ export const openApiSpec = {
       Error: errorEnvelope,
       TermSummary: {
         type: "object",
-        required: ["id", "slug", "termType", "domain", "status"],
+        required: ["id", "slug", "termType", "domain", "categories", "categoryLabels", "status"],
         properties: {
           id: { type: "string", format: "uuid" },
           slug: { type: "string" },
@@ -87,8 +97,10 @@ export const openApiSpec = {
           nameEn: { type: ["string", "null"] },
           nameKo: { type: ["string", "null"] },
           domain: { type: "array", items: { type: "string" } },
+          categories: businessCategoriesSchema,
           category: businessCategorySchema,
           categoryLabel: { type: ["string", "null"] },
+          categoryLabels: { type: "array", items: { type: "string" } },
           topic: { type: ["string", "null"] },
           ownerId: { type: ["string", "null"], format: "uuid" },
           ownerName: { type: ["string", "null"], description: "SSO 그룹/조직이 적용된 담당자 라벨" },
@@ -289,20 +301,56 @@ export const openApiSpec = {
         },
       },
     },
-    "/admin/categories": {
+    "/admin/term-quality": {
       get: {
-        summary: "관리자용 업무 분류 목록과 사용 건수 조회",
+        summary: "용어 작성 수준 조회",
         security: [{ sessionCookie: [] }],
         responses: {
-          "200": json("{ categories }", { type: "object" }),
+          "200": json("{ settings: { definitionMinChars, bodyMinChars } }", { type: "object" }),
           "401": errorResponse("unauthorized"),
           "403": errorResponse("forbidden — 관리자만 사용 가능"),
         },
       },
+      patch: {
+        summary: "용어 작성 수준 수정",
+        security: [{ sessionCookie: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["definitionMinChars", "bodyMinChars"],
+                additionalProperties: false,
+                properties: {
+                  definitionMinChars: { type: "integer", minimum: 0, maximum: 10000 },
+                  bodyMinChars: { type: "integer", minimum: 0, maximum: 10000 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": json("저장된 용어 작성 수준", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+    },
+    "/admin/categories": {
+      get: {
+        summary: "업무 분류 목록과 사용 건수 조회",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        responses: {
+          "200": json("{ categories }", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+        },
+      },
       post: {
         summary: "업무 분류 추가",
-        security: [{ sessionCookie: [] }],
-        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["label"], additionalProperties: false, properties: { label: { type: "string", minLength: 1, maxLength: 60 } } } } } },
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["labelKo", "labelEn"], additionalProperties: false, properties: { labelKo: { type: "string", minLength: 1, maxLength: 60 }, labelEn: { type: "string", minLength: 1, maxLength: 60 } } } } } },
         responses: {
           "201": json("{ category }", { type: "object" }),
           "400": errorResponse("validation_failed"),
@@ -329,7 +377,7 @@ export const openApiSpec = {
       patch: {
         summary: "업무 분류 표시 이름 변경",
         security: [{ sessionCookie: [] }],
-        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["label"], additionalProperties: false, properties: { label: { type: "string", minLength: 1, maxLength: 60 } } } } } },
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["labelKo", "labelEn"], additionalProperties: false, properties: { labelKo: { type: "string", minLength: 1, maxLength: 60 }, labelEn: { type: "string", minLength: 1, maxLength: 60 } } } } } },
         responses: {
           "200": json("{ ok: true }", { type: "object" }),
           "400": errorResponse("validation_failed"),
@@ -338,12 +386,69 @@ export const openApiSpec = {
         },
       },
       delete: {
-        summary: "사용되지 않는 업무 분류 삭제",
-        security: [{ sessionCookie: [] }],
+        summary: "업무 분류 삭제 (사용 중인 분류는 관리자만 가능)",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
         responses: {
           "204": { description: "삭제됨" },
           "404": errorResponse("not_found"),
-          "409": errorResponse("operation_conflict — 용어가 사용 중"),
+          "403": errorResponse("forbidden — 사용 중인 분류는 관리자만 삭제 가능"),
+        },
+      },
+    },
+    "/admin/domains": {
+      get: {
+        summary: "도메인 목록과 사용 건수 조회",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        responses: {
+          "200": json("{ domains }", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+        },
+      },
+      post: {
+        summary: "도메인 추가",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["label"], additionalProperties: false, properties: { label: { type: "string", minLength: 1, maxLength: 100 } } } } } },
+        responses: {
+          "201": json("{ domain }", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden"),
+          "409": errorResponse("operation_conflict — 같은 이름이 이미 있음"),
+        },
+      },
+      patch: {
+        summary: "도메인 표시 순서 변경",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["keys"], additionalProperties: false, properties: { keys: { type: "array", items: { type: "string" } } } } } } },
+        responses: {
+          "200": json("{ ok: true }", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden"),
+          "409": errorResponse("operation_conflict — 목록이 변경됨"),
+        },
+      },
+    },
+    "/admin/domains/{key}": {
+      parameters: [{ name: "key", in: "path", required: true, schema: { type: "string", maxLength: 64 } }],
+      patch: {
+        summary: "도메인 이름 변경",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["label"], additionalProperties: false, properties: { label: { type: "string", minLength: 1, maxLength: 100 } } } } } },
+        responses: {
+          "200": json("{ ok: true }", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "404": errorResponse("not_found"),
+          "409": errorResponse("operation_conflict"),
+        },
+      },
+      delete: {
+        summary: "도메인 삭제 (사용 중인 도메인은 관리자만 가능)",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        responses: {
+          "204": { description: "삭제됨" },
+          "404": errorResponse("not_found"),
+          "403": errorResponse("forbidden — 사용 중인 도메인은 관리자만 삭제 가능"),
         },
       },
     },
@@ -536,7 +641,7 @@ export const openApiSpec = {
                   definitionMd: { type: ["string", "null"] },
                   bodyMd: { type: ["string", "null"] },
                   domain: { type: "array", items: { type: "string" } },
-                  category: businessCategorySchema,
+                  category: businessCategoriesSchema,
                   topic: { type: ["string", "null"] },
                   ownerId: { type: ["string", "null"], format: "uuid" },
                   status: statusSchema,
@@ -547,8 +652,8 @@ export const openApiSpec = {
           },
         },
         responses: {
-          // warnings는 중복 후보다. 저장은 이미 끝난 상태로 내려온다 — 동음이의어를
-          // 허용하는 설계라 서버가 막지 않는다.
+          // 대표 영문·국문 표기 중복은 400으로 막는다. 추가 표기 중복은 기존처럼
+          // 생성 결과의 warnings로 돌려 동음이의어 검토 경로를 남긴다.
           "201": json("{ term, surfaces, warnings }", { type: "object" }),
           "400": errorResponse("validation_failed"),
         },

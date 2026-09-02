@@ -5,7 +5,13 @@ import {
 import { extractAttachmentHashes } from "@/lib/attachments/refs";
 import { getDb } from "@/lib/db";
 import { checkSurfaceConflicts } from "./schema";
-import { findDuplicates, isSlugConflict, type DuplicateWarning } from "./create";
+import {
+  findDuplicates,
+  findRepresentativeDuplicates,
+  isSlugConflict,
+  type DuplicateWarning,
+  type RepresentativeDuplicate,
+} from "./create";
 import { defaultCaseSensitive, deriveSurfaces, pickExplicitSurfaces, type CanonicalNames } from "./surfaces";
 import type { SurfaceInput, TermInput } from "./schema";
 
@@ -50,6 +56,7 @@ export type UpdateTermResult =
   | UpdateTermSuccess
   | { conflict: true; currentRevision: number }
   | { slugConflict: true }
+  | { representativeConflict: true; duplicates: RepresentativeDuplicate[] }
   | { invalid: true; issues: string[] }
   // R75: 존재하지 않는 termId로 호출되는 건 레이스와 무관하게 도달 가능한 정상
   // 상태다(Task 13이 오래된/잘못된 id로 부를 수 있다) — updateTerm은 export된
@@ -160,6 +167,15 @@ export async function updateTerm(
   // 기존 값이다) 병합된 이름에 대해서만 판정할 수 있어 zod가 아니라 여기 있다.
   if (!mergedNames.nameEn && !mergedNames.nameKo) {
     return { invalid: true, issues: ["nameEn 또는 nameKo 중 최소 하나는 남아 있어야 합니다."] };
+  }
+
+  // 추가 표기는 동음이의어가 있을 수 있어 아래 warnings로만 알리지만, 목록과
+  // 제목의 기준이 되는 대표 영문·국문 이름은 다른 용어의 어떤 검색 표기와도
+  // 겹치면 안 된다. 생성과 같은 규칙을 최종 병합 이름에 적용하되, 수정 대상
+  // 자신이 이미 가진 표기는 충돌에서 제외한다.
+  const representativeDuplicates = await findRepresentativeDuplicates(mergedNames, termId);
+  if (representativeDuplicates.length > 0) {
+    return { representativeConflict: true, duplicates: representativeDuplicates };
   }
 
   const nextSurfaces = deriveSurfaces(mergedNames, explicitSurfaces);

@@ -93,8 +93,18 @@ export async function getPlatformStatistics(days: 30 | 90 | 180 = 30): Promise<P
     .from(terms)
     .as("domain_terms");
 
-  const categoryName = sql<string>`coalesce(${terms.category}::text, '미분류')`;
-  const groupFields = (source: typeof terms | typeof domainTerms) => ({
+  const categoryTerms = db
+    .select({
+      name: sql<string>`unnest(case when cardinality(${terms.category}) = 0 then array['미분류']::text[] else ${terms.category} end)`.as("name"),
+      status: terms.status,
+      ownerId: terms.ownerId,
+      createdAt: terms.createdAt,
+      updatedAt: terms.updatedAt,
+    })
+    .from(terms)
+    .as("category_terms");
+
+  const groupFields = (source: typeof terms | typeof domainTerms | typeof categoryTerms) => ({
     total: sql<number>`count(*)::int`,
     active: sql<number>`count(*) filter (where ${source.status} = 'active')::int`,
     draft: sql<number>`count(*) filter (where ${source.status} = 'draft')::int`,
@@ -132,8 +142,8 @@ export async function getPlatformStatistics(days: 30 | 90 | 180 = 30): Promise<P
       .from(users).where(inWindow(users.createdAt)).groupBy(userDay).orderBy(userDay),
     db.select({ day: revisionDay, count: sql<number>`count(*)::int` })
       .from(termRevisions).where(inWindow(termRevisions.createdAt)).groupBy(revisionDay).orderBy(revisionDay),
-    db.select({ name: categoryName, ...groupFields(terms) })
-      .from(terms).groupBy(categoryName).orderBy(sql`count(*) desc`, categoryName),
+    db.select({ name: categoryTerms.name, ...groupFields(categoryTerms) })
+      .from(categoryTerms).groupBy(categoryTerms.name).orderBy(sql`count(*) desc`, categoryTerms.name),
     db.select({ name: domainTerms.name, ...groupFields(domainTerms) })
       .from(domainTerms).groupBy(domainTerms.name).orderBy(sql`count(*) desc`, domainTerms.name),
   ]);

@@ -59,7 +59,7 @@ async function seedTerm(nameEn: string) {
     null,
   );
   createdTermIds.push(term.id);
-  await updateTerm(term.id, { nameKo: "고친 이름" }, null);
+  await updateTerm(term.id, { nameKo: `고친 이름 ${nameEn}` }, null);
   return term;
 }
 

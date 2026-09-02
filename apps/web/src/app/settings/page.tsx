@@ -20,9 +20,6 @@ export default async function SettingsPage() {
       <header className="mb-8 border-b border-line pb-5">
         <p className="text-xs font-semibold tracking-[0.16em] text-brand">내 환경</p>
         <p className="mt-2 text-xl font-semibold tracking-tight text-balance lg:hidden">설정</p>
-        <p className="mt-1.5 max-w-2xl text-sm leading-6 text-ink-2">
-          계정과 화면 환경을 확인하고, Grossary를 외부 도구와 연결할 API 키를 관리합니다.
-        </p>
       </header>
 
       <div className="grid gap-4 md:grid-cols-2">

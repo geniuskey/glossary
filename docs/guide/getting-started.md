@@ -171,6 +171,7 @@ pnpm --filter @grossary/web exec tsx scripts/seed-terms.ts it semiconductor
 | `/import` | 엑셀 업로드 → dry-run 리포트 → 반영 |
 | `/statistics` | 용어·사용자 성장과 도메인/업무 분류별 관리 통계 (관리자 전용) |
 | `/settings` | 계정·화면 설정과 API 키 발급·폐기 |
+| `/classifications` | 도메인과 업무 분류 관리 |
 | `/settings/sso` | SSO 연결 설정 (관리자 전용) |
 | `/admin` | 홈 문구, 업무 분류 목록과 사용자·세션 관리 (관리자 전용) |
 

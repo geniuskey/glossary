@@ -23,7 +23,7 @@ test("전체 화면은 Esc로 닫히고 배경 스크롤을 복원한다", () =>
 test("본문 편집과 미리보기는 한 번에 하나만 보여 빈 패널을 만들지 않는다", () => {
   expect(source).toContain('mode === "preview" ? "hidden" : "block"');
   expect(source).toContain('mode === "edit" ? "hidden" : "block"');
-  expect(source).toContain('minHeight: "16rem"');
+  expect(source).toContain('minHeight: compact ? "10rem" : "16rem"');
   expect(source).not.toContain('minHeight: "26rem"');
 });
 

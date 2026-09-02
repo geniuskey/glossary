@@ -12,6 +12,8 @@ import {
 } from "@grossary/db";
 import { isUuid } from "@/lib/api-error";
 import { getDb } from "@/lib/db";
+import { getTermQualitySettings } from "@/lib/workspace/term-quality";
+import type { TermQualitySettings } from "@/lib/workspace/term-quality-values";
 import { DEFAULT_DIR, DEFAULT_SORT, type SortDir, type SortKey, type TermRow } from "./grid";
 import { termCompletion, type TermCompletion } from "./completion";
 import { ownerDisplayLabelSql } from "./owners";
@@ -39,8 +41,10 @@ export interface TermSummary {
   nameEn: string | null;
   nameKo: string | null;
   domain: string[];
+  categories: BusinessCategory[];
   category: BusinessCategory | null;
   categoryLabel: string | null;
+  categoryLabels: string[];
   topic: string | null;
   ownerId: string | null;
   ownerName: string | null;
@@ -77,8 +81,14 @@ export type TermDetailResponse = Omit<TermDetail, "updatedAt"> & { updatedAt: st
 const categoryLabelSql = sql<string | null>`(
   select ${businessCategories.label}
   from ${businessCategories}
-  where ${businessCategories.key} = ${terms.category}
+  where ${businessCategories.key} = ${terms.category}[1]
 )`;
+
+const categoryLabelsSql = sql<string[]>`coalesce((
+  select array_agg(category_catalog.label order by selected.ordinality)
+  from unnest(${terms.category}) with ordinality as selected(category_key, ordinality)
+  join business_categories category_catalog on category_catalog.key = selected.category_key
+), array[]::text[])`;
 
 const summaryColumns = {
   id: terms.id,
@@ -87,8 +97,10 @@ const summaryColumns = {
   nameEn: terms.nameEn,
   nameKo: terms.nameKo,
   domain: terms.domain,
-  category: terms.category,
+  categories: terms.category,
+  category: sql<BusinessCategory | null>`${terms.category}[1]`,
   categoryLabel: categoryLabelSql,
+  categoryLabels: categoryLabelsSql,
   topic: terms.topic,
   ownerId: terms.ownerId,
   ownerName: ownerDisplayLabelSql,
@@ -164,12 +176,12 @@ export interface RelatedTerm extends TermSummary {
  * 다시 구현해 화면과 DB 사이에 별도 규칙을 만들지 않기 위해서다.
  */
 export async function listRelatedTerms(
-  source: Pick<TermSummary, "id" | "termType" | "domain" | "category" | "topic">,
+  source: Pick<TermSummary, "id" | "termType" | "domain" | "categories" | "category" | "topic">,
   limit = 6,
 ): Promise<RelatedTerm[]> {
   const relationshipFilters = [
     ...source.domain.map((domain) => arrayContains(terms.domain, [domain])),
-    ...(source.category ? [eq(terms.category, source.category)] : []),
+    ...source.categories.map((category) => arrayContains(terms.category, [category])),
     ...(source.topic ? [eq(terms.topic, source.topic)] : []),
   ];
   if (relationshipFilters.length === 0) return [];
@@ -188,10 +200,11 @@ export async function listRelatedTerms(
 
   const related = candidates.map((term) => {
     const sharedDomains = source.domain.filter((domain) => term.domain.includes(domain));
+    const sharedCategories = source.categories.filter((category) => term.categories.includes(category));
     return {
       ...term,
       sharedDomains,
-      sameCategory: Boolean(source.category && term.category === source.category),
+      sameCategory: sharedCategories.length > 0,
       sameTopic: Boolean(source.topic && term.topic === source.topic),
     };
   });
@@ -236,7 +249,7 @@ function listFilters(params: ListParams) {
   if (params.status) filters.push(eq(terms.status, params.status));
   else if (!params.includeDraft) filters.push(ne(terms.status, "draft"));
   if (params.domain) filters.push(arrayContains(terms.domain, [params.domain]));
-  if (params.category) filters.push(eq(terms.category, params.category));
+  if (params.category) filters.push(arrayContains(terms.category, [params.category]));
   if (params.topic) filters.push(eq(terms.topic, params.topic));
   if (params.ownerId) filters.push(eq(terms.ownerId, params.ownerId));
 
@@ -389,19 +402,32 @@ export interface TermFacets {
   needsContribution: number;
 }
 
-const missingDefinition = sql`nullif(btrim(coalesce(${terms.definitionMd}, '')), '') is null`;
+function missingDefinition(settings: TermQualitySettings) {
+  return sql`char_length(btrim(coalesce(${terms.definitionMd}, ''))) < ${settings.definitionMinChars}`;
+}
+function missingBody(settings: TermQualitySettings) {
+  return sql`char_length(btrim(coalesce(${terms.bodyMd}, ''))) < ${settings.bodyMinChars}`;
+}
 const missingDomain = sql`cardinality(${terms.domain}) = 0`;
-const incompleteTerm = or(missingDefinition, missingDomain)!;
-const needsContribution = or(eq(terms.status, "draft"), incompleteTerm)!;
-const missingCount = sql<number>`(
-  case when ${missingDefinition} then 1 else 0 end
-  + case when ${missingDomain} then 1 else 0 end
-)`;
+function incompleteTerm(settings: TermQualitySettings) {
+  return or(missingDefinition(settings), missingBody(settings), missingDomain)!;
+}
+function needsContributionFilter(settings: TermQualitySettings) {
+  return or(eq(terms.status, "draft"), incompleteTerm(settings))!;
+}
+function missingCount(settings: TermQualitySettings) {
+  return sql<number>`(
+    case when ${missingDefinition(settings)} then 1 else 0 end
+    + case when ${missingBody(settings)} then 1 else 0 end
+    + case when ${missingDomain} then 1 else 0 end
+  )`;
+}
 
 export interface ContributionTerm extends TermSummary {
   fullNameEn: string | null;
   fullNameKo: string | null;
   definitionMd: string | null;
+  bodyMd: string | null;
   updatedAt: string;
   completion: TermCompletion;
 }
@@ -409,6 +435,8 @@ export interface ContributionTerm extends TermSummary {
 /** 초안과 미완성 용어를 가장 비어 있고 오래 기다린 순으로 보여주는 공동 정리 대기열. */
 export async function listContributionTerms(limit = 60, currentUserId?: string): Promise<{ items: ContributionTerm[]; total: number }> {
   const db = getDb();
+  const settings = await getTermQualitySettings();
+  const needsContribution = needsContributionFilter(settings);
   const ownerRank = currentUserId ? sql`case when ${terms.ownerId} = ${currentUserId} then 0 else 1 end` : sql`1`;
   const [rows, [counted]] = await Promise.all([
     db
@@ -417,11 +445,12 @@ export async function listContributionTerms(limit = 60, currentUserId?: string):
         fullNameEn: terms.fullNameEn,
         fullNameKo: terms.fullNameKo,
         definitionMd: terms.definitionMd,
+        bodyMd: terms.bodyMd,
         updatedAt: terms.updatedAt,
       })
       .from(terms)
       .where(needsContribution)
-      .orderBy(ownerRank, desc(missingCount), terms.updatedAt, terms.id)
+      .orderBy(ownerRank, desc(missingCount(settings)), terms.updatedAt, terms.id)
       .limit(limit),
     db.select({ total: sql<number>`count(*)::int` }).from(terms).where(needsContribution),
   ]);
@@ -430,7 +459,7 @@ export async function listContributionTerms(limit = 60, currentUserId?: string):
     items: rows.map((row) => ({
       ...row,
       updatedAt: row.updatedAt.toISOString(),
-      completion: termCompletion(row),
+      completion: termCompletion(row, settings),
     })),
     total: counted?.total ?? 0,
   };
@@ -446,6 +475,8 @@ export async function listContributionTerms(limit = 60, currentUserId?: string):
  */
 export async function termFacets(): Promise<TermFacets> {
   const db = getDb();
+  const settings = await getTermQualitySettings();
+  const needsContribution = needsContributionFilter(settings);
 
   // domain은 text[]다. unnest는 집합 반환 함수라 GROUP BY와 같은 SELECT 목록에
   // 둘 수 없다(Postgres 10+) — 먼저 펼친 서브쿼리를 만들고 그 결과를 센다.
@@ -465,7 +496,7 @@ export async function termFacets(): Promise<TermFacets> {
         count: sql<number>`count(${terms.id})::int`,
       })
       .from(businessCategories)
-      .leftJoin(terms, eq(terms.category, businessCategories.key))
+      .leftJoin(terms, sql`${businessCategories.key} = any(${terms.category})`)
       .groupBy(businessCategories.key, businessCategories.label, businessCategories.sortOrder)
       .orderBy(businessCategories.sortOrder, businessCategories.key),
     db

@@ -8,6 +8,8 @@ import {
   isRevisionConflict,
   listRevisions,
   updateTerm,
+  type UpdateTermResult,
+  type UpdateTermSuccess,
 } from "../src/lib/terms/update.js";
 
 const db = createDb(process.env.DATABASE_URL_TEST!);
@@ -30,15 +32,14 @@ async function seed() {
   return term;
 }
 
-function expectSaved<T extends { term: unknown }>(
-  result:
-    | T
-    | { conflict: true; currentRevision: number }
-    | { slugConflict: true }
-    | { invalid: true; issues: string[] }
-    | { notFound: true },
-): T {
-  if ("conflict" in result || "slugConflict" in result || "invalid" in result || "notFound" in result) {
+function expectSaved(result: UpdateTermResult): UpdateTermSuccess {
+  if (
+    "conflict" in result
+    || "slugConflict" in result
+    || "representativeConflict" in result
+    || "invalid" in result
+    || "notFound" in result
+  ) {
     throw new Error(`예상치 못한 결과: ${JSON.stringify(result)}`);
   }
   return result;
@@ -340,11 +341,7 @@ test("리비전 스냅샷에 실제 term/surfaces 내용이 담긴다 (R73)", as
   expect(snapshot.surfaces?.map((s) => s.text).sort()).toEqual(["BLC", "Black Level", "블랙레벨"]);
 });
 
-// R74(F6): R56의 나머지 절반 — 이름 변경으로 새로 생기는 표기도 findDuplicates에
-// 전달된 최종 집합(nextSurfaces)에 포함되어야 경고가 뜬다. findDuplicates가
-// explicitSurfaces만 받거나(P21) nextSurfaces가 옛 이름으로 계산되면(P4) 이
-// 경고가 조용히 사라진다.
-test("이름을 바꿔서 다른 term과 겹쳐도 중복 경고가 뜬다 (R74)", async () => {
+test("대표 이름을 다른 term의 표기와 같게 바꾸면 저장하지 않는다", async () => {
   const term = await seed();
   const other = await createTerm(
     { termType: "concept", nameEn: "Rename Dup Probe", domain: [], status: "active", surfaces: [] },
@@ -352,9 +349,16 @@ test("이름을 바꿔서 다른 term과 겹쳐도 중복 경고가 뜬다 (R74)
   );
   created.push(other.term.id);
 
-  const result = expectSaved(await updateTerm(term.id, { nameEn: "Rename Dup Probe" }, null));
-  const warningsForOther = result.warnings.filter((w) => w.conflictingTermId === other.term.id);
-  expect(warningsForOther).toHaveLength(1);
+  const result = await updateTerm(term.id, { nameEn: "Rename Dup Probe" }, null);
+  expect("representativeConflict" in result).toBe(true);
+  if ("representativeConflict" in result) {
+    expect(result.duplicates[0]).toMatchObject({ field: "nameEn", text: "Rename Dup Probe" });
+    expect(result.duplicates[0]!.matches[0]!.conflictingTermId).toBe(other.term.id);
+  }
+
+  const [unchanged] = await db.select({ nameEn: terms.nameEn }).from(terms).where(eq(terms.id, term.id));
+  expect(unchanged?.nameEn).toBe("Black Level");
+  expect(await listRevisions(term.id)).toHaveLength(1);
 });
 
 // R75(F7): 존재하지 않는 termId로 호출되는 건 레이스와 무관하게 도달 가능한

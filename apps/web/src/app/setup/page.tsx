@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { BrandMark } from "@/components/app-shell";
+import { InfoFooter } from "@/components/info-links";
 import { needsSetup } from "@/lib/auth/setup";
 import { SetupForm } from "./setup-form";
 
@@ -34,6 +35,7 @@ export default async function SetupPage() {
 
           <SetupForm />
         </div>
+        <InfoFooter className="mt-6" />
       </div>
     </main>
   );
