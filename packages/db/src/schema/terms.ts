@@ -8,6 +8,10 @@ export const termTypeEnum = pgEnum("term_type", [
   "concept", "proper_name", "identifier", "unit",
 ]);
 
+export const termQualityProfileEnum = pgEnum("term_quality_profile", [
+  "auto", "mapping", "context", "guidance",
+]);
+
 export const domains = pgTable(
   "domains",
   {
@@ -60,6 +64,7 @@ export const terms = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     slug: text("slug").notNull(),
     termType: termTypeEnum("term_type").notNull().default("concept"),
+    qualityProfile: termQualityProfileEnum("quality_profile").notNull().default("auto"),
     nameEn: text("name_en"),
     nameKo: text("name_ko"),
     fullNameEn: text("full_name_en"),

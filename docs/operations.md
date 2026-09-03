@@ -9,14 +9,14 @@
 DB 마이그레이터를 한 저장소의 별도 태그로 배포한다. 서버에는 소스 코드가 필요 없고
 `docker-compose.hub.yml`과 환경 파일만 있으면 된다.
 
-> 현재 배포판은 **`0.1.2` 개발 미리보기**다. 기능 검토와 사내 파일럿에 사용하고,
+> 현재 배포판은 **`0.1.5` 개발 미리보기**다. 기능 검토와 사내 파일럿에 사용하고,
 > 업그레이드 전에는 반드시 DB 백업과 복구를 검증한다. 앱과 마이그레이터는 항상 같은
 > 버전 조합으로 고정한다.
 
 | 이미지 | 고정 태그 | 용도 |
 |---|---|---|
-| `euiyun/grossary` | `0.1.2` | Grossary 웹 애플리케이션 |
-| `euiyun/grossary` | `0.1.2-migrator` | 앱 기동 전에 실행하는 DB 마이그레이션 |
+| `euiyun/grossary` | `0.1.5` | Grossary 웹 애플리케이션 |
+| `euiyun/grossary` | `0.1.5-migrator` | 앱 기동 전에 실행하는 DB 마이그레이션 |
 
 `latest`와 `latest-migrator`도 제공하지만, 예고 없이 다음 개발 버전을 가리킬 수 있으므로
 재현 가능한 배포에는 버전 태그를 사용한다.
@@ -33,12 +33,28 @@ docker compose --env-file .env -f docker-compose.hub.yml up -d
 운영에서는 `latest` 대신 아래처럼 앱과 마이그레이터를 같은 버전으로 고정한다.
 
 ```dotenv
-GROSSARY_IMAGE=euiyun/grossary:0.1.2
-GROSSARY_MIGRATOR_IMAGE=euiyun/grossary:0.1.2-migrator
+GROSSARY_IMAGE=euiyun/grossary:0.1.5
+GROSSARY_MIGRATOR_IMAGE=euiyun/grossary:0.1.5-migrator
 ```
 
 `database-init`이 `pg_trgm` 확장을 준비하고, `migrator`가 성공한 뒤에만 `app`이
 시작된다. 데이터는 `grossary_hub_pgdata` 볼륨에 보존된다.
+
+### 용어 챗봇 암호화 키
+
+Gemini API 키와 OpenAI-compatible custom header 값은 DB에 AES-256-GCM 암호문으로만
+저장한다. 앱을 시작하기 전에 `.env`에 32자 이상의 고정 키를 설정한다.
+
+```dotenv
+GROSSARY_ENCRYPTION_KEY=replace-with-a-long-random-encryption-key
+```
+
+`openssl rand -base64 48` 등으로 별도 생성하고 비밀 저장소에 백업한다. 이 값은 DB
+백업에 들어가지 않으며, 배포 후 값을 바꾸거나 잃으면 저장된 AI 비밀값을 읽을 수 없다.
+복구 리허설에도 운영과 같은 값을 별도로 주입해야 한다. 연결 자체는 관리자 패널의
+**AI 연결** 탭에서 설정·시험한다. `Connected`는 모델 목록 조회가 아니라 선택한 모델의
+실제 생성 요청까지 성공했다는 뜻이다. 공급자가 모델을 폐기하면 목록에는 남아 있어도
+생성 요청이 실패할 수 있으므로 연결 시험 메시지에 따라 다른 모델을 선택한다.
 
 ## 소스에서 직접 빌드해 기동
 
@@ -168,6 +184,11 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 
 AI-Lint가 쓰는 지점은 `POST /api/v1/terms/lookup`이다 — 문서에 등장한 표기들을
 한 번의 호출로 확인한다.
+
+용어 챗봇은 로그인한 사용자가 `POST /api/v1/chat`으로 사용한다. 공급자 주소·모델·API
+키·custom header의 조회와 변경, 연결 시험은 관리자 세션만 허용한다. 질문에 매칭된
+초안 이외의 용어 내용은 설정한 외부 공급자에 전송될 수 있으므로 조직의 데이터 처리
+정책에 맞는 공급자를 연결해야 한다.
 
 ## 로그
 

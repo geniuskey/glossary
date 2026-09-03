@@ -1,5 +1,6 @@
 import type { BusinessCategoryLiteral, TermStatusLiteral } from "./enums";
 import { inferSurfaceLang } from "./surface-language";
+import type { TermQualityProfile } from "@/lib/workspace/term-quality-values";
 
 // R116: term-form.tsx는 Client Component라 vitest.config.ts에 jsdom 환경이 없는
 // 이 저장소(R97)에서는 렌더 테스트를 할 수 없다. logout.ts/list-params.ts와
@@ -14,6 +15,7 @@ export interface SurfaceDraft {
 
 export interface TermFormState {
   termType: string;
+  qualityProfile: TermQualityProfile;
   nameEn: string;
   nameKo: string;
   fullNameEn: string;
@@ -30,6 +32,7 @@ export interface TermFormState {
 
 export interface TermWritePayload {
   termType: string;
+  qualityProfile: TermQualityProfile;
   nameEn?: string;
   nameKo?: string;
   fullNameEn?: string;
@@ -74,6 +77,7 @@ export function parseSurfaceBatch(input: string): string[] {
 export function buildTermPayload(form: TermFormState, expectedRevision?: number): TermWritePayload {
   const payload: TermWritePayload = {
     termType: form.termType,
+    qualityProfile: form.qualityProfile,
     nameEn: form.nameEn.trim() || undefined,
     nameKo: form.nameKo.trim() || undefined,
     fullNameEn: form.fullNameEn.trim() || undefined,

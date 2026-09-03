@@ -213,9 +213,14 @@ test("정리 대기열은 비어 있는 핵심 정보를 함께 돌려준다", a
     complete: false,
     completed: 0,
     total: 2,
-    missing: ["definition", "domain"],
+    missing: ["definition", "context"],
   });
   expect(queue.total).toBeGreaterThanOrEqual(queue.items.length);
+});
+
+test("Full name이 있는 약어는 정의가 없어도 표기 매핑으로 완성되어 정리 대기열에서 제외된다", async () => {
+  const queue = await listContributionTerms(500);
+  expect(queue.items.map((item) => item.id)).not.toContain(ids[0]);
 });
 
 test("완성된 초안도 공개 검토를 위해 공동 정리 대기열에 남는다", async () => {
@@ -266,7 +271,7 @@ test("상세 응답은 TermDetail 필드만 싣고 원본 테이블의 다른 �
   const keys = Object.keys(detail ?? {}).sort();
   expect(keys).toEqual(
     [
-      "id", "slug", "termType", "nameEn", "nameKo", "domain", "categories", "category", "categoryLabel", "categoryLabels", "topic",
+      "id", "slug", "termType", "qualityProfile", "nameEn", "nameKo", "domain", "categories", "category", "categoryLabel", "categoryLabels", "topic",
       "ownerId", "ownerName", "status",
       "fullNameEn", "fullNameKo", "definitionMd", "bodyMd", "updatedAt",
       "surfaces", "homonyms",

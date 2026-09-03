@@ -121,13 +121,34 @@ test("관리자 화면은 사용자 목록을 읽기 전에 관리자 역할을 
   expect(userQuery).toBeGreaterThan(roleGuard);
 });
 
-test("관리자 화면은 홈·작성 수준·사용자를 탭으로 분리한다", () => {
+test("관리자 화면은 홈·AI 활용 기준·AI 연결·사용자를 탭으로 분리한다", () => {
   const content = stripComments(readFileSync(path.join(appDir, "admin", "page.tsx"), "utf8"));
   expect(content).toContain('aria-label="관리자 하위 메뉴"');
   expect(content).toContain('{ key: "home", label: "홈 화면" }');
-  expect(content).toContain('{ key: "quality", label: "작성 수준" }');
+  expect(content).toContain('{ key: "quality", label: "AI 활용 기준" }');
+  expect(content).toContain('{ key: "ai", label: "AI 연결" }');
   expect(content).toContain('{ key: "users", label: "사용자" }');
-  expect(content).toContain('tab === "quality" && <TermQualityPanel');
+  expect(content).toContain('else if (tab === "quality")');
+  expect(content).toContain('else if (tab === "ai")');
+});
+
+test("AI 연결 화면은 자격 증명 입력 뒤 모델 목록을 불러와 select로 전환한다", () => {
+  const content = stripComments(readFileSync(path.join(appDir, "admin", "ai-settings-panel.tsx"), "utf8"));
+  expect(content).toContain('fetch("/api/v1/admin/ai-config/models"');
+  expect(content).toContain('models.length > 0 ? (');
+  expect(content).toContain('<select id="ai-model"');
+  expect(content).toContain('API 키를 입력하면 모델 목록을 불러옵니다');
+});
+
+test("AI 연결 화면은 테스트 성공을 녹색 Connected 상태로 표시한다", () => {
+  const content = stripComments(readFileSync(path.join(appDir, "admin", "ai-settings-panel.tsx"), "utf8"));
+  expect(content).toContain("setConnected(Boolean(connectionSucceeded))");
+  expect(content).toContain("void verifyConnection(false)");
+  expect(content).not.toContain("setModels(body.models);\n      setConnected(true)");
+  expect(content).toContain('if (key === "baseUrl") setConnected(false)');
+  expect(content).not.toContain('if (key !== "enabled") setConnected(false)');
+  expect(content).toContain('border-ok/35 bg-ok-soft');
+  expect(content).toContain("Connected");
 });
 
 test("시트 도구 막대는 가로 스크롤 밖에서 현재 필터와 붙여넣기 도움말을 보여준다", () => {

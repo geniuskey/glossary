@@ -38,6 +38,8 @@ API 한 번으로 문서의 표기를 검증할 수 있게 만든다.
    Confluence용 읽기 전용 임베드 화면으로 정리 범위를 공유한다.
 5. **사내 계정 로그인** — 관리 화면에서 OIDC 또는 OAuth 2.0을 고르고 엔드포인트와
    claim 매핑을 설정한다. OIDC는 JWKS 서명·Issuer·Audience·Nonce까지 검증한다.
+6. **용어집 근거 챗봇** — 질문에 관련된 공개 용어만 찾아 Gemini 또는
+   OpenAI-compatible API에 전달하고, 답변 아래에서 근거 용어를 다시 확인한다.
 
 핵심은 **개념(Term)과 표기(Surface)의 분리**다. 엑셀이 무너진 이유는 한 행이 개념이자
 표기였기 때문이다. `Auto Exposure` / `AE` / `자동노출` / `오토익스포저`가 모두 하나의
@@ -69,6 +71,12 @@ pnpm --filter @grossary/web dev   # http://localhost:3000
 
 개발용 Postgres는 호스트 **5434** 포트에 뜬다. 자세한 절차는
 [시작하기](https://geniuskey.github.io/grossary/guide/getting-started)를 본다.
+
+용어 챗봇을 쓰려면 `.env`의 `GROSSARY_ENCRYPTION_KEY`에 32자 이상의 고정값을 넣고,
+관리자 패널의 **AI 연결**에서 Gemini 또는 OpenAI-compatible API를 설정한다. 이 키를
+바꾸거나 잃으면 DB에 암호화해 둔 API 키와 custom header를 복구할 수 없다.
+API Key를 입력하면 모델 목록을 불러오며, `Connected`는 선택 모델로 실제 생성 요청까지
+성공한 경우에만 표시된다. 자세한 설정은 [AI 활용과 챗봇](https://geniuskey.github.io/grossary/guide/ai)을 참고한다.
 
 > [!WARNING]
 > 개발 머신에서 `docker-compose.prod.yml`로 `up`하지 마라. 두 파일이 같은 볼륨 이름

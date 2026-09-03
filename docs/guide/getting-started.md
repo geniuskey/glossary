@@ -31,9 +31,14 @@ cp .env.example .env
 | `POSTGRES_PASSWORD` | 프로덕션 Compose에서만 쓴다 |
 | `AUTH_MODE` | 기본 `local`; oauth2-proxy 헤더 인증은 `oauth2-proxy` |
 | `SSO_TRUST_PROXY_HEADERS` | OIDC/OAuth2 혼합 모드의 헤더 신뢰 여부. 기본 `false` |
+| `GROSSARY_ENCRYPTION_KEY` | AI API Key와 custom header 암호화 키. AI 연결을 쓰면 32자 이상 고정값 필요 |
 
 oauth2-proxy 배포의 헤더명·nginx 덮어쓰기·계정 연결 설정은 [SSO 연결](/guide/sso)을
 따른다.
+
+용어 챗봇을 사용한다면 `GROSSARY_ENCRYPTION_KEY`를 먼저 생성해 `.env`와 운영 비밀
+저장소에 보관한다. 이 값을 바꾸거나 잃으면 DB에 저장한 AI 비밀값을 복호화할 수 없다.
+연결 방법은 [AI 활용과 챗봇](/guide/ai)을 따른다.
 
 개발용 Postgres는 호스트 **5434** 포트에 뜬다(로컬에 이미 5432를 쓰는 Postgres가
 있어도 부딪히지 않게 한 것이다).

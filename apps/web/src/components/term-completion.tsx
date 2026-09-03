@@ -1,5 +1,6 @@
 import { MISSING_TERM_FIELD_LABEL, type TermCompletion } from "@/lib/terms/completion";
 import { cx } from "@/lib/ui/format";
+import { TERM_QUALITY_PROFILE_LABEL } from "@/lib/workspace/term-quality-values";
 
 export function CompletionBadge({ completion }: { completion: TermCompletion }) {
   return (
@@ -9,7 +10,9 @@ export function CompletionBadge({ completion }: { completion: TermCompletion }) 
         completion.complete ? "bg-ok-soft text-ok" : "bg-warn-soft text-warn",
       )}
     >
-      {completion.complete ? "핵심 정보 정리됨" : `정리 ${completion.completed}/${completion.total}`}
+      {completion.complete
+        ? `${TERM_QUALITY_PROFILE_LABEL[completion.resolvedProfile]} 기준 충족`
+        : `${TERM_QUALITY_PROFILE_LABEL[completion.resolvedProfile]} ${completion.completed}/${completion.total}`}
     </span>
   );
 }
@@ -19,7 +22,7 @@ export function CompletionProgress({ completion }: { completion: TermCompletion 
     <div
       className="h-1.5 overflow-hidden rounded-full bg-line"
       role="progressbar"
-      aria-label="용어 핵심 정보 완성도"
+      aria-label={`${TERM_QUALITY_PROFILE_LABEL[completion.resolvedProfile]} 기준 충족도`}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={completion.percent}

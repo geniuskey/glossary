@@ -24,6 +24,10 @@ import * as ssoDiscoverRoute from "../src/app/api/v1/sso/discover/route.js";
 import * as ssoProxyCheckRoute from "../src/app/api/v1/sso/proxy-check/route.js";
 import * as adminHomeContentRoute from "../src/app/api/v1/admin/home-content/route.js";
 import * as adminTermQualityRoute from "../src/app/api/v1/admin/term-quality/route.js";
+import * as adminAiConfigRoute from "../src/app/api/v1/admin/ai-config/route.js";
+import * as adminAiConfigTestRoute from "../src/app/api/v1/admin/ai-config/test/route.js";
+import * as adminAiConfigModelsRoute from "../src/app/api/v1/admin/ai-config/models/route.js";
+import * as chatRoute from "../src/app/api/v1/chat/route.js";
 import * as adminCategoriesRoute from "../src/app/api/v1/admin/categories/route.js";
 import * as adminCategoryRoute from "../src/app/api/v1/admin/categories/[key]/route.js";
 import * as adminDomainsRoute from "../src/app/api/v1/admin/domains/route.js";
@@ -98,7 +102,11 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "sso/discover", mod: ssoDiscoverRoute, allowed: ["POST"], allow: "POST" },
   { name: "sso/proxy-check", mod: ssoProxyCheckRoute, allowed: ["GET"], allow: "GET, HEAD" },
   { name: "admin/home-content", mod: adminHomeContentRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
-  { name: "admin/term-quality", mod: adminTermQualityRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
+  { name: "admin/term-quality", mod: adminTermQualityRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
+  { name: "admin/ai-config", mod: adminAiConfigRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
+  { name: "admin/ai-config/test", mod: adminAiConfigTestRoute, allowed: ["POST"], allow: "POST" },
+  { name: "admin/ai-config/models", mod: adminAiConfigModelsRoute, allowed: ["POST"], allow: "POST" },
+  { name: "chat", mod: chatRoute, allowed: ["POST"], allow: "POST" },
   { name: "admin/categories", mod: adminCategoriesRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "admin/categories/[key]", mod: adminCategoryRoute, allowed: ["PATCH", "DELETE"], allow: "PATCH, DELETE" },
   { name: "admin/domains", mod: adminDomainsRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },

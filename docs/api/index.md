@@ -29,6 +29,14 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | PUT | [`/sso`](/api/auth#sso-설정) | 세션(admin) | SSO 설정 저장 |
 | POST | [`/sso/discover`](/api/auth#sso-설정) | 세션(admin) | issuer의 발견 문서로 엔드포인트 채우기 |
 | GET | [`/sso/proxy-check`](/api/auth#oauth2-proxy-헤더-확인) | 세션(admin) | 현재 요청에 실제 도착한 프록시 헤더 진단 |
+| GET | [`/admin/ai-config`](/api/ai#ai-연결-설정) | 세션(admin) | 마스킹된 AI 연결 설정 조회 |
+| PATCH | [`/admin/ai-config`](/api/ai#ai-연결-설정) | 세션(admin) | AI 연결 설정 저장 |
+| POST | [`/admin/ai-config/models`](/api/ai#모델-목록) | 세션(admin) | 공급자가 제공하는 모델 목록 조회 |
+| POST | [`/admin/ai-config/test`](/api/ai#연결-시험) | 세션(admin) | 선택 모델로 실제 생성 요청 시험 |
+| GET | [`/admin/term-quality`](/api/ai#ai-활용-기준) | 세션(admin) | AI 활용 기준 조회 |
+| POST | [`/admin/term-quality`](/api/ai#ai-활용-기준) | 세션(admin) | 기준 변경 영향 미리보기 |
+| PATCH | [`/admin/term-quality`](/api/ai#ai-활용-기준) | 세션(admin) | AI 활용 기준 저장 |
+| POST | [`/chat`](/api/ai#용어집-챗봇) | `read` | 용어집에 근거한 AI 질문 |
 | GET | [`/terms`](/api/terms#목록-조회) | `read` | 용어 목록·검색 |
 | POST | [`/terms`](/api/terms#등록) | `write` | 용어 등록 |
 | GET | [`/terms/{idOrSlug}`](/api/terms#상세) | `read` | 용어 상세 |
@@ -64,8 +72,8 @@ API 키는 해시만 저장한다. 평문 토큰은 발급 응답에서만 볼 �
 ### scope
 
 키마다 `read` / `write` / `validate` 중 하나 이상을 갖는다. 요구 scope가 없으면
-403 `forbidden`이다. 세션 사용자는 scope 대신 `role`(`admin` \| `editor`)로 갈린다 —
-`DELETE /terms/{idOrSlug}`만 `admin` 전용이다.
+403 `forbidden`이다. 세션 사용자는 scope 대신 `role`(`admin` \| `editor`)로 갈린다.
+용어 삭제와 `/admin/*`의 홈·AI·사용자 설정처럼 명시된 관리 작업은 `admin` 전용이다.
 
 ## 에러 규약
 
@@ -93,8 +101,11 @@ API 키는 해시만 저장한다. 평문 토큰은 발급 응답에서만 볼 �
 | `revision_conflict` | 409 | 낙관적 잠금 충돌. `details.currentRevision` |
 | `email_taken` | 409 | 가입하려는 이메일이 이미 있음(대소문자 무시) |
 | `payload_too_large` | 413 | 업로드 본문 상한 초과 |
+| `rate_limited` | 429 | 챗봇의 사용자·API Key별 분당 요청 제한 초과 |
 | `method_not_allowed` | 405 | `Allow` 헤더에 실제 허용 메서드가 실려 온다 |
 | `internal_error` | 500 | 처리되지 않은 예외. 스택은 응답에 노출하지 않는다 |
+| `ai_provider_error` | 502 | 선택 모델·인증·할당량 또는 AI 공급자 연결 문제 |
+| `ai_not_enabled` | 503 | 관리자가 용어 챗봇 연결을 활성화하지 않음 |
 
 ::: tip 4xx와 5xx의 경계
 재시도해도 절대 성공하지 않는 입력은 5xx가 아니라 4xx다. `?page=1e999`이나 형식이

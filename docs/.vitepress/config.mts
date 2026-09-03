@@ -37,6 +37,7 @@ export default defineConfig({
           { text: "아키텍처", link: "/guide/architecture" },
           { text: "데이터 모델", link: "/guide/data-model" },
           { text: "협업과 관계도", link: "/guide/collaboration" },
+          { text: "AI 활용과 챗봇", link: "/guide/ai" },
           { text: "SSO 연결", link: "/guide/sso" },
           { text: "테스트", link: "/guide/testing" },
           { text: "로드맵", link: "/guide/roadmap" },
@@ -50,6 +51,7 @@ export default defineConfig({
           { text: "용어", link: "/api/terms" },
           { text: "임포트", link: "/api/import" },
           { text: "첨부 이미지", link: "/api/attachments" },
+          { text: "AI 연결과 챗봇", link: "/api/ai" },
         ],
       },
       {

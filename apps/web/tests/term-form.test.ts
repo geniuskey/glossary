@@ -8,6 +8,7 @@ import { interpretResponse } from "../src/lib/terms/form-response.js";
 
 const BASE_FORM: TermFormState = {
   termType: "concept",
+  qualityProfile: "auto",
   nameEn: "Auto Exposure",
   nameKo: "",
   fullNameEn: "",

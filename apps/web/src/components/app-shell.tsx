@@ -6,13 +6,14 @@ import { AccountMenu } from "./account-menu";
 import { CollapsibleSidebar } from "./collapsible-sidebar";
 import { SearchBox } from "./search-box";
 
-export type NavKey = "contribute" | "sheet" | "classifications" | "graph" | "import" | "statistics" | "settings" | "admin";
+export type NavKey = "contribute" | "sheet" | "classifications" | "graph" | "chat" | "import" | "statistics" | "settings" | "admin";
 
 export const APP_NAV_ITEMS: Array<{ key: NavKey; href: string; label: string; hint: string; icon: ReactNode; adminOnly?: true }> = [
   { key: "contribute", href: "/contribute", label: "함께 정리", hint: "미완성", icon: <IconContribute /> },
   { key: "sheet", href: "/sheet", label: "시트", hint: "표 편집", icon: <IconGrid /> },
   { key: "classifications", href: "/classifications", label: "분류 체계", hint: "도메인 · 업무", icon: <IconClassification /> },
   { key: "graph", href: "/graph", label: "관계도", hint: "맥락 탐색", icon: <IconGraph /> },
+  { key: "chat", href: "/chat", label: "용어 챗봇", hint: "AI 질문", icon: <IconChat /> },
   { key: "import", href: "/import", label: "가져오기", hint: "엑셀", icon: <IconImport /> },
   { key: "statistics", href: "/statistics", label: "통계", hint: "운영 현황", icon: <IconStatistics />, adminOnly: true },
 ];
@@ -179,6 +180,15 @@ function IconGraph() {
       <circle cx="11.5" cy="3.5" r="1.6" />
       <circle cx="12" cy="12" r="1.6" />
       <path d="m4.4 7.2 5.7-3M4.5 8.7l6 2.5M11.7 5.1l.2 5.3" />
+    </svg>
+  );
+}
+
+function IconChat() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <path d="M2 3.75A1.75 1.75 0 0 1 3.75 2h8.5A1.75 1.75 0 0 1 14 3.75v5.5A1.75 1.75 0 0 1 12.25 11H7l-3.5 2.75V11.1A1.75 1.75 0 0 1 2 9.25v-5.5Z" strokeLinejoin="round" />
+      <path d="M5 6.5h6M5 8.5h3.5" strokeLinecap="round" />
     </svg>
   );
 }

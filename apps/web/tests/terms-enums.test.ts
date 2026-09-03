@@ -1,4 +1,4 @@
-import { surfaceKindEnum, surfaceLangEnum, termStatusEnum, termTypeEnum } from "@grossary/db";
+import { surfaceKindEnum, surfaceLangEnum, termQualityProfileEnum, termStatusEnum, termTypeEnum } from "@grossary/db";
 import { expect, test } from "vitest";
 import {
   EXPLICIT_SURFACE_KINDS,
@@ -6,6 +6,7 @@ import {
   TERM_STATUSES,
   TERM_TYPES,
 } from "../src/lib/terms/enums.js";
+import { TERM_QUALITY_PROFILES } from "../src/lib/workspace/term-quality-values.js";
 
 // R114: enums.ts는 term-form.tsx(클라이언트 번들)가 @grossary/db를 직접 import하지
 // 않도록 하기 위한 리터럴 배열 사본이다. 사본이라 원본(DB pgEnum)과 어긋날 수
@@ -31,4 +32,9 @@ test("EXPLICIT_SURFACE_KINDS는 복수 표준명을 포함해 DB surface kind �
   expect(new Set(EXPLICIT_SURFACE_KINDS)).toEqual(new Set(surfaceKindEnum.enumValues));
   expect(EXPLICIT_SURFACE_KINDS.length).toBe(surfaceKindEnum.enumValues.length);
   expect(EXPLICIT_SURFACE_KINDS).toContain("canonical");
+});
+
+test("TERM_QUALITY_PROFILES는 DB 품질 프로필 enum과 정확히 같은 집합이다", () => {
+  expect(new Set(TERM_QUALITY_PROFILES)).toEqual(new Set(termQualityProfileEnum.enumValues));
+  expect(TERM_QUALITY_PROFILES.length).toBe(termQualityProfileEnum.enumValues.length);
 });

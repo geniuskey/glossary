@@ -106,6 +106,7 @@ interface MatchRow {
   id: string;
   slug: string;
   termType: TermType;
+  qualityProfile: TermSummary["qualityProfile"];
   nameEn: string | null;
   nameKo: string | null;
   domain: string[];
@@ -135,6 +136,7 @@ export async function lookupTerms(texts: string[]): Promise<LookupResult[]> {
           id: terms.id,
           slug: terms.slug,
           termType: terms.termType,
+          qualityProfile: terms.qualityProfile,
           nameEn: terms.nameEn,
           nameKo: terms.nameKo,
           domain: terms.domain,
@@ -175,7 +177,7 @@ export async function lookupTerms(texts: string[]): Promise<LookupResult[]> {
       if (seen.has(m.id)) continue;
       seen.add(m.id);
       matchedTerms.push({
-        id: m.id, slug: m.slug, termType: m.termType,
+        id: m.id, slug: m.slug, termType: m.termType, qualityProfile: m.qualityProfile,
         nameEn: m.nameEn, nameKo: m.nameKo, domain: m.domain,
         categories: m.categories, category: m.category, categoryLabel: m.categoryLabel, categoryLabels: m.categoryLabels,
         topic: m.topic, ownerId: m.ownerId, ownerName: m.ownerName, status: m.status,

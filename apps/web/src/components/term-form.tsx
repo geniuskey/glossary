@@ -37,6 +37,12 @@ import type { BusinessCategoryOption } from "@/lib/terms/categories";
 import { slugify, slugValidationMessage } from "@/lib/terms/slug";
 import { inferSurfaceLang } from "@/lib/terms/surface-language";
 import { cx } from "@/lib/ui/format";
+import {
+  TERM_QUALITY_PROFILES,
+  TERM_QUALITY_PROFILE_DESCRIPTION,
+  TERM_QUALITY_PROFILE_LABEL,
+  type TermQualityProfile,
+} from "@/lib/workspace/term-quality-values";
 
 export interface TermFormInitial extends TermFormState {
   slug?: string;
@@ -61,6 +67,13 @@ const SURFACE_LANGUAGE_STYLE: Record<SurfaceLangLiteral, string> = {
 };
 const SURFACE_LANGUAGE_ORDER = ["ko", "en", "neutral"] as const;
 
+const QUALITY_PROFILE_HINT: Record<TermQualityProfile, string> = {
+  auto: "약어·식별자·단위에 Full name이 있으면 표기 매핑으로, 나머지는 맥락 설명으로 판단합니다. 폐기·금지 용어는 사용 지침을 적용합니다.",
+  mapping: TERM_QUALITY_PROFILE_DESCRIPTION.mapping,
+  context: TERM_QUALITY_PROFILE_DESCRIPTION.context,
+  guidance: TERM_QUALITY_PROFILE_DESCRIPTION.guidance,
+};
+
 function commaSeparatedValues(value: string): string[] {
   return [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
 }
@@ -71,6 +84,7 @@ function surfaceLangLabel(lang: string): string {
 
 const EMPTY: TermFormState = {
   termType: "concept",
+  qualityProfile: "auto",
   nameEn: "",
   nameKo: "",
   fullNameEn: "",
@@ -148,6 +162,7 @@ export function TermForm({
   const labels = TERM_FIELD_LABELS[form.termType as TermTypeLiteral] ?? TERM_FIELD_LABELS.concept;
   const fieldDisplayLabel: Record<string, string> = {
     termType: "용어 종류",
+    qualityProfile: "AI 활용 기준",
     nameEn: labels.nameEn,
     nameKo: labels.nameKo,
     fullNameEn: labels.fullNameEn,
@@ -799,6 +814,28 @@ export function TermForm({
                 {TERM_STATUSES.map((status) => <option key={status} value={status}>{TERM_STATUS_LABEL[status]}</option>)}
               </select>
               <FormFieldError id="status-error" errors={errorsFor("status")} />
+            </div>
+
+            <div className="block">
+              <span className="label inline-flex items-center gap-1.5">
+                <label htmlFor="term-quality-profile">AI 활용 기준</label>
+                <HelpTip text={QUALITY_PROFILE_HINT[form.qualityProfile]} />
+              </span>
+              <select
+                id="term-quality-profile"
+                name="qualityProfile"
+                value={form.qualityProfile}
+                onChange={(event) => updateField("qualityProfile", event.target.value as TermQualityProfile)}
+                disabled={locked}
+                aria-invalid={errorsFor("qualityProfile") ? true : undefined}
+                aria-describedby={errorsFor("qualityProfile") ? "qualityProfile-error" : undefined}
+                className="field"
+              >
+                {TERM_QUALITY_PROFILES.map((profile) => (
+                  <option key={profile} value={profile}>{TERM_QUALITY_PROFILE_LABEL[profile]}</option>
+                ))}
+              </select>
+              <FormFieldError id="qualityProfile-error" errors={errorsFor("qualityProfile")} />
             </div>
 
             <ClassificationMultiSelect

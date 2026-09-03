@@ -11,6 +11,10 @@ export type ApiErrorCode =
   // 가입 화면이 이유를 말해주지 않으면 같은 이메일로 계속 다시 시도하게 된다.
   | "email_taken"
   | "payload_too_large"
+  | "rate_limited"
+  | "ai_not_enabled"
+  | "ai_provider_error"
+  | "ai_config_error"
   | "method_not_allowed"
   | "internal_error";
 

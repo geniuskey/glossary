@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { listManagedUsers } from "@/lib/admin/users";
+import { loadAiConfig, publicAiConfig } from "@/lib/ai/config";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { getHomeContent } from "@/lib/workspace/home-content";
-import { getTermQualitySettings } from "@/lib/workspace/term-quality";
+import { getTermQualityOverview, getTermQualitySettings } from "@/lib/workspace/term-quality";
 import { cx } from "@/lib/ui/format";
+import { AiSettingsPanel } from "./ai-settings-panel";
 import { HomeContentPanel } from "./home-content-panel";
 import { TermQualityPanel } from "./term-quality-panel";
 import { UsersPanel } from "./users-panel";
@@ -14,7 +17,8 @@ export const metadata = { title: "관리자" };
 
 const ADMIN_TABS = [
   { key: "home", label: "홈 화면" },
-  { key: "quality", label: "작성 수준" },
+  { key: "quality", label: "AI 활용 기준" },
+  { key: "ai", label: "AI 연결" },
   { key: "users", label: "사용자" },
 ] as const;
 type AdminTab = (typeof ADMIN_TABS)[number]["key"];
@@ -28,11 +32,13 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const requestedTab = Array.isArray(rawTab) ? rawTab[0] : rawTab;
   const tab: AdminTab = ADMIN_TABS.some((item) => item.key === requestedTab) ? requestedTab as AdminTab : "home";
 
-  const [managedUsers, homeContent, termQuality] = await Promise.all([
-    listManagedUsers(),
-    getHomeContent(),
-    getTermQualitySettings(),
-  ]);
+  let panel: ReactNode;
+  if (tab === "home") panel = <HomeContentPanel initialContent={await getHomeContent()} />;
+  else if (tab === "quality") {
+    const settings = await getTermQualitySettings();
+    panel = <TermQualityPanel initialSettings={settings} initialOverview={await getTermQualityOverview(settings)} />;
+  } else if (tab === "ai") panel = <AiSettingsPanel initialConfig={publicAiConfig(await loadAiConfig())} />;
+  else panel = <UsersPanel initialUsers={await listManagedUsers()} viewerId={user.id} />;
 
   return (
     <AppShell user={user} title="관리자 패널" current="admin" roomy>
@@ -60,9 +66,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         </nav>
       </header>
 
-      {tab === "home" && <HomeContentPanel initialContent={homeContent} />}
-      {tab === "quality" && <TermQualityPanel initialSettings={termQuality} />}
-      {tab === "users" && <UsersPanel initialUsers={managedUsers} viewerId={user.id} />}
+      {panel}
     </AppShell>
   );
 }

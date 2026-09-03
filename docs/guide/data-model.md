@@ -10,10 +10,11 @@
 | `id` | uuid | PK |
 | `slug` | text | 유니크. URL 식별자 |
 | `term_type` | enum | `concept`(일반 개념) \| `proper_name`(고유명칭) \| `identifier`(식별자) \| `unit`(단위) |
+| `quality_profile` | enum | `auto` \| `mapping` \| `context` \| `guidance`. AI 활용에 필요한 정보 수준 |
 | `name_en`, `name_ko` | text | 목록·제목에 쓸 대표 표기. 최소 하나는 있어야 한다 |
 | `full_name_en`, `full_name_ko` | text | 대표 풀네임 또는 확장명 |
 | `domain` | text[] | ISP, HW, SW, Optics, PM … 동음이의어 구분축 |
-| `category` | text | → `business_categories.key`. 관리형 업무 분류 하나 |
+| `category` | text[] | `business_categories.key` 목록. 쓰기 API가 존재 여부를 검증 |
 | `topic` | text | 팀별 세부 주제. 자유 입력 단일 값 |
 | `owner_id` | uuid | 완성을 책임질 사용자. 삭제되면 null |
 | `status` | enum | `draft` \| `active` \| `deprecated` \| `forbidden` |
@@ -28,12 +29,30 @@
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | `key` | text | PK. 용어와 공유 URL이 참조하는 안정적인 값 |
-| `label` | text | 화면에 표시하는 이름. 관리자가 변경 가능 |
+| `label` | text | 화면에 표시하는 국문 이름 |
+| `label_en` | text | 영문 이름. 분류를 추가할 때 국문 이름과 함께 필수 |
 | `sort_order` | integer | 선택 목록과 필터의 표시 순서 |
 | `created_at`, `updated_at` | timestamptz | |
 
 기본 설치에는 제품·고객·프로젝트·공정·설계·평가·장비·조직·시스템·기타가 들어간다.
-목록은 `/admin`에서 확장할 수 있으며, 사용 중인 행은 외래 키와 관리 API가 삭제를 막는다.
+목록은 사이드바의 **분류 체계**에서 확장한다. 일반 사용자도 추가하고 미사용 분류를
+삭제할 수 있지만, 하나 이상의 용어가 쓰는 분류는 관리자만 삭제할 수 있다.
+
+## domains — 관리형 도메인
+
+`key`, 화면 이름 `label`, `sort_order`를 가진다. 용어의 `domain`은 여러 도메인 key를
+담는 배열이다. 업무 분류와 함께 **분류 체계** 화면에서 관리하며, 편집 화면에서 정의되지
+않은 값을 입력하면 새 문자열을 암묵적으로 만들지 않고 해당 화면으로 안내한다.
+
+## AI 활용 설정
+
+- **workspace_settings** — `definition_min_chars`, `body_min_chars`로 조직 전체의 최소
+  정의·본문 길이를 보관한다. 0은 내용 자체를 생략한다는 뜻이 아니라 존재 여부만 검사한다.
+- **ai_config** — 공급자, Base URL, 모델, 사용 여부를 담는 단일 행이다. API Key와
+  custom header 값은 애플리케이션이 AES-256-GCM으로 암호화한 문자열만 저장한다.
+
+용어별 `quality_profile`과 전역 최소 길이를 결합해 작성 수준을 계산한다. 자세한 판정은
+[AI 활용과 챗봇](/guide/ai#용어별-ai-활용-기준)을 참고한다.
 
 ## term_surfaces — 그 개념을 가리키는 모든 실제 표기
 

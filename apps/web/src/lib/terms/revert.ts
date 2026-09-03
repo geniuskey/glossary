@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { BUSINESS_CATEGORIES, EXPLICIT_SURFACE_KINDS, SURFACE_LANGS, TERM_STATUSES, TERM_TYPES, type TermTypeLiteral } from "./enums";
 import { pickExplicitSurfaces } from "./surfaces";
 import { updateTerm, type TermUpdate, type UpdateTermResult } from "./update";
+import { TERM_QUALITY_PROFILES } from "@/lib/workspace/term-quality-values";
 
 /**
  * R130: 되돌리기는 삭제가 아니라 쓰기다 — 대상 리비전의 스냅샷을 지금 상태에
@@ -31,6 +32,7 @@ const snapshotSurfaceSchema = z.object({
 const snapshotSchema = z.object({
   term: z.object({
     termType: z.string().optional(),
+    qualityProfile: z.string().optional(),
     nameEn: z.string().nullable().optional(),
     nameKo: z.string().nullable().optional(),
     fullNameEn: z.string().nullable().optional(),
@@ -118,9 +120,13 @@ function toPatch(snapshot: z.infer<typeof snapshotSchema>): TermUpdate {
   }));
 
   const status = readStatus(t.status);
+  const qualityProfile = t.qualityProfile && (TERM_QUALITY_PROFILES as readonly string[]).includes(t.qualityProfile)
+    ? t.qualityProfile as (typeof TERM_QUALITY_PROFILES)[number]
+    : undefined;
 
   return {
     ...(termType !== undefined ? { termType } : {}),
+    ...(qualityProfile !== undefined ? { qualityProfile } : {}),
     ...(t.nameEn !== undefined ? { nameEn: t.nameEn } : {}),
     ...(t.nameKo !== undefined ? { nameKo: t.nameKo } : {}),
     ...(t.fullNameEn !== undefined ? { fullNameEn: t.fullNameEn } : {}),

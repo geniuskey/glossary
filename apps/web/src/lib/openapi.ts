@@ -43,6 +43,11 @@ const termTypeSchema = {
   type: "string",
   enum: ["concept", "proper_name", "identifier", "unit"],
 };
+const termQualityProfileSchema = {
+  type: "string",
+  enum: ["auto", "mapping", "context", "guidance"],
+  description: "auto는 표기와 상태를 보고 기준을 선택하고, 나머지는 용어별 명시 기준입니다.",
+};
 const businessCategorySchema = {
   type: ["string", "null"],
   maxLength: 64,
@@ -89,11 +94,12 @@ export const openApiSpec = {
       Error: errorEnvelope,
       TermSummary: {
         type: "object",
-        required: ["id", "slug", "termType", "domain", "categories", "categoryLabels", "status"],
+        required: ["id", "slug", "termType", "qualityProfile", "domain", "categories", "categoryLabels", "status"],
         properties: {
           id: { type: "string", format: "uuid" },
           slug: { type: "string" },
           termType: termTypeSchema,
+          qualityProfile: termQualityProfileSchema,
           nameEn: { type: ["string", "null"] },
           nameKo: { type: ["string", "null"] },
           domain: { type: "array", items: { type: "string" } },
@@ -311,6 +317,28 @@ export const openApiSpec = {
           "403": errorResponse("forbidden — 관리자만 사용 가능"),
         },
       },
+      post: {
+        summary: "저장하지 않고 AI 활용 기준 변경 영향을 미리 계산",
+        security: [{ sessionCookie: [] }],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: {
+            type: "object",
+            required: ["definitionMinChars", "bodyMinChars"],
+            additionalProperties: false,
+            properties: {
+              definitionMinChars: { type: "integer", minimum: 0, maximum: 10000 },
+              bodyMinChars: { type: "integer", minimum: 0, maximum: 10000 },
+            },
+          } } },
+        },
+        responses: {
+          "200": json("프로필별 충족 현황 미리보기", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
       patch: {
         summary: "용어 작성 수준 수정",
         security: [{ sessionCookie: [] }],
@@ -335,6 +363,76 @@ export const openApiSpec = {
           "400": errorResponse("validation_failed"),
           "401": errorResponse("unauthorized"),
           "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+    },
+    "/admin/ai-config": {
+      get: {
+        summary: "관리자용 AI 연결 설정 조회 (비밀값은 마스킹)",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("API 키 존재 여부와 custom header 이름만 포함한 설정", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+      patch: {
+        summary: "Gemini 또는 OpenAI-compatible 연결 설정 저장",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["enabled", "provider", "baseUrl", "model", "customHeaders"],
+          additionalProperties: false,
+          properties: {
+            enabled: { type: "boolean" },
+            provider: { type: "string", enum: ["gemini", "openai_compatible"] },
+            baseUrl: { type: "string", format: "uri", maxLength: 2000 },
+            model: { type: "string", minLength: 1, maxLength: 200 },
+            apiKey: { type: ["string", "null"], description: "생략·빈 문자열이면 기존 값 유지, null이면 삭제" },
+            customHeaders: { type: "array", maxItems: 20, items: { type: "object", required: ["name", "value"], properties: { name: { type: "string" }, value: { type: "string" } } } },
+          },
+        } } } },
+        responses: {
+          "200": json("저장된 마스킹 설정", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+    },
+    "/admin/ai-config/test": {
+      post: {
+        summary: "저장된 AI 설정으로 연결 시험",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("연결됨", { type: "object", properties: { ok: { type: "boolean" } } }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+          "502": errorResponse("ai_provider_error"),
+        },
+      },
+    },
+    "/admin/ai-config/models": {
+      post: {
+        summary: "저장된 값과 관리자 입력을 이용해 선택 가능한 AI 모델 조회",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["provider", "baseUrl", "customHeaders"],
+          additionalProperties: false,
+          properties: {
+            provider: { type: "string", enum: ["gemini", "openai_compatible"] },
+            baseUrl: { type: "string", format: "uri", maxLength: 2000 },
+            apiKey: { type: ["string", "null"], description: "생략·빈 문자열이면 저장된 키 사용" },
+            customHeaders: { type: "array", maxItems: 20, items: { type: "object", required: ["name", "value"], properties: { name: { type: "string" }, value: { type: "string" }, configured: { type: "boolean" } } } },
+          },
+        } } } },
+        responses: {
+          "200": json("선택 가능한 모델 ID와 표시 이름", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+          "502": errorResponse("ai_provider_error"),
         },
       },
     },
@@ -608,6 +706,32 @@ export const openApiSpec = {
         },
       },
     },
+    "/chat": {
+      post: {
+        summary: "용어집에 근거한 AI 질문",
+        description: "질문과 최근 대화에서 관련 용어를 검색한 뒤, 관리자가 연결한 AI에 해당 용어 맥락만 전달합니다.",
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["question"],
+          additionalProperties: false,
+          properties: {
+            question: { type: "string", minLength: 1, maxLength: 4000 },
+            history: { type: "array", maxItems: 8, items: { type: "object", required: ["role", "content"], properties: {
+              role: { type: "string", enum: ["user", "assistant"] },
+              content: { type: "string", minLength: 1, maxLength: 4000 },
+            } } },
+          },
+        } } } },
+        responses: {
+          "200": json("용어집 근거 답변과 출처 용어", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "429": errorResponse("rate_limited"),
+          "502": errorResponse("ai_provider_error"),
+          "503": errorResponse("ai_not_enabled"),
+        },
+      },
+    },
     "/terms": {
       get: {
         summary: "용어 목록·검색",
@@ -634,6 +758,7 @@ export const openApiSpec = {
                 required: ["termType"],
                 properties: {
                   termType: termTypeSchema,
+                  qualityProfile: termQualityProfileSchema,
                   nameEn: { type: ["string", "null"] },
                   nameKo: { type: ["string", "null"] },
                   fullNameEn: { type: ["string", "null"] },

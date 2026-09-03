@@ -11,6 +11,7 @@ import { deriveSurfaces } from "./surfaces";
 import { inferSurfaceLang } from "./surface-language";
 import { slugify, slugValidationMessage } from "./slug";
 import { BUSINESS_CATEGORIES, TERM_TYPES } from "./enums";
+import { TERM_QUALITY_PROFILES } from "@/lib/workspace/term-quality-values";
 
 // R46: `.trim()`이 없으면 `z.string().min(1)`은 공백뿐인 문자열("   ")을 통과시킨다.
 // 그 값은 surfaceKeys(...).normLoose === ""로 정규화되는데, findDuplicates가
@@ -64,6 +65,7 @@ export function normalizeLegacyTermInput(raw: unknown): unknown {
 
 export const termInputBaseSchema = z.object({
   termType: z.enum(TERM_TYPES).default("concept"),
+  qualityProfile: z.enum(TERM_QUALITY_PROFILES).default("auto"),
   nameEn: z.string().trim().min(1).max(TERM_NAME_MAX).nullable().optional(),
   nameKo: z.string().trim().min(1).max(TERM_NAME_MAX).nullable().optional(),
   fullNameEn: z.string().trim().min(1).max(TERM_NAME_MAX).nullable().optional(),
@@ -169,5 +171,8 @@ const currentTermPatchSchema = termInputBaseSchema.partial().extend({
 
 export const termPatchSchema = z.preprocess(normalizeLegacyTermInput, currentTermPatchSchema);
 
-export type TermInput = Omit<z.infer<typeof termInputBaseSchema>, "category"> & { category?: string[] };
+export type TermInput = Omit<z.infer<typeof termInputBaseSchema>, "category" | "qualityProfile"> & {
+  category?: string[];
+  qualityProfile?: (typeof TERM_QUALITY_PROFILES)[number];
+};
 export type SurfaceInput = z.infer<typeof surfaceInputSchema>;

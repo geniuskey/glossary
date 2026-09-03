@@ -23,6 +23,8 @@ features:
     details: Term(개념)과 TermSurface(표기)를 나눈다. "Auto Exposure", "AE", "오토익스포저"가 모두 같은 개념을 가리키고, 세 가지 검증이 같은 테이블 조회로 풀린다.
   - title: 기계 판독 가능
     details: OpenAPI 3.1 스펙을 GET /api/v1/openapi로 서빙한다. AI-Lint 같은 도구가 POST /terms/lookup 한 번으로 문서에 쓰인 표기 전체를 확인한다.
+  - title: 용어집 근거 챗봇
+    details: 관련 공개 용어만 찾아 Gemini 또는 OpenAI-compatible API에 전달하고, 답변에 사용한 근거 용어를 다시 연결한다.
   - title: 온프레미스
     details: 사내망 Docker Compose 배포. 첨부 이미지까지 Postgres에 들어 있어 pg_dump 결과 파일 하나가 전체 백업이다.
 ---

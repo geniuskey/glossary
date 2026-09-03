@@ -38,6 +38,7 @@ export interface TermSummary {
   id: string;
   slug: string;
   termType: TermType;
+  qualityProfile: "auto" | "mapping" | "context" | "guidance";
   nameEn: string | null;
   nameKo: string | null;
   domain: string[];
@@ -94,6 +95,7 @@ const summaryColumns = {
   id: terms.id,
   slug: terms.slug,
   termType: terms.termType,
+  qualityProfile: terms.qualityProfile,
   nameEn: terms.nameEn,
   nameKo: terms.nameKo,
   domain: terms.domain,
@@ -403,23 +405,50 @@ export interface TermFacets {
 }
 
 function missingDefinition(settings: TermQualitySettings) {
-  return sql`char_length(btrim(coalesce(${terms.definitionMd}, ''))) < ${settings.definitionMinChars}`;
+  return sql`char_length(btrim(coalesce(${terms.definitionMd}, ''))) < ${Math.max(1, settings.definitionMinChars)}`;
 }
 function missingBody(settings: TermQualitySettings) {
-  return sql`char_length(btrim(coalesce(${terms.bodyMd}, ''))) < ${settings.bodyMinChars}`;
+  return sql`char_length(btrim(coalesce(${terms.bodyMd}, ''))) < ${Math.max(1, settings.bodyMinChars)}`;
 }
-const missingDomain = sql`cardinality(${terms.domain}) = 0`;
+const missingContext = sql`cardinality(${terms.domain}) = 0 and cardinality(${terms.category}) = 0`;
+const missingFullName = sql`btrim(coalesce(${terms.fullNameEn}, '')) = '' and btrim(coalesce(${terms.fullNameKo}, '')) = ''`;
+const needsReplacement = sql`${terms.status} in ('deprecated', 'forbidden')`;
+
+function qualityBranches() {
+  const autoMapping = sql`${terms.qualityProfile} = 'auto'
+    and ${terms.status} not in ('deprecated', 'forbidden')
+    and not (${missingFullName})
+    and (
+      coalesce(${terms.nameEn}, ${terms.nameKo}, '') ~ '^[A-Z0-9][A-Z0-9+./-]{1,11}$'
+      or ${terms.termType} in ('identifier', 'unit')
+    )`;
+  const mapping = sql`${terms.qualityProfile} = 'mapping' or (${autoMapping})`;
+  const guidance = sql`${terms.qualityProfile} = 'guidance'
+    or (${terms.qualityProfile} = 'auto' and ${needsReplacement})`;
+  const context = sql`not (${mapping}) and not (${guidance})`;
+  return { mapping, context, guidance };
+}
+
 function incompleteTerm(settings: TermQualitySettings) {
-  return or(missingDefinition(settings), missingBody(settings), missingDomain)!;
+  const profile = qualityBranches();
+  const missingMeaning = sql`${missingFullName} and ${missingDefinition(settings)}`;
+  return sql`(
+    (${profile.mapping} and ${missingMeaning})
+    or (${profile.context} and (${missingDefinition(settings)} or ${missingContext}))
+    or (${profile.guidance} and (${missingDefinition(settings)} or ${missingContext} or ${missingBody(settings)}))
+  )`;
 }
 function needsContributionFilter(settings: TermQualitySettings) {
   return or(eq(terms.status, "draft"), incompleteTerm(settings))!;
 }
 function missingCount(settings: TermQualitySettings) {
+  const profile = qualityBranches();
+  const missingMeaning = sql`${missingFullName} and ${missingDefinition(settings)}`;
   return sql<number>`(
-    case when ${missingDefinition(settings)} then 1 else 0 end
-    + case when ${missingBody(settings)} then 1 else 0 end
-    + case when ${missingDomain} then 1 else 0 end
+    case when ${profile.mapping} and ${missingMeaning} then 1 else 0 end
+    + case when (${profile.context} or ${profile.guidance}) and ${missingDefinition(settings)} then 1 else 0 end
+    + case when (${profile.context} or ${profile.guidance}) and ${missingContext} then 1 else 0 end
+    + case when ${profile.guidance} and ${missingBody(settings)} then 1 else 0 end
   )`;
 }
 

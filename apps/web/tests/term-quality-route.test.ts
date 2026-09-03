@@ -15,7 +15,7 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
-const { GET, PATCH } = await import("../src/app/api/v1/admin/term-quality/route.js");
+const { GET, POST, PATCH } = await import("../src/app/api/v1/admin/term-quality/route.js");
 const db = createDb(process.env.DATABASE_URL_TEST!);
 const createdUserIds: string[] = [];
 let originalSetting: typeof workspaceSettings.$inferSelect | undefined;
@@ -49,12 +49,21 @@ function patchRequest(body: unknown) {
   });
 }
 
+function previewRequest(body: unknown) {
+  return new Request("https://grossary.example.com/api/v1/admin/term-quality", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 test("용어 작성 수준 API는 비로그인 사용자와 편집자를 거부한다", async () => {
   currentCookieValue = undefined;
   expect((await GET()).status).toBe(401);
   await loginAs("editor");
   expect((await GET()).status).toBe(403);
   expect((await PATCH(patchRequest(DEFAULT_TERM_QUALITY))).status).toBe(403);
+  expect((await POST(previewRequest(DEFAULT_TERM_QUALITY))).status).toBe(403);
 });
 
 test("설정 행이 없으면 기존 동작과 같은 기본 작성 수준을 반환한다", async () => {
@@ -72,6 +81,15 @@ test("관리자는 정의와 본문의 최소 글자 수를 저장하고 다시 
   expect(saved.status).toBe(200);
   expect((await saved.json()).settings).toEqual(settings);
   expect((await (await GET()).json()).settings).toEqual(settings);
+});
+
+test("미리보기는 새 기준의 영향을 계산하되 설정을 저장하지 않는다", async () => {
+  await loginAs("admin");
+  const before = (await (await GET()).json()).settings;
+  const response = await POST(previewRequest({ definitionMinChars: 9999, bodyMinChars: 9999 }));
+  expect(response.status).toBe(200);
+  expect((await response.json()).overview).toMatchObject({ total: expect.any(Number), incomplete: expect.any(Number) });
+  expect((await (await GET()).json()).settings).toEqual(before);
 });
 
 test("작성 수준은 0~10000 정수와 정확한 필드만 받는다", async () => {

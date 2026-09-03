@@ -19,6 +19,7 @@ export interface TermWire {
   id: string;
   slug: string;
   termType: TermType;
+  qualityProfile: "auto" | "mapping" | "context" | "guidance";
   nameEn: string | null;
   nameKo: string | null;
   fullNameEn: string | null;
@@ -39,6 +40,7 @@ export function toTermWire(term: typeof terms.$inferSelect): TermWire {
     id: term.id,
     slug: term.slug,
     termType: term.termType,
+    qualityProfile: term.qualityProfile,
     nameEn: term.nameEn,
     nameKo: term.nameKo,
     fullNameEn: term.fullNameEn,

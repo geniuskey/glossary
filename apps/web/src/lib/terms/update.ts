@@ -220,6 +220,7 @@ export async function updateTerm(
         .set({
           ...(input.slug !== undefined ? { slug: input.slug } : {}),
           ...(input.termType !== undefined ? { termType: input.termType } : {}),
+          ...(input.qualityProfile !== undefined ? { qualityProfile: input.qualityProfile } : {}),
           ...(input.nameEn !== undefined ? { nameEn: input.nameEn } : {}),
           ...(input.nameKo !== undefined ? { nameKo: input.nameKo } : {}),
           ...(input.fullNameEn !== undefined ? { fullNameEn: input.fullNameEn } : {}),
