@@ -12,6 +12,7 @@ import {
 import { HelpTip } from "@/components/help-tip";
 import type { GraphTerm } from "@/lib/terms/query";
 import { businessCategoryLabel } from "@/lib/terms/enums";
+import { DOMAIN_COLOR_PALETTE, domainColor } from "@/lib/terms/domain-colors";
 import { displayName } from "@/lib/ui/format";
 
 const WIDTH = 1000;
@@ -113,7 +114,8 @@ const CATEGORY_HUES: Record<string, number> = {
 // 보이는 대표 도메인(도메인도 없으면 용어 종류)을 정렬한 뒤 서로 충분히 떨어진
 // 부드러운 색상 계열을 배정한다. 기본 sort는 UTF-16 코드 단위 기준이라 서버와
 // 브라우저에서 같은 결과를 만든다.
-const FALLBACK_HUES = [205, 25, 145, 285, 50, 175, 325, 95, 235, 5, 260, 120] as const;
+const FALLBACK_HUES = DOMAIN_COLOR_PALETTE.map((color) => color.hue);
+const DEFAULT_HUE = DOMAIN_COLOR_PALETTE[0]!.hue;
 
 function categoryHue(category: string): number {
   return CATEGORY_HUES[category] ?? hash(`category:${category}`) % 360;
@@ -140,8 +142,12 @@ function termCategoryLabel(term: GraphTerm, category: string): string {
   );
 }
 
-export function buildTermColorHues(terms: readonly GraphTerm[]): ReadonlyMap<string, number> {
+export function buildTermColorHues(
+  terms: readonly GraphTerm[],
+  domainColors: readonly { label: string; color: string }[] = [],
+): ReadonlyMap<string, number> {
   const visibleTerms = terms.slice(0, TERM_LIMIT);
+  const configuredDomainHues = new Map(domainColors.map((domain) => [domain.label, domainColor(domain.color).hue]));
   const fallbackKeys = [...new Set(
     visibleTerms.filter((term) => termCategoryKeys(term).length === 0).map(fallbackColorKey),
   )].sort();
@@ -153,7 +159,9 @@ export function buildTermColorHues(terms: readonly GraphTerm[]): ReadonlyMap<str
     term.id,
     termCategoryKeys(term)[0]
       ? categoryHue(termCategoryKeys(term)[0]!)
-      : (fallbackHues.get(fallbackColorKey(term)) ?? FALLBACK_HUES[0]),
+      : configuredDomainHues.get(term.domain[0] ?? "")
+        ?? fallbackHues.get(fallbackColorKey(term))
+        ?? DEFAULT_HUE,
   ]));
 }
 
@@ -297,9 +305,26 @@ function clampZoom(value: number): number {
   return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
 }
 
-export function TermGraph({ terms }: { terms: GraphTerm[] }) {
+export function TermGraph({
+  terms,
+  domainColors = [],
+}: {
+  terms: GraphTerm[];
+  domainColors?: { label: string; color: string }[];
+}) {
   const model = useMemo(() => buildGraphModel(terms), [terms]);
-  const termColorHues = useMemo(() => buildTermColorHues(terms), [terms]);
+  const termColorHues = useMemo(() => buildTermColorHues(terms, domainColors), [domainColors, terms]);
+  const domainHues = useMemo(() => {
+    const configured = new Map(domainColors.map((domain) => [domain.label, domainColor(domain.color).hue]));
+    const labels = [...new Set(terms.slice(0, TERM_LIMIT).flatMap((term) => term.domain))].sort();
+    let fallbackIndex = 0;
+    for (const label of labels) {
+      if (configured.has(label)) continue;
+      configured.set(label, FALLBACK_HUES[fallbackIndex % FALLBACK_HUES.length] ?? DEFAULT_HUE);
+      fallbackIndex += 1;
+    }
+    return configured;
+  }, [domainColors, terms]);
   const [nodes, setNodes] = useState(() => model.nodes.map((node) => ({ ...node })));
   const [view, setView] = useState<ViewTransform>({ x: 0, y: 0, scale: 1 });
   const [selected, setSelected] = useState<string | null>(null);
@@ -534,6 +559,9 @@ export function TermGraph({ terms }: { terms: GraphTerm[] }) {
             const related = !active || node.key === active || activeNeighbors?.has(node.key);
             const selectedHere = selected === node.key;
             const category = node.kind === "category" ? node.key.slice(2) : null;
+            const domain = node.kind === "domain" ? node.key.slice(2) : null;
+            const domainHue = domain ? domainHues.get(domain) : undefined;
+            const colored = category !== null || domainHue !== undefined;
             return (
               <g
                 key={node.key}
@@ -544,7 +572,7 @@ export function TermGraph({ terms }: { terms: GraphTerm[] }) {
                 aria-label={`${kindLabel(node.kind)} ${node.label}, 연결 ${neighbors.get(node.key)?.size ?? 0}개`}
                 aria-pressed={selectedHere}
                 className="group/hub cursor-grab outline-none active:cursor-grabbing"
-                style={category ? graphColorStyle(categoryHue(category)) : undefined}
+                style={category ? graphColorStyle(categoryHue(category)) : domainHue !== undefined ? graphColorStyle(domainHue) : undefined}
                 opacity={related ? 1 : 0.18}
                 onPointerDown={(event) => startNodeDrag(event, node.key)}
                 onFocus={() => setSelected(node.key)}
@@ -568,11 +596,11 @@ export function TermGraph({ terms }: { terms: GraphTerm[] }) {
                       ? "graph-category-node"
                       : node.kind === "topic"
                         ? "fill-warn-soft stroke-warn"
-                        : "fill-panel-2 stroke-line-strong"
+                        : domainHue !== undefined ? "graph-category-node" : "fill-panel-2 stroke-line-strong"
                   } group-focus-visible/hub:stroke-[4px]`}
                   strokeWidth={selectedHere ? 3.5 : 2}
                 />
-                <text textAnchor="middle" dy="4" className={`pointer-events-none text-[12px] font-semibold ${category ? "graph-category-label" : "fill-ink"}`}>
+                <text textAnchor="middle" dy="4" className={`pointer-events-none text-[12px] font-semibold ${colored ? "graph-category-label" : "fill-ink"}`}>
                   {node.label.slice(0, 12)}
                 </text>
               </g>
@@ -585,7 +613,7 @@ export function TermGraph({ terms }: { terms: GraphTerm[] }) {
             const label = node.label.slice(0, 18);
             const width = termNodeWidth(node.label);
             const selectedHere = selected === node.key;
-            const termHue = termColorHues.get(term.id) ?? FALLBACK_HUES[0];
+            const termHue = termColorHues.get(term.id) ?? DEFAULT_HUE;
             return (
               <a
                 key={node.key}
@@ -628,10 +656,10 @@ export function TermGraph({ terms }: { terms: GraphTerm[] }) {
       </svg>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-line bg-panel px-4 py-2 text-[11px] text-ink-3">
-        <LegendDot className="border border-line-strong bg-panel" label="도메인" />
+        <TermColorLegend hues={[...new Set(domainHues.values())].slice(0, 3)} label="도메인" />
         <LegendDot className="border border-brand bg-brand-soft" label="업무 분류" />
         <LegendDot className="border border-warn bg-warn-soft" label="주제" />
-        <TermColorLegend hues={[...new Set(termColorHues.values())].slice(0, 3)} />
+        <TermColorLegend hues={[...new Set(termColorHues.values())].slice(0, 3)} label="용어 · 분류색" />
         {selected && <button type="button" className="ml-auto text-brand hover:underline" onClick={() => setSelected(null)}>강조 해제</button>}
       </div>
       <p className="sr-only" aria-live="polite">
@@ -645,7 +673,7 @@ function LegendDot({ className, label }: { className: string; label: string }) {
   return <span className="inline-flex items-center"><i className={`mr-1.5 inline-block h-2.5 w-2.5 rounded-full ${className}`} />{label}</span>;
 }
 
-function TermColorLegend({ hues }: { hues: number[] }) {
+function TermColorLegend({ hues, label }: { hues: number[]; label: string }) {
   return (
     <span className="inline-flex items-center">
       <span className="mr-1.5 inline-flex -space-x-1" aria-hidden="true">
@@ -653,7 +681,7 @@ function TermColorLegend({ hues }: { hues: number[] }) {
           return <i key={hue} className="graph-category-swatch h-2.5 w-2.5 rounded-full border border-panel" style={graphColorStyle(hue)} />;
         })}
       </span>
-      용어 · 분류색 (미분류: 도메인색)
+      {label}
     </span>
   );
 }

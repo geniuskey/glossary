@@ -15,6 +15,7 @@ import {
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { HelpTip } from "@/components/help-tip";
 import { ClassificationMultiSelect } from "@/components/classification-multi-select";
+import { STATUS_TONE } from "@/components/term-badges";
 import {
   EXPLICIT_SURFACE_KINDS,
   SURFACE_KIND_LABEL,
@@ -534,8 +535,8 @@ export function TermForm({
         </div>
       )}
 
-      <div className={cx("grid items-start lg:grid-cols-[minmax(0,1fr)_18rem]", compact ? "gap-3" : "gap-4")}>
-        <section className="card">
+      <div className={cx("grid items-start lg:grid-cols-[18rem_minmax(0,1fr)]", compact ? "gap-3" : "gap-4")}>
+        <section className="card lg:order-2">
           <CompactSectionTitle compact={compact} title="이름과 표기" description="대표 이름과 함께 검색할 약어·별칭을 한곳에서 관리합니다." />
           <div className={compact ? "space-y-3 p-3" : "space-y-5 p-4 sm:p-5"}>
             <fieldset>
@@ -796,7 +797,7 @@ export function TermForm({
           </div>
         </section>
 
-        <section className="card lg:sticky lg:top-16">
+        <section className="card lg:order-1 lg:sticky lg:top-16">
           <CompactSectionTitle compact={compact} title="관리 정보" description="검색 노출과 관리 책임을 정합니다." />
           <div className={compact ? "space-y-3 p-3" : "space-y-4 p-4"}>
             <div className="block">
@@ -809,7 +810,7 @@ export function TermForm({
                 disabled={locked}
                 aria-invalid={errorsFor("status") ? true : undefined}
                 aria-describedby={errorsFor("status") ? "status-error" : undefined}
-                className="field"
+                className={cx("field", STATUS_TONE[form.status])}
               >
                 {TERM_STATUSES.map((status) => <option key={status} value={status}>{TERM_STATUS_LABEL[status]}</option>)}
               </select>

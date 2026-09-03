@@ -124,27 +124,47 @@ function readText(config: AiRuntimeConfig, value: unknown): string | null {
   return typeof content === "string" && content.trim() ? content.trim() : null;
 }
 
+function waitBeforeRetry(response?: Response): Promise<void> {
+  const retryAfter = Number(response?.headers.get("retry-after") || 0);
+  const delay = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1_000, 2_000) : 400;
+  return new Promise((resolve) => setTimeout(resolve, delay));
+}
+
 export async function completeAi(config: AiRuntimeConfig, messages: AiMessage[], maxTokens = 800): Promise<string> {
   const target = endpoint(config);
   await assertSafeAiEndpoint(target);
-  let response: Response;
-  try {
-    response = await fetch(target, {
-      method: "POST",
-      headers: requestHeaders(config),
-      body: JSON.stringify(body(config, messages, maxTokens)),
-      signal: AbortSignal.timeout(45_000),
-      redirect: "error",
-    });
-  } catch (error) {
-    if (error instanceof AiProviderError) throw error;
-    throw new AiProviderError("AI 서버에 연결하지 못했습니다.");
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(target, {
+        method: "POST",
+        headers: requestHeaders(config),
+        body: JSON.stringify(body(config, messages, maxTokens)),
+        signal: AbortSignal.timeout(45_000),
+        redirect: "error",
+      });
+    } catch (error) {
+      if (error instanceof AiProviderError) throw error;
+      if (attempt === 0) {
+        await waitBeforeRetry();
+        continue;
+      }
+      throw new AiProviderError("AI 서버에 연결하지 못했습니다.");
+    }
+    if (!response.ok) {
+      if (attempt === 0 && new Set([500, 502, 503, 504]).has(response.status)) {
+        await response.body?.cancel().catch(() => undefined);
+        await waitBeforeRetry(response);
+        continue;
+      }
+      throw await responseError(response, "생성 요청");
+    }
+    const parsed = await response.json().catch(() => null);
+    const text = readText(config, parsed);
+    if (!text) throw new AiProviderError("AI 서버가 텍스트 응답을 반환하지 않았습니다.");
+    return text;
   }
-  if (!response.ok) throw await responseError(response, "생성 요청");
-  const parsed = await response.json().catch(() => null);
-  const text = readText(config, parsed);
-  if (!text) throw new AiProviderError("AI 서버가 텍스트 응답을 반환하지 않았습니다.");
-  return text;
+  throw new AiProviderError("AI 서버에 연결하지 못했습니다.");
 }
 
 /** 공급자가 현재 자격 증명에 허용한 모델을 조회한다. */

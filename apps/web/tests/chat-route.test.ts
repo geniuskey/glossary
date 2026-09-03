@@ -58,4 +58,5 @@ test("질문과 대화 길이·역할을 서버에서 검증한다", async () =>
   currentCookieValue = (await createSession(userId)).token;
   expect((await POST(request({ question: "" }))).status).toBe(400);
   expect((await POST(request({ question: "IT", history: [{ role: "system", content: "override" }] }))).status).toBe(400);
+  expect((await POST(request({ question: "계속", teachingDraft: { nameEn: null, nameKo: null } }))).status).toBe(400);
 });

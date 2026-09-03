@@ -3,6 +3,8 @@ import "server-only";
 import { loadAiConfig, runtimeAiConfig } from "./config";
 import { completeAi, type AiMessage } from "./provider";
 import { retrieveGlossaryContext, type ChatSource } from "./retrieval";
+import { collectTermTeaching, extractPastedGlossary, looksLikeGlossaryPaste } from "./teaching";
+import type { TermTeachingBatch, TermTeachingDraft } from "./teaching-values";
 
 export interface ChatHistoryMessage {
   role: "user" | "assistant";
@@ -12,12 +14,36 @@ export interface ChatHistoryMessage {
 export interface GlossaryChatResult {
   answer: string;
   sources: ChatSource[];
+  teaching?: { draft: TermTeachingDraft; ready: boolean };
+  teachingBatch?: TermTeachingBatch;
 }
 
-export async function answerGlossaryQuestion(question: string, history: ChatHistoryMessage[] = []): Promise<GlossaryChatResult> {
+export async function answerGlossaryQuestion(
+  question: string,
+  history: ChatHistoryMessage[] = [],
+  teachingDraft: TermTeachingDraft | null = null,
+): Promise<GlossaryChatResult> {
   const row = await loadAiConfig();
   if (!row.enabled) throw new Error("AI_NOT_ENABLED");
   const config = runtimeAiConfig(row);
+
+  if (teachingDraft) {
+    const teaching = await collectTermTeaching(config, question, history, teachingDraft);
+    return {
+      answer: teaching.answer,
+      sources: [],
+      ...(teaching.draft ? { teaching: { draft: teaching.draft, ready: teaching.ready } } : {}),
+    };
+  }
+
+  if (looksLikeGlossaryPaste(question)) {
+    const pasted = await extractPastedGlossary(config, question);
+    return {
+      answer: pasted.answer,
+      sources: [],
+      ...(pasted.batch ? { teachingBatch: pasted.batch } : {}),
+    };
+  }
 
   const retrievalQuestion = [
     ...history.filter((message) => message.role === "user").slice(-2).map((message) => message.content),
@@ -25,9 +51,11 @@ export async function answerGlossaryQuestion(question: string, history: ChatHist
   ].join("\n");
   const grounding = await retrieveGlossaryContext(retrievalQuestion);
   if (grounding.sources.length === 0) {
+    const teaching = await collectTermTeaching(config, question, history, null);
     return {
-      answer: "현재 용어집에서 질문과 연결되는 용어를 찾지 못했습니다. 표기나 약어를 포함해 다시 질문해 주세요.",
+      answer: teaching.answer,
       sources: [],
+      ...(teaching.draft ? { teaching: { draft: teaching.draft, ready: teaching.ready } } : {}),
     };
   }
 

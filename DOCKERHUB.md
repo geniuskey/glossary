@@ -1,14 +1,14 @@
 # Grossary on Docker Hub
 
-> **Development preview — `0.1.5`**
+> **Development preview — `0.1.6`**
 >
 > Grossary is under active development. Use this release for evaluation and internal pilots,
-> pin both container tags to `0.1.5`, and keep tested database backups before upgrading.
+> pin both container tags to `0.1.6`, and keep tested database backups before upgrading.
 >
-> **개발 미리보기 — `0.1.5`**
+> **개발 미리보기 — `0.1.6`**
 >
 > 현재 활발히 개발 중인 초기 버전입니다. 기능 검토와 사내 파일럿 용도로 사용하고,
-> 앱과 마이그레이터 이미지를 모두 `0.1.5`로 고정한 뒤 업그레이드 전 백업을 보관하세요.
+> 앱과 마이그레이터 이미지를 모두 `0.1.6`으로 고정한 뒤 업그레이드 전 백업을 보관하세요.
 
 ## Short description
 
@@ -45,7 +45,10 @@ A future release may allow another native language to be selected alongside Engl
 - Column-selectable read-only sheet URLs and iframe code for Confluence
 - Search across canonical names and alternate surfaces
 - Revision history and revert support
-- Admin panel for OIDC/OAuth 2.0 SSO, users, API keys, and home-page messaging
+- Admin panel for OIDC/OAuth 2.0 SSO, users, API keys, AI providers, and home-page messaging
+- Glossary-grounded Gemini or OpenAI-compatible chat that can learn a term through conversation
+- Paste CSV, TSV, Markdown tables, lists, or JSON to review and create multiple private term drafts
+- 72-color soft domain palette shared by classifications and the interactive relationship graph
 - OpenAPI 3.1 API and batch terminology lookup for internal tools
 - Self-hosted Docker Compose deployment with PostgreSQL 16
 
@@ -55,8 +58,8 @@ Grossary publishes two tags from the same Docker Hub repository:
 
 | Tag | Purpose |
 |---|---|
-| `0.1.5` | Version-pinned web application (recommended) |
-| `0.1.5-migrator` | Matching database migrations (recommended) |
+| `0.1.6` | Version-pinned web application (recommended) |
+| `0.1.6-migrator` | Matching database migrations (recommended) |
 | `latest` | Most recently published web application |
 | `latest-migrator` | Migrations matching `latest` |
 
@@ -65,8 +68,8 @@ For production, pin both images to the same version instead of using `latest`.
 사내 서버에서 명시적으로 받으려면 두 태그를 함께 pull합니다.
 
 ```bash
-docker pull euiyun/grossary:0.1.5
-docker pull euiyun/grossary:0.1.5-migrator
+docker pull euiyun/grossary:0.1.6
+docker pull euiyun/grossary:0.1.6-migrator
 ```
 
 ## Quick start with Docker Compose
@@ -79,7 +82,7 @@ curl -LO https://raw.githubusercontent.com/geniuskey/grossary/main/docker-compos
 curl -L https://raw.githubusercontent.com/geniuskey/grossary/main/.env.dockerhub.example -o .env
 ```
 
-The environment template pins both images to the `0.1.5` development release. Set a long, URL-safe database password, then pull and start the stack:
+The environment template pins both images to the `0.1.6` development release. Set a long, URL-safe database password, then pull and start the stack:
 
 ```bash
 # 비공개 저장소라면 먼저 실행합니다.
@@ -103,8 +106,8 @@ docker compose --env-file .env -f docker-compose.hub.yml ps
 
 | Variable | Description |
 |---|---|
-| `GROSSARY_IMAGE` | Web image, for example `euiyun/grossary:0.1.5` |
-| `GROSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/grossary:0.1.5-migrator` |
+| `GROSSARY_IMAGE` | Web image, for example `euiyun/grossary:0.1.6` |
+| `GROSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/grossary:0.1.6-migrator` |
 | `GROSSARY_PORT` | Host port; defaults to `3000` |
 | `POSTGRES_PASSWORD` | Internal PostgreSQL password; use URL-safe characters |
 | `GROSSARY_EMBED_ANCESTORS` | Optional comma-separated Confluence origins allowed to frame `/embed` |

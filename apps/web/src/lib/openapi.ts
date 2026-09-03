@@ -530,9 +530,9 @@ export const openApiSpec = {
     "/admin/domains/{key}": {
       parameters: [{ name: "key", in: "path", required: true, schema: { type: "string", maxLength: 64 } }],
       patch: {
-        summary: "도메인 이름 변경",
+        summary: "도메인 이름 또는 고유 팔레트 색상 변경",
         security: [{ sessionCookie: [] }],
-        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["label"], additionalProperties: false, properties: { label: { type: "string", minLength: 1, maxLength: 100 } } } } } },
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", minProperties: 1, additionalProperties: false, properties: { label: { type: "string", minLength: 1, maxLength: 100 }, color: { type: "string", pattern: "^p(?:[0-6][0-9]|7[01])$", description: "72색 도메인 팔레트 키. 다른 도메인과 중복될 수 없습니다." } } } } } },
         responses: {
           "200": json("{ ok: true }", { type: "object" }),
           "400": errorResponse("validation_failed"),
@@ -709,21 +709,34 @@ export const openApiSpec = {
     "/chat": {
       post: {
         summary: "용어집에 근거한 AI 질문",
-        description: "질문과 최근 대화에서 관련 용어를 검색한 뒤, 관리자가 연결한 AI에 해당 용어 맥락만 전달합니다.",
+        description: "관련 용어를 근거로 답하고, 모르는 용어는 대화로 초안을 수집합니다. 여러 줄 용어집을 붙여넣으면 최대 25개 초안으로 구조화합니다.",
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",
           required: ["question"],
           additionalProperties: false,
           properties: {
-            question: { type: "string", minLength: 1, maxLength: 4000 },
+            question: { type: "string", minLength: 1, maxLength: 20000 },
             history: { type: "array", maxItems: 8, items: { type: "object", required: ["role", "content"], properties: {
               role: { type: "string", enum: ["user", "assistant"] },
               content: { type: "string", minLength: 1, maxLength: 4000 },
             } } },
+            teachingDraft: {
+              type: ["object", "null"],
+              description: "직전 응답의 teaching.draft. 모르는 용어를 이어서 설명할 때 그대로 보냅니다.",
+              properties: {
+                nameEn: { type: ["string", "null"] },
+                nameKo: { type: ["string", "null"] },
+                fullNameEn: { type: ["string", "null"] },
+                fullNameKo: { type: ["string", "null"] },
+                definitionMd: { type: ["string", "null"] },
+                bodyMd: { type: ["string", "null"] },
+                skipped: { type: "object" },
+              },
+            },
           },
         } } } },
         responses: {
-          "200": json("용어집 근거 답변과 출처 용어", { type: "object" }),
+          "200": json("용어집 근거 답변과 출처, 또는 확인 전 teaching/teachingBatch 초안", { type: "object" }),
           "400": errorResponse("validation_failed"),
           "401": errorResponse("unauthorized"),
           "429": errorResponse("rate_limited"),

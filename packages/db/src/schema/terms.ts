@@ -17,12 +17,14 @@ export const domains = pgTable(
   {
     key: text("key").primaryKey(),
     label: text("label").notNull(),
+    color: text("color").notNull(),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     labelUnique: uniqueIndex("domains_label_unique").on(t.label),
+    colorUnique: uniqueIndex("domains_color_unique").on(t.color),
     orderIdx: index("domains_order_idx").on(t.sortOrder, t.key),
   }),
 );

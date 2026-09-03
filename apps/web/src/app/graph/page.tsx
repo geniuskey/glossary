@@ -3,6 +3,7 @@ import { AppShell } from "@/components/app-shell";
 import { GraphFilterBar } from "@/components/graph-filter-bar";
 import { TermGraph } from "@/components/term-graph";
 import { getCurrentUser } from "@/lib/auth/current-user";
+import { listDomains } from "@/lib/terms/domains";
 import { DOMAIN_VALUE_MAX } from "@/lib/terms/limits";
 import { listGraphTerms, termFacets } from "@/lib/terms/query";
 
@@ -18,7 +19,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
   const params = await searchParams;
   const domain = first(params.domain);
   const rawCategory = first(params.category);
-  const facets = await termFacets();
+  const [facets, domainOptions] = await Promise.all([termFacets(), listDomains()]);
   const category = facets.categories.some((facet) => facet.value === rawCategory) ? rawCategory : undefined;
   const topic = first(params.topic) ?? (rawCategory && !category ? rawCategory : undefined);
   const terms = await listGraphTerms({ domain, category, topic, limit: 100 });
@@ -41,7 +42,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
         </div>
       </header>
       <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
-        <TermGraph terms={terms} />
+        <TermGraph terms={terms} domainColors={domainOptions.map(({ label, color }) => ({ label, color }))} />
       </div>
     </AppShell>
   );

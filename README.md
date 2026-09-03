@@ -39,7 +39,8 @@ API 한 번으로 문서의 표기를 검증할 수 있게 만든다.
 5. **사내 계정 로그인** — 관리 화면에서 OIDC 또는 OAuth 2.0을 고르고 엔드포인트와
    claim 매핑을 설정한다. OIDC는 JWKS 서명·Issuer·Audience·Nonce까지 검증한다.
 6. **용어집 근거 챗봇** — 질문에 관련된 공개 용어만 찾아 Gemini 또는
-   OpenAI-compatible API에 전달하고, 답변 아래에서 근거 용어를 다시 확인한다.
+   OpenAI-compatible API에 전달하고, 모르는 용어는 대화나 기존 목록 붙여넣기로 배워
+   사용자 확인을 거친 비공개 초안으로 추가한다.
 
 핵심은 **개념(Term)과 표기(Surface)의 분리**다. 엑셀이 무너진 이유는 한 행이 개념이자
 표기였기 때문이다. `Auto Exposure` / `AE` / `자동노출` / `오토익스포저`가 모두 하나의
@@ -149,7 +150,7 @@ Docker Hub에는 웹 앱과 마이그레이터를 같은 저장소의 서로 다
 
 ```bash
 IMAGE=euiyun/grossary
-VERSION=0.1.5
+VERSION=0.1.6
 
 docker build --build-arg APP_VERSION="$VERSION" --target app -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
 docker build --build-arg APP_VERSION="$VERSION" --target migrator -t "$IMAGE:$VERSION-migrator" -t "$IMAGE:latest-migrator" .
@@ -164,8 +165,8 @@ docker push "$IMAGE:latest-migrator"
 `latest`보다 앱·마이그레이터 양쪽을 같은 버전으로 고정하는 편이 안전하다.
 
 ```bash
-docker pull euiyun/grossary:0.1.5
-docker pull euiyun/grossary:0.1.5-migrator
+docker pull euiyun/grossary:0.1.6
+docker pull euiyun/grossary:0.1.6-migrator
 ```
 
 ```bash

@@ -151,6 +151,18 @@ test("AI 연결 화면은 테스트 성공을 녹색 Connected 상태로 표시�
   expect(content).toContain("Connected");
 });
 
+test("용어 챗봇은 대화로 모은 용어를 확인 후 비공개 초안으로 등록한다", () => {
+  const content = stripComments(readFileSync(path.join(componentsDir, "chat-panel.tsx"), "utf8"));
+  expect(content).toContain("teachingDraft: activeTeachingDraft()");
+  expect(content).toContain('fetch("/api/v1/terms"');
+  expect(content).toContain('status: "draft"');
+  expect(content).toContain("초안으로 추가");
+  expect(content).toContain("용어 등록 초안");
+  expect(content).toContain("붙여넣은 용어 초안");
+  expect(content).toContain("createTermsFromBatch");
+  expect(content).toContain("개 모두 초안으로 추가");
+});
+
 test("시트 도구 막대는 가로 스크롤 밖에서 현재 필터와 붙여넣기 도움말을 보여준다", () => {
   const content = stripComments(readFileSync(path.join(componentsDir, "terms-grid.tsx"), "utf8"));
   expect(content).toContain('aria-label="현재 적용된 필터"');

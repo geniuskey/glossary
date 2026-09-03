@@ -80,6 +80,22 @@ test("AI 생성 실패 시 공급자의 JSON 오류 원인을 관리자 진단�
   }, [{ role: "user", content: "질문" }])).rejects.toThrow(/no longer available/);
 });
 
+test("AI 공급자의 일시적인 503은 한 번 재시도한다", async () => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(Response.json({ error: { message: "temporary" } }, { status: 503 }))
+    .mockResolvedValueOnce(Response.json({ choices: [{ message: { content: "재시도 성공" } }] }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(completeAi({
+    provider: "openai_compatible",
+    baseUrl: "http://127.0.0.1:9999/v1",
+    model: "local-model",
+    apiKey: "key",
+    customHeaders: [],
+  }, [{ role: "user", content: "질문" }])).resolves.toBe("재시도 성공");
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
 test("Gemini 모델 목록은 generateContent 지원 모델만 선택지로 만든다", async () => {
   const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => Response.json({
     models: [

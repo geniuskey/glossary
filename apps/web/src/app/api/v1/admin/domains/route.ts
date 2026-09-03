@@ -23,7 +23,8 @@ export const POST = withApiErrors(async (request: Request) => {
   const parsed = createSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "도메인 이름이 올바르지 않습니다.", 400, parsed.error.flatten());
   const domain = await createDomain(parsed.data.label);
-  if (!domain) return apiError("operation_conflict", "같은 이름의 도메인이 이미 있습니다.", 409);
+  if (domain === "duplicate") return apiError("operation_conflict", "같은 이름의 도메인이 이미 있습니다.", 409);
+  if (domain === "palette_full") return apiError("operation_conflict", "사용 가능한 도메인 색상을 모두 사용했습니다.", 409);
   return Response.json({ domain }, { status: 201 });
 });
 

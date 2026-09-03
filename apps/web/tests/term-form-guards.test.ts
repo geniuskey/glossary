@@ -87,6 +87,13 @@ test("대표 표기와 추가 표기는 같은 이름 영역에서 관리 정보
   expect(bodyIdx).toBeGreaterThan(managementIdx);
 });
 
+test("넓은 편집 화면은 관리 정보를 왼쪽에 두고 공개 상태에 시트와 같은 색상 토큰을 쓴다", () => {
+  expect(code).toContain('lg:grid-cols-[18rem_minmax(0,1fr)]');
+  expect(code).toContain('className="card lg:order-1 lg:sticky lg:top-16"');
+  expect(code).toContain('className="card lg:order-2"');
+  expect(code).toContain('STATUS_TONE[form.status]');
+});
+
 test("대표 표기 도움말은 대표 영문 용어 필드 라벨 바로 옆에 둔다", () => {
   const nameEnArea = code.slice(code.indexOf('<FormTextField\n                name="nameEn"'), code.indexOf('<FormTextField\n                name="nameKo"'));
   expect(nameEnArea).toContain("hint={labels.primaryHint}");

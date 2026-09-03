@@ -3,11 +3,13 @@ import "server-only";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { domains, terms } from "@grossary/db";
 import { getDb } from "@/lib/db";
+import { firstUnusedDomainColor } from "./domain-colors";
 import { slugify } from "./slug";
 
 export interface DomainOption {
   key: string;
   label: string;
+  color: string;
 }
 
 export interface ManagedDomain extends DomainOption {
@@ -17,7 +19,7 @@ export interface ManagedDomain extends DomainOption {
 
 export async function listDomains(): Promise<DomainOption[]> {
   return getDb()
-    .select({ key: domains.key, label: domains.label })
+    .select({ key: domains.key, label: domains.label, color: domains.color })
     .from(domains)
     .orderBy(asc(domains.sortOrder), asc(domains.key));
 }
@@ -27,6 +29,7 @@ export async function listManagedDomains(): Promise<ManagedDomain[]> {
     .select({
       key: domains.key,
       label: domains.label,
+      color: domains.color,
       sortOrder: domains.sortOrder,
       usageCount: sql<number>`(
         select count(*)::int from ${terms}
@@ -47,10 +50,8 @@ export async function domainsExist(labels: readonly string[]): Promise<boolean> 
   return rows.length === unique.length;
 }
 
-async function uniqueDomainKey(label: string): Promise<string> {
+function uniqueDomainKey(label: string, taken: ReadonlySet<string>): string {
   const base = slugify(label).slice(0, 64) || "domain";
-  const rows = await getDb().select({ key: domains.key }).from(domains);
-  const taken = new Set(rows.map((row) => row.key));
   if (!taken.has(base)) return base;
   for (let suffix = 2; ; suffix += 1) {
     const candidate = `${base.slice(0, Math.max(1, 63 - String(suffix).length))}-${suffix}`;
@@ -58,41 +59,59 @@ async function uniqueDomainKey(label: string): Promise<string> {
   }
 }
 
-export async function createDomain(label: string): Promise<ManagedDomain | null> {
-  const db = getDb();
-  const normalized = label.trim();
-  const [duplicate] = await db
-    .select({ key: domains.key })
-    .from(domains)
-    .where(sql`lower(${domains.label}) = lower(${normalized})`)
-    .limit(1);
-  if (duplicate) return null;
-
-  const [orderRow] = await db
-    .select({ nextOrder: sql<number>`coalesce(max(${domains.sortOrder}), -1)::int + 1` })
-    .from(domains);
-  const key = await uniqueDomainKey(normalized);
-  const [created] = await db
-    .insert(domains)
-    .values({ key, label: normalized, sortOrder: orderRow?.nextOrder ?? 0 })
-    .returning();
-  return created ? { ...created, usageCount: 0 } : null;
-}
-
-export async function renameDomain(key: string, label: string): Promise<"ok" | "not_found" | "duplicate"> {
+export async function createDomain(label: string): Promise<ManagedDomain | "duplicate" | "palette_full"> {
   const db = getDb();
   const normalized = label.trim();
   return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('grossary_domain_catalog'))`);
+    const current = await tx.select({ key: domains.key, label: domains.label, color: domains.color }).from(domains);
+    if (current.some((domain) => domain.label.toLocaleLowerCase() === normalized.toLocaleLowerCase())) return "duplicate" as const;
+    const color = firstUnusedDomainColor(new Set(current.map((domain) => domain.color)));
+    if (!color) return "palette_full" as const;
+    const [orderRow] = await tx
+      .select({ nextOrder: sql<number>`coalesce(max(${domains.sortOrder}), -1)::int + 1` })
+      .from(domains);
+    const key = uniqueDomainKey(normalized, new Set(current.map((domain) => domain.key)));
+    const [created] = await tx
+      .insert(domains)
+      .values({ key, label: normalized, color, sortOrder: orderRow?.nextOrder ?? 0 })
+      .returning();
+    return { ...created!, usageCount: 0 };
+  });
+}
+
+export async function updateDomain(
+  key: string,
+  input: { label?: string; color?: string },
+): Promise<"ok" | "not_found" | "duplicate_label" | "duplicate_color"> {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('grossary_domain_catalog'))`);
     const [current] = await tx.select().from(domains).where(eq(domains.key, key)).limit(1);
     if (!current) return "not_found" as const;
-    const [duplicate] = await tx
-      .select({ key: domains.key })
-      .from(domains)
-      .where(and(sql`${domains.key} <> ${key}`, sql`lower(${domains.label}) = lower(${normalized})`))
-      .limit(1);
-    if (duplicate) return "duplicate" as const;
-    await tx.update(domains).set({ label: normalized, updatedAt: new Date() }).where(eq(domains.key, key));
-    if (current.label !== normalized) {
+    const normalized = input.label?.trim();
+    if (normalized !== undefined) {
+      const [duplicate] = await tx
+        .select({ key: domains.key })
+        .from(domains)
+        .where(and(sql`${domains.key} <> ${key}`, sql`lower(${domains.label}) = lower(${normalized})`))
+        .limit(1);
+      if (duplicate) return "duplicate_label" as const;
+    }
+    if (input.color !== undefined) {
+      const [duplicate] = await tx
+        .select({ key: domains.key })
+        .from(domains)
+        .where(and(sql`${domains.key} <> ${key}`, eq(domains.color, input.color)))
+        .limit(1);
+      if (duplicate) return "duplicate_color" as const;
+    }
+    await tx.update(domains).set({
+      ...(normalized !== undefined ? { label: normalized } : {}),
+      ...(input.color !== undefined ? { color: input.color } : {}),
+      updatedAt: new Date(),
+    }).where(eq(domains.key, key));
+    if (normalized !== undefined && current.label !== normalized) {
       await tx
         .update(terms)
         .set({ domain: sql`array_replace(${terms.domain}, ${current.label}, ${normalized})` })

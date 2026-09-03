@@ -18,7 +18,7 @@ export default function HelpPage() {
           <InfoCard title="새 용어 등록" href="/new">이름, 표기, 정의와 관리 정보를 한 번에 등록합니다.</InfoCard>
           <InfoCard title="미완성 용어 정리" href="/contribute">비어 있는 항목과 공개 검토를 기다리는 초안을 확인합니다.</InfoCard>
           <InfoCard title="관계 살펴보기" href="/graph">도메인·업무 분류·주제로 이어지는 용어를 관계도로 봅니다.</InfoCard>
-          <InfoCard title="용어집에 질문하기" href="/chat">관련 공개 용어만 근거로 삼는 AI 챗봇에 질문합니다.</InfoCard>
+          <InfoCard title="용어집에 질문·가르치기" href="/chat">공개 용어를 질문하고, 모르는 용어나 기존 용어집 목록을 대화로 초안에 추가합니다.</InfoCard>
           <InfoCard title="엑셀에서 가져오기" href="/import">템플릿과 미리 검증을 이용해 여러 용어를 안전하게 가져옵니다.</InfoCard>
         </div>
       </section>

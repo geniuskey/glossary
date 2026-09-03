@@ -9,14 +9,14 @@
 DB 마이그레이터를 한 저장소의 별도 태그로 배포한다. 서버에는 소스 코드가 필요 없고
 `docker-compose.hub.yml`과 환경 파일만 있으면 된다.
 
-> 현재 배포판은 **`0.1.5` 개발 미리보기**다. 기능 검토와 사내 파일럿에 사용하고,
+> 현재 배포판은 **`0.1.6` 개발 미리보기**다. 기능 검토와 사내 파일럿에 사용하고,
 > 업그레이드 전에는 반드시 DB 백업과 복구를 검증한다. 앱과 마이그레이터는 항상 같은
 > 버전 조합으로 고정한다.
 
 | 이미지 | 고정 태그 | 용도 |
 |---|---|---|
-| `euiyun/grossary` | `0.1.5` | Grossary 웹 애플리케이션 |
-| `euiyun/grossary` | `0.1.5-migrator` | 앱 기동 전에 실행하는 DB 마이그레이션 |
+| `euiyun/grossary` | `0.1.6` | Grossary 웹 애플리케이션 |
+| `euiyun/grossary` | `0.1.6-migrator` | 앱 기동 전에 실행하는 DB 마이그레이션 |
 
 `latest`와 `latest-migrator`도 제공하지만, 예고 없이 다음 개발 버전을 가리킬 수 있으므로
 재현 가능한 배포에는 버전 태그를 사용한다.
@@ -33,8 +33,8 @@ docker compose --env-file .env -f docker-compose.hub.yml up -d
 운영에서는 `latest` 대신 아래처럼 앱과 마이그레이터를 같은 버전으로 고정한다.
 
 ```dotenv
-GROSSARY_IMAGE=euiyun/grossary:0.1.5
-GROSSARY_MIGRATOR_IMAGE=euiyun/grossary:0.1.5-migrator
+GROSSARY_IMAGE=euiyun/grossary:0.1.6
+GROSSARY_MIGRATOR_IMAGE=euiyun/grossary:0.1.6-migrator
 ```
 
 `database-init`이 `pg_trgm` 확장을 준비하고, `migrator`가 성공한 뒤에만 `app`이

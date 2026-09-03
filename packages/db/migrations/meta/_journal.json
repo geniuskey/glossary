@@ -141,6 +141,13 @@
       "when": 1788443090241,
       "tag": "0019_romantic_doctor_faustus",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788471111077,
+      "tag": "0020_chubby_magdalene",
+      "breakpoints": true
     }
   ]
 }

@@ -83,22 +83,23 @@ test("업무 분류가 다른 용어는 서로 다른 배지 색상을 사용한
   expect(new Set(hues).size).toBeGreaterThanOrEqual(2);
   expect(html).toContain("graph-category-node");
   expect(html).toContain("graph-category-label");
-  expect(html).toContain("용어 · 분류색 (미분류: 도메인색)");
+  expect(html).toContain("용어 · 분류색");
 });
 
-test("업무 분류가 없는 용어도 대표 도메인별로 서로 다른 색상을 사용한다", () => {
+test("업무 분류가 없는 용어는 분류 체계에 저장한 대표 도메인 색상을 사용한다", () => {
   const terms = [
     term(1, { domain: ["IT"] }),
     term(2, { domain: ["반도체"] }),
     term(3, { domain: ["IT"] }),
   ];
-  const hues = buildTermColorHues(terms);
+  const domainColors = [{ label: "IT", color: "p07" }, { label: "반도체", color: "p31" }];
+  const hues = buildTermColorHues(terms, domainColors);
 
   expect(hues.get(terms[0]!.id)).not.toBe(hues.get(terms[1]!.id));
   expect(hues.get(terms[0]!.id)).toBe(hues.get(terms[2]!.id));
 
-  const html = renderToStaticMarkup(createElement(TermGraph, { terms }));
-  expect((html.match(/graph-category-node/g) ?? [])).toHaveLength(3);
+  const html = renderToStaticMarkup(createElement(TermGraph, { terms, domainColors }));
+  expect((html.match(/graph-category-node/g) ?? [])).toHaveLength(5);
   expect(html).not.toContain("fill-panel-2 stroke-line-strong\" transition-[stroke-width]");
 });
 
@@ -112,13 +113,16 @@ test("업무 분류는 도메인보다 우선하여 용어 색상을 결정한�
   expect(hues.get(terms[0]!.id)).toBe(hues.get(terms[1]!.id));
 });
 
-test("도메인은 중립색이고 업무 분류 허브와 용어만 같은 분류색을 공유한다", () => {
+test("도메인 허브는 저장한 옅은 색이고 업무 분류는 용어 색상에 우선한다", () => {
+  const domainColors = [{ label: "ISP", color: "p12" }];
   const html = renderToStaticMarkup(createElement(TermGraph, { terms: [
     term(1, { domain: ["ISP"], category: "design", categoryLabel: "설계" }),
-  ] }));
+  ], domainColors }));
 
-  expect(html).toContain("fill-panel-2 stroke-line-strong");
-  expect((html.match(/graph-category-node/g) ?? [])).toHaveLength(2);
+  expect(html).not.toContain("fill-panel-2 stroke-line-strong");
+  expect((html.match(/graph-category-node/g) ?? [])).toHaveLength(3);
+  expect(html).toContain("도메인");
+  expect(html).toContain("용어 · 분류색");
 });
 
 test("마우스 이동만으로 선택 안내를 변경하지 않는다", () => {

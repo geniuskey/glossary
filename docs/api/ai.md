@@ -89,17 +89,28 @@ OpenAI-compatible은 `/models`의 ID를 반환한다. 성공 응답은 다음 �
   "history": [
     { "role": "user", "content": "앞에서 말한 용어를 비교해 줘" },
     { "role": "assistant", "content": "..." }
-  ]
+  ],
+  "teachingDraft": null
 }
 ```
 
-- `question`: 1~4,000자
+- `question`: 1~20,000자. 여러 줄 용어집 붙여넣기를 포함한다
 - `history`: 최근 8개까지, 역할은 `user` 또는 `assistant`
-- 질문과 이력 본문의 합계: 최대 12,000자
+- `teachingDraft`: 직전 응답의 `teaching.draft`. 새 용어 설명을 이어갈 때 그대로 전송
+- 질문과 이력 본문의 합계: 최대 28,000자
 - 사용자·API Key별 제한: 분당 20회
 
-성공 응답에는 `answer`와 근거가 된 `sources`가 들어간다. 매칭 용어가 없으면 AI를
-호출하지 않고 빈 `sources`와 재질문 안내를 반환한다.
+성공 응답에는 `answer`와 근거가 된 `sources`가 들어간다. 매칭 용어가 없으면
+`teaching: { draft, ready }`로 대화 중인 단일 용어 초안을 반환한다. TSV/CSV, Markdown
+표, 목록처럼 여러 줄 용어집을 붙여넣으면 `teachingBatch: { drafts }`에 최대 25개를
+반환한다. 이 응답만으로 DB가 변경되지는 않는다.
+
+웹 화면의 확인 버튼은 각 draft를 기존 `POST /terms`에 다음 정책으로 전달한다.
+
+- `status=draft`, `qualityProfile=auto`, `termType=concept`
+- 도메인·업무 분류는 빈 배열로 시작
+- 대표 표기 중복 검사를 포함한 기존 생성 규약 적용
+- 일괄 붙여넣기는 성공·실패 항목을 나누어 표시
 
 | HTTP | code | 의미 |
 |---|---|---|

@@ -36,12 +36,12 @@
   --danger-soft: 253 232 232;
   --grid-line: 227 223 215;
   --selection: 67 56 202;
-  --graph-category-fill-s: 52%;
-  --graph-category-fill-l: 87%;
-  --graph-category-stroke-s: 38%;
-  --graph-category-stroke-l: 56%;
+  --graph-category-fill-s: 42%;
+  --graph-category-fill-l: 93%;
+  --graph-category-stroke-s: 42%;
+  --graph-category-stroke-l: 70%;
   --graph-category-text-s: 34%;
-  --graph-category-text-l: 24%;
+  --graph-category-text-l: 29%;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -124,6 +124,11 @@
 
 .graph-category-swatch {
   background-color: hsl(var(--graph-category-hue) var(--graph-category-stroke-s) var(--graph-category-stroke-l));
+}
+
+.domain-color-swatch {
+  border: 1px solid hsl(var(--graph-category-hue) var(--graph-category-stroke-s) var(--graph-category-stroke-l));
+  background-color: hsl(var(--graph-category-hue) var(--graph-category-fill-s) var(--graph-category-fill-l));
 }
 
 @layer utilities {
