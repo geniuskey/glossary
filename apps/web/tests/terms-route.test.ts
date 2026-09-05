@@ -191,19 +191,6 @@ test("인증 없이 상세 조회는 401 (R44)", async () => {
   expect(res.status).toBe(401);
 });
 
-// R41: 알 수 없는 ?type=은 500 internal_error가 아니라 400 validation_failed여야
-// 한다. listTerms의 `eq(terms.termType, params.termType as never)`를 되살리면
-// (검증 없이 그대로 DB에 넘기면) Postgres가 22P02(잘못된 enum 리터럴)를 던지고
-// withApiErrors가 500으로 바꾸는데, 이 값은 재시도해도 절대 성공하지 않는
-// 영구적으로 잘못된 입력이라 500은 틀린 신호다.
-test("알 수 없는 ?type=은 500이 아니라 400 validation_failed (R41)", async () => {
-  const { token } = await makeKeyRow(["read"]);
-  const res = await termsGet(getRequest("/api/v1/terms?type=bogus", token));
-  expect(res.status).toBe(400);
-  const body = await res.json();
-  expect(body.error.code).toBe("validation_failed");
-});
-
 test("알 수 없는 ?status=는 500이 아니라 400 validation_failed (R41)", async () => {
   const { token } = await makeKeyRow(["read"]);
   const res = await termsGet(getRequest("/api/v1/terms?status=bogus", token));
@@ -797,4 +784,3 @@ test("POST 응답의 warnings에는 conflictingTermId/normLoose가 없다 (R112)
     expect(w).toHaveProperty("conflictingSlug");
   }
 });
-

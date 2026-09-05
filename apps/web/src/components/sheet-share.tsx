@@ -10,7 +10,7 @@ import {
   type EmbedShareFilters,
   type EmbedTableOptions,
 } from "@/lib/embed/sheet-share";
-import { TERM_STATUSES, TERM_STATUS_LABEL, TERM_TYPES, TERM_TYPE_LABEL } from "@/lib/terms/enums";
+import { TERM_STATUSES, TERM_STATUS_LABEL } from "@/lib/terms/enums";
 import { GRID_COLUMNS, type ColumnKey } from "@/lib/terms/grid";
 import { cx } from "@/lib/ui/format";
 
@@ -136,7 +136,6 @@ export function SheetShare({ baseQuery, filters, domains, categories, topics }: 
                     <span className="label">검색어</span>
                     <input value={shareFilters.q} onChange={(event) => updateFilter("q", event.target.value)} placeholder="전체 용어" className="field h-9 py-0 text-xs" />
                   </label>
-                  <ShareFilter label="Type" value={shareFilters.type} onChange={(value) => updateFilter("type", value)} options={TERM_TYPES.map((value) => ({ value, label: TERM_TYPE_LABEL[value] }))} />
                   <ShareFilter label="공개 상태" value={shareFilters.status} onChange={(value) => updateFilter("status", value)} options={TERM_STATUSES.filter((value) => value !== "draft").map((value) => ({ value, label: TERM_STATUS_LABEL[value] }))} />
                   <ShareFilter label="도메인" value={shareFilters.domain} onChange={(value) => updateFilter("domain", value)} options={domains.map((value) => ({ value, label: value }))} />
                   <ShareFilter label="업무 분류" value={shareFilters.category} onChange={(value) => updateFilter("category", value)} options={categories.map(({ key, label }) => ({ value: key, label }))} />

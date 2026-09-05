@@ -26,6 +26,7 @@ export interface AiConnectionDraft {
 
 export interface AiConfigPatch {
   enabled: boolean;
+  autoReviewEnabled: boolean;
   provider: AiProvider;
   baseUrl: string;
   model: string;
@@ -67,6 +68,7 @@ export function publicAiConfig(row: AiConfigRow): PublicAiConfig {
   if ((row.apiKeyEncrypted || row.customHeadersEncrypted) && !aiEncryptionReady()) secretsReadable = false;
   return {
     enabled: row.enabled,
+    autoReviewEnabled: row.autoReviewEnabled,
     provider: row.provider,
     baseUrl: row.baseUrl,
     model: row.model,
@@ -172,6 +174,7 @@ export async function saveAiConfig(input: AiConfigPatch, updatedBy: string): Pro
   const [saved] = await getDb().insert(aiConfig).values({
     id: AI_CONFIG_ID,
     enabled: input.enabled,
+    autoReviewEnabled: input.autoReviewEnabled,
     provider: input.provider,
     baseUrl: input.baseUrl.trim().replace(/\/+$/, ""),
     model: input.model.trim(),
@@ -183,6 +186,7 @@ export async function saveAiConfig(input: AiConfigPatch, updatedBy: string): Pro
     target: aiConfig.id,
     set: {
       enabled: input.enabled,
+      autoReviewEnabled: input.autoReviewEnabled,
       provider: input.provider,
       baseUrl: input.baseUrl.trim().replace(/\/+$/, ""),
       model: input.model.trim(),

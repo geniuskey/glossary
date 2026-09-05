@@ -192,7 +192,6 @@ export async function createTerm(
           .insert(terms)
           .values({
             slug,
-            termType: input.termType,
             qualityProfile: input.qualityProfile ?? "auto",
             nameEn: input.nameEn ?? null,
             nameKo: input.nameKo ?? null,

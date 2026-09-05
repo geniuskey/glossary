@@ -6,7 +6,7 @@ import { SheetFilterBar, type SheetFilter } from "@/components/sheet-filter-bar"
 import { TermsGrid } from "@/components/terms-grid";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { embedBaseQuery } from "@/lib/embed/sheet-share";
-import { businessCategoryLabel, TERM_STATUS_LABEL, TERM_TYPE_LABEL } from "@/lib/terms/enums";
+import { businessCategoryLabel, TERM_STATUS_LABEL } from "@/lib/terms/enums";
 import { businessCategoryExists } from "@/lib/terms/categories";
 import { listDomains } from "@/lib/terms/domains";
 import { SORT_KEYS, type SortDir, type SortKey } from "@/lib/terms/grid";
@@ -31,7 +31,6 @@ const SORT_FALLBACK_DIR: Record<SortKey, SortDir> = {
   nameEn: "asc",
   nameKo: "asc",
   slug: "asc",
-  termType: "asc",
   status: "asc",
 };
 
@@ -58,7 +57,6 @@ export default async function TermsPage({
   const [{ items, total }, facets, domainOptions] = await Promise.all([
     listTermRows({
       q: parsed.q,
-      termType: parsed.type,
       domain: parsed.domain,
       category: parsed.category,
       topic: parsed.topic,
@@ -79,13 +77,6 @@ export default async function TermsPage({
   const pagination = paginationInfo(parsed.page, total, parsed.pageSize);
   const pageSizeOptions = [...new Set([...PAGE_SIZE_OPTIONS, parsed.pageSize])].sort((a, b) => a - b);
   const filters: SheetFilter[] = [
-    {
-      name: "type",
-      label: "Type",
-      value: parsed.type,
-      valueLabel: parsed.type ? TERM_TYPE_LABEL[parsed.type] : undefined,
-      options: facets.types.map((facet) => ({ value: facet.value, label: TERM_TYPE_LABEL[facet.value], count: facet.count })),
-    },
     {
       name: "status",
       label: "상태",
@@ -157,7 +148,6 @@ export default async function TermsPage({
               baseQuery={embedBaseQuery(parsed)}
               filters={{
                 q: parsed.q ?? "",
-                type: parsed.type ?? "",
                 status: parsed.status === "draft" ? "" : parsed.status ?? "",
                 domain: parsed.domain ?? "",
                 category: parsed.category ?? "",

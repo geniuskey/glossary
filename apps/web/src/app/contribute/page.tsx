@@ -1,70 +1,89 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { CompletionBadge, CompletionProgress, MissingFields } from "@/components/term-completion";
-import { CategoryBadges, DomainBadges, OwnerBadge, StatusBadge, TopicBadge } from "@/components/term-badges";
+import { scheduleAfterResponse } from "@/lib/after-response";
+import { MissingFields } from "@/components/term-completion";
+import { CategoryBadges, DomainBadges, StatusBadge } from "@/components/term-badges";
 import { getCurrentUser } from "@/lib/auth/current-user";
-import { TERM_TYPE_LABEL } from "@/lib/terms/enums";
+import { loadAiConfig, publicAiConfig } from "@/lib/ai/config";
+import { listPreparedReviews, listReviewQueue, prepareAutoReviews, resumeReviewQueue, reviewQueueStatuses } from "@/lib/ai/auto-review";
+import { listBusinessCategories } from "@/lib/terms/categories";
 import { listContributionTerms } from "@/lib/terms/query";
-import { displayName, relativeTime } from "@/lib/ui/format";
+import { cx, displayName, relativeTime } from "@/lib/ui/format";
+import { AgentReviewPanel } from "./agent-review-panel";
+import { ManualReviewButton } from "./manual-review-button";
+import { ReviewQueuePanel } from "./review-queue-panel";
 
 export const metadata = { title: "함께 정리" };
 
-export default async function ContributePage() {
+const TABS = [
+  { key: "edit", label: "정리 대기", href: "/contribute" },
+  { key: "agent", label: "제안 검토", href: "/contribute?tab=agent" },
+  { key: "queue", label: "AI 검토 큐", href: "/contribute?tab=queue" },
+] as const;
+
+export default async function ContributePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const queue = await listContributionTerms(60, user.id);
+  const rawTab = (await searchParams).tab;
+  const requestedTab = Array.isArray(rawTab) ? rawTab[0] : rawTab;
+  const tab = requestedTab === "agent" || requestedTab === "queue" ? requestedTab : "edit";
+  const [queue, storedAi, reviewQueue] = await Promise.all([
+    listContributionTerms(60, user.id),
+    loadAiConfig(),
+    listReviewQueue(),
+  ]);
+  const ai = publicAiConfig(storedAi);
+  const categories = tab === "agent" ? await listBusinessCategories() : [];
+  const categoryLabels = Object.fromEntries(categories.map((item) => [item.key, item.label]));
+  const preparedReviews = tab === "agent" ? await listPreparedReviews(queue.items) : {};
+  const queueStatuses = tab === "edit" ? await reviewQueueStatuses(queue.items) : {};
+  if (tab === "agent" && ai?.enabled && ai.secretsReadable && ai.autoReviewEnabled) {
+    const missing = queue.items.filter((term) => !preparedReviews[term.id]);
+    scheduleAfterResponse(() => prepareAutoReviews(missing.map((term) => term.id)));
+  }
+  if (tab === "queue") {
+    scheduleAfterResponse(() => resumeReviewQueue());
+  }
 
   return (
     <AppShell user={user} title="함께 정리" current="contribute">
-      <header className="mb-7 border-b border-line pb-5">
-        <p className="text-xs font-semibold tracking-[0.16em] text-brand">집단지성 대기열</p>
-        <p className="mt-2 text-xl font-semibold tracking-tight text-balance lg:hidden">함께 정리해 주세요</p>
-        <p className="mt-1.5 max-w-2xl text-sm leading-6 text-ink-2">
-          누군가 먼저 남긴 초안에 알고 있는 정보 하나만 보태도 됩니다. 핵심 정보가 채워진 초안은
-          내용을 검토한 뒤 팀에 공개해 주세요.
-        </p>
-      </header>
+      <p className="mb-4 text-xl font-semibold tracking-tight text-balance lg:hidden">함께 정리</p>
+      <nav className="flex overflow-x-auto overflow-y-hidden border-b border-line" aria-label="함께 정리 방식">
+        {TABS.map((item) => (
+          <Link key={item.key} href={item.href} aria-current={tab === item.key ? "page" : undefined} className={cx("relative -mb-px shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition", tab === item.key ? "border-brand text-brand" : "border-transparent text-ink-3 hover:text-ink")}>
+            {item.label}{item.key === "queue" && <span className="ml-1.5 rounded-full bg-panel-2 px-1.5 py-0.5 font-mono text-[10px] tabular-nums">{reviewQueue.counts.total}</span>}
+          </Link>
+        ))}
+      </nav>
 
-      <section className="grid gap-3 sm:grid-cols-3" aria-label="참여 방법">
-        <Guide number="1" title="아는 용어 고르기" body="제품이나 업무에서 자주 본 표현을 고릅니다." />
-        <Guide number="2" title="한 항목만 채우기" body="한줄 정의, 본문, 분야 중 아는 것부터 적습니다." />
-        <Guide number="3" title="검토 후 공개하기" body="충분히 읽을 수 있는 수준이 되면 상태를 공개 · 사용으로 바꿉니다." />
-      </section>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2 py-3 text-xs text-ink-3">
+        <p>{tab === "edit" ? "빠진 정보가 많은 용어부터 보여드립니다." : tab === "agent" ? "현재 값과 제안을 비교한 뒤 필요한 변경만 승인하세요." : "자동·수동 AI 검토의 진행 상태를 함께 확인합니다."}</p>
+        <span className="font-mono tabular-nums">{tab === "queue" ? `${reviewQueue.counts.active.toLocaleString("ko-KR")}개 처리 중` : `${queue.total.toLocaleString("ko-KR")}개`}</span>
+      </div>
 
-      <section className="mt-9" aria-labelledby="queue-heading">
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h2 id="queue-heading" className="text-base font-semibold text-ink text-balance">정리를 기다리는 용어</h2>
-            <p className="mt-1 text-xs text-ink-3">비어 있는 항목이 많고 오래 기다린 순서이며, 완성된 초안도 공개 검토를 기다립니다.</p>
-          </div>
-          <span className="font-mono text-sm tabular-nums text-ink-2">{queue.total.toLocaleString("ko-KR")}개</span>
-        </div>
-
+      {tab === "edit" ? <>
+      <section aria-label="정리를 기다리는 용어">
         {queue.items.length > 0 ? (
           <ul className="grid gap-3 md:grid-cols-2">
             {queue.items.map((term) => (
               <li key={term.id} className="card flex min-w-0 flex-col p-4 sm:p-5">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <CompletionBadge completion={term.completion} />
-                      <StatusBadge status={term.status} />
-                    </div>
-                    <h3 className="mt-3 break-words text-base font-semibold text-ink">{displayName(term)}</h3>
+                    <h3 className="break-words text-base font-semibold text-ink">{displayName(term)}</h3>
                     {(term.fullNameEn || term.fullNameKo) && (
                       <p className="mt-1 line-clamp-2 text-xs text-ink-3">
                         {[term.fullNameEn, term.fullNameKo].filter(Boolean).join(" · ")}
                       </p>
                     )}
                   </div>
-                  <span className="chip shrink-0">{TERM_TYPE_LABEL[term.termType]}</span>
+                  <StatusBadge status={term.status} />
                 </div>
 
                 <div className="mt-4">
-                  <CompletionProgress completion={term.completion} />
-                  <div className="mt-2.5">
+                  <p className="mb-2 text-xs font-semibold text-ink-2">{term.completion.complete ? "다음 할 일" : "필요한 정보"}</p>
+                  <div>
                     {term.status === "draft" && term.completion.complete ? (
                       <p className="text-xs leading-5 text-brand">
                         핵심 정보가 채워졌습니다. 내용을 확인한 뒤 공개 상태로 바꿔 주세요.
@@ -82,12 +101,13 @@ export default async function ContributePage() {
                 <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-line pt-4 mt-4">
                   <DomainBadges domain={term.domain} />
                   <CategoryBadges categories={term.categories} labels={term.categoryLabels} />
-                  <TopicBadge topic={term.topic} />
-                  <OwnerBadge ownerName={term.ownerName} mine={term.ownerId === user.id} />
                   <span className="text-xs text-ink-3">최근 수정 {relativeTime(new Date(term.updatedAt))}</span>
-                  <Link href={`/edit/${term.slug}`} className="btn-primary btn-sm ml-auto">
-                    {term.status === "draft" && term.completion.complete ? "검토하고 공개하기" : "아는 정보 보태기"}
-                  </Link>
+                  <div className="ml-auto flex items-start gap-2">
+                    <ManualReviewButton termId={term.id} revision={term.revision} initialStatus={queueStatuses[term.id]} aiAvailable={Boolean(ai.enabled && ai.secretsReadable)} />
+                    <Link href={`/edit/${term.slug}`} className="btn-primary btn-sm">
+                      {term.status === "draft" && term.completion.complete ? "검토하고 공개" : "내용 채우기"}
+                    </Link>
+                  </div>
                 </div>
               </li>
             ))}
@@ -106,16 +126,7 @@ export default async function ContributePage() {
           </p>
         )}
       </section>
+      </> : tab === "agent" ? <AgentReviewPanel initialTerms={queue.items} autoReviewEnabled={Boolean(ai.enabled && ai.secretsReadable && ai.autoReviewEnabled)} initialReviews={preparedReviews} categoryLabels={categoryLabels} /> : <ReviewQueuePanel queue={reviewQueue} />}
     </AppShell>
-  );
-}
-
-function Guide({ number, title, body }: { number: string; title: string; body: string }) {
-  return (
-    <div className="rounded-xl border border-line bg-panel-2/60 p-4">
-      <span className="font-mono text-xs font-semibold text-brand">{number}</span>
-      <h2 className="mt-2 text-sm font-semibold text-ink">{title}</h2>
-      <p className="mt-1 text-xs leading-5 text-ink-2">{body}</p>
-    </div>
   );
 }

@@ -38,7 +38,6 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
   const initial: TermFormInitial = {
     slug: term.slug,
     expectedRevision,
-    termType: term.termType,
     qualityProfile: term.qualityProfile,
     nameEn: term.nameEn ?? "",
     nameKo: term.nameKo ?? "",

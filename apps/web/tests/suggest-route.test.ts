@@ -37,7 +37,6 @@ function suggestRequest(query: string, token?: string): Request {
 beforeAll(async () => {
   const created = await createTerm(
     {
-      termType: "concept",
       nameEn: "ZugbenchXSGST",
       domain: ["HW"],
       status: "active",

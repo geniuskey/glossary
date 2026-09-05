@@ -5,10 +5,8 @@
 //
 // 드리프트 방지: 이 배열들이 실제 DB enum(packages/db/src/schema/terms.ts)과
 // 어긋나면 폼이 존재하지 않는 값을 보내 400을 받거나, 실제로 존재하는 값을
-// 선택지에서 빠뜨린다. tests/terms-enums.test.ts가 termTypeEnum.enumValues 등과
+// 선택지에서 빠뜨린다. tests/terms-enums.test.ts가 DB enumValues 등과
 // 이 배열들의 정확한 일치를 구조 테스트로 고정한다.
-export const TERM_TYPES = ["concept", "proper_name", "identifier", "unit"] as const;
-
 export const BUSINESS_CATEGORIES = [
   "product", "customer", "project", "process", "design", "evaluation",
   "equipment", "organization", "system", "other",
@@ -23,7 +21,6 @@ export const EXPLICIT_SURFACE_KINDS = ["canonical", "abbreviation", "full_name",
 
 export const SURFACE_LANGS = ["en", "ko", "neutral"] as const;
 
-export type TermTypeLiteral = (typeof TERM_TYPES)[number];
 // 업무 분류 key는 관리자 화면에서 추가할 수 있다. 위 배열은 새 설치의 기본값일
 // 뿐 전체 유니온이 아니므로, 런타임 타입은 string으로 둔다.
 export type BusinessCategoryLiteral = string;
@@ -35,13 +32,6 @@ export type ExplicitSurfaceKindLiteral = (typeof EXPLICIT_SURFACE_KINDS)[number]
 // 이 합집합도 함께 묶인다.
 export type SurfaceKindLiteral = ExplicitSurfaceKindLiteral;
 export type SurfaceLangLiteral = (typeof SURFACE_LANGS)[number];
-
-export const TERM_TYPE_LABEL: Record<TermTypeLiteral, string> = {
-  concept: "일반 개념",
-  proper_name: "고유명칭",
-  identifier: "식별자",
-  unit: "단위",
-};
 
 export const BUSINESS_CATEGORY_LABEL: Record<string, string> = {
   product: "제품",

@@ -1,5 +1,3 @@
-import type { TermTypeLiteral } from "@/lib/terms/enums";
-
 /**
  * 처음 켠 용어집은 빈 표다. 무엇을 어떻게 적어야 하는지 보여 줄 예시가 하나도
  * 없으면 첫 사람이 형식을 전부 발명해야 하고, 그렇게 만들어진 첫 스무 줄이
@@ -17,8 +15,7 @@ export interface SeedTerm {
   nameKo?: string;
   fullNameEn?: string;
   fullNameKo?: string;
-  termType?: TermTypeLiteral;
-  /** 대표 영문 표기가 약어일 때 그 표기 kind를 Type과 독립적으로 보존한다. */
+  /** 대표 영문 표기가 약어일 때 그 표기 kind를 보존한다. */
   primaryKind?: "abbreviation";
   definitionMd: string;
   /** 같은 개념을 가리키는 다른 표기. 검색으로 찾아지되 표준명은 아니다. */

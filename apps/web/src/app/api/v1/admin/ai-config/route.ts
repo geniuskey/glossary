@@ -1,8 +1,11 @@
 import { z } from "zod";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
+import { scheduleAfterResponse } from "@/lib/after-response";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";
 import { loadAiConfig, publicAiConfig, saveAiConfig } from "@/lib/ai/config";
 import { AI_PROVIDERS } from "@/lib/ai/config-values";
+import { prepareAutoReviews } from "@/lib/ai/auto-review";
+import { listContributionTerms } from "@/lib/terms/query";
 
 const ALLOWED_METHODS = ["GET", "PATCH"];
 const { POST, PUT, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -10,6 +13,7 @@ export { POST, PUT, DELETE, OPTIONS };
 
 const patchSchema = z.object({
   enabled: z.boolean(),
+  autoReviewEnabled: z.boolean(),
   provider: z.enum(AI_PROVIDERS),
   baseUrl: z.string().trim().min(1).max(2_000),
   model: z.string().trim().min(1).max(200),
@@ -34,5 +38,11 @@ export const PATCH = withApiErrors(async (request: Request) => {
   if (!parsed.success) return apiError("validation_failed", "AI 연결 설정을 확인해 주세요.", 400, parsed.error.flatten());
   const result = await saveAiConfig(parsed.data, admin.id);
   if (!result.ok) return apiError("validation_failed", result.problems[0] ?? "AI 연결 설정을 확인해 주세요.", 400, { formErrors: result.problems });
+  if (result.row.enabled && result.row.autoReviewEnabled) {
+    scheduleAfterResponse(async () => {
+      const queue = await listContributionTerms(60);
+      await prepareAutoReviews(queue.items.map((term) => term.id));
+    });
+  }
   return Response.json({ config: publicAiConfig(result.row) });
 });

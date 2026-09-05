@@ -35,7 +35,6 @@ const FIELD_LABELS: Record<string, string> = {
   nameKo: "대표 국문 표기",
   fullNameEn: "영문 확장명",
   fullNameKo: "국문 확장명",
-  termType: "Type",
   status: "상태",
   domain: "도메인",
   category: "업무 분류",

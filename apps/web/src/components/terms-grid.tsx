@@ -10,7 +10,6 @@ import {
   businessCategoryLabel,
   TERM_STATUSES,
   TERM_STATUS_LABEL,
-  TERM_TYPE_LABEL,
   type TermStatusLiteral,
 } from "@/lib/terms/enums";
 import {
@@ -89,7 +88,6 @@ type CommitMode = "edit" | "undo" | "redo";
 
 const STATUS_VALUES: ReadonlySet<string> = new Set(TERM_STATUSES);
 const COLUMN_FILTER_NAME: Partial<Record<ColumnKey, SheetFilter["name"]>> = {
-  termType: "type",
   status: "status",
   domain: "domain",
   category: "category",
@@ -2552,14 +2550,6 @@ function CellView({
         <span className={cx("rounded px-1.5 py-0.5 text-[11px] font-medium", STATUS_TONE[row.status])}>
           {TERM_STATUS_LABEL[row.status]}
         </span>
-      </PickCell>
-    );
-  }
-
-  if (column.key === "termType") {
-    return (
-      <PickCell>
-        <span className="text-[12px] text-ink-2">{TERM_TYPE_LABEL[row.termType]}</span>
       </PickCell>
     );
   }

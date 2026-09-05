@@ -3,10 +3,7 @@ import {
   BUSINESS_CATEGORY_LABEL,
   TERM_STATUSES,
   TERM_STATUS_LABEL,
-  TERM_TYPES,
-  TERM_TYPE_LABEL,
   type TermStatusLiteral,
-  type TermTypeLiteral,
   type BusinessCategoryLiteral,
 } from "./enums";
 
@@ -23,7 +20,6 @@ import {
 export interface TermRow {
   id: string;
   slug: string;
-  termType: TermTypeLiteral;
   nameEn: string | null;
   nameKo: string | null;
   fullNameEn: string | null;
@@ -44,7 +40,7 @@ export interface TermRow {
   revision: number;
 }
 
-export const SORT_KEYS = ["updatedAt", "nameEn", "nameKo", "slug", "termType", "status"] as const;
+export const SORT_KEYS = ["updatedAt", "nameEn", "nameKo", "slug", "status"] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
 
 export const SORT_DIRS = ["asc", "desc"] as const;
@@ -58,7 +54,6 @@ export type ColumnKey =
   | "nameKo"
   | "fullNameEn"
   | "fullNameKo"
-  | "termType"
   | "status"
   | "domain"
   | "category"
@@ -88,7 +83,6 @@ export interface GridColumn {
   hiddenByDefault?: boolean;
 }
 
-const TYPE_OPTIONS = TERM_TYPES.map((v) => ({ value: v, label: TERM_TYPE_LABEL[v] }));
 const CATEGORY_OPTIONS = BUSINESS_CATEGORIES.map((v) => ({ value: v, label: BUSINESS_CATEGORY_LABEL[v] ?? v }));
 const STATUS_OPTIONS = TERM_STATUSES.map((v) => ({ value: v, label: TERM_STATUS_LABEL[v] }));
 
@@ -97,7 +91,6 @@ export const GRID_COLUMNS: readonly GridColumn[] = [
   { key: "nameKo", label: "대표 국문 표기", kind: "text", width: 180, sortKey: "nameKo" },
   { key: "fullNameEn", label: "영문 확장명", kind: "text", width: 220 },
   { key: "fullNameKo", label: "국문 확장명", kind: "text", width: 200 },
-  { key: "termType", label: "Type", kind: "enum", width: 110, options: TYPE_OPTIONS, sortKey: "termType" },
   { key: "status", label: "상태", kind: "enum", width: 100, options: STATUS_OPTIONS, sortKey: "status" },
   { key: "domain", label: "도메인", kind: "list", width: 160 },
   { key: "category", label: "업무 분류", kind: "enum", width: 140, options: CATEGORY_OPTIONS },
@@ -286,7 +279,6 @@ export type CellPatch = Partial<
     | "nameKo"
     | "fullNameEn"
     | "fullNameKo"
-    | "termType"
     | "status"
     | "domain"
     | "category"
@@ -340,12 +332,6 @@ export function patchForCell(
       // arrayContains 필터가 같은 용어를 두 번 세지는 않지만 화면이 지저분해진다).
       const items = [...new Set(value.split(/[,\n]/).map((s) => s.trim()).filter(Boolean))];
       return { patch: { domain: items } };
-    }
-
-    case "termType": {
-      const found = TERM_TYPES.find((t) => t === value);
-      if (!found) return { error: `종류 값이 올바르지 않습니다: ${raw}` };
-      return { patch: { termType: found } };
     }
 
     case "status": {
@@ -584,7 +570,7 @@ export interface PastePlan {
  * 클립보드 한 줄을 새 용어의 생성 페이로드로 바꾼다.
  *
  * 빈 칸은 patch에 넣지 않는다 — 기존 행을 고칠 때의 빈 칸은 "지운다"(null)지만
- * 새 행에는 지울 값이 없고, null을 실어 보내면 서버 기본값(termType/status)까지
+ * 새 행에는 지울 값이 없고, null을 실어 보내면 서버 기본값(status)까지
  * 덮어쓴다.
  *
  * 슬러그·최근 수정 같은 읽기 전용 열은 조용히 버린다. 이 표에서 복사한 줄을

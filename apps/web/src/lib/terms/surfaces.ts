@@ -4,7 +4,6 @@ import { inferSurfaceLang } from "./surface-language";
 
 /** 표준 표기 필드만 추린 공통 형태. TermInput과 terms 테이블 row 양쪽이 만족한다. */
 export interface CanonicalNames {
-  termType: string;
   nameEn?: string | null;
   nameKo?: string | null;
   fullNameEn?: string | null;
@@ -23,7 +22,7 @@ export function defaultCaseSensitive(text: string): boolean {
 export function deriveSurfaces(names: CanonicalNames, explicit: SurfaceInput[]): SurfaceInput[] {
   const derived: SurfaceInput[] = [];
   const normalizedExplicit = explicit.map((surface) => ({ ...surface, lang: inferSurfaceLang(surface.text) }));
-  // Type과 표기 종류는 독립 축이다. 대표 영문 표기와 같은 약어를 명시해 둔
+  // 대표 영문 표기와 같은 약어를 명시해 둔
   // 기존 데이터는 그 kind를 우선해, 다시 저장해도 canonical로 뒤집히지 않는다.
   const nameEnKey = names.nameEn ? surfaceKeys(names.nameEn).normLoose : "";
   const nameEnKind = normalizedExplicit.some((surface) =>

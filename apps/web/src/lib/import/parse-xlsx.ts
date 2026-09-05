@@ -1,10 +1,9 @@
 import ExcelJS from "exceljs";
-import { BUSINESS_CATEGORIES, TERM_STATUSES, TERM_TYPES, type BusinessCategoryLiteral, type TermStatusLiteral, type TermTypeLiteral } from "@/lib/terms/enums";
+import { BUSINESS_CATEGORIES, TERM_STATUSES, type BusinessCategoryLiteral, type TermStatusLiteral } from "@/lib/terms/enums";
 import { HEADER_TO_FIELD, LIST_SEPARATOR, normalizeHeader, type ImportField } from "./format";
 
 export interface ImportRow {
   rowNumber: number;
-  termType: TermTypeLiteral;
   nameEn?: string;
   nameKo?: string;
   fullNameEn?: string;
@@ -50,12 +49,7 @@ export interface ParseResult {
 
 // 인정하는 값 목록은 enums.ts 하나만 본다 — 여기에 리터럴을 다시 적으면 DB
 // enum과의 드리프트를 막는 tests/terms-enums.test.ts의 사정권 밖에 놓인다.
-const TERM_TYPE_SET = new Set<string>(TERM_TYPES);
 const STATUS_SET = new Set<string>(TERM_STATUSES);
-const LEGACY_TYPE: Record<string, TermTypeLiteral> = {
-  term: "concept", abbreviation: "concept", project: "proper_name",
-  product_id: "identifier", code: "identifier", unit: "unit",
-};
 
 function splitList(value: string): string[] {
   const seen = new Set<string>();
@@ -138,20 +132,13 @@ export async function parseGlossaryWorkbook(
       return;
     }
 
-    const rawType = raw.termType ?? "";
-    const termType = TERM_TYPE_SET.has(rawType) ? rawType as TermTypeLiteral : LEGACY_TYPE[rawType] ?? "concept";
     const category = categorySet.has(raw.category ?? "")
       ? raw.category as BusinessCategoryLiteral
-      : rawType === "project"
-        ? "project"
-        : rawType === "product_id"
-          ? "product"
-          : undefined;
+      : undefined;
     const status = STATUS_SET.has(raw.status ?? "") ? (raw.status as TermStatusLiteral) : "draft";
 
     rows.push({
       rowNumber,
-      termType,
       nameEn,
       nameKo,
       fullNameEn: raw.fullNameEn || undefined,

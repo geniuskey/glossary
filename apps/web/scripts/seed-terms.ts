@@ -66,7 +66,6 @@ for (const pack of selected) {
 
   for (const seed of pack.terms) {
     const input = termInputSchema.parse({
-      termType: seed.termType ?? "concept",
       nameEn: seed.nameEn ?? null,
       nameKo: seed.nameKo ?? null,
       fullNameEn: seed.fullNameEn ?? null,

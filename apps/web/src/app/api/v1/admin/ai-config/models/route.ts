@@ -28,7 +28,7 @@ export const POST = withApiErrors(async (request: Request) => {
 
   try {
     const config = runtimeAiConfigFromDraft(await loadAiConfig(), parsed.data);
-    const problems = validateAiConfigInput({ ...parsed.data, enabled: true, model: "models-list" }, Boolean(config.apiKey));
+    const problems = validateAiConfigInput({ ...parsed.data, enabled: true, autoReviewEnabled: false, model: "models-list" }, Boolean(config.apiKey));
     for (const header of config.customHeaders) if (!header.value) problems.push(`${header.name} 헤더 값을 입력해 주세요.`);
     if (problems.length > 0) return apiError("validation_failed", problems[0]!, 400, { formErrors: [...new Set(problems)] });
     return Response.json({ models: await listAiModels(config) });

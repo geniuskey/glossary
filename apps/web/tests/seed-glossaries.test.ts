@@ -19,7 +19,6 @@ test("모든 씨앗 용어가 termInputSchema를 통과한다", () => {
   const failed: string[] = [];
   for (const { pack, term } of ALL) {
     const parsed = termInputSchema.safeParse({
-      termType: term.termType ?? "term",
       nameEn: term.nameEn ?? null,
       nameKo: term.nameKo ?? null,
       fullNameEn: term.fullNameEn ?? null,
@@ -40,7 +39,6 @@ test("씨앗 용어끼리 표기가 겹치지 않는다", () => {
   const owners = new Map<string, Set<string>>();
   for (const { pack, term } of ALL) {
     const input = termInputSchema.parse({
-      termType: term.termType ?? "term",
       nameEn: term.nameEn ?? null,
       nameKo: term.nameKo ?? null,
       fullNameEn: term.fullNameEn ?? null,

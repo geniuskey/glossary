@@ -20,7 +20,6 @@ let draftId = "";
 beforeAll(async () => {
   const soc = await createTerm(
     {
-      termType: "concept",
       nameEn: "SystemOnChipXSRCH",
       nameKo: "시스템온칩XSRCH",
       domain: ["HW"],
@@ -35,7 +34,6 @@ beforeAll(async () => {
 
   const other = await createTerm(
     {
-      termType: "concept",
       nameEn: "SocketXSRCH",
       domain: ["HW"],
       status: "active",
@@ -48,7 +46,7 @@ beforeAll(async () => {
 
   // R136: 접두사가 짧아 trigram 유사도로는 절대 안 걸리는 자동완성용 fixture.
   const qzz = await createTerm(
-    { termType: "concept", nameEn: "QzzThermalXSRCH", domain: [], status: "active", surfaces: [] },
+    { nameEn: "QzzThermalXSRCH", domain: [], status: "active", surfaces: [] },
     null,
   );
   qzzId = qzz.term.id;
@@ -57,14 +55,14 @@ beforeAll(async () => {
   // R136: LIKE 이스케이프용 한 쌍. 표기에 `%`가 들어간 것과, 그 `%`가
   // 와일드카드로 새면 함께 걸려 버리는 것.
   const pct = await createTerm(
-    { termType: "concept", nameEn: "XsrchpctFifty%", domain: [], status: "active", surfaces: [] },
+    { nameEn: "XsrchpctFifty%", domain: [], status: "active", surfaces: [] },
     null,
   );
   pctId = pct.term.id;
   ids.push(pctId);
 
   const pctPlain = await createTerm(
-    { termType: "concept", nameEn: "XsrchpctFiftyAaa", domain: [], status: "active", surfaces: [] },
+    { nameEn: "XsrchpctFiftyAaa", domain: [], status: "active", surfaces: [] },
     null,
   );
   pctPlainId = pctPlain.term.id;
@@ -72,7 +70,6 @@ beforeAll(async () => {
 
   const draft = await createTerm(
     {
-      termType: "concept",
       nameEn: "HiddenDraftXSRCH",
       domain: ["QA"],
       status: "draft",

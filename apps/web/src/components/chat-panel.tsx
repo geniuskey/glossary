@@ -94,7 +94,6 @@ export function ChatPanel({ enabled }: { enabled: boolean }) {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        termType: "concept",
         qualityProfile: "auto",
         nameEn: draft.nameEn,
         nameKo: draft.nameKo,

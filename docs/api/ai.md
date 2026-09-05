@@ -15,6 +15,7 @@ custom header는 이름과 `configured` 상태만 보여준다.
 ```json
 {
   "enabled": true,
+  "autoReviewEnabled": true,
   "provider": "gemini",
   "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
   "model": "gemini-3.6-flash",
@@ -22,6 +23,9 @@ custom header는 이름과 `configured` 상태만 보여준다.
   "customHeaders": []
 }
 ```
+
+`autoReviewEnabled`를 켜면 정리 대기 용어와 검색된 기존 용어 근거가 설정한 AI 공급자에
+전달될 수 있으며, 생성된 수정 제안은 사용자가 승인하기 전까지 원문에 반영되지 않는다.
 
 `provider`는 `gemini` 또는 `openai_compatible`이다. API Key를 생략하거나 빈 문자열로
 보내면 기존 값을 유지하고, `null`이면 삭제한다. 저장된 custom header 값도 화면에서
@@ -79,6 +83,54 @@ OpenAI-compatible은 `/models`의 ID를 반환한다. 성공 응답은 다음 �
 같은 입력을 워크스페이스 설정에 저장한다. 실제 필수 항목은 용어의 `qualityProfile`과
 결합해 계산한다.
 
+## 자동 검토 제안
+
+### `GET /contributions/review-queue`
+
+로그인 세션 또는 `read` API Key로 AI 검토 큐의 전체·처리 중·대기·완료·실패 건수와
+최근 용어 목록을 조회한다.
+
+### `POST /contributions/review-queue`
+
+정리 대기 용어의 현재 리비전을 수동 검토 큐에 넣는다. 자동 검토 설정이 꺼져 있어도
+AI 연결이 활성화되어 있으면 사용할 수 있다.
+
+```json
+{
+  "termId": "00000000-0000-4000-8000-000000000001",
+  "revision": 1
+}
+```
+
+접수되면 202를 반환한다. AI 연결이 꺼져 있으면 503, 정리 대상이 아니거나 리비전이
+바뀌었으면 409를 반환한다.
+
+### `GET /contributions/suggestions`
+
+`termId`와 `revision` query를 받아 현재 리비전의 준비된 검토를 반환한다. 아직 생성되지
+않았다면 백그라운드 생성을 예약하고 202를 반환한다.
+
+### `PATCH /contributions/suggestions`
+
+AI 관계 제안을 승인하거나 거절한다.
+
+```json
+{
+  "termId": "00000000-0000-4000-8000-000000000001",
+  "revision": 1,
+  "suggestionId": "agent-...-relation-...-used_in",
+  "decision": "approved"
+}
+```
+
+승인된 관계만 RAG의 관계 확장에 사용된다. 제안이 이미 처리됐거나 출발·대상 용어의
+리비전이 달라졌으면 409를 반환한다.
+
+### `DELETE /contributions/suggestions`
+
+관계가 아닌 자동 수정 제안 하나를 거절한다. 요청 본문은 `termId`, `revision`,
+`suggestionId`를 사용한다.
+
 ## 용어집 챗봇
 
 ### `POST /chat`
@@ -107,7 +159,7 @@ OpenAI-compatible은 `/models`의 ID를 반환한다. 성공 응답은 다음 �
 
 웹 화면의 확인 버튼은 각 draft를 기존 `POST /terms`에 다음 정책으로 전달한다.
 
-- `status=draft`, `qualityProfile=auto`, `termType=concept`
+- `status=draft`, `qualityProfile=auto`
 - 도메인·업무 분류는 빈 배열로 시작
 - 대표 표기 중복 검사를 포함한 기존 생성 규약 적용
 - 일괄 붙여넣기는 성공·실패 항목을 나누어 표시

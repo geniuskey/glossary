@@ -1,7 +1,7 @@
-import { termStatusEnum, termTypeEnum } from "@glossary/db";
+import { termStatusEnum } from "@glossary/db";
 import { DEFAULT_DIR, DEFAULT_SORT, SORT_DIRS, SORT_KEYS, type SortDir, type SortKey } from "./grid";
 import { DOMAIN_VALUE_MAX, TERM_QUERY_MAX } from "./limits";
-import type { BusinessCategory, TermStatus, TermType } from "./query";
+import type { BusinessCategory, TermStatus } from "./query";
 
 // R91: `app/api/v1/terms/route.ts`의 parseEnumParam/parsePageParam은 이 모듈과
 // 똑같은 문제(알 수 없는 enum 값, 형식이 잘못된 page)를 다루지만 결론은
@@ -20,7 +20,6 @@ export const PAGE_SIZE_OPTIONS = [50, 100, 250, 500, 1000] as const;
 
 export interface ParsedListParams {
   q?: string;
-  type?: TermType;
   domain?: string;
   category?: BusinessCategory;
   topic?: string;
@@ -50,21 +49,6 @@ function narrowEnum<T extends string>(raw: string | string[] | undefined, allowe
   const value = firstValue(raw);
   if (value === undefined) return undefined;
   return (allowed as readonly string[]).includes(value) ? (value as T) : undefined;
-}
-
-const LEGACY_TYPE_QUERY: Record<string, TermType> = {
-  term: "concept",
-  abbreviation: "concept",
-  project: "proper_name",
-  product_id: "identifier",
-  code: "identifier",
-  unit: "unit",
-};
-
-function narrowTermType(raw: string | string[] | undefined): TermType | undefined {
-  const value = firstValue(raw);
-  if (value && LEGACY_TYPE_QUERY[value]) return LEGACY_TYPE_QUERY[value];
-  return narrowEnum(raw, termTypeEnum.enumValues);
 }
 
 // R90: `Number("1e999")`는 Infinity, `Number("abc")`는 NaN이다 — 둘 다
@@ -97,7 +81,6 @@ export function parsePageSize(raw: string | string[] | undefined): number {
 export function parseListParams(raw: RawSearchParams): ParsedListParams {
   return {
     q: firstTextValue(raw.q, TERM_QUERY_MAX),
-    type: narrowTermType(raw.type),
     domain: firstTextValue(raw.domain, DOMAIN_VALUE_MAX),
     category: firstTextValue(raw.category, DOMAIN_VALUE_MAX),
     topic: firstTextValue(raw.topic, DOMAIN_VALUE_MAX),
@@ -129,7 +112,7 @@ export function paginationInfo(page: number, total: number, pageSize: number): P
   };
 }
 
-export type FilterName = "q" | "type" | "domain" | "category" | "topic" | "status";
+export type FilterName = "q" | "domain" | "category" | "topic" | "status";
 type ParamName = FilterName | "sort" | "dir" | "pageSize";
 
 // R93/R94: 현재 활성 필터(빈 값이 아닌 것만)를 이름 붙은 목록으로 뽑는다.
@@ -139,7 +122,6 @@ type ParamName = FilterName | "sort" | "dir" | "pageSize";
 export function activeFilters(params: ParsedListParams): Array<{ name: FilterName; value: string }> {
   const out: Array<{ name: FilterName; value: string }> = [];
   if (params.q) out.push({ name: "q", value: params.q });
-  if (params.type) out.push({ name: "type", value: params.type });
   if (params.domain) out.push({ name: "domain", value: params.domain });
   if (params.category) out.push({ name: "category", value: params.category });
   if (params.topic) out.push({ name: "topic", value: params.topic });
@@ -149,7 +131,7 @@ export function activeFilters(params: ParsedListParams): Array<{ name: FilterNam
 
 // R94: 검색 폼의 `q` input은 이미 화면에 보이는 입력창 자신이라, hidden으로
 // 다시 실으면 안 된다(값이 두 번 실려 마지막 것이 이기는 것에 우연히 기대게
-// 된다). type/domain/category/status만 hidden으로 실어 검색 제출 시 사라지지 않게 한다.
+// 된다). 나머지 필터만 hidden으로 실어 검색 제출 시 사라지지 않게 한다.
 export function hiddenSearchFields(params: ParsedListParams): Array<{ name: ParamName; value: string }> {
   return activeParams(params).filter((f) => f.name !== "q");
 }

@@ -1,4 +1,5 @@
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
+import { scheduleAfterResponse } from "@/lib/after-response";
 import { isResponse, requireAuth } from "@/lib/auth/require";
 import { getTermByIdOrSlug, type TermDetailResponse } from "@/lib/terms/query";
 import { termPatchSchema } from "@/lib/terms/schema";
@@ -8,6 +9,7 @@ import { domainsExist } from "@/lib/terms/domains";
 import { representativeDuplicateFieldErrors } from "@/lib/terms/create";
 import { deleteTerm, updateTerm, type UpdateTermSuccess } from "@/lib/terms/update";
 import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
+import { prepareAutoReview } from "@/lib/ai/auto-review";
 
 // Task 10: GET/PATCH/DELETE 세 메서드를 처리한다. 나머지는 405 스텁이다.
 const ALLOWED_METHODS = ["GET", "PATCH", "DELETE"];
@@ -96,6 +98,7 @@ export const PATCH = withApiErrors(
     // 위 분기를 빠뜨리면 여기서 컴파일 오류가 난다 — 그렇지 않으면 내부 판별자가
     // 200 성공 응답으로 클라이언트에 그대로 새어 나간다(리뷰가 실측한 회귀).
     const ok: UpdateTermSuccess = result;
+    scheduleAfterResponse(() => prepareAutoReview(ok.term.id));
     // R77(F9) — 해소됨(R112, Task 13): POST/PATCH 양쪽을 wire.ts의
     // TermWriteResponse/toTermWire/toSurfaceWire/toWarningWire로 통일해
     // createdBy/updatedBy/replacedById/normLoose/normSpace 같은 내부 컬럼이

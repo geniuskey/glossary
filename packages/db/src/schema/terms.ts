@@ -1,12 +1,8 @@
 import { sql } from "drizzle-orm";
 import {
-  boolean, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid,
+  boolean, check, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid,
 } from "drizzle-orm/pg-core";
 import { users } from "./auth";
-
-export const termTypeEnum = pgEnum("term_type", [
-  "concept", "proper_name", "identifier", "unit",
-]);
 
 export const termQualityProfileEnum = pgEnum("term_quality_profile", [
   "auto", "mapping", "context", "guidance",
@@ -60,12 +56,19 @@ export const surfaceKindEnum = pgEnum("surface_kind", [
 
 export const surfaceLangEnum = pgEnum("surface_lang", ["en", "ko", "neutral"]);
 
+export const termRelationTypeEnum = pgEnum("term_relation_type", [
+  "related_to", "is_a", "part_of", "used_in", "prerequisite_of", "replaces",
+]);
+
+export const termRelationStatusEnum = pgEnum("term_relation_status", [
+  "proposed", "approved", "rejected",
+]);
+
 export const terms = pgTable(
   "terms",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     slug: text("slug").notNull(),
-    termType: termTypeEnum("term_type").notNull().default("concept"),
     qualityProfile: termQualityProfileEnum("quality_profile").notNull().default("auto"),
     nameEn: text("name_en"),
     nameKo: text("name_ko"),
@@ -116,5 +119,34 @@ export const termSurfaces = pgTable(
       .using("gin", sql`${t.normLoose} gin_trgm_ops`),
     termIdx: index("term_surfaces_term_idx").on(t.termId),
     uniquePerTerm: uniqueIndex("term_surfaces_unique").on(t.termId, t.normLoose, t.kind),
+  }),
+);
+
+/** AI는 proposed만 만들고, 검색 그래프에는 사람이 승인한 관계만 들어간다. */
+export const termRelations = pgTable(
+  "term_relations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sourceTermId: uuid("source_term_id").notNull().references(() => terms.id, { onDelete: "cascade" }),
+    targetTermId: uuid("target_term_id").notNull().references(() => terms.id, { onDelete: "cascade" }),
+    relationType: termRelationTypeEnum("relation_type").notNull(),
+    status: termRelationStatusEnum("status").notNull().default("proposed"),
+    confidence: integer("confidence").notNull().default(100),
+    evidenceMd: text("evidence_md"),
+    sourceRevision: integer("source_revision"),
+    targetRevision: integer("target_revision"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    reviewedBy: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  },
+  (t) => ({
+    uniqueRelation: uniqueIndex("term_relations_unique").on(t.sourceTermId, t.targetTermId, t.relationType),
+    sourceIdx: index("term_relations_source_idx").on(t.sourceTermId, t.status),
+    targetIdx: index("term_relations_target_idx").on(t.targetTermId, t.status),
+    distinctTerms: check("term_relations_distinct_terms", sql`${t.sourceTermId} <> ${t.targetTermId}`),
+    confidenceRange: check("term_relations_confidence_range", sql`${t.confidence} between 0 and 100`),
+    positiveSourceRevision: check("term_relations_positive_source_revision", sql`${t.sourceRevision} is null or ${t.sourceRevision} > 0`),
+    positiveTargetRevision: check("term_relations_positive_target_revision", sql`${t.targetRevision} is null or ${t.targetRevision} > 0`),
   }),
 );

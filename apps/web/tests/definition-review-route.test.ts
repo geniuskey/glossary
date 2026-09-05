@@ -40,7 +40,6 @@ async function loginAsAdmin() {
 test("본문만 있는 용어를 대기열에서 찾아 관리자가 한줄 정의를 승인한다", async () => {
   const admin = await loginAsAdmin();
   const created = await createTerm({
-    termType: "concept",
     nameEn: `Definition Review ${Date.now()}`,
     domain: [],
     status: "draft",

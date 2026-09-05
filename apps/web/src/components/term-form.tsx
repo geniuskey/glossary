@@ -24,14 +24,10 @@ import {
   TERM_STATUSES,
   TERM_STATUS_HINT,
   TERM_STATUS_LABEL,
-  TERM_TYPES,
-  TERM_TYPE_LABEL,
   type ExplicitSurfaceKindLiteral,
   type SurfaceLangLiteral,
   type TermStatusLiteral,
-  type TermTypeLiteral,
 } from "@/lib/terms/enums";
-import { TERM_FIELD_LABELS } from "@/lib/terms/form-labels";
 import { buildTermPayload, parseSurfaceBatch, type SurfaceDraft, type TermFormState } from "@/lib/terms/form-payload";
 import type { EditReviewField } from "@/lib/ai/edit-review-values";
 import { interpretResponse, type FormOutcome } from "@/lib/terms/form-response";
@@ -72,7 +68,7 @@ const SURFACE_LANGUAGE_STYLE: Record<SurfaceLangLiteral, string> = {
 const SURFACE_LANGUAGE_ORDER = ["ko", "en", "neutral"] as const;
 
 const QUALITY_PROFILE_HINT: Record<TermQualityProfile, string> = {
-  auto: "약어·식별자·단위에 Full name이 있으면 표기 매핑으로, 나머지는 맥락 설명으로 판단합니다. 폐기·금지 용어는 사용 지침을 적용합니다.",
+  auto: "약어에 Full name이 있으면 표기 매핑으로, 나머지는 맥락 설명으로 판단합니다. 폐기·금지 용어는 사용 지침을 적용합니다.",
   mapping: TERM_QUALITY_PROFILE_DESCRIPTION.mapping,
   context: TERM_QUALITY_PROFILE_DESCRIPTION.context,
   guidance: TERM_QUALITY_PROFILE_DESCRIPTION.guidance,
@@ -95,7 +91,6 @@ function managementSummary(form: TermFormState): string {
 }
 
 const EMPTY: TermFormState = {
-  termType: "concept",
   qualityProfile: "auto",
   nameEn: "",
   nameKo: "",
@@ -178,14 +173,12 @@ export function TermForm({
   const initialSnapshotRef = useRef(JSON.stringify(buildTermPayload(initial ?? EMPTY)));
 
   const locked = saving || deleting || renamingSlug || savedSlug !== null;
-  const labels = TERM_FIELD_LABELS[form.termType as TermTypeLiteral] ?? TERM_FIELD_LABELS.concept;
   const fieldDisplayLabel: Record<string, string> = {
-    termType: "용어 종류",
     qualityProfile: "AI 활용 기준",
-    nameEn: labels.nameEn,
-    nameKo: labels.nameKo,
-    fullNameEn: labels.fullNameEn,
-    fullNameKo: labels.fullNameKo,
+    nameEn: "대표 영문 용어",
+    nameKo: "대표 국문 용어",
+    fullNameEn: "영문 확장명",
+    fullNameKo: "국문 확장명",
     domain: "도메인",
     category: "업무 분류",
     topic: "주제",
@@ -636,35 +629,11 @@ export function TermForm({
         />
         <div className={compact ? "space-y-3 p-3" : "space-y-5 p-4 sm:p-5"}>
             <FormFieldError id="status-error" errors={errorsFor("status")} />
-            <fieldset>
-              <legend className="label">
-                <span className="inline-flex items-center gap-1.5">유형 <HelpTip text="항목 자체의 성격을 고릅니다." /></span>
-              </legend>
-              <div className="grid grid-cols-2 gap-1 rounded-xl bg-panel-2 p-1 xl:grid-cols-4">
-                {TERM_TYPES.map((type) => (
-                  <label key={type} className="cursor-pointer">
-                    <input
-                      type="radio"
-                      name="termType"
-                      value={type}
-                      checked={form.termType === type}
-                      onChange={() => updateField("termType", type)}
-                      disabled={locked}
-                      className="peer sr-only"
-                    />
-                    <span className={cx("flex items-center justify-center rounded-lg border border-transparent px-2 text-center text-xs text-ink-2 transition-[background-color,border-color,color,box-shadow] hover:bg-panel hover:text-ink peer-checked:border-line-strong peer-checked:bg-panel peer-checked:font-semibold peer-checked:text-brand peer-checked:shadow-sm peer-focus-visible:ring-2 peer-focus-visible:ring-brand/40 peer-disabled:cursor-not-allowed peer-disabled:opacity-50", compact ? "min-h-8 py-1" : "min-h-9 py-1.5")}>
-                      {TERM_TYPE_LABEL[type]}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            <div className={cx("grid border-t border-line sm:grid-cols-2", compact ? "gap-2 pt-3" : "gap-3 pt-4")}>
+            <div className={cx("grid sm:grid-cols-2", compact ? "gap-2" : "gap-3")}>
               <FormTextField
                 name="nameEn"
-                label={labels.nameEn}
-                hint={labels.primaryHint}
+                label="대표 영문 용어"
+                hint="목록과 페이지 제목에 먼저 표시할 대표 용어를 하나 이상 입력합니다."
                 value={form.nameEn}
                 errors={errorsFor("nameEn")}
                 maxLength={TERM_NAME_MAX}
@@ -673,7 +642,7 @@ export function TermForm({
               />
               <FormTextField
                 name="nameKo"
-                label={labels.nameKo}
+                label="대표 국문 용어"
                 value={form.nameKo}
                 errors={errorsFor("nameKo")}
                 maxLength={TERM_NAME_MAX}
@@ -681,11 +650,11 @@ export function TermForm({
                 onChange={(value) => updateField("nameKo", value)}
               />
 
-              {(showFullNameFields || labels.showFullNames || form.fullNameEn || form.fullNameKo) ? (
+              {(showFullNameFields || form.fullNameEn || form.fullNameKo) ? (
                 <>
                   <FormTextField
                     name="fullNameEn"
-                    label={labels.fullNameEn}
+                    label="영문 확장명"
                     value={form.fullNameEn}
                     errors={errorsFor("fullNameEn")}
                     maxLength={TERM_NAME_MAX}
@@ -694,7 +663,7 @@ export function TermForm({
                   />
                   <FormTextField
                     name="fullNameKo"
-                    label={labels.fullNameKo}
+                    label="국문 확장명"
                     value={form.fullNameKo}
                     errors={errorsFor("fullNameKo")}
                     maxLength={TERM_NAME_MAX}

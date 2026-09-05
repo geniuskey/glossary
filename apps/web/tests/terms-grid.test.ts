@@ -1,5 +1,4 @@
 import { expect, test } from "vitest";
-import { TERM_TYPES } from "../src/lib/terms/enums.js";
 import {
   activeCellScrollDelta,
   applyPatch,
@@ -47,7 +46,6 @@ function row(overrides: Partial<TermRow> = {}): TermRow {
   return {
     id: "11111111-1111-1111-1111-111111111111",
     slug: "interstitial-slide-point",
-    termType: "concept",
     nameEn: "Interstitial Slide Point",
     nameKo: "중간 슬라이드 지점",
     fullNameEn: null,
@@ -127,18 +125,13 @@ test("patchForCell: 도메인은 쉼표와 줄바꿈 둘 다로 쪼개고 중복
 });
 
 test("patchForCell: 알 수 없는 enum 값은 patch가 아니라 error다", () => {
-  const type = patchForCell("termType", "not-a-type");
   const status = patchForCell("status", "not-a-status");
-  expect(type).toHaveProperty("error");
   expect(status).toHaveProperty("error");
   // 잘못 친 값이 메시지에 그대로 보여야 무엇을 고쳐야 할지 알 수 있다.
-  expect((type as { error: string }).error).toContain("not-a-type");
+  expect((status as { error: string }).error).toContain("not-a-status");
 });
 
 test("patchForCell: 알려진 enum 값은 그대로 통과한다", () => {
-  for (const t of TERM_TYPES) {
-    expect(patchForCell("termType", t)).toEqual({ patch: { termType: t } });
-  }
   expect(patchForCell("status", "deprecated")).toEqual({ patch: { status: "deprecated" } });
 });
 
@@ -201,7 +194,6 @@ test("ID 선택이 필요한 담당자를 제외한 상세 폼 필드는 표에�
       "nameEn",
       "nameKo",
       "status",
-      "termType",
       "topic",
     ].sort(),
   );
@@ -222,7 +214,7 @@ test("클릭 한 번에 열리는 열은 enum과 긴 본문 열뿐이다", () =>
   // 나머지 열까지 클릭으로 열면 드래그로 범위를 잡을 수 없게 되어
   // 복사·붙여넣기·아래로 채우기가 통째로 죽는다.
   const opening = GRID_COLUMNS.filter(opensOnClick).map((c) => c.key);
-  expect(opening).toEqual(["termType", "status", "category", "definitionMd", "bodyMd"]);
+  expect(opening).toEqual(["status", "category", "definitionMd", "bodyMd"]);
 });
 
 // 스크롤 상자가 0~800이고 한 행이 32px일 때의 좌표. 목록은 178px쯤 된다.
@@ -408,15 +400,6 @@ test("planPaste: 새 행의 잘못된 enum 값은 기본값으로 밀지 않고 
 
   expect(creates).toEqual([{ line: 2, values: { nameEn: "B", status: "active" } }]);
   expect(plan.errors.join(" ")).toContain("1번째 줄");
-});
-
-test("planPaste: 한 줄에 잘못된 값이 여러 개면 발견한 오류를 모두 모은다", () => {
-  const columns = [columnByKey("nameEn"), columnByKey("termType"), columnByKey("status")];
-  const { plan, creates } = planPaste([], columns, { r: 0, c: 0 }, [["A", "unknown-type", "unknown-status"]]);
-  expect(creates).toEqual([]);
-  expect(plan.errors).toHaveLength(2);
-  expect(plan.errors[0]).toContain("Type");
-  expect(plan.errors[1]).toContain("상태");
 });
 
 // 이 표에서 복사한 줄을 그대로 표 끝에 붙여넣는 것(줄 복제)이 가장 흔한

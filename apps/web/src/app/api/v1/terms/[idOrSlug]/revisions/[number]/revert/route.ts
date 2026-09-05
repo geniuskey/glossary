@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { scheduleAfterResponse } from "@/lib/after-response";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAuth } from "@/lib/auth/require";
 import { getTermByIdOrSlug } from "@/lib/terms/query";
@@ -6,6 +7,7 @@ import { representativeDuplicateFieldErrors } from "@/lib/terms/create";
 import { revertTerm } from "@/lib/terms/revert";
 import type { UpdateTermSuccess } from "@/lib/terms/update";
 import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
+import { prepareAutoReview } from "@/lib/ai/auto-review";
 
 // R130: 되돌리기는 POST 하나다. 되돌리기 자체가 쓰기이므로 GET이어서는 안 된다 —
 // R44와 같은 이유로, 이 사이트의 CSRF 방어는 SameSite=Lax 쿠키뿐이라 GET이 쓰기를
@@ -84,6 +86,7 @@ export const POST = withApiErrors(
     // R81: 분기 체인의 끝 — RevertResult에 변형이 추가됐는데 위 분기를 빠뜨리면
     // 여기서 tsc 오류가 난다. 그렇지 않으면 내부 판별자가 200으로 새어 나간다.
     const ok: UpdateTermSuccess = result;
+    scheduleAfterResponse(() => prepareAutoReview(ok.term.id));
     const body: TermWriteResponse = {
       term: toTermWire(ok.term),
       surfaces: ok.surfaces.map(toSurfaceWire),

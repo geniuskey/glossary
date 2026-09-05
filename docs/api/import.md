@@ -32,7 +32,6 @@ Content-Type: multipart/form-data
 | `nameKo` | `name_ko`, `korean`, `한글`, `한글명` |
 | `fullNameEn` | `full_name_en`, `영문 풀네임`, `풀네임`, `전체명` |
 | `fullNameKo` | `full_name_ko`, `한글 풀네임` |
-| `termType` | `term_type`, `종류`, `유형` |
 | `domain` | `domain`, `도메인` |
 | `category` | `category`, `분류`, `업무 분류` |
 | `topic` | `topic`, `주제`, `세부 주제` |
@@ -46,9 +45,8 @@ Content-Type: multipart/form-data
 
 `domain`과 추가 표기 열(`canonicalNames`, `aliases`, `abbreviations`,
 `discouragedNames`, `forbiddenNames`)은 쉼표 또는 셀 안 줄바꿈으로 여러 값을 나눈다.
-같은 셀 안에서 똑같은 값을 반복하면 한 번만 가져온다. `termType`은 `concept`,
-`proper_name`, `identifier`, `unit` 중 하나다. `category`에는 관리자 화면에 등록된 업무
-분류 key를 쓴다(가져오기 화면에 현재 허용 목록이 표시된다). 약어는 Type이 아니라
+같은 셀 안에서 똑같은 값을 반복하면 한 번만 가져온다. `category`에는 관리자 화면에
+등록된 업무 분류 key를 쓴다(가져오기 화면에 현재 허용 목록이 표시된다). 약어는
 `abbreviations` 열에 적는다.
 
 용어 편집 화면의 **추가 표기**는 엑셀에서 역할별 열로 나뉜다. 대표 영문·한글 외의

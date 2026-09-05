@@ -36,7 +36,6 @@ test("새 대표 표기가 기존 추가 표기와 겹치면 등록하지 않는
   currentCookieValue = (await createSession(user!.id)).token;
 
   const existing = await createTerm({
-    termType: "concept",
     nameEn: "Existing Term",
     domain: [],
     status: "active",
@@ -48,7 +47,6 @@ test("새 대표 표기가 기존 추가 표기와 겹치면 등록하지 않는
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      termType: "concept",
       nameEn: "collision-alias",
       domain: [],
       status: "draft",

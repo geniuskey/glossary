@@ -54,7 +54,6 @@ export interface TermQualityOverview {
 
 export async function getTermQualityOverview(settings: TermQualitySettings): Promise<TermQualityOverview> {
   const rows = await getDb().select({
-    termType: terms.termType,
     qualityProfile: terms.qualityProfile,
     nameEn: terms.nameEn,
     nameKo: terms.nameKo,

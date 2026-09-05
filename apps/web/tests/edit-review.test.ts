@@ -3,7 +3,6 @@ import { buildDraftReviewFindings, parseEditReview } from "../src/lib/ai/edit-re
 import type { TermWritePayload } from "../src/lib/terms/form-payload.js";
 
 const BASE_TERM: TermWritePayload = {
-  termType: "concept",
   qualityProfile: "auto",
   nameEn: "MTO",
   domain: [],

@@ -111,7 +111,7 @@ const CATEGORY_HUES: Record<string, number> = {
 };
 
 // 업무 분류가 비어 있는 기존 데이터도 흰색으로 남지 않게 한다. 현재 화면에
-// 보이는 대표 도메인(도메인도 없으면 용어 종류)을 정렬한 뒤 서로 충분히 떨어진
+// 보이는 대표 도메인을 정렬한 뒤 서로 충분히 떨어진
 // 부드러운 색상 계열을 배정한다. 기본 sort는 UTF-16 코드 단위 기준이라 서버와
 // 브라우저에서 같은 결과를 만든다.
 const FALLBACK_HUES = DOMAIN_COLOR_PALETTE.map((color) => color.hue);
@@ -127,7 +127,7 @@ function graphColorStyle(hue: number): CSSProperties {
 
 function fallbackColorKey(term: GraphTerm): string {
   const primaryDomain = term.domain.find((domain) => domain.trim().length > 0)?.trim();
-  return primaryDomain ? `domain:${primaryDomain}` : `type:${term.termType}`;
+  return primaryDomain ? `domain:${primaryDomain}` : "unclassified";
 }
 
 function termCategoryKeys(term: GraphTerm): string[] {

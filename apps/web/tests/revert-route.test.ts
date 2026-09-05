@@ -55,7 +55,7 @@ async function loginAsNewUser() {
 
 async function seedTerm(nameEn: string) {
   const { term } = await createTerm(
-    { termType: "concept", nameEn, domain: [], status: "active", surfaces: [] },
+    { nameEn, domain: [], status: "active", surfaces: [] },
     null,
   );
   createdTermIds.push(term.id);

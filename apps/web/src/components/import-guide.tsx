@@ -1,4 +1,4 @@
-import { TERM_STATUS_LABEL, TERM_STATUSES, TERM_TYPE_LABEL, TERM_TYPES } from "@/lib/terms/enums";
+import { TERM_STATUS_LABEL, TERM_STATUSES } from "@/lib/terms/enums";
 import {
   ADDITIONAL_SURFACE_FIELDS,
   IMPORT_COLUMNS,
@@ -44,12 +44,7 @@ export function ImportGuide({ categoryOptions }: { categoryOptions: Array<{ key:
       <AdditionalSurfaceGuide />
       <SamplePreview />
       <ColumnTable />
-      <div className="grid gap-4 sm:grid-cols-3">
-        <ValueList
-          title="Type"
-          hint="비거나 모르는 값이면 일반 개념"
-          items={TERM_TYPES.map((t) => ({ value: t, label: TERM_TYPE_LABEL[t] }))}
-        />
+      <div className="grid gap-4 sm:grid-cols-2">
         <ValueList
           title="업무 분류"
           hint="비우면 미분류"

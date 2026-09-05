@@ -39,10 +39,6 @@ const json = (description: string, schema: unknown) => ({
   content: { "application/json": { schema } },
 });
 
-const termTypeSchema = {
-  type: "string",
-  enum: ["concept", "proper_name", "identifier", "unit"],
-};
 const termQualityProfileSchema = {
   type: "string",
   enum: ["auto", "mapping", "context", "guidance"],
@@ -94,11 +90,10 @@ export const openApiSpec = {
       Error: errorEnvelope,
       TermSummary: {
         type: "object",
-        required: ["id", "slug", "termType", "qualityProfile", "domain", "categories", "categoryLabels", "status"],
+        required: ["id", "slug", "qualityProfile", "domain", "categories", "categoryLabels", "status"],
         properties: {
           id: { type: "string", format: "uuid" },
           slug: { type: "string" },
-          termType: termTypeSchema,
           qualityProfile: termQualityProfileSchema,
           nameEn: { type: ["string", "null"] },
           nameKo: { type: ["string", "null"] },
@@ -467,10 +462,11 @@ export const openApiSpec = {
         security: [{ sessionCookie: [] }],
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",
-          required: ["enabled", "provider", "baseUrl", "model", "customHeaders"],
+          required: ["enabled", "autoReviewEnabled", "provider", "baseUrl", "model", "customHeaders"],
           additionalProperties: false,
           properties: {
             enabled: { type: "boolean" },
+            autoReviewEnabled: { type: "boolean", description: "정리 대기 용어의 수정 제안을 백그라운드에서 미리 생성" },
             provider: { type: "string", enum: ["gemini", "openai_compatible"] },
             baseUrl: { type: "string", format: "uri", maxLength: 2000 },
             model: { type: "string", minLength: 1, maxLength: 200 },
@@ -794,6 +790,96 @@ export const openApiSpec = {
         },
       },
     },
+    "/contributions/review-queue": {
+      get: {
+        summary: "AI 검토 큐의 상태와 용어 목록 조회",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        responses: {
+          "200": json("검토 큐 건수와 최근 항목", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+        },
+      },
+      post: {
+        summary: "정리 대기 용어의 AI 검토를 수동 요청",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["termId", "revision"],
+          additionalProperties: false,
+          properties: {
+            termId: { type: "string", format: "uuid" },
+            revision: { type: "integer", minimum: 1 },
+          },
+        } } } },
+        responses: {
+          "202": json("검토 큐 등록됨", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "404": errorResponse("term_not_found"),
+          "409": errorResponse("operation_conflict 또는 revision_conflict"),
+          "503": errorResponse("ai_not_enabled"),
+        },
+      },
+    },
+    "/contributions/suggestions": {
+      get: {
+        summary: "현재 용어 리비전에 미리 생성된 AI 검토 조회",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        parameters: [
+          { name: "termId", in: "query", required: true, schema: { type: "string", format: "uuid" } },
+          { name: "revision", in: "query", required: true, schema: { type: "integer", minimum: 1 } },
+        ],
+        responses: {
+          "200": json("준비된 제안", { type: "object" }),
+          "202": json("아직 생성 중", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "404": errorResponse("term_not_found"),
+          "409": errorResponse("revision_conflict"),
+        },
+      },
+      patch: {
+        summary: "AI가 제안한 용어 관계 승인 또는 거절",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["termId", "revision", "suggestionId", "decision"],
+          additionalProperties: false,
+          properties: {
+            termId: { type: "string", format: "uuid" },
+            revision: { type: "integer", minimum: 1 },
+            suggestionId: { type: "string", minLength: 1, maxLength: 200 },
+            decision: { type: "string", enum: ["approved", "rejected"] },
+          },
+        } } } },
+        responses: {
+          "204": { description: "관계 제안 처리됨" },
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "409": errorResponse("operation_conflict"),
+        },
+      },
+      delete: {
+        summary: "자동 생성된 제안 거절",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["termId", "revision", "suggestionId"],
+          additionalProperties: false,
+          properties: {
+            termId: { type: "string", format: "uuid" },
+            revision: { type: "integer", minimum: 1 },
+            suggestionId: { type: "string", minLength: 1, maxLength: 200 },
+          },
+        } } } },
+        responses: {
+          "204": { description: "거절됨" },
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "409": errorResponse("operation_conflict"),
+        },
+      },
+    },
     "/chat": {
       post: {
         summary: "용어집에 근거한 AI 질문",
@@ -838,7 +924,6 @@ export const openApiSpec = {
         summary: "용어 목록·검색",
         parameters: [
           { name: "q", in: "query", schema: { type: "string" } },
-          { name: "type", in: "query", schema: termTypeSchema },
           { name: "domain", in: "query", schema: { type: "string" } },
           { name: "category", in: "query", schema: businessCategorySchema },
           { name: "topic", in: "query", schema: { type: "string" } },
@@ -856,9 +941,7 @@ export const openApiSpec = {
             "application/json": {
               schema: {
                 type: "object",
-                required: ["termType"],
                 properties: {
-                  termType: termTypeSchema,
                   qualityProfile: termQualityProfileSchema,
                   nameEn: { type: ["string", "null"] },
                   nameKo: { type: ["string", "null"] },
@@ -930,6 +1013,36 @@ export const openApiSpec = {
           "204": { description: "삭제됨" },
           "403": errorResponse("forbidden"),
           "404": errorResponse("not_found"),
+        },
+      },
+    },
+    "/terms/{idOrSlug}/ai-review": {
+      post: {
+        summary: "저장 전 용어 초안을 AI로 검토",
+        parameters: [{ name: "idOrSlug", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["term"],
+                additionalProperties: false,
+                properties: {
+                  term: { type: "object" },
+                  instruction: { type: "string", maxLength: 1000 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": json("AI 검토 결과", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "404": errorResponse("term_not_found"),
+          "502": errorResponse("ai_provider_error"),
+          "503": errorResponse("ai_not_enabled"),
         },
       },
     },

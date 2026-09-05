@@ -152,7 +152,6 @@ export async function updateTerm(
   const explicitSurfaces = input.surfaces !== undefined ? input.surfaces : storedExplicit;
 
   const mergedNames: CanonicalNames = {
-    termType: input.termType ?? oldTerm.termType,
     nameEn: input.nameEn !== undefined ? input.nameEn : oldTerm.nameEn,
     nameKo: input.nameKo !== undefined ? input.nameKo : oldTerm.nameKo,
     fullNameEn: input.fullNameEn !== undefined ? input.fullNameEn : oldTerm.fullNameEn,
@@ -219,7 +218,6 @@ export async function updateTerm(
         .update(terms)
         .set({
           ...(input.slug !== undefined ? { slug: input.slug } : {}),
-          ...(input.termType !== undefined ? { termType: input.termType } : {}),
           ...(input.qualityProfile !== undefined ? { qualityProfile: input.qualityProfile } : {}),
           ...(input.nameEn !== undefined ? { nameEn: input.nameEn } : {}),
           ...(input.nameKo !== undefined ? { nameKo: input.nameKo } : {}),

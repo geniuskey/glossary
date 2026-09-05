@@ -34,15 +34,14 @@ describe("시트 공유 URL", () => {
 
   test("공유용 필터는 현재 시트와 독립적으로 바꾸거나 전체로 해제한다", () => {
     const path = buildEmbedPath(
-      "q=AE&type=concept&status=active&domain=ISP&category=design&sort=nameEn&dir=asc",
+      "q=AE&status=active&domain=ISP&category=design&sort=nameEn&dir=asc",
       ["nameEn"],
       { compact: false, links: true, border: true },
-      { q: "", type: "identifier", status: "", domain: "", category: "security", topic: "인증" },
+      { q: "", status: "", domain: "", category: "security", topic: "인증" },
     );
     const params = new URL(path, "https://glossary.example.com").searchParams;
 
     expect(Object.fromEntries(params)).toMatchObject({
-      type: "identifier",
       category: "security",
       topic: "인증",
       sort: "nameEn",

@@ -46,7 +46,6 @@ beforeAll(async () => {
 
   const ae = await createTerm(
     {
-      termType: "concept",
       nameEn: "AE",
       fullNameEn: "Auto Exposure",
       nameKo: "자동노출",
@@ -63,7 +62,6 @@ beforeAll(async () => {
   );
   const hw = await createTerm(
     {
-      termType: "proper_name",
       nameEn: "AE",
       fullNameEn: "Application Engineer",
       domain: ["PM"],
@@ -78,7 +76,6 @@ beforeAll(async () => {
   // term이 homonyms에 두 번 나온다.
   const dupe = await createTerm(
     {
-      termType: "concept",
       nameEn: "AE Dedup Probe",
       domain: ["QA"],
       status: "active",
@@ -91,7 +88,6 @@ beforeAll(async () => {
   );
   const naked = await createTerm(
     {
-      termType: "concept",
       nameEn: `NKT${Date.now()}`,
       domain: [],
       status: "active",
@@ -101,7 +97,6 @@ beforeAll(async () => {
   );
   const draft = await createTerm(
     {
-      termType: "concept",
       nameEn: "CompleteDraftQueryProbe",
       domain: ["QA"],
       status: "draft",
@@ -112,7 +107,6 @@ beforeAll(async () => {
   );
   const related = await createTerm(
     {
-      termType: "concept",
       nameEn: `Related Exposure ${Date.now()}`,
       domain: ["ISP", "Sensor"],
       category: ["design"],
@@ -186,7 +180,7 @@ test("관련 용어는 같은 도메인·카테고리에서 찾고 자기 자신
 });
 
 test("도메인과 카테고리가 모두 없으면 관련 용어 조회는 빈 배열이다", async () => {
-  await expect(listRelatedTerms({ id: ids[3]!, termType: "concept", domain: [], categories: [], category: null, topic: null })).resolves.toEqual([]);
+  await expect(listRelatedTerms({ id: ids[3]!, domain: [], categories: [], category: null, topic: null })).resolves.toEqual([]);
 });
 
 test("비권장 표기로 검색해도 해당 용어가 나온다", async () => {
@@ -271,22 +265,12 @@ test("상세 응답은 TermDetail 필드만 싣고 원본 테이블의 다른 �
   const keys = Object.keys(detail ?? {}).sort();
   expect(keys).toEqual(
     [
-      "id", "slug", "termType", "qualityProfile", "nameEn", "nameKo", "domain", "categories", "category", "categoryLabel", "categoryLabels", "topic",
+      "id", "slug", "qualityProfile", "nameEn", "nameKo", "domain", "categories", "category", "categoryLabel", "categoryLabels", "topic",
       "ownerId", "ownerName", "status",
       "fullNameEn", "fullNameKo", "definitionMd", "bodyMd", "updatedAt",
       "surfaces", "homonyms",
     ].sort(),
   );
-});
-
-// R41: 알 수 없는 type/status는 listTerms 자체가 아니라 라우트가 400으로
-// 막아야 한다(listTerms는 이미 검증된 값만 받는 내부 함수). 라우트 레벨
-// 동작은 terms-route.test.ts에서 별도로 확인한다(F9: 파일명 오기 수정). 여기서는 listTerms가
-// 유효한 termType/status로 정확히 필터링하는지만 확인한다.
-test("termType으로 필터링한다", async () => {
-  const { items } = await listTerms({ termType: "concept", q: "AE", page: 1, pageSize: 20 });
-  expect(items.map((t) => t.id)).toContain(ids[0]);
-  expect(items.map((t) => t.id)).not.toContain(ids[1]);
 });
 
 test("status로 필터링한다", async () => {
@@ -387,13 +371,12 @@ test("동률인 행이 6개 이상이면 id 내림차순 전체 순서와 정확
 
 // 필터 드롭다운은 "전체 N개" 옆에 항목별 개수를 늘어놓는다. 두 수의 기준이
 // 어긋나면(예: total만 현재 필터를 반영하면) 부분이 전체보다 커 보이는 화면이
-// 나온다 — 종류·상태는 NOT NULL이라 합이 정확히 total이어야 한다.
-test("termFacets: total은 종류·상태 합과 같은 기준(사전 전체)이다", async () => {
+// 나온다 — 상태는 NOT NULL이라 합이 정확히 total이어야 한다.
+test("termFacets: total은 상태 합과 같은 기준(사전 전체)이다", async () => {
   const facets = await termFacets();
 
   const sum = (list: Array<{ count: number }>) => list.reduce((acc, f) => acc + f.count, 0);
   expect(facets.total).toBeGreaterThan(0);
-  expect(sum(facets.types)).toBe(facets.total);
   expect(sum(facets.statuses)).toBe(facets.total);
   expect(facets.needsContribution).toBeGreaterThan(0);
   expect(facets.needsContribution).toBeLessThanOrEqual(facets.total);

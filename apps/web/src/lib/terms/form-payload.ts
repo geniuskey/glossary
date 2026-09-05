@@ -14,7 +14,6 @@ export interface SurfaceDraft {
 }
 
 export interface TermFormState {
-  termType: string;
   qualityProfile: TermQualityProfile;
   nameEn: string;
   nameKo: string;
@@ -31,7 +30,6 @@ export interface TermFormState {
 }
 
 export interface TermWritePayload {
-  termType: string;
   qualityProfile: TermQualityProfile;
   nameEn?: string;
   nameKo?: string;
@@ -76,7 +74,6 @@ export function parseSurfaceBatch(input: string): string[] {
  */
 export function buildTermPayload(form: TermFormState, expectedRevision?: number): TermWritePayload {
   const payload: TermWritePayload = {
-    termType: form.termType,
     qualityProfile: form.qualityProfile,
     nameEn: form.nameEn.trim() || undefined,
     nameKo: form.nameKo.trim() || undefined,

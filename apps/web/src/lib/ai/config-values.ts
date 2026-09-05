@@ -14,6 +14,7 @@ export interface AiHeaderInput {
 
 export interface PublicAiConfig {
   enabled: boolean;
+  autoReviewEnabled: boolean;
   provider: AiProvider;
   baseUrl: string;
   model: string;

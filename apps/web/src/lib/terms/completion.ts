@@ -1,4 +1,3 @@
-import type { TermTypeLiteral } from "./enums";
 import {
   contentLength,
   DEFAULT_TERM_QUALITY,
@@ -17,7 +16,6 @@ export const MISSING_TERM_FIELD_LABEL: Record<MissingTermField, string> = {
 };
 
 export interface CompletionSource {
-  termType: TermTypeLiteral;
   qualityProfile?: TermQualityProfile | null;
   nameEn?: string | null;
   nameKo?: string | null;
@@ -57,7 +55,7 @@ export function resolveTermQualityProfile(term: CompletionSource): ResolvedTermQ
 
   const hasFullName = hasText(term.fullNameEn) || hasText(term.fullNameKo);
   const abbreviation = looksLikeAbbreviation(term.nameEn) || looksLikeAbbreviation(term.nameKo);
-  if (hasFullName && (abbreviation || term.termType === "identifier" || term.termType === "unit")) {
+  if (hasFullName && abbreviation) {
     return "mapping";
   }
   return "context";
@@ -65,7 +63,6 @@ export function resolveTermQualityProfile(term: CompletionSource): ResolvedTermQ
 
 /**
  * 용어의 양을 평가하지 않고, 팀원이 의미를 이해하는 데 필요한 최소 항목만 본다.
- * Type과 표기 종류는 분리되어 있으므로 Type에 따른 숨은 필수값을 만들지 않는다.
  * profile마다 AI가 뜻을 구분하는 데 필요한 구조만 요구한다.
  */
 export function termCompletion(term: CompletionSource, settings: TermQualitySettings = DEFAULT_TERM_QUALITY): TermCompletion {

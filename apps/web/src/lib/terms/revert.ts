@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { termRevisions } from "@glossary/db";
 import { getDb } from "@/lib/db";
-import { BUSINESS_CATEGORIES, EXPLICIT_SURFACE_KINDS, SURFACE_LANGS, TERM_STATUSES, TERM_TYPES, type TermTypeLiteral } from "./enums";
+import { EXPLICIT_SURFACE_KINDS, SURFACE_LANGS, TERM_STATUSES } from "./enums";
 import { pickExplicitSurfaces } from "./surfaces";
 import { updateTerm, type TermUpdate, type UpdateTermResult } from "./update";
 import { TERM_QUALITY_PROFILES } from "@/lib/workspace/term-quality-values";
@@ -31,7 +31,6 @@ const snapshotSurfaceSchema = z.object({
 
 const snapshotSchema = z.object({
   term: z.object({
-    termType: z.string().optional(),
     qualityProfile: z.string().optional(),
     nameEn: z.string().nullable().optional(),
     nameKo: z.string().nullable().optional(),
@@ -55,28 +54,10 @@ const LEGACY_STATUS: Record<string, (typeof TERM_STATUSES)[number]> = {
   approved: "active",
 };
 
-const LEGACY_TERM_TYPE: Record<string, TermTypeLiteral> = {
-  term: "concept",
-  abbreviation: "concept",
-  project: "proper_name",
-  product_id: "identifier",
-  code: "identifier",
-  unit: "unit",
-};
-
-function readTermType(raw: string | undefined): TermTypeLiteral | undefined {
-  if (raw === undefined) return undefined;
-  if ((TERM_TYPES as readonly string[]).includes(raw)) return raw as TermTypeLiteral;
-  return LEGACY_TERM_TYPE[raw];
-}
-
-function readCategory(raw: string | string[] | null | undefined, oldType: string | undefined): string[] | undefined {
+function readCategory(raw: string | string[] | null | undefined): string[] | undefined {
   if (Array.isArray(raw)) return raw;
   if (raw === null) return [];
-  if (raw && (!oldType || !LEGACY_TERM_TYPE[oldType] || (BUSINESS_CATEGORIES as readonly string[]).includes(raw))) return [raw];
-  if (oldType === "project") return ["project"];
-  if (oldType === "product_id") return ["product"];
-  return undefined;
+  return raw ? [raw] : undefined;
 }
 
 function readStatus(raw: string | undefined): (typeof TERM_STATUSES)[number] | undefined {
@@ -96,16 +77,9 @@ function readStatus(raw: string | undefined): (typeof TERM_STATUSES)[number] | u
  */
 function toPatch(snapshot: z.infer<typeof snapshotSchema>): TermUpdate {
   const t = snapshot.term;
-  const termType = readTermType(t.termType);
-  const category = readCategory(t.category, t.termType);
-  const topic = t.topic !== undefined
-    ? t.topic
-    : typeof t.category === "string" && t.category && t.termType && LEGACY_TERM_TYPE[t.termType]
-      && !(BUSINESS_CATEGORIES as readonly string[]).includes(t.category)
-      ? t.category
-      : undefined;
+  const category = readCategory(t.category);
+  const topic = t.topic;
   const names = {
-    termType: termType ?? "concept",
     nameEn: t.nameEn ?? null,
     nameKo: t.nameKo ?? null,
     fullNameEn: t.fullNameEn ?? null,
@@ -125,7 +99,6 @@ function toPatch(snapshot: z.infer<typeof snapshotSchema>): TermUpdate {
     : undefined;
 
   return {
-    ...(termType !== undefined ? { termType } : {}),
     ...(qualityProfile !== undefined ? { qualityProfile } : {}),
     ...(t.nameEn !== undefined ? { nameEn: t.nameEn } : {}),
     ...(t.nameKo !== undefined ? { nameKo: t.nameKo } : {}),

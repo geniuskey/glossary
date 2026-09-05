@@ -1,5 +1,6 @@
-import { termStatusEnum, termTypeEnum } from "@glossary/db";
+import { termStatusEnum } from "@glossary/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
+import { scheduleAfterResponse } from "@/lib/after-response";
 import { requireAuth, isResponse } from "@/lib/auth/require";
 import { termInputSchema } from "@/lib/terms/schema";
 import {
@@ -11,8 +12,9 @@ import { DOMAIN_VALUE_MAX, TERM_QUERY_MAX } from "@/lib/terms/limits";
 import { isAssignableUserId } from "@/lib/terms/owners";
 import { businessCategoriesExist, businessCategoryExists } from "@/lib/terms/categories";
 import { domainsExist } from "@/lib/terms/domains";
-import { listTerms, type BusinessCategory, type TermStatus, type TermType } from "@/lib/terms/query";
+import { listTerms, type BusinessCategory, type TermStatus } from "@/lib/terms/query";
 import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
+import { prepareAutoReview } from "@/lib/ai/auto-review";
 
 // R25: 새 라우트도 처리하지 않는 메서드를 명시 export한다.
 const ALLOWED_METHODS = ["GET", "POST"];
@@ -20,7 +22,7 @@ const { PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
 export { PUT, PATCH, DELETE, OPTIONS };
 
 /**
- * R41: `?type=`/`?status=`는 클라이언트가 자유 텍스트로 채우는 값이라, 알려진
+ * R41: `?status=`는 클라이언트가 자유 텍스트로 채우는 값이라, 알려진
  * union 밖의 값이 얼마든지 들어올 수 있다. listTerms가 그 값을 그대로 Postgres
  * enum 비교에 넘기면(`as never`로 타입만 속이고) DB가 예외를 던지고
  * withApiErrors가 500 internal_error로 바꾼다 — 그런데 이 입력은 재시도해도
@@ -28,11 +30,11 @@ export { PUT, PATCH, DELETE, OPTIONS };
  * 다시 시도하라"는 5xx 신호를 주면 안 된다. 여기서 먼저 걸러 400
  * validation_failed로 답한다.
  *
- * R64: `?type=`처럼 파라미터가 "존재하지만 값이 빈 문자열"인 경우는 위의
+ * R64: 파라미터가 "존재하지만 값이 빈 문자열"인 경우는 위의
  * "알 수 없는 값" 케이스와 다르다 — `<select>`를 아무것도 고르지 않은 채
  * 폼을 querystring으로 직렬화하면 대부분의 헬퍼가 `type=`을 만들어 낸다.
  * `?q=`/`?domain=`은 이미 listTerms에서 빈 문자열이 falsy로 걸러지므로
- * 조용히 무시되는데, type/status만 다른 규칙(400)을 적용하면 같은 querystring
+ * 조용히 무시되는데, status만 다른 규칙(400)을 적용하면 같은 querystring
  * 안에서 파라미터마다 규칙이 갈리는 셈이다 — null과 마찬가지로 "지정 안 함"으로
  * 취급한다.
  */
@@ -50,15 +52,6 @@ function parseEnumParam<T extends string>(
     { field, allowed },
   );
 }
-
-const LEGACY_TYPE_QUERY: Record<string, TermType> = {
-  term: "concept",
-  abbreviation: "concept",
-  project: "proper_name",
-  product_id: "identifier",
-  code: "identifier",
-  unit: "unit",
-};
 
 /**
  * R59: `Number("1e999")`는 `Infinity`다 — 그 값이 그대로 `.offset()`까지
@@ -113,10 +106,6 @@ export const GET = withApiErrors(async (request: Request) => {
     return apiError("validation_failed", `topic은 ${DOMAIN_VALUE_MAX}자 이하여야 합니다.`, 400, { field: "topic" });
   }
 
-  const rawType = url.searchParams.get("type");
-  const termType = parseEnumParam<TermType>(rawType ? LEGACY_TYPE_QUERY[rawType] ?? rawType : rawType, termTypeEnum.enumValues, "type");
-  if (isResponse(termType)) return termType;
-
   const category: BusinessCategory | undefined = rawCategory && categoryIsKnown ? rawCategory : undefined;
 
   const status = parseEnumParam<TermStatus>(url.searchParams.get("status"), termStatusEnum.enumValues, "status");
@@ -130,7 +119,6 @@ export const GET = withApiErrors(async (request: Request) => {
 
   const result = await listTerms({
     q: q ?? undefined,
-    termType,
     domain: domain ?? undefined,
     category: category ?? undefined,
     topic: topic ?? undefined,
@@ -178,6 +166,7 @@ export const POST = withApiErrors(async (request: Request) => {
   // 남기려면 authorKeyId를 별도로 넘겨야 한다.
   const authorKeyId = auth.kind === "key" ? auth.keyId : null;
   const { term, surfaces, warnings } = await createTerm(parsed.data, authorId, authorKeyId);
+  scheduleAfterResponse(() => prepareAutoReview(term.id));
 
   // R112: createTerm이 돌려주는 term/surfaces는 DB 원시 행이다 — 명시 wire
   // 타입으로 변환해 createdBy/updatedBy/normLoose 같은 내부 컬럼이 새지 않게

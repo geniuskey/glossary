@@ -7,7 +7,6 @@ import {
   termRevisions,
   termSurfaces,
   termStatusEnum,
-  termTypeEnum,
   users,
 } from "@glossary/db";
 import { isUuid } from "@/lib/api-error";
@@ -18,12 +17,11 @@ import { DEFAULT_DIR, DEFAULT_SORT, type SortDir, type SortKey, type TermRow } f
 import { termCompletion, type TermCompletion } from "./completion";
 import { ownerDisplayLabelSql } from "./owners";
 
-export type TermType = (typeof termTypeEnum.enumValues)[number];
 export type BusinessCategory = string;
 export type TermStatus = (typeof termStatusEnum.enumValues)[number];
 export type SurfaceKind = (typeof surfaceKindEnum.enumValues)[number];
 
-// F6(review §2 Q1, PROTO C 대안): termType/status/kind를 string으로 두면
+// F6(review §2 Q1, PROTO C 대안): status/kind를 string으로 두면
 // 화면 쪽 lookup 테이블이 DB enum과 드리프트해도 tsc가 못 잡는다.
 // drizzle의 pgEnum 컬럼은 이미 이 유니온을 추론하므로 여기서 좁혀 둔다.
 //
@@ -37,7 +35,6 @@ export type SurfaceKind = (typeof surfaceKindEnum.enumValues)[number];
 export interface TermSummary {
   id: string;
   slug: string;
-  termType: TermType;
   qualityProfile: "auto" | "mapping" | "context" | "guidance";
   nameEn: string | null;
   nameKo: string | null;
@@ -94,7 +91,6 @@ const categoryLabelsSql = sql<string[]>`coalesce((
 const summaryColumns = {
   id: terms.id,
   slug: terms.slug,
-  termType: terms.termType,
   qualityProfile: terms.qualityProfile,
   nameEn: terms.nameEn,
   nameKo: terms.nameKo,
@@ -178,7 +174,7 @@ export interface RelatedTerm extends TermSummary {
  * 다시 구현해 화면과 DB 사이에 별도 규칙을 만들지 않기 위해서다.
  */
 export async function listRelatedTerms(
-  source: Pick<TermSummary, "id" | "termType" | "domain" | "categories" | "category" | "topic">,
+  source: Pick<TermSummary, "id" | "domain" | "categories" | "category" | "topic">,
   limit = 6,
 ): Promise<RelatedTerm[]> {
   const relationshipFilters = [
@@ -215,7 +211,6 @@ export async function listRelatedTerms(
     term.sharedDomains.length * 3
     + (term.sameCategory ? 4 : 0)
     + (term.sameTopic ? 3 : 0)
-    + (term.termType === source.termType ? 1 : 0)
     + (term.status === "active" ? 1 : 0)
   );
 
@@ -226,7 +221,6 @@ export async function listRelatedTerms(
 
 export interface ListParams {
   q?: string;
-  termType?: TermType;
   domain?: string;
   category?: BusinessCategory;
   topic?: string;
@@ -240,14 +234,13 @@ export interface ListParams {
   includeDraft?: boolean;
 }
 
-// R41: termType/status는 이미 알려진 union이라야 하는 값이다. 검증은 라우트가
+// R41: status는 이미 알려진 union이라야 하는 값이다. 검증은 라우트가
 // 맡는다(호출 전에 알 수 없는 값을 걸러 400을 돌려줘야 하므로) — listTerms는
 // 이미 검증된 리터럴 타입만 받으므로 `as never` 캐스트 없이 그대로 eq()에 넘긴다.
 function listFilters(params: ListParams) {
   const db = getDb();
   const filters = [];
 
-  if (params.termType) filters.push(eq(terms.termType, params.termType));
   if (params.status) filters.push(eq(terms.status, params.status));
   else if (!params.includeDraft) filters.push(ne(terms.status, "draft"));
   if (params.domain) filters.push(arrayContains(terms.domain, [params.domain]));
@@ -284,7 +277,6 @@ const SORT_COLUMNS: Record<SortKey, AnyColumn> = {
   nameEn: terms.nameEn,
   nameKo: terms.nameKo,
   slug: terms.slug,
-  termType: terms.termType,
   status: terms.status,
 };
 
@@ -395,7 +387,6 @@ export interface TermFacets {
   domains: Facet[];
   categories: CategoryFacet[];
   topics: Facet[];
-  types: Facet<TermType>[];
   statuses: Facet<TermStatus>[];
   /** 필터 UI에서 "전체"가 뜻하는 수. 각 항목의 count와 같은 기준(사전 전체)이라야
    *  화면의 숫자들이 부분-전체로 읽힌다 — 목록의 total(현재 필터 결과 수)과 다르다. */
@@ -418,10 +409,7 @@ function qualityBranches() {
   const autoMapping = sql`${terms.qualityProfile} = 'auto'
     and ${terms.status} not in ('deprecated', 'forbidden')
     and not (${missingFullName})
-    and (
-      coalesce(${terms.nameEn}, ${terms.nameKo}, '') ~ '^[A-Z0-9][A-Z0-9+./-]{1,11}$'
-      or ${terms.termType} in ('identifier', 'unit')
-    )`;
+    and coalesce(${terms.nameEn}, ${terms.nameKo}, '') ~ '^[A-Z0-9][A-Z0-9+./-]{1,11}$'`;
   const mapping = sql`${terms.qualityProfile} = 'mapping' or (${autoMapping})`;
   const guidance = sql`${terms.qualityProfile} = 'guidance'
     or (${terms.qualityProfile} = 'auto' and ${needsReplacement})`;
@@ -458,6 +446,7 @@ export interface ContributionTerm extends TermSummary {
   definitionMd: string | null;
   bodyMd: string | null;
   updatedAt: string;
+  revision: number;
   completion: TermCompletion;
 }
 
@@ -484,14 +473,34 @@ export async function listContributionTerms(limit = 60, currentUserId?: string):
     db.select({ total: sql<number>`count(*)::int` }).from(terms).where(needsContribution),
   ]);
 
+  const revisions = rows.length > 0
+    ? await db
+      .select({ termId: termRevisions.termId, revision: sql<number>`max(${termRevisions.revisionNumber})::int` })
+      .from(termRevisions)
+      .where(inArray(termRevisions.termId, rows.map((row) => row.id)))
+      .groupBy(termRevisions.termId)
+    : [];
+  const revisionByTerm = new Map(revisions.map((row) => [row.termId, row.revision]));
+
   return {
     items: rows.map((row) => ({
       ...row,
       updatedAt: row.updatedAt.toISOString(),
+      revision: revisionByTerm.get(row.id) ?? 0,
       completion: termCompletion(row, settings),
     })),
     total: counted?.total ?? 0,
   };
+}
+
+export async function termNeedsContribution(termId: string): Promise<boolean> {
+  const settings = await getTermQualitySettings();
+  const [row] = await getDb()
+    .select({ id: terms.id })
+    .from(terms)
+    .where(and(eq(terms.id, termId), needsContributionFilter(settings)))
+    .limit(1);
+  return Boolean(row);
 }
 
 /**
@@ -511,7 +520,7 @@ export async function termFacets(): Promise<TermFacets> {
   // 둘 수 없다(Postgres 10+) — 먼저 펼친 서브쿼리를 만들고 그 결과를 센다.
   const unnested = db.select({ value: sql<string>`unnest(${terms.domain})`.as("value") }).from(terms).as("d");
 
-  const [domains, categories, topics, types, statuses, [counted], [contribution]] = await Promise.all([
+  const [domains, categories, topics, statuses, [counted], [contribution]] = await Promise.all([
     db
       .select({ value: unnested.value, count: sql<number>`count(*)::int` })
       .from(unnested)
@@ -536,10 +545,6 @@ export async function termFacets(): Promise<TermFacets> {
       .orderBy(sql`count(*) desc`, terms.topic)
       .limit(80),
     db
-      .select({ value: terms.termType, count: sql<number>`count(*)::int` })
-      .from(terms)
-      .groupBy(terms.termType),
-    db
       .select({ value: terms.status, count: sql<number>`count(*)::int` })
       .from(terms)
       .groupBy(terms.status),
@@ -551,7 +556,6 @@ export async function termFacets(): Promise<TermFacets> {
     domains,
     categories,
     topics,
-    types,
     statuses,
     total: counted?.total ?? 0,
     needsContribution: contribution?.total ?? 0,

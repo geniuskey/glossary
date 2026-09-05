@@ -96,7 +96,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function update<K extends keyof Pick<PublicAiConfig, "enabled" | "provider" | "baseUrl" | "model">>(key: K, value: PublicAiConfig[K]) {
+  function update<K extends keyof Pick<PublicAiConfig, "enabled" | "autoReviewEnabled" | "provider" | "baseUrl" | "model">>(key: K, value: PublicAiConfig[K]) {
     setConfig((current) => ({ ...current, [key]: value }));
     setDirty(true);
     setMessage(null);
@@ -134,6 +134,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           enabled: config.enabled,
+          autoReviewEnabled: config.autoReviewEnabled,
           provider: config.provider,
           baseUrl: config.baseUrl,
           model: config.model,
@@ -193,7 +194,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
     <section aria-labelledby="ai-settings-heading">
       <div className="mb-3 flex items-center gap-2">
         <h2 id="ai-settings-heading" className="text-base font-semibold text-ink">AI 연결</h2>
-        <HelpTip text="용어 챗봇이 질문과 관련된 공개 용어만 골라 설정한 AI 서버로 보냅니다. 연결 정보는 관리자만 변경할 수 있습니다." />
+        <HelpTip text="챗봇은 관련 공개 용어를, 자동 검토는 정리 대기 용어의 내용을 설정한 AI 서버로 보냅니다. 연결 정보는 관리자만 변경할 수 있습니다." />
         {connected && (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-ok/35 bg-ok-soft px-2.5 py-1 text-[11px] font-semibold text-ok" role="status">
             <span className="h-1.5 w-1.5 rounded-full bg-ok" aria-hidden="true" />
@@ -215,8 +216,13 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
         <div className="grid gap-4 p-4 sm:grid-cols-2">
           <label className="flex min-h-10 items-center gap-3 rounded-lg border border-line bg-panel-2/45 px-3 sm:col-span-2">
             <input type="checkbox" name="aiEnabled" checked={config.enabled} onChange={(event) => update("enabled", event.target.checked)} disabled={saving} className="h-4 w-4 accent-[var(--brand)]" />
-            <span className="text-sm font-medium text-ink">용어 챗봇 사용</span>
-            <span className="ml-auto text-xs text-ink-3">공개 용어만 외부 API에 전달</span>
+            <span className="text-sm font-medium text-ink">AI 기능 사용</span>
+            <span className="ml-auto text-xs text-ink-3">챗봇과 자동 검토의 기본 연결</span>
+          </label>
+          <label className="flex min-h-10 items-center gap-3 rounded-lg border border-line bg-panel-2/45 px-3 sm:col-span-2">
+            <input type="checkbox" name="aiAutoReviewEnabled" checked={config.autoReviewEnabled} onChange={(event) => update("autoReviewEnabled", event.target.checked)} disabled={saving || !config.enabled} className="h-4 w-4 accent-[var(--brand)]" />
+            <span className="text-sm font-medium text-ink">정리 대기 용어 자동 검토</span>
+            <span className="ml-auto text-xs text-ink-3">대기 용어를 AI에 보내 제안을 미리 생성</span>
           </label>
 
           <label className="block">

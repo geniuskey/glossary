@@ -65,6 +65,7 @@ function modelsRequest(body: unknown) {
 
 const validConfig = {
   enabled: true,
+  autoReviewEnabled: false,
   provider: "openai_compatible" as const,
   baseUrl: "https://ai.example.com/v1",
   model: "company-model",
@@ -86,7 +87,7 @@ test("관리자는 비밀값을 암호화해 저장하고 API에서는 마스킹
   const saved = await PATCH(request(validConfig));
   expect(saved.status).toBe(200);
   const body = await saved.json();
-  expect(body.config).toMatchObject({ hasApiKey: true, customHeaders: [{ name: "X-Organization", configured: true }] });
+  expect(body.config).toMatchObject({ autoReviewEnabled: false, hasApiKey: true, customHeaders: [{ name: "X-Organization", configured: true }] });
   expect(JSON.stringify(body)).not.toContain("plain-api-secret");
   expect(JSON.stringify(body)).not.toContain("secret-organization");
 

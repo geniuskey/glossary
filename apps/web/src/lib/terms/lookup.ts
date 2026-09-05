@@ -1,7 +1,7 @@
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { businessCategories, surfaceKeys, terms, termSurfaces, type Db } from "@glossary/db";
 import { getDb } from "@/lib/db";
-import type { BusinessCategory, SurfaceKind, TermStatus, TermSummary, TermType } from "./query";
+import type { BusinessCategory, SurfaceKind, TermStatus, TermSummary } from "./query";
 import { ownerDisplayLabelSql } from "./owners";
 
 export interface LookupResult {
@@ -96,16 +96,11 @@ async function fetchSimilar(db: Db, missingKeys: string[]): Promise<Map<string, 
   return result;
 }
 
-// F6(review §2 Q1): TermSummary.termType/status를 TermType/TermStatus로 좁힌
-// 파급 — 이 필드들도 같은 유니온으로 선언해야 아래에서 TermSummary로 조립할
-// 때 string이 아닌 실제 enum 값임을 tsc가 알 수 있다(db.select가 실제로
-// 돌려주는 값도 pgEnum 컬럼이라 이미 이 유니온이다).
 interface MatchRow {
   normLoose: string;
   kind: SurfaceKind;
   id: string;
   slug: string;
-  termType: TermType;
   qualityProfile: TermSummary["qualityProfile"];
   nameEn: string | null;
   nameKo: string | null;
@@ -135,7 +130,6 @@ export async function lookupTerms(texts: string[]): Promise<LookupResult[]> {
           kind: termSurfaces.kind,
           id: terms.id,
           slug: terms.slug,
-          termType: terms.termType,
           qualityProfile: terms.qualityProfile,
           nameEn: terms.nameEn,
           nameKo: terms.nameKo,
@@ -177,7 +171,7 @@ export async function lookupTerms(texts: string[]): Promise<LookupResult[]> {
       if (seen.has(m.id)) continue;
       seen.add(m.id);
       matchedTerms.push({
-        id: m.id, slug: m.slug, termType: m.termType, qualityProfile: m.qualityProfile,
+        id: m.id, slug: m.slug, qualityProfile: m.qualityProfile,
         nameEn: m.nameEn, nameKo: m.nameKo, domain: m.domain,
         categories: m.categories, category: m.category, categoryLabel: m.categoryLabel, categoryLabels: m.categoryLabels,
         topic: m.topic, ownerId: m.ownerId, ownerName: m.ownerName, status: m.status,

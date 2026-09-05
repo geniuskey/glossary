@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { TERM_STATUS_LABEL, TERM_STATUSES, TERM_TYPE_LABEL, TERM_TYPES } from "@/lib/terms/enums";
+import { TERM_STATUS_LABEL, TERM_STATUSES } from "@/lib/terms/enums";
 import { ADDITIONAL_SURFACE_FIELDS, IMPORT_COLUMNS, IMPORT_RULES, REQUIREMENT_LABEL, SAMPLE_ROWS } from "./format";
 
 const HEADER_FILL = "FFF1F3F5";
@@ -86,13 +86,6 @@ function addGuideSheet(wb: ExcelJS.Workbook): void {
       REQUIREMENT_LABEL[c.requirement],
       c.hint,
     ]),
-  );
-
-  ws.addRow([]);
-  table(
-    ws,
-    ["종류에 쓸 수 있는 값", "뜻", "", ""],
-    TERM_TYPES.map((t) => [t, TERM_TYPE_LABEL[t], "", ""]),
   );
 
   ws.addRow([]);

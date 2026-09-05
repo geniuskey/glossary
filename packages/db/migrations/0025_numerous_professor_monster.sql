@@ -1,0 +1,1 @@
+ALTER TABLE "ai_review_suggestions" ADD COLUMN "generator_version" integer DEFAULT 1 NOT NULL;

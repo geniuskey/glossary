@@ -10,7 +10,7 @@ import {
 import { deriveSurfaces } from "./surfaces";
 import { inferSurfaceLang } from "./surface-language";
 import { slugify, slugValidationMessage } from "./slug";
-import { BUSINESS_CATEGORIES, TERM_TYPES } from "./enums";
+import { BUSINESS_CATEGORIES } from "./enums";
 import { TERM_QUALITY_PROFILES } from "@/lib/workspace/term-quality-values";
 
 // R46: `.trim()`이 없으면 `z.string().min(1)`은 공백뿐인 문자열("   ")을 통과시킨다.
@@ -32,25 +32,12 @@ export const surfaceInputSchema = z.object({
 // "안 건드림"을 뜻하기 때문이다. 표에서 셀을 비우는 동작(엑셀에서 Delete)이
 // 바로 이 경우라서, 명시적인 null을 "지운다"로 받는다. 공백만 남은 값도
 // 여전히 400이다(R46 — trim 후 min(1)).
-const LEGACY_TERM_TYPE: Record<string, (typeof TERM_TYPES)[number]> = {
-  term: "concept",
-  abbreviation: "concept",
-  project: "proper_name",
-  product_id: "identifier",
-  code: "identifier",
-  unit: "unit",
-};
-
 /** v0.1.x 요청을 새 2축 분류로 옮긴다. 자유 입력 category는 topic으로 보존한다. */
 export function normalizeLegacyTermInput(raw: unknown): unknown {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return raw;
   const next = { ...(raw as Record<string, unknown>) };
-  const oldType = typeof next.termType === "string" ? next.termType : undefined;
-  if (oldType && LEGACY_TERM_TYPE[oldType]) next.termType = LEGACY_TERM_TYPE[oldType];
-
   if (
-    oldType && LEGACY_TERM_TYPE[oldType]
-    && typeof next.category === "string"
+    typeof next.category === "string"
     && !(BUSINESS_CATEGORIES as readonly string[]).includes(next.category)
   ) {
     if (next.topic === undefined) next.topic = next.category;
@@ -58,13 +45,10 @@ export function normalizeLegacyTermInput(raw: unknown): unknown {
   }
   if (typeof next.category === "string") next.category = next.category ? [next.category] : [];
   if (next.category === null) next.category = [];
-  if (next.category === undefined && oldType === "project") next.category = ["project"];
-  if (next.category === undefined && oldType === "product_id") next.category = ["product"];
   return next;
 }
 
 export const termInputBaseSchema = z.object({
-  termType: z.enum(TERM_TYPES).default("concept"),
   qualityProfile: z.enum(TERM_QUALITY_PROFILES).default("auto"),
   nameEn: z.string().trim().min(1).max(TERM_NAME_MAX).nullable().optional(),
   nameKo: z.string().trim().min(1).max(TERM_NAME_MAX).nullable().optional(),

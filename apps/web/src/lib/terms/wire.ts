@@ -1,6 +1,6 @@
 import type { terms, termSurfaces } from "@glossary/db";
 import type { DuplicateWarning } from "./create";
-import type { BusinessCategory, SurfaceKind, SurfaceRow, TermStatus, TermType } from "./query";
+import type { BusinessCategory, SurfaceKind, SurfaceRow, TermStatus } from "./query";
 
 // R112: POST /api/v1/terms와 PATCH /api/v1/terms/[idOrSlug]는 둘 다
 // createTerm/updateTerm이 돌려주는 `typeof terms.$inferSelect` 원시 행을 그대로
@@ -18,7 +18,6 @@ import type { BusinessCategory, SurfaceKind, SurfaceRow, TermStatus, TermType } 
 export interface TermWire {
   id: string;
   slug: string;
-  termType: TermType;
   qualityProfile: "auto" | "mapping" | "context" | "guidance";
   nameEn: string | null;
   nameKo: string | null;
@@ -39,7 +38,6 @@ export function toTermWire(term: typeof terms.$inferSelect): TermWire {
   return {
     id: term.id,
     slug: term.slug,
-    termType: term.termType,
     qualityProfile: term.qualityProfile,
     nameEn: term.nameEn,
     nameKo: term.nameKo,

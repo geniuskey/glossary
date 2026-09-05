@@ -23,7 +23,7 @@ GET /api/v1/terms?q=exposure&type=concept&domain=ISP&category=design&topic=노�
 { "items": [ /* TermSummary[] */ ], "total": 137, "page": 1, "pageSize": 20 }
 ```
 
-`TermSummary`는 `id`, `slug`, `termType`, `nameEn`, `nameKo`, `domain`, `category`, `categoryLabel`, `topic`,
+`TermSummary`는 `id`, `slug`, `nameEn`, `nameKo`, `domain`, `category`, `categoryLabel`, `topic`,
 `ownerId`, `ownerName`, `status`다.
 
 `category`는 URL·API용 key이고 `categoryLabel`은 현재 표시 이름이다. 관리자가 표시 이름을
@@ -55,7 +55,6 @@ POST /api/v1/terms
 Content-Type: application/json
 
 {
-  "termType": "concept",
   "nameEn": "AE",
   "nameKo": "자동노출",
   "fullNameEn": "Auto Exposure",
@@ -89,7 +88,7 @@ Content-Type: application/json
 된다. `AE`는 대소문자를 구분하고 `Auto Exposure`는 구분하지 않는다.
 
 정규화 키와 kind가 같으면 먼저 온 쪽이 남는다. 파생 표기가 명시 표기보다 앞이다.
-약어는 Type이 아니므로 `surfaces`에 `kind: "abbreviation"`으로 명시한다. 대표 영문명과
+약어는 `surfaces`에 `kind: "abbreviation"`으로 명시한다. 대표 영문명과
 약어 텍스트가 같으면 두 표기를 중복 생성하지 않고 약어 표기 하나로 저장한다.
 
 ### 201, 409가 아니다
@@ -128,7 +127,7 @@ GET /api/v1/terms/ae
 ```json
 {
   "term": {
-    "id": "…", "slug": "ae", "termType": "concept",
+    "id": "…", "slug": "ae",
     "nameEn": "AE", "nameKo": "자동노출",
     "fullNameEn": "Auto Exposure", "fullNameKo": null,
     "domain": ["ISP"], "status": "active",
@@ -282,7 +281,7 @@ Content-Type: application/json
       "found": true,
       "matchKind": "abbreviation",
       "terms": [
-        { "id": "t_ae", "slug": "ae", "termType": "concept",
+        { "id": "t_ae", "slug": "ae",
           "nameEn": "AE", "nameKo": "자동노출", "domain": ["ISP"], "status": "active" }
       ],
       "similar": []

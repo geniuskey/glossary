@@ -156,20 +156,13 @@ test("표기·분류·본문 상세 영역은 접힌 요약으로 시작하고 �
 
 test("대표 표기 도움말은 대표 영문 용어 필드 라벨 바로 옆에 둔다", () => {
   const nameEnArea = code.slice(code.indexOf('<FormTextField\n                name="nameEn"'), code.indexOf('<FormTextField\n                name="nameKo"'));
-  expect(nameEnArea).toContain("hint={labels.primaryHint}");
-  expect(code).not.toContain('<div className="flex justify-end sm:col-span-2"><HelpTip text={labels.primaryHint} /></div>');
+  expect(nameEnArea).toContain('hint="목록과 페이지 제목에 먼저 표시할 대표 용어를 하나 이상 입력합니다."');
 });
 
 test("수정 중인 폼은 저장하지 않은 변경사항의 이탈을 경고한다", () => {
   expect(code).toContain('window.addEventListener("beforeunload", warnBeforeUnload)');
   expect(code).toContain('document.addEventListener("click", warnBeforeLinkNavigation, true)');
   expect(code).toContain("저장하지 않은 변경사항이 있습니다");
-});
-
-test("용어 종류는 하나의 세그먼트 컨트롤 안에서 선택 상태를 강조한다", () => {
-  expect(code).toContain('rounded-xl bg-panel-2 p-1');
-  expect(code).toContain('peer-checked:bg-panel');
-  expect(code).toContain('peer-checked:shadow-sm');
 });
 
 test("추가 표기는 일괄 등록 후 모든 종류 영역이 있는 공통 보드에 배지로 표시한다", () => {

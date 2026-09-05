@@ -98,7 +98,12 @@ function modelsEndpoint(config: AiRuntimeConfig): string {
   return `${root}/models`;
 }
 
-function body(config: AiRuntimeConfig, messages: AiMessage[], maxTokens: number): unknown {
+export interface AiCompletionOptions {
+  jsonOutput?: boolean;
+  thinkingLevel?: "minimal" | "low";
+}
+
+function body(config: AiRuntimeConfig, messages: AiMessage[], maxTokens: number, options: AiCompletionOptions): unknown {
   if (config.provider === "gemini") {
     const system = messages.filter((message) => message.role === "system").map((message) => message.content).join("\n\n");
     return {
@@ -107,7 +112,14 @@ function body(config: AiRuntimeConfig, messages: AiMessage[], maxTokens: number)
         role: message.role === "assistant" ? "model" : "user",
         parts: [{ text: message.content }],
       })),
-      generationConfig: { temperature: 0.2, maxOutputTokens: maxTokens },
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: maxTokens,
+        ...(options.jsonOutput ? { responseMimeType: "application/json" } : {}),
+        ...(options.thinkingLevel && /^gemini-3(?:\.|-|$)/i.test(config.model)
+          ? { thinkingConfig: { thinkingLevel: options.thinkingLevel } }
+          : {}),
+      },
     };
   }
   return { model: config.model, messages, temperature: 0.2, max_tokens: maxTokens, stream: false };
@@ -116,8 +128,14 @@ function body(config: AiRuntimeConfig, messages: AiMessage[], maxTokens: number)
 function readText(config: AiRuntimeConfig, value: unknown): string | null {
   if (!value || typeof value !== "object") return null;
   if (config.provider === "gemini") {
-    const candidates = (value as { candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }> }).candidates;
-    const text = candidates?.[0]?.content?.parts?.map((part) => typeof part.text === "string" ? part.text : "").join("").trim();
+    const candidates = (value as { candidates?: Array<{ content?: { parts?: Array<{ text?: unknown; thought?: unknown }> } }> }).candidates;
+    // Gemini thinking 모델은 사용자에게 보여 줄 답과 별개로 thought=true인 text part를
+    // 반환할 수 있다. 둘을 이어 붙이면 구조화 JSON 앞에 사고 과정이 붙어 파싱이 깨진다.
+    const text = candidates?.[0]?.content?.parts
+      ?.filter((part) => part.thought !== true)
+      .map((part) => typeof part.text === "string" ? part.text : "")
+      .join("")
+      .trim();
     return text || null;
   }
   const content = (value as { choices?: Array<{ message?: { content?: unknown } }> }).choices?.[0]?.message?.content;
@@ -130,7 +148,12 @@ function waitBeforeRetry(response?: Response): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delay));
 }
 
-export async function completeAi(config: AiRuntimeConfig, messages: AiMessage[], maxTokens = 800): Promise<string> {
+export async function completeAi(
+  config: AiRuntimeConfig,
+  messages: AiMessage[],
+  maxTokens = 800,
+  options: AiCompletionOptions = {},
+): Promise<string> {
   const target = endpoint(config);
   await assertSafeAiEndpoint(target);
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -139,7 +162,7 @@ export async function completeAi(config: AiRuntimeConfig, messages: AiMessage[],
       response = await fetch(target, {
         method: "POST",
         headers: requestHeaders(config),
-        body: JSON.stringify(body(config, messages, maxTokens)),
+        body: JSON.stringify(body(config, messages, maxTokens, options)),
         signal: AbortSignal.timeout(45_000),
         redirect: "error",
       });

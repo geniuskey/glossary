@@ -26,7 +26,6 @@ const NAME_PREFIX = "ID14 ";
 function row(rowNumber: number, nameEn: string, aliases: string[] = []): ImportRow {
   return {
     rowNumber,
-    termType: "concept",
     nameEn,
     domain: [],
     status: "active",
@@ -48,7 +47,7 @@ let seedSlug = "";
 
 beforeAll(async () => {
   const { term } = await createTerm(
-    { termType: "concept", nameEn: `${NAME_PREFIX}Lens Shading`, domain: ["ISP"], status: "active", surfaces: [] },
+    { nameEn: `${NAME_PREFIX}Lens Shading`, domain: ["ISP"], status: "active", surfaces: [] },
     null,
   );
   seedTermId = term.id;

@@ -2,12 +2,12 @@ import ExcelJS from "exceljs";
 import { expect, test } from "vitest";
 import { parseGlossaryWorkbook } from "../src/lib/import/parse-xlsx.js";
 
-// 계획서 스케치(Task 14 Step 1)의 헬퍼를 그대로 가져온다. 헤더 8개는
+// 계획서 스케치(Task 14 Step 1)의 헬퍼를 그대로 가져온다. 헤더는
 // parse-xlsx.ts의 HEADER_ALIASES와 1:1로 매핑된다.
 async function workbook(rows: (string | undefined)[][]): Promise<ArrayBuffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("glossary");
-  ws.addRow(["name_en", "name_ko", "full_name_en", "term_type", "domain", "status", "definition", "aliases"]);
+  ws.addRow(["name_en", "name_ko", "full_name_en", "domain", "status", "definition", "aliases"]);
   for (const row of rows) ws.addRow(row);
   return (await wb.xlsx.writeBuffer()) as ArrayBuffer;
 }
@@ -16,7 +16,7 @@ async function workbook(rows: (string | undefined)[][]): Promise<ArrayBuffer> {
 
 test("헤더를 인식하고 행을 파싱한다", async () => {
   const buf = await workbook([
-    ["AE", "자동노출", "Auto Exposure", "abbreviation", "ISP", "active", "노출 자동 제어", "오토익스포저"],
+    ["AE", "자동노출", "Auto Exposure", "ISP", "active", "노출 자동 제어", "오토익스포저"],
   ]);
   const { rows, errors } = await parseGlossaryWorkbook(buf);
 
@@ -27,7 +27,6 @@ test("헤더를 인식하고 행을 파싱한다", async () => {
     nameEn: "AE",
     nameKo: "자동노출",
     fullNameEn: "Auto Exposure",
-    termType: "concept",
     domain: ["ISP"],
     status: "active",
     aliases: ["오토익스포저"],
@@ -35,7 +34,7 @@ test("헤더를 인식하고 행을 파싱한다", async () => {
 });
 
 test("도메인과 별칭의 쉼표 구분을 분리한다", async () => {
-  const buf = await workbook([["Gain", "게인", "", "term", "ISP, HW", "active", "", "gain value, 이득"]]);
+  const buf = await workbook([["Gain", "게인", "", "ISP, HW", "active", "", "gain value, 이득"]]);
   const { rows } = await parseGlossaryWorkbook(buf);
 
   expect(rows[0]!.domain).toEqual(["ISP", "HW"]);
@@ -43,7 +42,7 @@ test("도메인과 별칭의 쉼표 구분을 분리한다", async () => {
 });
 
 test("표준 표기가 둘 다 비면 에러 행으로 분류한다", async () => {
-  const buf = await workbook([["", "", "", "term", "ISP", "active", "설명만 있음", ""]]);
+  const buf = await workbook([["", "", "", "ISP", "active", "설명만 있음", ""]]);
   const { rows, errors } = await parseGlossaryWorkbook(buf);
 
   expect(rows).toEqual([]);
@@ -52,7 +51,7 @@ test("표준 표기가 둘 다 비면 에러 행으로 분류한다", async () =
 });
 
 test("알 수 없는 status는 draft로 떨어뜨린다", async () => {
-  const buf = await workbook([["Gain", "", "", "term", "", "확인중", "", ""]]);
+  const buf = await workbook([["Gain", "", "", "", "확인중", "", ""]]);
   const { rows } = await parseGlossaryWorkbook(buf);
   expect(rows[0]!.status).toBe("draft");
 });
@@ -64,7 +63,7 @@ test("알 수 없는 status는 draft로 떨어뜨린다", async () => {
 // 통과한다(아래 "빈 문자열 셀이 채워진 빈 행" 테스트로 실측 확인함 — 이
 // 테스트만 지우면 실패하고, 이 테스트를 지워도 실패하지 않는다).
 test("완전히 빈 행은 건너뛴다 (R123: 이 테스트 자체는 가드를 검증하지 못한다 — 아래 참고)", async () => {
-  const buf = await workbook([[], ["Gain", "", "", "term", "", "active", "", ""]]);
+  const buf = await workbook([[], ["Gain", "", "", "", "active", "", ""]]);
   const { rows, errors } = await parseGlossaryWorkbook(buf);
   expect(rows).toHaveLength(1);
   expect(errors).toEqual([]);

@@ -58,7 +58,7 @@ function lookupRequest(texts: unknown, token?: string): Request {
 beforeAll(async () => {
   ae = await createTerm(
     {
-      termType: "concept", nameEn: "AE", fullNameEn: "Auto Exposure", nameKo: "자동노출",
+      nameEn: "AE", fullNameEn: "Auto Exposure", nameKo: "자동노출",
       domain: ["ISP"], status: "active",
       surfaces: [{ text: "AE", lang: "en", kind: "abbreviation" }],
     },
@@ -71,13 +71,13 @@ beforeAll(async () => {
   // 막지만, 서로 다른 용어(동음이의)가 같은 표기를 다른 kind로 등록하는 것까지는
   // 막지 않는다. lookupTerms는 이 표기를 조회했을 때 forbidden을 놓치면 안 된다.
   goodTerm = await createTerm(
-    { termType: "concept", nameEn: "ProbeMatchKind", domain: ["QA"], status: "active", surfaces: [] },
+    { nameEn: "ProbeMatchKind", domain: ["QA"], status: "active", surfaces: [] },
     null,
   );
   ids.push(goodTerm.term.id);
   forbiddenTerm = await createTerm(
     {
-      termType: "concept", nameEn: "ProbeMatchKind Retired", domain: ["QA"], status: "forbidden",
+      nameEn: "ProbeMatchKind Retired", domain: ["QA"], status: "forbidden",
       surfaces: [{ text: "ProbeMatchKind", lang: "en", kind: "forbidden" }],
     },
     null,
@@ -89,7 +89,7 @@ beforeAll(async () => {
   // 무엇인지 확인하기 위한 fixture.
   simTerm = await createTerm(
     {
-      termType: "concept", nameEn: "SimilarityProbe", domain: ["QA"], status: "active",
+      nameEn: "SimilarityProbe", domain: ["QA"], status: "active",
       surfaces: [{ text: "SimilarityProbeAlt", lang: "en", kind: "alias" }],
     },
     null,
@@ -98,7 +98,7 @@ beforeAll(async () => {
 
   draftTerm = await createTerm(
     {
-      termType: "concept", nameEn: "HiddenDraftLookupProbe", domain: ["QA"], status: "draft",
+      nameEn: "HiddenDraftLookupProbe", domain: ["QA"], status: "draft",
       definitionMd: "공개 전 조회 제외 확인용.", surfaces: [],
     },
     null,
@@ -171,7 +171,7 @@ test("R85: 같은 표기가 canonical이자 forbidden이면 matchKind는 forbidd
 // 피하지 않으면 이 용어는 GET /api/v1/terms/lookup으로 영원히 조회 불가능해진다.
 test("R86: 이름이 Lookup인 용어는 슬러그가 lookup이 되지 않는다", async () => {
   const reserved = await createTerm(
-    { termType: "concept", nameEn: "Lookup", domain: ["QA"], status: "active", surfaces: [] },
+    { nameEn: "Lookup", domain: ["QA"], status: "active", surfaces: [] },
     null,
   );
   ids.push(reserved.term.id);
@@ -296,7 +296,6 @@ test("R100: 6종을 섞어도 forbidden이 이긴다", () => {
 test("R103: 한 용어가 같은 키를 두 kind로 가지면 terms는 한 번만 실린다", async () => {
   const dup = await createTerm(
     {
-      termType: "concept",
       nameEn: "ZDK",
       domain: ["QA"],
       status: "active",
@@ -321,7 +320,7 @@ test("R103: 한 용어가 같은 키를 두 kind로 가지면 terms는 한 번�
 // 서로 다른 인덱스가 서로 다른(정확한) term을 가리키는지를 함께 본다.
 test("R102: 혼합 배치에서 각 결과가 자기 인덱스의 텍스트에 대응한다", async () => {
   const second = await createTerm(
-    { termType: "concept", nameEn: "IndexCorrespondenceProbeTwo", domain: ["QA"], status: "active", surfaces: [] },
+    { nameEn: "IndexCorrespondenceProbeTwo", domain: ["QA"], status: "active", surfaces: [] },
     null,
   );
   ids.push(second.term.id);
@@ -347,16 +346,15 @@ test("R102: 혼합 배치에서 각 결과가 자기 인덱스의 텍스트에 �
 // 골랐다.
 test("R101: 유사어 쿼리는 파티션 · 상위 3개 컷 · 정렬 · MAX 집계를 실제로 지킨다", async () => {
   const a1 = await createTerm(
-    { termType: "concept", nameEn: "gammarankprobekeyxqp", domain: ["QA"], status: "active", surfaces: [] },
+    { nameEn: "gammarankprobekeyxqp", domain: ["QA"], status: "active", surfaces: [] },
     null,
   );
   const a2 = await createTerm(
-    { termType: "concept", nameEn: "gammarankprobekeyxqpx", domain: ["QA"], status: "active", surfaces: [] },
+    { nameEn: "gammarankprobekeyxqpx", domain: ["QA"], status: "active", surfaces: [] },
     null,
   );
   const aDual = await createTerm(
     {
-      termType: "concept",
       nameEn: "gammarankprobekeyxqpxy",
       domain: ["QA"],
       status: "active",
@@ -365,23 +363,23 @@ test("R101: 유사어 쿼리는 파티션 · 상위 3개 컷 · 정렬 · MAX �
     null,
   );
   const a4 = await createTerm(
-    { termType: "concept", nameEn: "gammarankprobekeyxqpxyz", domain: ["QA"], status: "active", surfaces: [] },
+    { nameEn: "gammarankprobekeyxqpxyz", domain: ["QA"], status: "active", surfaces: [] },
     null,
   );
   const b1 = await createTerm(
-    { termType: "concept", nameEn: "deltarankprobekeyxqp", domain: ["QA"], status: "active", surfaces: [] },
+    { nameEn: "deltarankprobekeyxqp", domain: ["QA"], status: "active", surfaces: [] },
     null,
   );
   const b2 = await createTerm(
-    { termType: "concept", nameEn: "deltarankprobekeyxqpx", domain: ["QA"], status: "active", surfaces: [] },
+    { nameEn: "deltarankprobekeyxqpx", domain: ["QA"], status: "active", surfaces: [] },
     null,
   );
   const b3 = await createTerm(
-    { termType: "concept", nameEn: "deltarankprobekeyxqpxy", domain: ["QA"], status: "active", surfaces: [] },
+    { nameEn: "deltarankprobekeyxqpxy", domain: ["QA"], status: "active", surfaces: [] },
     null,
   );
   const b4 = await createTerm(
-    { termType: "concept", nameEn: "deltarankprobekeyxqpxyz", domain: ["QA"], status: "active", surfaces: [] },
+    { nameEn: "deltarankprobekeyxqpxyz", domain: ["QA"], status: "active", surfaces: [] },
     null,
   );
   for (const t of [a1, a2, aDual, a4, b1, b2, b3, b4]) ids.push(t.term.id);
@@ -448,7 +446,6 @@ test("R104: texts는 500개까지 허용하고 501개는 거부하며 빈 배열
 test("R106: 동음이의 결과는 slug 오름차순으로 고정된다", async () => {
   const zTerm = await createTerm(
     {
-      termType: "concept",
       nameEn: "ZOrderProbeXQ",
       domain: ["QA"],
       status: "active",
@@ -459,7 +456,6 @@ test("R106: 동음이의 결과는 slug 오름차순으로 고정된다", async 
   ids.push(zTerm.term.id);
   const aTerm = await createTerm(
     {
-      termType: "concept",
       nameEn: "AOrderProbeXQ",
       domain: ["QA"],
       status: "active",

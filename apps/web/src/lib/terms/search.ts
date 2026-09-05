@@ -60,7 +60,7 @@ export async function searchTerms(query: string, limit = 20): Promise<SearchHit[
       FROM scored
       ORDER BY term_id, exact DESC, score DESC, text ASC
     )
-    SELECT t.id AS "id", t.slug AS "slug", t.term_type AS "termType",
+    SELECT t.id AS "id", t.slug AS "slug",
            t.name_en AS "nameEn", t.name_ko AS "nameKo", t.domain AS "domain",
            t.category AS "categories", t.category[1] AS "category",
            (SELECT bc.label FROM ${businessCategories} bc WHERE bc.key = t.category[1]) AS "categoryLabel",

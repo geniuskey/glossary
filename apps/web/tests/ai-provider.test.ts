@@ -47,6 +47,28 @@ test("Gemini native API는 generateContent 형식과 x-goog-api-key를 사용한
   });
 });
 
+test("Gemini 구조화 응답은 JSON MIME을 요청하고 thought part를 제외한다", async () => {
+  const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => Response.json({
+    candidates: [{ content: { parts: [
+      { thought: true, text: "분류를 먼저 생각합니다. {\"field\":\"잘못된 중간값\"}" },
+      { text: "{\"suggestions\":[]}" },
+    ] } }],
+  }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(completeAi({
+    provider: "gemini",
+    baseUrl: "http://127.0.0.1:9999/v1beta",
+    model: "gemini-3-test",
+    apiKey: "gemini-key",
+    customHeaders: [],
+  }, [{ role: "user", content: "JSON으로 답해 줘" }], 300, { jsonOutput: true, thinkingLevel: "minimal" })).resolves.toBe('{"suggestions":[]}');
+
+  const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+  expect(body.generationConfig.responseMimeType).toBe("application/json");
+  expect(body.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "minimal" });
+});
+
 test("AI 연결은 메타데이터 주소와 redirect를 차단한다", async () => {
   await expect(completeAi({
     provider: "openai_compatible",

@@ -14,7 +14,7 @@ test("구조화 필터는 상단 바가 아니라 대응하는 열 머리글에 
   expect(sheetPage).toContain("<SheetFilterBar query={parsed.q ?? \"\"} />");
   expect(sheetPage).toContain("filters={filters}");
   expect(grid).toContain("const COLUMN_FILTER_NAME");
-  expect(grid).toContain('termType: "type"');
+  expect(grid).toContain('status: "status"');
   expect(grid).toContain('group-hover/th:opacity-100');
   expect(grid).toContain("<ColumnFilterPopover");
 });

@@ -78,7 +78,7 @@ test("편집 페이지는 현재 리비전 번호를 expectedRevision으로 Term
   await loginAs(user.id);
 
   const { term } = await createTerm(
-    { termType: "concept", nameEn: "Edit Page Probe", domain: [], status: "active", surfaces: [] },
+    { nameEn: "Edit Page Probe", domain: [], status: "active", surfaces: [] },
     user.id,
   );
   createdTermIds.push(term.id);
@@ -107,7 +107,6 @@ test("편집 페이지 초기값의 surfaces에는 파생 가능한 canonical �
 
   const { term } = await createTerm(
     {
-      termType: "concept",
       nameEn: "Edit Surfaces Probe",
       domain: [],
       status: "active",
@@ -130,7 +129,7 @@ test("관리자에게만 편집 폼의 삭제 권한을 넘긴다", async () => 
   const admin = await makeUser("admin");
   await loginAs(admin.id);
   const { term } = await createTerm(
-    { termType: "concept", nameEn: "Delete Button Probe", domain: [], status: "active", surfaces: [] },
+    { nameEn: "Delete Button Probe", domain: [], status: "active", surfaces: [] },
     admin.id,
   );
   createdTermIds.push(term.id);

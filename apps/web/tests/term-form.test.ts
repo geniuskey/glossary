@@ -7,7 +7,6 @@ import { interpretResponse } from "../src/lib/terms/form-response.js";
 // interpretResponse)를 직접 두들겨서 커버한다.
 
 const BASE_FORM: TermFormState = {
-  termType: "concept",
   qualityProfile: "auto",
   nameEn: "Auto Exposure",
   nameKo: "",
@@ -117,9 +116,8 @@ test("expectedRevision이 0이어도 키가 포함된다 (falsy 값 누락 방�
   expect(payload.expectedRevision).toBe(0);
 });
 
-test("termType/status는 변환 없이 그대로 전달된다(pass-through)", () => {
-  const payload = buildTermPayload({ ...BASE_FORM, termType: "concept", status: "active" });
-  expect(payload.termType).toBe("concept");
+test("status는 변환 없이 그대로 전달된다(pass-through)", () => {
+  const payload = buildTermPayload({ ...BASE_FORM, status: "active" });
   expect(payload.status).toBe("active");
 });
 

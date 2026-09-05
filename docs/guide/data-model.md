@@ -9,7 +9,6 @@
 |---|---|---|
 | `id` | uuid | PK |
 | `slug` | text | 유니크. URL 식별자 |
-| `term_type` | enum | `concept`(일반 개념) \| `proper_name`(고유명칭) \| `identifier`(식별자) \| `unit`(단위) |
 | `quality_profile` | enum | `auto` \| `mapping` \| `context` \| `guidance`. AI 활용에 필요한 정보 수준 |
 | `name_en`, `name_ko` | text | 목록·제목에 쓸 대표 표기. 최소 하나는 있어야 한다 |
 | `full_name_en`, `full_name_ko` | text | 대표 풀네임 또는 확장명 |
@@ -50,6 +49,10 @@
   정의·본문 길이를 보관한다. 0은 내용 자체를 생략한다는 뜻이 아니라 존재 여부만 검사한다.
 - **ai_config** — 공급자, Base URL, 모델, 사용 여부를 담는 단일 행이다. API Key와
   custom header 값은 애플리케이션이 AES-256-GCM으로 암호화한 문자열만 저장한다.
+- **ai_review_suggestions** — 정리 대기 용어의 현재 리비전에 대해 미리 생성한 제안과
+  생성기 버전을 저장한다. 용어 리비전 또는 생성기 버전이 달라지면 오래된 캐시로 취급한다.
+- **ai_review_queue** — 용어별 최신 AI 검토 요청을 `queued`, `processing`, `ready`,
+  `failed` 상태로 관리한다. 자동·수동 요청 여부, 요청자와 처리 시각을 함께 기록한다.
 
 용어별 `quality_profile`과 전역 최소 길이를 결합해 작성 수준을 계산한다. 자세한 판정은
 [AI 활용과 챗봇](/guide/ai#용어별-ai-활용-기준)을 참고한다.
@@ -72,8 +75,7 @@
 유니크 제약은 `(term_id, norm_loose, kind)`다 — 같은 용어에 같은 표기를 같은 종류로
 두 번 넣지 못한다.
 
-`Type`과 표기 `kind`는 독립적이다. 예를 들어 `AE`라는 일반 개념은 `term_type=concept`이고,
-`AE` 표기에는 `kind=abbreviation`을 지정한다. 약어를 Type으로도 중복 분류하지 않는다.
+`AE` 표기에는 `kind=abbreviation`을 지정한다.
 
 ::: tip 정규화 컬럼은 손으로 채우지 않는다
 `norm_loose`/`norm_space`는 `@glossary/db`의 `surfaceKeys()`가 채운다. 그 함수는
@@ -119,6 +121,24 @@ alias가 먼저 나오면 린터가 금지 표기를 놓친다.
 `expectedRevision`으로 되돌려 보내고, 그 사이 남이 고쳤으면 서버가 409
 `revision_conflict`를 돌려준다. 자세한 것은 [용어 API](/api/terms#낙관적-잠금)에 있다.
 
+## term_relations — 승인된 용어 관계
+
+AI가 찾은 관계는 바로 검색 그래프에 넣지 않고 `proposed`로 저장해 사람이 검토할 수 있게
+한다. RAG의 그래프 확장에는 `approved` 관계만 사용한다.
+
+| 컬럼 | 설명 |
+|---|---|
+| `source_term_id`, `target_term_id` | 관계의 출발·도착 용어. 같은 용어끼리는 연결할 수 없음 |
+| `relation_type` | `related_to`, `is_a`, `part_of`, `used_in`, `prerequisite_of`, `replaces` |
+| `status` | `proposed`, `approved`, `rejected` |
+| `confidence` | 제안 신뢰도 0~100. 검색 확장 가중치에도 사용 |
+| `evidence_md` | 관계를 제안하거나 승인한 근거 |
+| `source_revision`, `target_revision` | 어느 용어 리비전을 보고 제안했는지 기록 |
+| `created_by`, `reviewed_by` | 제안·검토 사용자 |
+
+같은 `(source, target, type)` 관계는 한 행만 존재하며 상태를 바꿔 다시 검토한다. 용어가
+삭제되면 연결도 함께 삭제된다.
+
 ## 인증 테이블
 
 - **users** — `email`(유니크), `name`, `password_hash`, `role`(`admin` \| `editor`),
@@ -145,7 +165,5 @@ alias가 먼저 나오면 린터가 금지 표기를 놓친다.
 
 설계에는 있지만 M1 범위 밖이라 아직 만들지 않았다.
 
-- **TermRelation** — `related` \| `broader` \| `narrower` \| `see_also`. 본문의 위키 링크가
-  여기 실체화되어 역참조 목록이 자동 생성된다 (M3).
 - **UnregisteredCandidate** — 미등록 후보 누적 (M2).
 - **Attachment / AttachmentRef** — WebP로 변환한 content-addressed 첨부 이미지. 현재 본문 참조는 `AttachmentRef`로 동기화되며 이미지 실체는 이력 보존을 위해 자동 삭제하지 않는다.

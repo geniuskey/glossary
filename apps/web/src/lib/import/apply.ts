@@ -177,7 +177,6 @@ export async function applyImport(
 
     await createTerm(
       {
-        termType: row.termType,
         nameEn: row.nameEn,
         nameKo: row.nameKo,
         fullNameEn: row.fullNameEn,

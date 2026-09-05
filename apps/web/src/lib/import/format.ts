@@ -15,7 +15,6 @@ export type ImportField =
   | "nameKo"
   | "fullNameEn"
   | "fullNameKo"
-  | "termType"
   | "domain"
   | "category"
   | "topic"
@@ -99,14 +98,6 @@ export const IMPORT_COLUMNS: readonly ImportColumn[] = [
     requirement: "optional",
     hint: "약어의 한글 원말.",
     width: 22,
-  },
-  {
-    field: "termType",
-    header: "Type",
-    otherHeaders: ["term_type", "종류", "유형"],
-    requirement: "optional",
-    hint: "concept, proper_name, identifier, unit 중 하나. 비어 있으면 concept입니다.",
-    width: 14,
   },
   {
     field: "domain",
@@ -220,7 +211,6 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     nameKo: "자동노출",
     fullNameEn: "",
     fullNameKo: "자동 노출 조절",
-    termType: "concept",
     domain: "ISP, HW",
     category: "design",
     topic: "노출 제어",
@@ -237,7 +227,6 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     nameKo: "게인",
     fullNameEn: "",
     fullNameKo: "",
-    termType: "concept",
     domain: "ISP",
     category: "design",
     topic: "신호 처리",
@@ -254,7 +243,6 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     nameKo: "노바",
     fullNameEn: "Project Nova",
     fullNameKo: "노바 프로젝트",
-    termType: "proper_name",
     domain: "PM",
     category: "project",
     topic: "",
@@ -271,7 +259,6 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     nameKo: "차단 목록",
     fullNameEn: "",
     fullNameKo: "",
-    termType: "concept",
     domain: "",
     category: "other",
     topic: "포용적 표현",

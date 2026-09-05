@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import ExcelJS from "exceljs";
 import { surfaceKeys } from "@glossary/db";
 import { expect, test } from "vitest";
-import { TERM_STATUSES, TERM_TYPES } from "../src/lib/terms/enums.js";
+import { TERM_STATUSES } from "../src/lib/terms/enums.js";
 import {
   ADDITIONAL_SURFACE_FIELDS,
   HEADER_TO_FIELD,
@@ -27,7 +27,6 @@ const FIELDS: ImportField[] = [
   "nameKo",
   "fullNameEn",
   "fullNameKo",
-  "termType",
   "domain",
   "category",
   "topic",
@@ -90,9 +89,6 @@ test("예전부터 인정하던 헤더는 하나도 사라지지 않았다", () 
     풀네임: "fullNameEn",
     전체명: "fullNameEn",
     full_name_ko: "fullNameKo",
-    term_type: "termType",
-    종류: "termType",
-    유형: "termType",
     domain: "domain",
     도메인: "domain",
     status: "status",
@@ -115,11 +111,8 @@ test("예전부터 인정하던 헤더는 하나도 사라지지 않았다", () 
   }
 });
 
-test("샘플 행의 종류·상태는 실제 enum 값이다", () => {
-  // 빈 값 대신 아무 문자열이나 적어 두면 파서가 조용히 term/active로 떨어뜨려
-  // "샘플대로 적었는데 종류가 안 들어간다"가 된다.
+test("샘플 행의 상태는 실제 enum 값이다", () => {
   for (const row of SAMPLE_ROWS) {
-    expect(TERM_TYPES).toContain(row.termType);
     expect(TERM_STATUSES).toContain(row.status);
   }
 });
@@ -166,7 +159,6 @@ test("샘플 파일을 그대로 파서에 먹이면 경고 없이 SAMPLE_ROWS�
   SAMPLE_ROWS.forEach((sample, i) => {
     const parsed = result.rows[i]!;
     expect(parsed.rowNumber).toBe(i + 2);
-    expect(parsed.termType).toBe(sample.termType);
     expect(parsed.status).toBe(sample.status);
     expect(parsed.nameEn ?? "").toBe(sample.nameEn);
     expect(parsed.nameKo ?? "").toBe(sample.nameKo);

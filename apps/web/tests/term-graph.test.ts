@@ -11,7 +11,6 @@ function term(index: number, overrides: Partial<GraphTerm> = {}): GraphTerm {
   return {
     id: `00000000-0000-0000-0000-${String(index).padStart(12, "0")}`,
     slug: `term-${index}`,
-    termType: "concept",
     qualityProfile: "auto",
     nameEn: `Term ${index}`,
     nameKo: null,

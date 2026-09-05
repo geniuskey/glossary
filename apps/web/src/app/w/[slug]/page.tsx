@@ -7,7 +7,7 @@ import { CompletionBadge, CompletionProgress, MissingFields } from "@/components
 import { CategoryBadges, DomainBadges, OwnerBadge, StatusBadge, TopicBadge } from "@/components/term-badges";
 import { isUuid } from "@/lib/api-error";
 import { getCurrentUser } from "@/lib/auth/current-user";
-import { businessCategoryLabel, TERM_TYPE_LABEL } from "@/lib/terms/enums";
+import { businessCategoryLabel } from "@/lib/terms/enums";
 import { termCompletion } from "@/lib/terms/completion";
 import { getTermByIdOrSlug, listRelatedTerms, type SurfaceKind } from "@/lib/terms/query";
 import { displayName, relativeTime, spineHue } from "@/lib/ui/format";
@@ -144,7 +144,6 @@ export default async function TermDetailPage({
         <div className="mt-4 flex flex-wrap items-center gap-2 border-b border-line pb-4">
           <StatusBadge status={term.status} />
           <CompletionBadge completion={completion} />
-          <span className="chip">{TERM_TYPE_LABEL[term.termType]}</span>
           <DomainBadges domain={term.domain} />
           <CategoryBadges categories={term.categories} labels={term.categoryLabels} />
           <TopicBadge topic={term.topic} />

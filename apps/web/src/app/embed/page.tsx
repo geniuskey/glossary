@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { parseEmbedColumns, parseEmbedOptions } from "@/lib/embed/sheet-share";
-import { businessCategoryLabel, TERM_STATUS_LABEL, TERM_TYPE_LABEL } from "@/lib/terms/enums";
+import { businessCategoryLabel, TERM_STATUS_LABEL } from "@/lib/terms/enums";
 import { cellText, type ColumnKey, type TermRow } from "@/lib/terms/grid";
 import { parseListParams, type RawSearchParams } from "@/lib/terms/list-params";
 import { listPublishedTermRows } from "@/lib/terms/query";
@@ -37,7 +37,6 @@ export default async function EmbedPage({ searchParams }: { searchParams: Promis
   const options = parseEmbedOptions(raw);
   const { items, total } = await listPublishedTermRows({
     q: params.q,
-    termType: params.type,
     domain: params.domain,
     category: params.category,
     topic: params.topic,
@@ -80,7 +79,6 @@ export default async function EmbedPage({ searchParams }: { searchParams: Promis
 
 function EmbedCell({ row, column, links }: { row: TermRow; column: ColumnKey; links: boolean }) {
   let text = cellText(row, column);
-  if (column === "termType") text = TERM_TYPE_LABEL[row.termType];
   if (column === "category" && row.category) text = businessCategoryLabel(row.category, row.categoryLabel);
   if (column === "status") text = TERM_STATUS_LABEL[row.status];
   if (column === "updatedAt") text = new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium" }).format(new Date(row.updatedAt));

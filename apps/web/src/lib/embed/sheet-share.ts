@@ -11,7 +11,6 @@ import type { ParsedListParams, RawSearchParams } from "@/lib/terms/list-params"
 export const DEFAULT_EMBED_COLUMN_KEYS = [
   "nameEn",
   "nameKo",
-  "termType",
   "domain",
   "category",
   "definitionMd",
@@ -25,7 +24,6 @@ export interface EmbedTableOptions {
 
 export interface EmbedShareFilters {
   q: string;
-  type: string;
   status: string;
   domain: string;
   category: string;
@@ -69,7 +67,6 @@ export function parseEmbedOptions(raw: RawSearchParams): EmbedTableOptions {
 export function embedBaseQuery(params: ParsedListParams): string {
   const query = new URLSearchParams();
   if (params.q) query.set("q", params.q);
-  if (params.type) query.set("type", params.type);
   if (params.domain) query.set("domain", params.domain);
   if (params.category) query.set("category", params.category);
   if (params.topic) query.set("topic", params.topic);
