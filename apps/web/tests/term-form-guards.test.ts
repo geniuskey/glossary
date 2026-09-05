@@ -99,32 +99,36 @@ test("편집 화면의 저장 액션은 viewport 하단에 고정되고 본문�
   expect(globalsSource).toContain('body:has([data-sidebar-collapsed="true"]) .term-form-bottom-bar');
 });
 
-test("대표 표기와 한줄 정의가 기본 정보에 먼저 보이고 추가 표기·관리·본문은 상세 영역으로 이어진다", () => {
+test("대표 표기 다음에 확장명·추가 표기 동작이 있고 한줄 정의와 관리·본문으로 이어진다", () => {
   const basicInfoIdx = code.indexOf('title="용어 기본 정보"');
   const primaryNameIdx = code.indexOf('name="nameEn"');
   const definitionIdx = code.indexOf('name="definitionMd"');
-  const surfacesIdx = code.indexOf('title="추가 표기"');
+  const surfacesIdx = code.indexOf('ref={surfaceDetailsRef}');
   const managementIdx = code.indexOf('title="분류 및 관리"');
   const bodyIdx = code.indexOf('label="용어 본문"');
 
   expect(basicInfoIdx).toBeGreaterThan(-1);
   expect(primaryNameIdx).toBeGreaterThan(basicInfoIdx);
-  expect(definitionIdx).toBeGreaterThan(primaryNameIdx);
-  expect(surfacesIdx).toBeGreaterThan(definitionIdx);
-  expect(managementIdx).toBeGreaterThan(surfacesIdx);
+  expect(surfacesIdx).toBeGreaterThan(primaryNameIdx);
+  expect(definitionIdx).toBeGreaterThan(surfacesIdx);
+  expect(managementIdx).toBeGreaterThan(definitionIdx);
   expect(bodyIdx).toBeGreaterThan(managementIdx);
 });
 
-test("기본 정보는 전체 너비에 두고 공개 상태만 상세 영역 밖에 유지한다", () => {
+test("상세 영역은 전체 너비로 쌓고 관리 필드는 넓은 화면에서 한 줄로 배치한다", () => {
   expect(code).toContain('<section className="card">');
-  expect(code).toContain('lg:grid-cols-[18rem_minmax(0,1fr)]');
+  expect(code).toContain('ref={surfaceDetailsRef} className="group/details sm:col-span-2"');
+  expect(code).toContain('ref={managementDetailsRef} className="group/details card"');
+  expect(code).toContain('className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"');
+  expect(code).not.toContain('lg:grid-cols-[18rem_minmax(0,1fr)]');
+  expect(code).not.toContain('title="추가 표기"');
   expect(code).toContain('<label htmlFor="term-status" className="text-xs font-medium text-ink-2">공개 상태</label>');
   expect(code).toContain('action={(');
   expect(code).toContain('ref={managementDetailsRef}');
   expect(code).toContain('STATUS_TONE[form.status]');
 });
 
-test("편집 화면은 상단에 상태만 표시하고 초안 저장·공개는 하단, 예외 상태 변경은 관리 영역에 둔다", () => {
+test("편집 화면은 상태 표시와 변경을 상단에 두고 초안 저장·공개는 하단에 둔다", () => {
   expect(code).toContain('<StatusBadge status={form.status} />');
   expect(code).toContain('<StatusChangeMenu status={form.status}');
   expect(code).toContain('editSlug !== undefined && form.status === "draft" ? (');
@@ -144,14 +148,18 @@ test("공개하기는 현재 폼 전체를 active 상태로 저장하고 성공 
   expect(code).toContain('statusOverride === "active" ? "용어를 공개했습니다."');
 });
 
-test("표기·분류·본문 상세 영역은 접힌 요약으로 시작하고 검증 오류가 있으면 자동으로 열린다", () => {
+test("표기·분류는 접을 수 있고 상세 설명은 항상 열린 일반 카드로 표시한다", () => {
   expect(code).toContain('ref={surfaceDetailsRef}');
   expect(code).toContain('ref={managementDetailsRef}');
-  expect(code).toContain('ref={bodyDetailsRef}');
   expect(code).toContain('if (fieldErrors.surfaces) surfaceDetailsRef.current!.open = true');
   expect(code).toContain('managementDetailsRef.current!.open = true');
-  expect(code).toContain('if (fieldErrors.bodyMd) bodyDetailsRef.current!.open = true');
-  expect(code).toContain('summary={form.bodyMd.trim() ?');
+  expect(code).not.toContain('bodyDetailsRef');
+  expect(code).not.toContain('summary={form.bodyMd.trim() ?');
+  expect(code).toContain('title="상세 설명"');
+  expect(code).toContain('description="예시나 배경처럼 한줄 정의만으로 부족한 맥락을 남깁니다."');
+  expect(code).toContain('<section className="card overflow-hidden">');
+  expect(code).toContain('resizable={compact}\n            embedded');
+  expect(code).not.toContain('<h2 className="text-sm font-semibold text-ink">본문</h2>');
 });
 
 test("대표 표기 도움말은 대표 영문 용어 필드 라벨 바로 옆에 둔다", () => {
@@ -165,17 +173,19 @@ test("수정 중인 폼은 저장하지 않은 변경사항의 이탈을 경고�
   expect(code).toContain("저장하지 않은 변경사항이 있습니다");
 });
 
-test("추가 표기는 일괄 등록 후 모든 종류 영역이 있는 공통 보드에 배지로 표시한다", () => {
+test("추가 표기는 값이 있을 때 등록된 종류만 공통 보드에 표시한다", () => {
   expect(code).toContain('name="surfaceBatch"');
   expect(code).toContain("parseSurfaceBatch(surfaceBatch)");
   expect(code).toContain("EXPLICIT_SURFACE_KINDS.map((kind) =>");
+  expect(code).toContain("form.surfaces.length > 0 && (");
+  expect(code).toContain("EXPLICIT_SURFACE_KINDS.filter((kind) => form.surfaces.some((surface) => surface.kind === kind)).map((kind) =>");
   expect(code).not.toContain("여기로 드래그");
   expect(code).toContain("formWithPendingSurfaces");
 });
 
 test("추가 표기의 한 번에 추가 도구는 입력·종류·버튼을 한 줄로 표시한다", () => {
   expect(code).toContain('>한 번에 추가</label>');
-  expect(code).toContain('`${form.surfaces.length.toLocaleString("ko-KR")}개 등록됨`');
+  expect(code).toContain('`추가 표기 ${form.surfaces.length.toLocaleString("ko-KR")}개`');
   expect(code).toContain('className="flex flex-col gap-2 sm:flex-row sm:items-center"');
   expect(code).toContain('className="field h-8 min-w-0 flex-1 py-0"');
   expect(code).toContain('className="field h-8 py-0 sm:w-32"');
@@ -194,7 +204,7 @@ test("상시 설명은 물음표 도움말로 대체하고 hover와 keyboard foc
   expect(code).not.toContain('<p className={compact ? "text-[11px] text-ink-3"');
 });
 
-test("6개 표기 영역은 가로 흐름을 유지하다 공간이 부족하면 다음 줄로 넘어간다", () => {
+test("등록된 표기 종류는 가로 흐름을 유지하다 공간이 부족하면 다음 줄로 넘어간다", () => {
   expect(code).toContain('className="flex flex-wrap items-stretch gap-1.5"');
   expect(code).toContain("w-max min-w-28 max-w-80 flex-none");
   expect(code).not.toContain('className="mt-2 overflow-x-auto rounded-xl');
@@ -257,7 +267,7 @@ test("수정 저장은 편집 화면에 남아 기준 스냅샷과 리비전을 
 
 test("편집 화면은 밀도 높은 레이아웃과 접힌 URL 변경 영역을 사용한다", () => {
   expect(code).toContain("const compact = editSlug !== undefined");
-  expect(code).toContain('<details className="rounded-lg border border-line bg-panel-2/35">');
+  expect(code).toContain('<details className="mt-3 rounded-lg border border-line bg-panel-2/35">');
   expect(code).toContain("rows={compact ? 2 : 3}");
   expect(code).toContain("compact={compact}");
 });

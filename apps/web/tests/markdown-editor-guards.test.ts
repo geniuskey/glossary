@@ -33,6 +33,11 @@ test("Markdown 입력 영역에는 접근 가능한 이름이 있다", () => {
   expect(source).toContain('"aria-describedby": describedBy');
 });
 
+test("카드에 포함된 Markdown 편집기는 자체 카드 테두리를 제거할 수 있다", () => {
+  expect(source).toContain("embedded = false");
+  expect(source).toContain('!embedded && "rounded-xl border border-line"');
+});
+
 test("Markdown 툴바는 H1~H6와 주요 GFM 블록을 선택 영역에 적용한다", () => {
   expect(source).toContain('role="toolbar"');
   expect(source).toContain('[1, 2, 3, 4, 5, 6].map');

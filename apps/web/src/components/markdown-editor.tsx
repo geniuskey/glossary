@@ -31,6 +31,7 @@ interface MarkdownEditorProps {
   maxLength?: number;
   compact?: boolean;
   resizable?: boolean;
+  embedded?: boolean;
   onUploadingChange?: (uploading: boolean) => void;
 }
 
@@ -85,6 +86,7 @@ export function MarkdownEditor({
   maxLength,
   compact = false,
   resizable = false,
+  embedded = false,
   onUploadingChange,
 }: MarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -255,7 +257,8 @@ export function MarkdownEditor({
       className={fullscreen
         ? "fixed inset-0 z-[100] flex h-[100dvh] flex-col overflow-hidden bg-panel"
         : cx(
-          "overflow-hidden rounded-xl border border-line bg-panel",
+          "overflow-hidden bg-panel",
+          !embedded && "rounded-xl border border-line",
           "korean-editor-font",
           resizable && "flex h-80 min-h-64 max-h-[75dvh] flex-col resize-y",
         )}

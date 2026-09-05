@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { HelpTip } from "@/components/help-tip";
 import type { EditReviewField, EditReviewResult, EditReviewSource } from "@/lib/ai/edit-review-values";
 import type { TermWritePayload } from "@/lib/terms/form-payload";
@@ -60,9 +60,9 @@ export function TermAiReviewPanel({
   disabled: boolean;
   onApply: (field: EditReviewField, value: string | string[]) => void;
 }) {
-  const detailsRef = useRef<HTMLDetailsElement>(null);
   const [instruction, setInstruction] = useState("");
   const [review, setReview] = useState<EditReviewResult | null>(null);
+  const [resultsOpen, setResultsOpen] = useState(true);
   const [reviewedSignature, setReviewedSignature] = useState<string | null>(null);
   const [reviewedWithGuide, setReviewedWithGuide] = useState(false);
   const [applied, setApplied] = useState<Set<string>>(() => new Set());
@@ -79,6 +79,7 @@ export function TermAiReviewPanel({
   async function requestReview() {
     if (disabled || loading) return;
     setLoading(true);
+    setResultsOpen(true);
     setError(null);
     setApplied(new Set());
     try {
@@ -101,7 +102,6 @@ export function TermAiReviewPanel({
       setReview(body.review);
       setReviewedSignature(requestSignature);
       setReviewedWithGuide(Boolean(instruction.trim()));
-      detailsRef.current!.open = true;
     } catch {
       setError("네트워크 오류로 AI 검토를 완료하지 못했습니다.");
     } finally {
@@ -110,53 +110,57 @@ export function TermAiReviewPanel({
   }
 
   return (
-    <details ref={detailsRef} className="group/details card">
-      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-2.5 marker:content-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40">
-        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-brand-soft text-xs text-brand" aria-hidden="true">✦</span>
-        <span className="text-sm font-semibold text-ink">AI 검토</span>
-        <span className="min-w-0 truncate text-xs text-ink-3">
-          {loading ? "검토 중…" : review ? `${resultCount}개 검토 결과` : needsDraft ? "정의·설명 초안 작성" : "문장·모순·관계 확인"}
-        </span>
-        <span className="ml-auto text-xs text-ink-3 transition-transform group-open/details:rotate-180" aria-hidden="true">⌄</span>
-      </summary>
-
-      <div className="border-t border-line px-4 py-3">
-        <div className="flex items-center gap-1.5">
-          <label htmlFor="ai-review-instruction" className="text-xs font-medium text-ink-2">검토 가이드 <span className="font-normal text-ink-3">(선택)</span></label>
-          <HelpTip text="비워두면 전체 항목을 자동으로 검토합니다. 입력하면 기본 검토에 원하는 관점을 추가하며, 가이드 자체도 용어집 근거와 대조합니다." />
+    <section className="card" aria-labelledby="ai-review-heading">
+      <div className="flex flex-col gap-2 px-4 py-2.5 lg:flex-row lg:items-center">
+        <div className="flex min-h-8 shrink-0 items-center gap-2">
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-brand-soft text-xs text-brand" aria-hidden="true">✦</span>
+          <h2 id="ai-review-heading" className="text-sm font-semibold text-ink">AI 검토</h2>
+          <HelpTip text={needsDraft ? "비워둔 정의와 설명의 초안을 작성하고, 용어집 근거와 관계를 함께 확인합니다." : "오타·모순·일관성과 다른 용어와의 관계를 확인합니다. 가이드를 비우면 전체 항목을 자동으로 검토합니다."} />
+          {review && (
+            <button
+              type="button"
+              aria-expanded={resultsOpen}
+              aria-controls="ai-review-results"
+              onClick={() => setResultsOpen((open) => !open)}
+              className="btn-quiet btn-sm ml-1 gap-1"
+            >
+              {resultCount.toLocaleString("ko-KR")}개 결과
+              <span className={cx("text-ink-3 transition-transform motion-reduce:transition-none", resultsOpen && "rotate-180")} aria-hidden="true">⌄</span>
+            </button>
+          )}
         </div>
-        <div className="mt-1.5 flex items-start gap-2">
-          <div className="min-w-0 flex-1">
-            <textarea
-              id="ai-review-instruction"
-              name="aiReviewInstruction"
-              autoComplete="off"
-              value={instruction}
-              maxLength={1_000}
-              rows={1}
-              disabled={disabled || loading}
-              onChange={(event) => setInstruction(event.target.value)}
-              placeholder="예: MTO의 원문과 정의를 엄격히 확인…"
-              className="w-full resize-y rounded-lg border border-line bg-panel px-3 py-2 text-sm leading-6 text-ink outline-none placeholder:text-ink-3/70 focus:border-brand focus:ring-2 focus:ring-brand/15 disabled:cursor-not-allowed disabled:opacity-60"
-              aria-describedby="ai-review-instruction-count"
-            />
-            <p id="ai-review-instruction-count" className="mt-0.5 text-right text-[11px] tabular-nums text-ink-3">{instruction.length.toLocaleString("ko-KR")}/1,000</p>
-          </div>
-          <button type="button" disabled={disabled || loading} onClick={() => void requestReview()} className="btn-primary shrink-0">
-            {loading ? "검토 중…" : "검토 시작"}
+
+        <div className="flex min-w-0 flex-1 items-start gap-2">
+          <label htmlFor="ai-review-instruction" className="sr-only">검토 가이드 (선택)</label>
+          <textarea
+            id="ai-review-instruction"
+            name="aiReviewInstruction"
+            autoComplete="off"
+            value={instruction}
+            maxLength={1_000}
+            rows={1}
+            disabled={disabled || loading}
+            onChange={(event) => setInstruction(event.target.value)}
+            placeholder="검토 가이드 입력…"
+            className="min-h-9 min-w-0 flex-1 resize-y rounded-lg border border-line bg-panel px-3 py-1.5 text-sm leading-6 text-ink outline-none placeholder:text-ink-3/70 focus:border-brand focus:ring-2 focus:ring-brand/15 disabled:cursor-not-allowed disabled:opacity-60"
+          />
+          <button type="button" disabled={disabled || loading} onClick={() => void requestReview()} className="btn-primary min-h-9 shrink-0 touch-manipulation">
+            {loading ? "검토 중…" : review ? "다시 검토" : "검토 시작"}
           </button>
         </div>
+      </div>
 
+      <div className={cx((stale || error || (review && resultsOpen)) && "border-t border-line px-4 py-3")}>
         {stale && (
-          <div className="note note-warn mt-3 flex flex-wrap items-center justify-between gap-2" role="status">
+          <div className="note note-warn flex flex-wrap items-center justify-between gap-2" role="status">
             <span>검토 후 입력이 변경되었습니다. 일부 결과가 현재 내용과 다를 수 있습니다.</span>
             <button type="button" disabled={disabled || loading} onClick={() => void requestReview()} className="btn-ghost btn-sm">다시 검토</button>
           </div>
         )}
-        {error && <div className="note note-danger mt-3" role="alert">{error}</div>}
+        {error && <div className={cx("note note-danger", stale && "mt-3")} role="alert">{error}</div>}
 
         {review && (
-          <div className="mt-3 space-y-4" aria-live="polite">
+          <div id="ai-review-results" hidden={!resultsOpen} className={cx("space-y-4", (stale || error) && "mt-3")} aria-live="polite">
             <div className="rounded-lg bg-panel-2 px-3 py-2 text-sm leading-6 text-ink">
               <span className="mr-2 text-[11px] font-medium text-brand">{reviewedWithGuide ? "가이드 포함" : "자동 검토"}</span>
               {review.summary}
@@ -237,6 +241,6 @@ export function TermAiReviewPanel({
           </div>
         )}
       </div>
-    </details>
+    </section>
   );
 }

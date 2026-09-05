@@ -21,6 +21,18 @@ test("가이드 입력은 항상 보이고 비어 있어도 자동 검토를 시
   expect(source).toContain('name="aiReviewInstruction"');
   expect(source).toContain('autoComplete="off"');
   expect(source).toContain("rows={1}");
+  expect(source).toContain('placeholder="검토 가이드 입력…"');
+  expect(source).not.toContain('<details ref={detailsRef}');
+  expect(source).toContain('<section className="card" aria-labelledby="ai-review-heading">');
+});
+
+test("검토는 카드를 펼치지 않고 실행하며 결과만 별도로 접고 펼친다", () => {
+  expect(source).toContain('{loading ? "검토 중…" : review ? "다시 검토" : "검토 시작"}');
+  expect(source).toContain('aria-expanded={resultsOpen}');
+  expect(source).toContain('aria-controls="ai-review-results"');
+  expect(source).toContain('onClick={() => setResultsOpen((open) => !open)}');
+  expect(source).toContain('id="ai-review-results" hidden={!resultsOpen}');
+  expect(source).toContain('setResultsOpen(true)');
 });
 
 test("검토 결과는 어떤 방식으로 실행했는지 표시한다", () => {
