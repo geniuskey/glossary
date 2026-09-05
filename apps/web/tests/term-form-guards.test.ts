@@ -75,23 +75,59 @@ test("savedSlug가 있으면 제출 버튼 대신 Link가 렌더된다 (R108)", 
   expect(linkIdx).toBeLessThan(submitBtnIdx); // Link가 먼저(참 분기), submit 버튼은 else 분기
 });
 
-test("대표 표기와 추가 표기는 같은 이름 영역에서 관리 정보·본문보다 먼저 보인다", () => {
+test("대표 표기와 한줄 정의가 기본 정보에 먼저 보이고 추가 표기·관리·본문은 상세 영역으로 이어진다", () => {
+  const basicInfoIdx = code.indexOf('title="용어 기본 정보"');
   const primaryNameIdx = code.indexOf('name="nameEn"');
-  const surfacesIdx = code.indexOf(">추가 표기 <");
-  const managementIdx = code.indexOf('title="관리 정보"');
+  const definitionIdx = code.indexOf('name="definitionMd"');
+  const surfacesIdx = code.indexOf('title="추가 표기"');
+  const managementIdx = code.indexOf('title="분류 및 관리"');
   const bodyIdx = code.indexOf('label="용어 본문"');
 
-  expect(primaryNameIdx).toBeGreaterThan(-1);
-  expect(surfacesIdx).toBeGreaterThan(primaryNameIdx);
+  expect(basicInfoIdx).toBeGreaterThan(-1);
+  expect(primaryNameIdx).toBeGreaterThan(basicInfoIdx);
+  expect(definitionIdx).toBeGreaterThan(primaryNameIdx);
+  expect(surfacesIdx).toBeGreaterThan(definitionIdx);
   expect(managementIdx).toBeGreaterThan(surfacesIdx);
   expect(bodyIdx).toBeGreaterThan(managementIdx);
 });
 
-test("넓은 편집 화면은 관리 정보를 왼쪽에 두고 공개 상태에 시트와 같은 색상 토큰을 쓴다", () => {
+test("기본 정보는 전체 너비에 두고 공개 상태만 상세 영역 밖에 유지한다", () => {
+  expect(code).toContain('<section className="card">');
   expect(code).toContain('lg:grid-cols-[18rem_minmax(0,1fr)]');
-  expect(code).toContain('className="card lg:order-1 lg:sticky lg:top-16"');
-  expect(code).toContain('className="card lg:order-2"');
+  expect(code).toContain('<label htmlFor="term-status" className="text-xs font-medium text-ink-2">공개 상태</label>');
+  expect(code).toContain('action={(');
+  expect(code).toContain('ref={managementDetailsRef}');
   expect(code).toContain('STATUS_TONE[form.status]');
+});
+
+test("편집 화면은 상단에 상태만 표시하고 초안 저장·공개는 하단, 예외 상태 변경은 관리 영역에 둔다", () => {
+  expect(code).toContain('<StatusBadge status={form.status} />');
+  expect(code).toContain('<StatusChangeMenu status={form.status}');
+  expect(code).toContain('editSlug !== undefined && form.status === "draft" ? (');
+  expect(code).toContain('saving && submittingStatus === "draft" ? "초안 저장 중…" : "초안 저장"');
+  expect(code).toContain('onClick={() => void submitForm("active")}');
+  expect(code).toContain('saving && submittingStatus === "active" ? "공개 중…" : "공개하기"');
+  expect(code).toContain('pendingStatus ? "변경 중…" : "상태 변경"');
+  expect(code).toContain('editSlug !== undefined ? (');
+  expect(code).toContain('<select\n                  id="term-status"');
+});
+
+test("공개하기는 현재 폼 전체를 active 상태로 저장하고 성공 뒤 기준 스냅샷과 화면 상태를 함께 갱신한다", () => {
+  expect(code).toContain('{ ...formWithPendingSurfaces, status: statusOverride }');
+  expect(code).toContain('const submittedSnapshot = JSON.stringify(buildTermPayload(submittedForm))');
+  expect(code).toContain('initialSnapshotRef.current = submittedSnapshot');
+  expect(code).toContain('setForm((current) => ({ ...current, status: statusOverride }))');
+  expect(code).toContain('statusOverride === "active" ? "용어를 공개했습니다."');
+});
+
+test("표기·분류·본문 상세 영역은 접힌 요약으로 시작하고 검증 오류가 있으면 자동으로 열린다", () => {
+  expect(code).toContain('ref={surfaceDetailsRef}');
+  expect(code).toContain('ref={managementDetailsRef}');
+  expect(code).toContain('ref={bodyDetailsRef}');
+  expect(code).toContain('if (fieldErrors.surfaces) surfaceDetailsRef.current!.open = true');
+  expect(code).toContain('managementDetailsRef.current!.open = true');
+  expect(code).toContain('if (fieldErrors.bodyMd) bodyDetailsRef.current!.open = true');
+  expect(code).toContain('summary={form.bodyMd.trim() ?');
 });
 
 test("대표 표기 도움말은 대표 영문 용어 필드 라벨 바로 옆에 둔다", () => {
@@ -120,7 +156,9 @@ test("추가 표기는 일괄 등록 후 모든 종류 영역이 있는 공통 �
   expect(code).toContain("formWithPendingSurfaces");
 });
 
-test("표기 빠른 추가는 입력·종류·버튼을 한 줄 도구로 표시한다", () => {
+test("추가 표기의 한 번에 추가 도구는 입력·종류·버튼을 한 줄로 표시한다", () => {
+  expect(code).toContain('>한 번에 추가</label>');
+  expect(code).toContain('`${form.surfaces.length.toLocaleString("ko-KR")}개 등록됨`');
   expect(code).toContain('className="flex flex-col gap-2 sm:flex-row sm:items-center"');
   expect(code).toContain('className="field h-8 min-w-0 flex-1 py-0"');
   expect(code).toContain('className="field h-8 py-0 sm:w-32"');
@@ -132,8 +170,10 @@ test("상시 설명은 물음표 도움말로 대체하고 hover와 keyboard foc
   expect(helpTipSource).toContain("function HelpTip");
   expect(helpTipSource).toContain('aria-label={`도움말: ${text}`}');
   expect(helpTipSource).toContain('role="tooltip"');
-  expect(helpTipSource).toContain("group-hover:opacity-100");
-  expect(helpTipSource).toContain("group-focus-within:opacity-100");
+  expect(helpTipSource).toContain("group/help-tip");
+  expect(helpTipSource).toContain("group-hover/help-tip:opacity-100");
+  expect(helpTipSource).toContain("group-focus-within/help-tip:opacity-100");
+  expect(helpTipSource).not.toContain('className="group relative');
   expect(code).not.toContain('<p className={compact ? "text-[11px] text-ink-3"');
 });
 
@@ -154,14 +194,16 @@ test("표기 배지는 언어별 색상을 사용하고 언어 텍스트는 내�
   expect(code).toContain('aria-label="표기 언어 색상"');
 });
 
-test("추가 표기 배지 전체를 드래그하고 우클릭 메뉴에서 옵션을 바꿀 수 있다", () => {
+test("추가 표기 배지는 드래그·우클릭과 보이는 옵션 버튼으로 종류를 바꿀 수 있다", () => {
   expect(code).toContain("handleSurfaceDragStart");
   expect(code).toContain("handleSurfaceDrop");
   expect(code).toContain("draggable={!locked}");
   expect(code).toContain("handleSurfaceContextMenu");
+  expect(code).toContain('aria-label={`${surface.text || `추가 표기 ${index + 1}`} 옵션 열기`}');
+  expect(code).toContain('aria-haspopup="menu"');
   expect(code).toContain('role="menu"');
   expect(code).toContain('role="menuitemradio"');
-  expect(code).toContain("group-hover:opacity-100");
+  expect(code).toContain("group-hover/surface:opacity-100");
   expect(code).toContain('aria-live="polite"');
 });
 
@@ -189,7 +231,7 @@ test("편집 폼은 slug를 별도 버튼으로 변경하고 새 편집 URL로 �
 
 test("수정 저장은 편집 화면에 남아 기준 스냅샷과 리비전을 갱신하고 토스트로 알린다", () => {
   const editSuccess = code.slice(code.indexOf('if (editSlug !== undefined) {'), code.indexOf('if (outcome.warnings.length > 0)'));
-  expect(editSuccess).toContain("initialSnapshotRef.current = formSnapshot");
+  expect(editSuccess).toContain("initialSnapshotRef.current = submittedSnapshot");
   expect(editSuccess).toContain("setExpectedRevision");
   expect(editSuccess).toContain("setSaveToast");
   expect(editSuccess).not.toContain("router.push");

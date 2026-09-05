@@ -11,11 +11,12 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type ReactNode,
 } from "react";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { HelpTip } from "@/components/help-tip";
 import { ClassificationMultiSelect } from "@/components/classification-multi-select";
-import { STATUS_TONE } from "@/components/term-badges";
+import { STATUS_TONE, StatusBadge } from "@/components/term-badges";
 import {
   EXPLICIT_SURFACE_KINDS,
   SURFACE_KIND_LABEL,
@@ -79,8 +80,16 @@ function commaSeparatedValues(value: string): string[] {
   return [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
 }
 
-function surfaceLangLabel(lang: string): string {
-  return LANG_LABEL[lang as SurfaceLangLiteral] ?? lang;
+function managementSummary(form: TermFormState): string {
+  const domainCount = commaSeparatedValues(form.domain).length;
+  const categoryCount = commaSeparatedValues(form.category).length;
+  const parts = [
+    domainCount > 0 ? `도메인 ${domainCount.toLocaleString("ko-KR")}개` : null,
+    categoryCount > 0 ? `업무 분류 ${categoryCount.toLocaleString("ko-KR")}개` : null,
+    form.topic.trim() ? "주제 있음" : null,
+    form.ownerId ? "담당자 지정" : null,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" · ") : "+ 분류·담당자 추가";
 }
 
 const EMPTY: TermFormState = {
@@ -131,6 +140,7 @@ export function TermForm({
     };
   });
   const [saving, setSaving] = useState(false);
+  const [submittingStatus, setSubmittingStatus] = useState<TermStatusLiteral | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [renamingSlug, setRenamingSlug] = useState(false);
   const [slugDraft, setSlugDraft] = useState(editSlug ?? "");
@@ -156,6 +166,9 @@ export function TermForm({
   const [imageUploading, setImageUploading] = useState(false);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const surfaceMenuRef = useRef<HTMLDivElement>(null);
+  const surfaceDetailsRef = useRef<HTMLDetailsElement>(null);
+  const managementDetailsRef = useRef<HTMLDetailsElement>(null);
+  const bodyDetailsRef = useRef<HTMLDetailsElement>(null);
   // dragover는 dragstart 직후 React 상태가 반영되기 전에도 발생할 수 있으므로
   // 드롭 허용 여부와 원본 인덱스는 동기적으로 갱신되는 ref를 기준으로 삼는다.
   const draggedSurfaceIndexRef = useRef<number | null>(null);
@@ -227,6 +240,11 @@ export function TermForm({
 
   useEffect(() => {
     if (!fieldErrors) return;
+    if (fieldErrors.surfaces) surfaceDetailsRef.current!.open = true;
+    if (["qualityProfile", "domain", "category", "topic", "ownerId"].some((field) => fieldErrors[field])) {
+      managementDetailsRef.current!.open = true;
+    }
+    if (fieldErrors.bodyMd) bodyDetailsRef.current!.open = true;
     const firstField = Object.keys(fieldErrors)[0];
     const control = firstField ? document.querySelector<HTMLElement>(`[name="${CSS.escape(firstField)}"]`) : null;
     (control ?? errorSummaryRef.current)?.focus();
@@ -331,13 +349,6 @@ export function TermForm({
     openSurfaceMenu(index, event.clientX, event.clientY);
   }
 
-  function handleSurfaceBadgeKeyDown(event: KeyboardEvent<HTMLElement>, index: number) {
-    if (!(event.key === "ContextMenu" || (event.shiftKey && event.key === "F10") || event.key === "Enter" || event.key === " ")) return;
-    event.preventDefault();
-    const rect = event.currentTarget.getBoundingClientRect();
-    openSurfaceMenu(index, rect.left + Math.min(rect.width, 120), rect.bottom + 4);
-  }
-
   function handleSurfaceDrop(event: DragEvent<HTMLElement>, kind: ExplicitSurfaceKindLiteral) {
     event.preventDefault();
     event.stopPropagation();
@@ -421,20 +432,25 @@ export function TermForm({
     }
   }
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function submitForm(statusOverride?: TermStatusLiteral) {
     // R108: 방어선 두 번째 겹. 버튼이 이미 링크로 바뀐 뒤라도 Enter 키 등으로
     // submit 이벤트가 다시 뜰 수 있는 경로를 여기서도 막는다.
     if (locked) return;
     if (imageUploading) return;
 
     setSaving(true);
+    setSubmittingStatus(statusOverride ?? form.status);
     setErrorMessage(null);
     setIssues(null);
     setFieldErrors(null);
     setConflict(null);
 
-    const payload = buildTermPayload(formWithPendingSurfaces, expectedRevision);
+    const submittedForm = statusOverride === undefined
+      ? formWithPendingSurfaces
+      : { ...formWithPendingSurfaces, status: statusOverride };
+    const payload = buildTermPayload(submittedForm, expectedRevision);
+    // dirty 비교용 스냅샷에는 요청 경합용 expectedRevision을 넣지 않는다.
+    const submittedSnapshot = JSON.stringify(buildTermPayload(submittedForm));
     const url = editSlug !== undefined ? `/api/v1/terms/${editSlug}` : "/api/v1/terms";
     const method = editSlug !== undefined ? "PATCH" : "POST";
 
@@ -447,6 +463,7 @@ export function TermForm({
       });
     } catch {
       setSaving(false);
+      setSubmittingStatus(null);
       setErrorMessage("네트워크 오류로 저장하지 못했습니다.");
       return;
     }
@@ -454,17 +471,25 @@ export function TermForm({
     const body = await res.json().catch(() => null);
     const outcome = interpretResponse(res.status, res.ok, body);
     setSaving(false);
+    setSubmittingStatus(null);
 
     if (outcome.kind === "success") {
       if (editSlug !== undefined) {
         // 수정 화면은 저장 뒤에도 같은 맥락에서 계속 다듬을 수 있어야 한다.
         // 현재 입력을 새 기준점으로 삼고 리비전만 올려 다음 저장의 경합 검사를
         // 이어 간다. 상세 화면 이동은 사용자가 취소 링크를 눌렀을 때만 일어난다.
-        initialSnapshotRef.current = formSnapshot;
+        initialSnapshotRef.current = submittedSnapshot;
+        if (statusOverride !== undefined) {
+          setForm((current) => ({ ...current, status: statusOverride }));
+        }
         setExpectedRevision((revision) => revision === undefined ? undefined : revision + 1);
         setWarnings(outcome.warnings);
         setSaveToast(outcome.warnings.length > 0
           ? `저장했습니다. 겹치는 추가 표기 ${outcome.warnings.length}개를 확인해 주세요.`
+          : statusOverride === "active" ? "용어를 공개했습니다."
+          : statusOverride === "draft" ? "초안으로 저장했습니다."
+          : statusOverride === "deprecated" ? "폐기됨 상태로 저장했습니다."
+          : statusOverride === "forbidden" ? "금지어 상태로 저장했습니다."
           : "변경사항을 저장했습니다.");
         return;
       }
@@ -504,6 +529,11 @@ export function TermForm({
     }
 
     setErrorMessage(outcome.message);
+  }
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    await submitForm();
   }
 
   return (
@@ -558,13 +588,43 @@ export function TermForm({
         </div>
       )}
 
-      <div className={cx("grid items-start lg:grid-cols-[18rem_minmax(0,1fr)]", compact ? "gap-3" : "gap-4")}>
-        <section className="card lg:order-2">
-          <CompactSectionTitle compact={compact} title="이름과 표기" description="대표 이름과 함께 검색할 약어·별칭을 한곳에서 관리합니다." />
-          <div className={compact ? "space-y-3 p-3" : "space-y-5 p-4 sm:p-5"}>
+      <section className="card">
+        <CompactSectionTitle
+          compact={compact}
+          title="용어 기본 정보"
+          description="대표 이름과 짧은 정의처럼 가장 자주 확인하는 정보를 관리합니다."
+          action={(
+            <div className="ml-auto flex items-center gap-1.5">
+              {editSlug !== undefined ? (
+                <span title={TERM_STATUS_HINT[form.status]} aria-label={`공개 상태: ${TERM_STATUS_LABEL[form.status]}. ${TERM_STATUS_HINT[form.status]}`}>
+                  <StatusBadge status={form.status} />
+                </span>
+              ) : (
+                <>
+                  <label htmlFor="term-status" className="text-xs font-medium text-ink-2">공개 상태</label>
+                  <HelpTip text={TERM_STATUS_HINT[form.status]} />
+                <select
+                  id="term-status"
+                  name="status"
+                  value={form.status}
+                  onChange={(event) => updateField("status", event.target.value as TermStatusLiteral)}
+                  disabled={locked}
+                  aria-invalid={errorsFor("status") ? true : undefined}
+                  aria-describedby={errorsFor("status") ? "status-error" : undefined}
+                  className={cx("field h-8 w-auto min-w-28 py-0 text-xs", STATUS_TONE[form.status])}
+                >
+                  {TERM_STATUSES.map((status) => <option key={status} value={status}>{TERM_STATUS_LABEL[status]}</option>)}
+                </select>
+                </>
+              )}
+            </div>
+          )}
+        />
+        <div className={compact ? "space-y-3 p-3" : "space-y-5 p-4 sm:p-5"}>
+            <FormFieldError id="status-error" errors={errorsFor("status")} />
             <fieldset>
               <legend className="label">
-                <span className="inline-flex items-center gap-1.5">Type <HelpTip text="항목 자체의 성격을 고릅니다. 약어와 풀네임은 아래 추가 표기에서 관리합니다." /></span>
+                <span className="inline-flex items-center gap-1.5">유형 <HelpTip text="항목 자체의 성격을 고릅니다. 약어와 풀네임은 추가 표기에서 관리합니다." /></span>
               </legend>
               <div className="grid grid-cols-2 gap-1 rounded-xl bg-panel-2 p-1 xl:grid-cols-4">
                 {TERM_TYPES.map((type) => (
@@ -632,15 +692,41 @@ export function TermForm({
             </div>
 
             <div className={cx("border-t border-line", compact ? "pt-3" : "pt-4")}>
-              <div className={cx("flex items-center gap-1.5", compact ? "mb-2" : "mb-3")}>
-                <h3 className="text-sm font-medium text-ink">추가 표기 <span className="font-normal text-ink-3">{form.surfaces.length}개</span></h3>
-                <HelpTip text="먼저 여러 표기를 등록하고, 사용 중인 종류 사이로 끌어 분류하세요." />
+              <div className={cx("flex items-baseline gap-2", compact ? "mb-2" : "mb-3")}>
+                <h3 className="text-sm font-medium text-ink">한줄 정의</h3>
+                <HelpTip text="검색 결과에서 먼저 읽히는 짧은 설명입니다." />
               </div>
+              <textarea
+                name="definitionMd"
+                autoComplete="off"
+                value={form.definitionMd}
+                maxLength={TERM_MARKDOWN_MAX}
+                onChange={(event) => updateField("definitionMd", event.target.value)}
+                disabled={locked}
+                aria-label="한줄 정의"
+                aria-invalid={errorsFor("definitionMd") ? true : undefined}
+                aria-describedby={errorsFor("definitionMd") ? "definitionMd-error" : undefined}
+                rows={compact ? 2 : 3}
+                placeholder="한두 문장으로 이 용어가 무엇인지…"
+                className="field korean-editor-font"
+              />
+              <FormFieldError id="definitionMd-error" errors={errorsFor("definitionMd")} />
+            </div>
+        </div>
+      </section>
 
+      <div className={cx("grid items-start lg:grid-cols-[18rem_minmax(0,1fr)]", compact ? "gap-3" : "gap-4")}>
+        <details ref={surfaceDetailsRef} className="group/details card lg:order-2">
+          <CollapsibleSectionSummary
+            title="추가 표기"
+            summary={form.surfaces.length > 0 ? `${form.surfaces.length.toLocaleString("ko-KR")}개 등록됨` : "+ 표기 추가"}
+          />
+          <div className={compact ? "p-3 pt-0" : "p-4 pt-0 sm:p-5 sm:pt-0"}>
+            <div className="border-t border-line pt-3">
               <div className="rounded-xl border border-line bg-panel-2/50 p-2">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <span className="inline-flex shrink-0 items-center gap-1.5">
-                    <label htmlFor="surface-batch" className="text-xs font-medium text-ink-2">표기 빠른 추가</label>
+                    <label htmlFor="surface-batch" className="text-xs font-medium text-ink-2">한 번에 추가</label>
                     <HelpTip text="쉼표로 여러 표기를 구분하고 Enter로 추가할 수 있습니다." />
                   </span>
                 <input
@@ -679,7 +765,7 @@ export function TermForm({
               <div className={cx("flex items-start justify-between gap-3", compact ? "mt-3" : "mt-4")}>
                 <div className="inline-flex items-center gap-1.5">
                   <h4 className="text-xs font-semibold text-ink-2">표기 종류</h4>
-                  <HelpTip text="배지 전체를 끌어 종류를 바꾸고, 우클릭해서 표기 옵션을 수정하세요." />
+                  <HelpTip text="배지를 끌어 종류를 바꾸거나 ⋯ 버튼에서 표기 옵션을 수정하세요." />
                 </div>
                 <div className="flex shrink-0 items-center gap-2.5 text-[10px] text-ink-3" aria-label="표기 언어 색상">
                   {SURFACE_LANGUAGE_ORDER.map((lang) => (
@@ -724,24 +810,36 @@ export function TermForm({
                             return (
                             <div
                               key={index}
-                              tabIndex={locked ? -1 : 0}
-                              aria-haspopup="menu"
-                              aria-label={`${surface.text || `추가 표기 ${index + 1}`} · ${surfaceLangLabel(inferSurfaceLang(surface.text))} · 우클릭하여 옵션 열기`}
-                              title="드래그로 이동 · 우클릭으로 옵션 열기"
+                              title="드래그로 이동 · ⋯ 버튼으로 옵션 열기"
                               draggable={!locked}
                               onContextMenu={(event) => handleSurfaceContextMenu(event, index)}
-                              onKeyDown={(event) => handleSurfaceBadgeKeyDown(event, index)}
                               onDragStart={(event) => handleSurfaceDragStart(event, index)}
                               onDragEnd={() => {
                                 draggedSurfaceIndexRef.current = null;
                                 setDraggedSurfaceIndex(null);
                                 setDragOverSurfaceKind(null);
                               }}
-                              className={`group inline-flex max-w-full cursor-grab touch-none select-none items-center gap-1 rounded-full border py-1 pl-2.5 pr-1 text-xs shadow-sm transition hover:brightness-[0.97] hover:shadow active:cursor-grabbing ${SURFACE_LANGUAGE_STYLE[language]} ${
+                              className={`group/surface inline-flex max-w-full cursor-grab touch-none select-none items-center gap-1 rounded-full border py-1 pl-2.5 pr-1 text-xs shadow-sm transition hover:brightness-[0.97] hover:shadow active:cursor-grabbing ${SURFACE_LANGUAGE_STYLE[language]} ${
                                 draggedSurfaceIndex === index ? "select-none opacity-50" : ""
                               }`}
                             >
                               <span className="truncate font-medium">{surface.text || "이름 없음"}</span>
+                              <button
+                                type="button"
+                                draggable={false}
+                                aria-label={`${surface.text || `추가 표기 ${index + 1}`} 옵션 열기`}
+                                aria-haspopup="menu"
+                                onPointerDown={(event) => event.stopPropagation()}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  const rect = event.currentTarget.getBoundingClientRect();
+                                  openSurfaceMenu(index, rect.right, rect.bottom + 4);
+                                }}
+                                disabled={locked}
+                                className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-sm font-bold leading-none text-ink-2 transition hover:bg-panel/80 focus-visible:ring-2 focus-visible:ring-brand/40"
+                              >
+                                ⋯
+                              </button>
                               <button
                                 type="button"
                                 draggable={false}
@@ -753,7 +851,7 @@ export function TermForm({
                                   removeSurface(index);
                                 }}
                                 disabled={locked}
-                                className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-sm leading-none text-ink-3 opacity-0 transition hover:bg-danger-soft hover:text-danger group-hover:opacity-100 group-focus-within:opacity-100"
+                                className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-sm leading-none text-ink-3 opacity-0 transition hover:bg-danger-soft hover:text-danger group-hover/surface:opacity-100 group-focus-within/surface:opacity-100"
                               >
                                 ×
                               </button>
@@ -818,28 +916,24 @@ export function TermForm({
               </p>
             </div>
           </div>
-        </section>
+        </details>
 
-        <section className="card lg:order-1 lg:sticky lg:top-16">
-          <CompactSectionTitle compact={compact} title="관리 정보" description="검색 노출과 관리 책임을 정합니다." />
-          <div className={compact ? "space-y-3 p-3" : "space-y-4 p-4"}>
-            <div className="block">
-              <span className="label inline-flex items-center gap-1.5"><label htmlFor="term-status">공개 상태</label> <HelpTip text={TERM_STATUS_HINT[form.status]} /></span>
-              <select
-                id="term-status"
-                name="status"
-                value={form.status}
-                onChange={(event) => updateField("status", event.target.value as TermStatusLiteral)}
-                disabled={locked}
-                aria-invalid={errorsFor("status") ? true : undefined}
-                aria-describedby={errorsFor("status") ? "status-error" : undefined}
-                className={cx("field", STATUS_TONE[form.status])}
-              >
-                {TERM_STATUSES.map((status) => <option key={status} value={status}>{TERM_STATUS_LABEL[status]}</option>)}
-              </select>
-              <FormFieldError id="status-error" errors={errorsFor("status")} />
-            </div>
-
+          <details ref={managementDetailsRef} className="group/details card lg:order-1">
+            <CollapsibleSectionSummary
+              title="분류 및 관리"
+              summary={managementSummary(form)}
+            />
+            <div className={compact ? "space-y-3 p-3 pt-0" : "space-y-4 p-4 pt-0"}>
+            <div className="border-t border-line pt-3">
+            {editSlug !== undefined && (
+              <div className="mb-3 flex items-center justify-between gap-3 rounded-lg bg-panel-2/50 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-ink-2">공개 상태</p>
+                  <p className="mt-0.5 truncate text-[11px] text-ink-3">{TERM_STATUS_LABEL[form.status]}</p>
+                </div>
+                <StatusChangeMenu status={form.status} disabled={locked || imageUploading} onSave={submitForm} />
+              </div>
+            )}
             <div className="block">
               <span className="label inline-flex items-center gap-1.5">
                 <label htmlFor="term-quality-profile">AI 활용 기준</label>
@@ -860,6 +954,7 @@ export function TermForm({
                 ))}
               </select>
               <FormFieldError id="qualityProfile-error" errors={errorsFor("qualityProfile")} />
+            </div>
             </div>
 
             <ClassificationMultiSelect
@@ -929,7 +1024,7 @@ export function TermForm({
 
             {editSlug !== undefined && (
               <details className="rounded-lg border border-line bg-panel-2/35">
-                <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-ink-2">URL 주소 변경</summary>
+                <summary className="cursor-pointer select-none rounded-lg px-3 py-2 text-xs font-medium text-ink-2 focus-visible:ring-2 focus-visible:ring-brand/40">URL 주소 변경</summary>
                 <div className="border-t border-line p-3">
                 <span className="mb-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-ink-2">
                   URL 주소
@@ -967,54 +1062,40 @@ export function TermForm({
               </details>
             )}
           </div>
-        </section>
+          </details>
       </div>
 
-      <section className={cx("card", compact ? "p-3" : "p-4 sm:p-5")}>
-        <div className={compact ? "mb-2 flex items-baseline gap-2" : "mb-3"}>
-          <h2 className="text-sm font-semibold text-ink">한줄 정의</h2>
-          <HelpTip text="검색 결과에서 먼저 읽히는 짧은 설명입니다." />
-        </div>
-        <textarea
-          name="definitionMd"
-          autoComplete="off"
-          value={form.definitionMd}
-          maxLength={TERM_MARKDOWN_MAX}
-          onChange={(event) => updateField("definitionMd", event.target.value)}
-          disabled={locked}
-          aria-label="한줄 정의"
-          aria-invalid={errorsFor("definitionMd") ? true : undefined}
-          aria-describedby={errorsFor("definitionMd") ? "definitionMd-error" : undefined}
-          rows={compact ? 2 : 3}
-          placeholder="한두 문장으로 이 용어가 무엇인지…"
-          className="field korean-editor-font"
+      <details ref={bodyDetailsRef} className="group/details card">
+        <CollapsibleSectionSummary
+          title="상세 설명"
+          summary={form.bodyMd.trim() ? `본문 ${form.bodyMd.trim().length.toLocaleString("ko-KR")}자` : "+ 상세 설명 추가"}
         />
-        <FormFieldError id="definitionMd-error" errors={errorsFor("definitionMd")} />
-      </section>
-
-      <section>
-        <div className={compact ? "mb-2 flex items-baseline gap-2" : "mb-3"}>
-          <h2 className="text-sm font-semibold text-ink">본문</h2>
-          <HelpTip text="예시나 배경처럼 한줄 정의만으로 부족한 맥락을 남깁니다." />
+        <div className={compact ? "p-3 pt-0" : "p-4 pt-0 sm:p-5 sm:pt-0"}>
+          <div className="border-t border-line pt-3">
+            <div className={compact ? "mb-2 flex items-baseline gap-2" : "mb-3 flex items-baseline gap-2"}>
+              <h2 className="text-sm font-semibold text-ink">본문</h2>
+              <HelpTip text="예시나 배경처럼 한줄 정의만으로 부족한 맥락을 남깁니다." />
+            </div>
+            <MarkdownEditor
+              label="용어 본문"
+              describedBy={errorsFor("bodyMd") ? "bodyMd-error" : undefined}
+              invalid={Boolean(errorsFor("bodyMd"))}
+              value={form.bodyMd}
+              maxLength={TERM_MARKDOWN_MAX}
+              onChange={(bodyMd) => updateField("bodyMd", bodyMd)}
+              disabled={locked}
+              compact={compact}
+              resizable={compact}
+              onUploadingChange={setImageUploading}
+            />
+            <FormFieldError id="bodyMd-error" errors={errorsFor("bodyMd")} />
+          </div>
         </div>
-        <MarkdownEditor
-          label="용어 본문"
-          describedBy={errorsFor("bodyMd") ? "bodyMd-error" : undefined}
-          invalid={Boolean(errorsFor("bodyMd"))}
-          value={form.bodyMd}
-          maxLength={TERM_MARKDOWN_MAX}
-          onChange={(bodyMd) => updateField("bodyMd", bodyMd)}
-          disabled={locked}
-          compact={compact}
-          resizable={compact}
-          onUploadingChange={setImageUploading}
-        />
-        <FormFieldError id="bodyMd-error" errors={errorsFor("bodyMd")} />
-      </section>
+      </details>
 
       <div className={cx("sticky z-10 flex items-center justify-between gap-3 rounded-xl border border-line bg-panel/95 px-3 shadow-lg backdrop-blur", compact ? "bottom-2 py-2" : "bottom-3 py-2.5")}>
         <p className="min-w-0 truncate text-xs text-ink-3" aria-live="polite">
-          {deleting ? "삭제 중…" : savedSlug ? "저장 완료" : editSlug === undefined ? "새 용어 작성 중" : dirty ? "저장하지 않은 변경사항이 있습니다" : "변경사항 없음"}
+          {deleting ? "삭제 중…" : saving ? "저장 중…" : savedSlug ? "저장 완료" : editSlug === undefined ? "새 용어 작성 중" : dirty ? "저장하지 않은 변경사항이 있습니다" : "변경사항 없음"}
         </p>
         <div className="flex shrink-0 items-center gap-1.5">
           {editSlug !== undefined && canDelete && (
@@ -1029,6 +1110,15 @@ export function TermForm({
             <Link href={`/w/${savedSlug}`} className="btn-primary">
               저장됨 → {savedSlug}로 이동
             </Link>
+          ) : editSlug !== undefined && form.status === "draft" ? (
+            <>
+              <button type="submit" disabled={saving || imageUploading} className="btn-ghost">
+                {saving && submittingStatus === "draft" ? "초안 저장 중…" : "초안 저장"}
+              </button>
+              <button type="button" disabled={saving || imageUploading} onClick={() => void submitForm("active")} className="btn-primary">
+                {saving && submittingStatus === "active" ? "공개 중…" : "공개하기"}
+              </button>
+            </>
           ) : (
             <button type="submit" disabled={saving || imageUploading} className="btn-primary">
               {imageUploading ? "이미지 변환 중…" : saving ? "저장 중…" : editSlug === undefined ? "용어 저장" : "변경사항 저장"}
@@ -1052,16 +1142,116 @@ function CompactSectionTitle({
   title,
   description,
   compact = false,
+  action,
 }: {
   title: string;
   description: string;
   compact?: boolean;
+  action?: ReactNode;
 }) {
   return (
-    <header className={cx("rounded-t-xl border-b border-line bg-panel-2/50", compact ? "flex flex-wrap items-center gap-x-2 px-3 py-2" : "flex items-center gap-2 px-4 py-3 sm:px-5")}>
+    <header className={cx("flex flex-wrap items-center rounded-t-xl border-b border-line bg-panel-2/50", compact ? "gap-x-2 px-3 py-2" : "gap-2 px-4 py-3 sm:px-5")}>
       <h2 className="text-sm font-semibold text-ink">{title}</h2>
       <HelpTip text={description} />
+      {action}
     </header>
+  );
+}
+
+const STATUS_ACTION_LABEL: Record<TermStatusLiteral, string> = {
+  draft: "초안으로 변경",
+  active: "다시 공개",
+  deprecated: "폐기됨으로 변경",
+  forbidden: "금지어로 변경",
+};
+
+function StatusChangeMenu({
+  status,
+  disabled,
+  onSave,
+}: {
+  status: TermStatusLiteral;
+  disabled: boolean;
+  onSave: (status: TermStatusLiteral) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<TermStatusLiteral | null>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const menuStatuses = TERM_STATUSES.filter((candidate) => candidate !== status && !(status === "draft" && candidate === "active"));
+
+  useEffect(() => {
+    if (!open) return;
+    const closeFromOutside = (event: PointerEvent) => {
+      if (!hostRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeFromKeyboard = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeFromOutside);
+    document.addEventListener("keydown", closeFromKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", closeFromOutside);
+      document.removeEventListener("keydown", closeFromKeyboard);
+    };
+  }, [open]);
+
+  async function saveAs(nextStatus: TermStatusLiteral) {
+    setOpen(false);
+    setPendingStatus(nextStatus);
+    try {
+      await onSave(nextStatus);
+    } finally {
+      setPendingStatus(null);
+    }
+  }
+
+  return (
+    <div ref={hostRef} className="relative">
+      <button
+        type="button"
+        disabled={disabled || pendingStatus !== null}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className="btn-quiet btn-sm h-8 gap-1 border border-line"
+      >
+        {pendingStatus ? "변경 중…" : "상태 변경"}
+        <IconChevronDown open={open} />
+      </button>
+      {open && (
+        <div role="menu" aria-label="공개 상태 변경" className="absolute right-0 top-full z-[60] mt-1.5 w-44 overflow-hidden rounded-lg border border-line-strong bg-panel p-1 shadow-pop">
+          {menuStatuses.map((nextStatus) => (
+            <button
+              key={nextStatus}
+              type="button"
+              role="menuitem"
+              onClick={() => void saveAs(nextStatus)}
+              className="w-full rounded-md px-2.5 py-2 text-left text-xs text-ink-2 hover:bg-panel-2 hover:text-ink focus-visible:ring-2 focus-visible:ring-brand/40"
+            >
+              {STATUS_ACTION_LABEL[nextStatus]}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IconChevronDown({ open }: { open: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" className={cx("transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden="true">
+      <path d="m4 6 4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CollapsibleSectionSummary({ title, summary }: { title: string; summary: string }) {
+  return (
+    <summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl px-3 py-3 focus-visible:ring-2 focus-visible:ring-brand/40 sm:px-4 [&::-webkit-details-marker]:hidden">
+      <span role="heading" aria-level={2} className="text-sm font-semibold text-ink">{title}</span>
+      <span className="min-w-0 flex-1 truncate text-xs text-ink-3">{summary}</span>
+      <span className="shrink-0 text-sm text-ink-3 transition-transform group-open/details:rotate-180" aria-hidden="true">⌄</span>
+    </summary>
   );
 }
 
