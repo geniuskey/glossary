@@ -12,5 +12,5 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "devDependencies": { "typescript": "^5.6.0", "vitest": "^2.1.0" }
+  "devDependencies": { "typescript": "^7.0.2", "vitest": "^4.1.11" }
 }
