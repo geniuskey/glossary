@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, expect, test, vi } from "vitest";
 import sharp from "sharp";
-import { apiKeys, attachments, createDb } from "@grossary/db";
+import { apiKeys, attachments, createDb } from "@glossary/db";
 import { generateApiKey } from "../src/lib/auth/api-key.js";
 
 vi.mock("next/headers", () => ({

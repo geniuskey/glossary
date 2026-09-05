@@ -1,11 +1,11 @@
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
-import { aiConfig, createDb, users } from "@grossary/db";
+import { aiConfig, createDb, users } from "@glossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
 
 let currentCookieValue: string | undefined;
-const originalEncryptionKey = process.env.GROSSARY_ENCRYPTION_KEY;
+const originalEncryptionKey = process.env.GLOSSARY_ENCRYPTION_KEY;
 
 vi.mock("next/headers", () => ({
   cookies: async () => ({
@@ -23,7 +23,7 @@ let originalConfig: typeof aiConfig.$inferSelect | undefined;
 
 beforeAll(async () => {
   [originalConfig] = await db.select().from(aiConfig).where(eq(aiConfig.id, "default")).limit(1);
-  process.env.GROSSARY_ENCRYPTION_KEY = "test-ai-route-encryption-key-with-at-least-32-characters";
+  process.env.GLOSSARY_ENCRYPTION_KEY = "test-ai-route-encryption-key-with-at-least-32-characters";
 });
 
 afterEach(() => vi.unstubAllGlobals());
@@ -32,8 +32,8 @@ afterAll(async () => {
   await db.delete(aiConfig).where(eq(aiConfig.id, "default"));
   if (originalConfig) await db.insert(aiConfig).values(originalConfig);
   for (const id of userIds) await db.delete(users).where(eq(users.id, id));
-  if (originalEncryptionKey === undefined) delete process.env.GROSSARY_ENCRYPTION_KEY;
-  else process.env.GROSSARY_ENCRYPTION_KEY = originalEncryptionKey;
+  if (originalEncryptionKey === undefined) delete process.env.GLOSSARY_ENCRYPTION_KEY;
+  else process.env.GLOSSARY_ENCRYPTION_KEY = originalEncryptionKey;
 });
 
 async function loginAs(role: "admin" | "editor") {
@@ -48,7 +48,7 @@ async function loginAs(role: "admin" | "editor") {
 }
 
 function request(body: unknown) {
-  return new Request("https://grossary.example.com/api/v1/admin/ai-config", {
+  return new Request("https://glossary.example.com/api/v1/admin/ai-config", {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -56,7 +56,7 @@ function request(body: unknown) {
 }
 
 function modelsRequest(body: unknown) {
-  return new Request("https://grossary.example.com/api/v1/admin/ai-config/models", {
+  return new Request("https://glossary.example.com/api/v1/admin/ai-config/models", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),

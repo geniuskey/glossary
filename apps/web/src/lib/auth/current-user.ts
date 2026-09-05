@@ -1,14 +1,15 @@
 import { cookies, headers } from "next/headers";
 import { and, eq, gt } from "drizzle-orm";
-import { sessions, users } from "@grossary/db";
+import { sessions, users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { hashSessionToken, SESSION_COOKIE } from "./session";
+import { isInitialAdminEmail } from "./policy";
 import { needsSetup } from "./setup";
 import { decideAccess } from "./sso/claims";
-import { loadSsoConfig } from "./sso/config";
+import { loadSsoConfig, resolveLoginSsoMode, resolveSsoMode, saveSsoConfig } from "./sso/config";
 import { logSsoFailure } from "./sso/diagnostics";
 import { applySsoLogin } from "./sso/login";
-import { authMode, inspectProxyHeaders, trustProxyHeaders } from "./sso/proxy-headers";
+import { inspectProxyHeaders, oauth2ProxyEnabled } from "./sso/proxy-headers";
 
 export interface CurrentUser {
   id: string;
@@ -20,15 +21,22 @@ export interface CurrentUser {
 }
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
-  const mode = authMode();
-  if (trustProxyHeaders()) {
-    const inspection = inspectProxyHeaders(await headers());
+  const cfg = await loadSsoConfig();
+  const configuredMode = resolveSsoMode(cfg);
+  const bootstrapCandidate = cfg.mode === null
+    && configuredMode === "disabled"
+    && oauth2ProxyEnabled();
+  const setupNeeded = bootstrapCandidate ? await needsSetup() : false;
+  const mode = resolveLoginSsoMode(cfg, setupNeeded);
+  if (mode === "oauth2-proxy") {
+    const inspection = inspectProxyHeaders(await headers(), process.env, oauth2ProxyEnabled());
     if (inspection.identity) {
+      const bootstrapAdmin = isInitialAdminEmail(inspection.identity.email);
       // 최초 설치에서는 프록시를 통과한 첫 일반 사용자가 자동 생성되어 /setup을
-      // 닫아버리면 안 된다. 로컬 최초 관리자를 만든 뒤 헤더 계정 연결을 시작한다.
-      if (await needsSetup()) return null;
+      // 닫아버리면 안 된다. 환경변수로 지정한 최초 관리자만 SSO로 부트스트랩한다.
+      const currentlyNeedsSetup = setupNeeded || await needsSetup();
+      if (currentlyNeedsSetup && !bootstrapAdmin) return null;
 
-      const cfg = await loadSsoConfig();
       const access = decideAccess({
         groups: inspection.identity.groups,
         allowedGroups: cfg.allowedGroups,
@@ -36,7 +44,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       });
       if (!access.allowed) {
         logSsoFailure("proxy_header_access", {
-          authMode: mode,
+          ssoMode: mode,
           reason: "not_allowed",
           receivedGroupCount: inspection.identity.groups.length,
           allowedGroupCount: cfg.allowedGroups.length,
@@ -44,21 +52,31 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
         return null;
       }
 
+      if (bootstrapCandidate && currentlyNeedsSetup && bootstrapAdmin) {
+        // 계정을 만들기 전에 모드를 고정한다. 이 저장이 실패한 뒤 사용자만 남으면
+        // needsSetup이 닫혀 다음 요청에서 proxy 부트스트랩을 다시 시도할 수 없다.
+        const selected = await saveSsoConfig({ mode: "oauth2-proxy" }, null);
+        if (!selected.ok) {
+          logSsoFailure("proxy_bootstrap_mode", { ssoMode: mode, problems: selected.problems });
+          return null;
+        }
+      }
+
       const result = await applySsoLogin({
         identity: inspection.identity,
-        isAdmin: access.isAdmin,
-        autoCreate: cfg.autoCreate,
+        isAdmin: access.isAdmin || bootstrapAdmin,
+        autoCreate: cfg.autoCreate || bootstrapAdmin,
       });
       if (!result.ok) {
-        logSsoFailure("proxy_header_account", { authMode: mode, reason: result.reason });
+        logSsoFailure("proxy_header_account", { ssoMode: mode, reason: result.reason });
         return null;
       }
       return { ...result.user, organization: inspection.identity.organization };
     }
 
-    // 전용 모드에서 헤더가 없는데 로컬 세션으로 우회하면 앱 직접 접속이 프록시를
-    // 건너뛰는 인증 경로가 된다. 혼합 oidc/oauth2 모드에서만 세션으로 계속 간다.
-    if (mode === "oauth2-proxy") return null;
+    // proxy 모드에서 헤더가 없는데 로컬 세션으로 우회하면 앱 직접 접속이 프록시를
+    // 건너뛰는 인증 경로가 된다. capability가 잘못 꺼진 경우에도 fail closed 한다.
+    return null;
   }
 
   const store = await cookies();

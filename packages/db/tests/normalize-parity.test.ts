@@ -1,4 +1,4 @@
-import { normalizeSurface } from "@grossary/engine";
+import { normalizeSurface } from "@glossary/engine";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { createDb, surfaceKeys, terms, termSurfaces } from "../src/index";

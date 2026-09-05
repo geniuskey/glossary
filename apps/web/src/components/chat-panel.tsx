@@ -251,7 +251,7 @@ export function ChatPanel({ enabled }: { enabled: boolean }) {
                       <dl className="mt-2 grid gap-x-3 gap-y-1 text-xs sm:grid-cols-[5rem_1fr]">
                         <dt className="text-ink-3">Full name</dt>
                         <dd>{message.teaching.draft.fullNameKo || message.teaching.draft.fullNameEn || (message.teaching.draft.skipped.fullName ? "생략" : "—")}</dd>
-                        <dt className="text-ink-3">정의</dt>
+                        <dt className="text-ink-3">한줄 정의</dt>
                         <dd className="whitespace-pre-wrap">{message.teaching.draft.definitionMd || (message.teaching.draft.skipped.definition ? "생략" : "—")}</dd>
                         <dt className="text-ink-3">설명</dt>
                         <dd className="line-clamp-4 whitespace-pre-wrap">{message.teaching.draft.bodyMd || (message.teaching.draft.skipped.body ? "생략" : "—")}</dd>

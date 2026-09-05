@@ -26,7 +26,7 @@ web  →  db  →  engine
 
 ```ts
 // packages/db/src/index.ts
-import { normalizeSurface } from "@grossary/engine";
+import { normalizeSurface } from "@glossary/engine";
 
 export function surfaceKeys(text: string): { normLoose: string; normSpace: string } {
   const { loose, space } = normalizeSurface(text);
@@ -116,7 +116,7 @@ API 파서를 화면에서 재사용하지 마라.
 ```yaml
 volumes:
   pgdata:
-    name: grossary_pgdata   # 디렉터리명 파생 방지 — 명시 고정
+    name: glossary_pgdata   # 디렉터리명 파생 방지 — 명시 고정
 ```
 
 볼륨 `name:` 명시는 사고 방지용이다. Compose 볼륨명은 기본적으로 프로젝트 디렉터리명에서

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
-import { terms, workspaceSettings } from "@grossary/db";
+import { terms, workspaceSettings } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { termCompletion } from "@/lib/terms/completion";
 import { DEFAULT_HOME_CONTENT } from "./home-content-values";

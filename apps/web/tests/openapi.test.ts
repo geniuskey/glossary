@@ -84,5 +84,5 @@ test("R129: 인증 수단이 세션 쿠키와 API 키 둘 다 문서화돼 있�
   const schemes = openApiSpec.components.securitySchemes as Record<string, { name?: string }>;
   expect(Object.keys(schemes).sort()).toEqual(["apiKey", "sessionCookie"]);
   // 쿠키 이름은 lib/auth/session.ts의 SESSION_COOKIE와 같아야 한다.
-  expect(schemes.sessionCookie!.name).toBe("grossary_session");
+  expect(schemes.sessionCookie!.name).toBe("glossary_session");
 });

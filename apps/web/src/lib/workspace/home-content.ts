@@ -1,7 +1,7 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
-import { workspaceSettings } from "@grossary/db";
+import { workspaceSettings } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { DEFAULT_HOME_CONTENT, type HomeContent } from "./home-content-values";
 

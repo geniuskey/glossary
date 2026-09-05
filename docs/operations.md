@@ -5,7 +5,7 @@
 
 ## Docker Hub 이미지로 기동
 
-[Docker Hub의 `euiyun/grossary`](https://hub.docker.com/r/euiyun/grossary)는 웹 앱과
+[Docker Hub의 `euiyun/glossary`](https://hub.docker.com/r/euiyun/glossary)는 웹 앱과
 DB 마이그레이터를 한 저장소의 별도 태그로 배포한다. 서버에는 소스 코드가 필요 없고
 `docker-compose.hub.yml`과 환경 파일만 있으면 된다.
 
@@ -15,15 +15,15 @@ DB 마이그레이터를 한 저장소의 별도 태그로 배포한다. 서버�
 
 | 이미지 | 고정 태그 | 용도 |
 |---|---|---|
-| `euiyun/grossary` | `0.1.6` | Grossary 웹 애플리케이션 |
-| `euiyun/grossary` | `0.1.6-migrator` | 앱 기동 전에 실행하는 DB 마이그레이션 |
+| `euiyun/glossary` | `0.1.6` | Glossary 웹 애플리케이션 |
+| `euiyun/glossary` | `0.1.6-migrator` | 앱 기동 전에 실행하는 DB 마이그레이션 |
 
 `latest`와 `latest-migrator`도 제공하지만, 예고 없이 다음 개발 버전을 가리킬 수 있으므로
 재현 가능한 배포에는 버전 태그를 사용한다.
 
 ```bash
-curl -LO https://raw.githubusercontent.com/geniuskey/grossary/main/docker-compose.hub.yml
-curl -L https://raw.githubusercontent.com/geniuskey/grossary/main/.env.dockerhub.example -o .env
+curl -LO https://raw.githubusercontent.com/geniuskey/glossary/main/docker-compose.hub.yml
+curl -L https://raw.githubusercontent.com/geniuskey/glossary/main/.env.dockerhub.example -o .env
 
 # .env에서 POSTGRES_PASSWORD를 긴 URL-safe 값으로 바꾼다.
 docker compose --env-file .env -f docker-compose.hub.yml pull
@@ -33,12 +33,12 @@ docker compose --env-file .env -f docker-compose.hub.yml up -d
 운영에서는 `latest` 대신 아래처럼 앱과 마이그레이터를 같은 버전으로 고정한다.
 
 ```dotenv
-GROSSARY_IMAGE=euiyun/grossary:0.1.6
-GROSSARY_MIGRATOR_IMAGE=euiyun/grossary:0.1.6-migrator
+GLOSSARY_IMAGE=euiyun/glossary:0.1.6
+GLOSSARY_MIGRATOR_IMAGE=euiyun/glossary:0.1.6-migrator
 ```
 
 `database-init`이 `pg_trgm` 확장을 준비하고, `migrator`가 성공한 뒤에만 `app`이
-시작된다. 데이터는 `grossary_hub_pgdata` 볼륨에 보존된다.
+시작된다. 데이터는 `glossary_hub_pgdata` 볼륨에 보존된다.
 
 ### 용어 챗봇 암호화 키
 
@@ -46,7 +46,7 @@ Gemini API 키와 OpenAI-compatible custom header 값은 DB에 AES-256-GCM 암�
 저장한다. 앱을 시작하기 전에 `.env`에 32자 이상의 고정 키를 설정한다.
 
 ```dotenv
-GROSSARY_ENCRYPTION_KEY=replace-with-a-long-random-encryption-key
+GLOSSARY_ENCRYPTION_KEY=replace-with-a-long-random-encryption-key
 ```
 
 `openssl rand -base64 48` 등으로 별도 생성하고 비밀 저장소에 백업한다. 이 값은 DB
@@ -70,7 +70,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 `app`은 아예 시작하지 않는다.
 
 > **개발 머신에서 이 파일로 `up`하지 마라.** `docker-compose.prod.yml`은 개발용
-> `docker-compose.yml`과 같은 볼륨 이름(`grossary_pgdata`)을 쓴다. 전역 제약이
+> `docker-compose.yml`과 같은 볼륨 이름(`glossary_pgdata`)을 쓴다. 전역 제약이
 > 볼륨 이름을 디렉터리명에서 파생하지 말고 고정하라고 정했기 때문이고,
 > 프로덕션은 자기 호스트에서 도는 것을 전제한다.
 
@@ -95,7 +95,7 @@ devDependency라 운영 이미지(`runner`)에 없어 `migrator` 스테이지 �
 read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
 docker compose -f docker-compose.prod.yml run --rm \
   -e ADMIN_PASSWORD \
-  migrator pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts admin@example.com
+  migrator pnpm --filter @glossary/web exec tsx scripts/seed-admin.ts admin@example.com
 unset ADMIN_PASSWORD
 ```
 
@@ -120,18 +120,18 @@ unset ADMIN_PASSWORD
   계정 존재 여부가 응답 시간으로 새지 않도록 처리돼 있지만, 무제한 시도를 막지는
   않는다. 그때까지는 사내망 접근 통제에 의존한다.
 - DB 포트는 호스트로 내보내지 않는다. 직접 붙어야 하면
-  `docker compose -f docker-compose.prod.yml exec postgres psql -U grossary`.
+  `docker compose -f docker-compose.prod.yml exec postgres psql -U glossary`.
 
 ## 백업
 
 ```bash
-BACKUP_DIR=/srv/grossary-backups ./scripts/backup.sh
+BACKUP_DIR=/srv/glossary-backups ./scripts/backup.sh
 ```
 
 cron 예시 (매일 새벽 3시):
 
 ```
-0 3 * * * cd /srv/grossary && BACKUP_DIR=/srv/grossary-backups ./scripts/backup.sh >> /var/log/grossary-backup.log 2>&1
+0 3 * * * cd /srv/glossary && BACKUP_DIR=/srv/glossary-backups ./scripts/backup.sh >> /var/log/glossary-backup.log 2>&1
 ```
 
 이 스크립트는 dump를 **검증한 뒤에만** 최종 파일 이름으로 옮긴다. 실패하면 파일을
@@ -149,14 +149,14 @@ cron 예시 (매일 새벽 3시):
 하는 것이 아니다.
 
 ```bash
-# 안전: 별도 DB(grossary_rehearsal)로 복구해 건수만 확인한다. 운영 DB는 그대로다.
-./scripts/restore.sh --rehearse /srv/grossary-backups/grossary-20260828-030000.dump
+# 안전: 별도 DB(glossary_rehearsal)로 복구해 건수만 확인한다. 운영 DB는 그대로다.
+./scripts/restore.sh --rehearse /srv/glossary-backups/glossary-20260828-030000.dump
 ```
 
-실제 복구는 다음과 같고, 진행 전에 `replace grossary`를 직접 타이핑해야 한다:
+실제 복구는 다음과 같고, 진행 전에 `replace glossary`를 직접 타이핑해야 한다:
 
 ```bash
-./scripts/restore.sh --force /srv/grossary-backups/grossary-20260828-030000.dump
+./scripts/restore.sh --force /srv/glossary-backups/glossary-20260828-030000.dump
 ```
 
 `--force`는 순서가 이렇게 되어 있다:
@@ -202,7 +202,7 @@ docker compose -f docker-compose.prod.yml logs -f app
 환경변수에 넣은 뒤 앱 컨테이너를 다시 시작한다.
 
 ```dotenv
-GROSSARY_EMBED_ANCESTORS=https://confluence.example.com
+GLOSSARY_EMBED_ANCESTORS=https://confluence.example.com
 ```
 
 여러 출처는 쉼표로 구분한다. 경로가 아니라 `https://호스트[:포트]` 형태의 origin만
@@ -213,7 +213,7 @@ GROSSARY_EMBED_ANCESTORS=https://confluence.example.com
 공유용으로 따로 고르고 표시할 열을 정한 뒤 공유 URL 또는 iframe 코드를 복사한다.
 `columns`는 쉼표로 구분한 표준 열 키이며, `compact`, `links`,
 `border`는 각각 `1` 또는 `0`이다. 공유 표는 공개 상태 용어를 최대 200개 표시하고 초안은
-제외하지만, 접근 자체에는 Grossary 로그인 세션이 필요하다.
+제외하지만, 접근 자체에는 Glossary 로그인 세션이 필요하다.
 
 애플리케이션 예외는 `{ error: { code: "internal_error", ... } }`로만 응답하고
 스택은 응답에 노출하지 않는다. 스택은 컨테이너 로그에만 남는다.

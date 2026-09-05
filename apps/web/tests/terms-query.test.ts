@@ -1,6 +1,6 @@
 import { eq, or } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { createDb, terms } from "@grossary/db";
+import { createDb, terms } from "@glossary/db";
 import { createTerm } from "../src/lib/terms/create.js";
 import {
   getTermByIdOrSlug,

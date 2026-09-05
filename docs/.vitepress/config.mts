@@ -1,11 +1,11 @@
 import { defineConfig } from "vitepress";
 
-// GitHub Pages는 https://geniuskey.github.io/grossary/ 아래에 올라간다.
+// GitHub Pages는 https://geniuskey.github.io/glossary/ 아래에 올라간다.
 // base를 빼면 모든 자산 경로가 루트 기준이 되어 404가 난다.
 export default defineConfig({
-  base: "/grossary/",
+  base: "/glossary/",
   lang: "ko-KR",
-  title: "Grossary",
+  title: "Glossary",
   description: "한국어와 영어를 함께 쓰는 조직을 위한 셀프호스팅 용어집 관리 플랫폼",
   lastUpdated: true,
 
@@ -16,7 +16,7 @@ export default defineConfig({
   // 본문에 적힌 개발 서버 주소까지 데드링크로 잡히면 빌드가 막힌다.
   ignoreDeadLinks: [/^https?:\/\/localhost/],
 
-  head: [["link", { rel: "icon", href: "/grossary/favicon.svg" }]],
+  head: [["link", { rel: "icon", href: "/glossary/favicon.svg" }]],
 
   themeConfig: {
     nav: [
@@ -25,7 +25,7 @@ export default defineConfig({
       { text: "운영", link: "/operations" },
       { text: "도움말", link: "/help" },
       { text: "지원", link: "/support" },
-      { text: "Docker Hub", link: "https://hub.docker.com/r/euiyun/grossary" },
+      { text: "Docker Hub", link: "https://hub.docker.com/r/euiyun/glossary" },
     ],
 
     sidebar: [
@@ -63,19 +63,19 @@ export default defineConfig({
         items: [
           { text: "제품 도움말", link: "/help" },
           { text: "지원", link: "/support" },
-          { text: "기여 안내", link: "https://github.com/geniuskey/grossary/blob/main/CONTRIBUTING.md" },
-          { text: "보안 정책", link: "https://github.com/geniuskey/grossary/blob/main/SECURITY.md" },
-          { text: "라이선스", link: "https://github.com/geniuskey/grossary/blob/main/LICENSE" },
+          { text: "기여 안내", link: "https://github.com/geniuskey/glossary/blob/main/CONTRIBUTING.md" },
+          { text: "보안 정책", link: "https://github.com/geniuskey/glossary/blob/main/SECURITY.md" },
+          { text: "라이선스", link: "https://github.com/geniuskey/glossary/blob/main/LICENSE" },
         ],
       },
     ],
 
-    socialLinks: [{ icon: "github", link: "https://github.com/geniuskey/grossary" }],
+    socialLinks: [{ icon: "github", link: "https://github.com/geniuskey/glossary" }],
 
     search: { provider: "local" },
 
     editLink: {
-      pattern: "https://github.com/geniuskey/grossary/edit/main/docs/:path",
+      pattern: "https://github.com/geniuskey/glossary/edit/main/docs/:path",
       text: "GitHub에서 이 페이지 수정하기",
     },
 

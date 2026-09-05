@@ -10,8 +10,8 @@ import {
 export type MissingTermField = "meaning" | "definition" | "body" | "context";
 
 export const MISSING_TERM_FIELD_LABEL: Record<MissingTermField, string> = {
-  meaning: "Full name 또는 정의",
-  definition: "한 줄 정의",
+  meaning: "Full name 또는 한줄 정의",
+  definition: "한줄 정의",
   body: "본문",
   context: "도메인 또는 업무 분류",
 };

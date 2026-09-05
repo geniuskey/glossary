@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { termRevisions } from "@grossary/db";
+import { termRevisions } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { BUSINESS_CATEGORIES, EXPLICIT_SURFACE_KINDS, SURFACE_LANGS, TERM_STATUSES, TERM_TYPES, type TermTypeLiteral } from "./enums";
 import { pickExplicitSurfaces } from "./surfaces";

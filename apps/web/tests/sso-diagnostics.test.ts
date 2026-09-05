@@ -25,7 +25,7 @@ test("콘솔 로그에는 단계와 예외 상세가 JSON으로 남고 민감값
   }, Object.assign(new Error("TLS handshake failed"), { access_token: "access-secret" }));
 
   const line = output.mock.calls.flat().join(" ");
-  expect(line).toContain("[Grossary SSO]");
+  expect(line).toContain("[Glossary SSO]");
   expect(line).toContain('"stage":"token_exchange"');
   expect(line).toContain("invalid_grant");
   expect(line).toContain("TLS handshake failed");

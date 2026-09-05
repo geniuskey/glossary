@@ -204,7 +204,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
 
       {!config.encryptionReady && (
         <div className="note note-warn mb-3" role="alert">
-          서버에 <code>GROSSARY_ENCRYPTION_KEY</code>를 32자 이상으로 설정해야 API 키와 header 값을 저장할 수 있습니다.
+          서버에 <code>GLOSSARY_ENCRYPTION_KEY</code>를 32자 이상으로 설정해야 API 키와 header 값을 저장할 수 있습니다.
         </div>
       )}
       {!config.secretsReadable && (

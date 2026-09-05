@@ -30,9 +30,9 @@ export function InfoPageShell({
       <a href="#main-content" className="sr-only fixed left-3 top-3 z-50 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-brand-on focus:not-sr-only">본문으로 건너뛰기</a>
       <header className="sticky top-0 z-30 border-b border-line bg-panel/90 backdrop-blur">
         <div className="mx-auto flex min-h-14 w-full max-w-6xl flex-wrap items-center gap-2 px-4 py-2 sm:px-6">
-          <Link href="/" className="mr-auto flex shrink-0 items-center gap-2.5" aria-label="Grossary 홈">
+          <Link href="/" className="mr-auto flex shrink-0 items-center gap-2.5" aria-label="Glossary 홈">
             <BrandMark />
-            <span className="text-[15px] font-semibold tracking-tight text-ink">Grossary</span>
+            <span className="text-[15px] font-semibold tracking-tight text-ink">Glossary</span>
           </Link>
           <nav aria-label="정보 메뉴" className="flex items-center gap-1 overflow-x-auto">
             {INFO_NAV.map((item) => (

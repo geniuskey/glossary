@@ -1,4 +1,4 @@
-import { surfaceKeys } from "@grossary/db";
+import { surfaceKeys } from "@glossary/db";
 import type { SurfaceInput } from "./schema";
 import { inferSurfaceLang } from "./surface-language";
 

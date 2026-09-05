@@ -1,8 +1,8 @@
-# Grossary on Docker Hub
+# Glossary on Docker Hub
 
 > **Development preview — `0.1.6`**
 >
-> Grossary is under active development. Use this release for evaluation and internal pilots,
+> Glossary is under active development. Use this release for evaluation and internal pilots,
 > pin both container tags to `0.1.6`, and keep tested database backups before upgrading.
 >
 > **개발 미리보기 — `0.1.6`**
@@ -22,9 +22,9 @@
 
 ## Overview
 
-Grossary is a self-hosted collaborative glossary for a specific team, product group, or organizational unit. It brings abbreviations, canonical names, aliases, definitions, and domain knowledge into one searchable source of truth.
+Glossary is a self-hosted collaborative glossary for a specific team, product group, or organizational unit. It brings abbreviations, canonical names, aliases, definitions, and domain knowledge into one searchable source of truth.
 
-Grossary는 전사 공통 플랫폼보다 **특정 조직·팀·제품군이 실제로 사용하는 언어**를 정리하는 데 초점을 둡니다. 누군가 약어만 초안으로 남겨도 다른 구성원이 풀네임·정의·분야를 보태고, 검토가 끝난 용어만 검색과 API에 공개할 수 있습니다.
+Glossary는 전사 공통 플랫폼보다 **특정 조직·팀·제품군이 실제로 사용하는 언어**를 정리하는 데 초점을 둡니다. 누군가 약어만 초안으로 남겨도 다른 구성원이 풀네임·정의·분야를 보태고, 검토가 끝난 용어만 검색과 API에 공개할 수 있습니다.
 
 ### Language scope / 언어 지원 범위
 
@@ -54,7 +54,7 @@ A future release may allow another native language to be selected alongside Engl
 
 ## Images and tags
 
-Grossary publishes two tags from the same Docker Hub repository:
+Glossary publishes two tags from the same Docker Hub repository:
 
 | Tag | Purpose |
 |---|---|
@@ -68,8 +68,8 @@ For production, pin both images to the same version instead of using `latest`.
 사내 서버에서 명시적으로 받으려면 두 태그를 함께 pull합니다.
 
 ```bash
-docker pull euiyun/grossary:0.1.6
-docker pull euiyun/grossary:0.1.6-migrator
+docker pull euiyun/glossary:0.1.6
+docker pull euiyun/glossary:0.1.6-migrator
 ```
 
 ## Quick start with Docker Compose
@@ -77,9 +77,9 @@ docker pull euiyun/grossary:0.1.6-migrator
 Download the pull-based Compose file and its environment template:
 
 ```bash
-mkdir grossary && cd grossary
-curl -LO https://raw.githubusercontent.com/geniuskey/grossary/main/docker-compose.hub.yml
-curl -L https://raw.githubusercontent.com/geniuskey/grossary/main/.env.dockerhub.example -o .env
+mkdir glossary && cd glossary
+curl -LO https://raw.githubusercontent.com/geniuskey/glossary/main/docker-compose.hub.yml
+curl -L https://raw.githubusercontent.com/geniuskey/glossary/main/.env.dockerhub.example -o .env
 ```
 
 The environment template pins both images to the `0.1.6` development release. Set a long, URL-safe database password, then pull and start the stack:
@@ -94,7 +94,7 @@ docker compose --env-file .env -f docker-compose.hub.yml up -d
 
 Open `http://localhost:3000`. The first visitor is redirected to `/setup` to create the initial administrator account. Complete this immediately after deployment.
 
-데이터는 `grossary_hub_pgdata` Docker 볼륨에 보존됩니다. 새 버전으로 올릴 때는 두 이미지 태그를 같은 버전으로 바꾼 뒤 `pull`과 `up -d`를 다시 실행합니다.
+데이터는 `glossary_hub_pgdata` Docker 볼륨에 보존됩니다. 새 버전으로 올릴 때는 두 이미지 태그를 같은 버전으로 바꾼 뒤 `pull`과 `up -d`를 다시 실행합니다.
 
 ```bash
 docker compose --env-file .env -f docker-compose.hub.yml pull
@@ -106,33 +106,34 @@ docker compose --env-file .env -f docker-compose.hub.yml ps
 
 | Variable | Description |
 |---|---|
-| `GROSSARY_IMAGE` | Web image, for example `euiyun/grossary:0.1.6` |
-| `GROSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/grossary:0.1.6-migrator` |
-| `GROSSARY_PORT` | Host port; defaults to `3000` |
+| `GLOSSARY_IMAGE` | Web image, for example `euiyun/glossary:0.1.6` |
+| `GLOSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/glossary:0.1.6-migrator` |
+| `GLOSSARY_PORT` | Host port; defaults to `3000` |
 | `POSTGRES_PASSWORD` | Internal PostgreSQL password; use URL-safe characters |
-| `GROSSARY_EMBED_ANCESTORS` | Optional comma-separated Confluence origins allowed to frame `/embed` |
-| `AUTH_MODE` | `oauth2-proxy` to trust authenticated proxy headers; otherwise `local` |
-| `SSO_TRUST_PROXY_HEADERS` | Enables proxy-header fallback only in mixed `oidc`/`oauth2` mode; default `false` |
+| `GLOSSARY_EMBED_ANCESTORS` | Optional comma-separated Confluence origins allowed to frame `/embed` |
+| `OAUTH2_PROXY_ENABLED` | Allows the UI to select oauth2-proxy when a trusted proxy safely overwrites authentication headers; default `false` |
+| `PASSWORD_LOGIN_ENABLED` | Initial password-login policy before the first admin save; later managed under **Admin → Login · SSO** |
 | `OAUTH2_PROXY_PREFERRED_USERNAME_HEADER` | Display-name header; defaults to `X-Forwarded-Preferred-Username` |
 | `OAUTH2_PROXY_EMAIL_HEADER` | Email and default subject header; defaults to `X-Forwarded-Email` |
 | `OAUTH2_PROXY_GROUPS_HEADER` | Comma-separated groups; the first is displayed as the organization |
 | `OAUTH2_SUBJECT_FIELD` | Optional direct-OAuth2 subject override; set `email` when proxy and OAuth2 code flows coexist |
 
 Workspace-specific wording can be configured after login from the administrator panel, allowing each installation to state which organization and specialty the glossary serves.
+The active login mode (`disabled`, OIDC, OAuth 2.0, or oauth2-proxy) is selected under **Settings → SSO**.
 
 ## Operational notes
 
-- Put a TLS reverse proxy in front of Grossary before using it beyond a protected internal network.
+- Put a TLS reverse proxy in front of Glossary before using it beyond a protected internal network.
 - Back up the PostgreSQL volume regularly and rehearse restoration before production use.
 - Keep the application and migrator tags on exactly the same version.
 - The `/setup` endpoint is open only while there are no users; the first person to complete it becomes the administrator.
 
-Project documentation: [https://geniuskey.github.io/grossary/](https://geniuskey.github.io/grossary/)
+Project documentation: [https://geniuskey.github.io/glossary/](https://geniuskey.github.io/glossary/)
 
-Source: [https://github.com/geniuskey/grossary](https://github.com/geniuskey/grossary)
+Source: [https://github.com/geniuskey/glossary](https://github.com/geniuskey/glossary)
 
-Docker Hub: [https://hub.docker.com/r/euiyun/grossary](https://hub.docker.com/r/euiyun/grossary)
+Docker Hub: [https://hub.docker.com/r/euiyun/glossary](https://hub.docker.com/r/euiyun/glossary)
 
-License: [Apache-2.0](https://github.com/geniuskey/grossary/blob/main/LICENSE)
+License: [Apache-2.0](https://github.com/geniuskey/glossary/blob/main/LICENSE)
 
 Created and maintained by [Euiyun Kim (Edwin)](https://euiyun.com).

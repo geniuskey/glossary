@@ -16,7 +16,7 @@
 - TypeScript strict mode. 전 패키지 공통 `tsconfig.base.json` 상속.
 - 의존 방향은 `web → db → engine`. **engine은 어떤 워크스페이스 패키지도 의존하지 않는다.**
 - **표기 정규화 함수는 `packages/engine`이 유일한 소유자다.** `packages/db`는 이를 import해서만 쓴다. 정규화 구현이 두 곳에 생기면 매칭이 에러 없이 조용히 실패한다.
-- DB 볼륨은 `name: grossary_pgdata`로 명시 고정. 디렉터리명 파생 금지.
+- DB 볼륨은 `name: glossary_pgdata`로 명시 고정. 디렉터리명 파생 금지.
 - 용어 상태는 `draft | approved | deprecated | forbidden`, 표기 종류는 `canonical | abbreviation | full_name | alias | discouraged | forbidden`, 용어 종류는 `term | abbreviation | project | product_id | code | unit`.
 - API 에러는 전 엔드포인트가 `{ error: { code, message, details? } }` 형태로 통일한다.
 - 이 규약에는 예외가 없다. 매칭되지 않는 경로(`[...unmatched]` 캐치올)와 지원하지 않는 HTTP
@@ -36,14 +36,14 @@
 
 **Interfaces:**
 - Consumes: 없음 (최초 태스크)
-- Produces: `pnpm test`, `pnpm build`, `pnpm typecheck` 스크립트가 루트에서 동작. 워크스페이스 패키지명 `@grossary/engine`.
+- Produces: `pnpm test`, `pnpm build`, `pnpm typecheck` 스크립트가 루트에서 동작. 워크스페이스 패키지명 `@glossary/engine`.
 
 - [ ] **Step 1: 루트 설정 파일 생성**
 
 `package.json`:
 ```json
 {
-  "name": "grossary",
+  "name": "glossary",
   "private": true,
   "packageManager": "pnpm@9.12.0",
   "engines": { "node": ">=22" },
@@ -120,7 +120,7 @@ strict-peer-dependencies=false
 `packages/engine/package.json`:
 ```json
 {
-  "name": "@grossary/engine",
+  "name": "@glossary/engine",
   "version": "0.0.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -195,7 +195,7 @@ git commit -m "chore: scaffold pnpm workspace with engine package"
 - Test: `packages/engine/tests/normalize.test.ts`
 
 **Interfaces:**
-- Consumes: Task 1의 `@grossary/engine` 패키지 구조
+- Consumes: Task 1의 `@glossary/engine` 패키지 구조
 - Produces:
   ```ts
   export interface NormalizedSurface { loose: string; space: string }
@@ -257,7 +257,7 @@ describe("normalizeSurface", () => {
 
 - [ ] **Step 2: 테스트가 실패하는지 확인**
 
-Run: `pnpm --filter @grossary/engine test`
+Run: `pnpm --filter @glossary/engine test`
 Expected: FAIL — `Cannot find module '../src/normalize.js'`
 
 - [ ] **Step 3: 구현**
@@ -301,7 +301,7 @@ export { normalizeSurface } from "./normalize.js";
 export type { NormalizedSurface } from "./normalize.js";
 ```
 
-Run: `pnpm --filter @grossary/engine test`
+Run: `pnpm --filter @glossary/engine test`
 Expected: 정규화 테스트 8개 전부 PASS.
 
 - [ ] **Step 5: 커밋**
@@ -322,7 +322,7 @@ git commit -m "feat: add surface normalization with loose and spaced keys"
 - Test: `packages/db/tests/normalize-parity.test.ts`
 
 **Interfaces:**
-- Consumes: `normalizeSurface` from `@grossary/engine`
+- Consumes: `normalizeSurface` from `@glossary/engine`
 - Produces:
   - `terms`, `termSurfaces` Drizzle 테이블
   - `export function createDb(url: string)` → Drizzle 인스턴스
@@ -336,48 +336,48 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: grossary
-      POSTGRES_PASSWORD: grossary
-      POSTGRES_DB: grossary
+      POSTGRES_USER: glossary
+      POSTGRES_PASSWORD: glossary
+      POSTGRES_DB: glossary
     ports:
       - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U grossary"]
+      test: ["CMD-SHELL", "pg_isready -U glossary"]
       interval: 5s
       retries: 10
 
 volumes:
   pgdata:
-    name: grossary_pgdata
+    name: glossary_pgdata
 ```
 
 `scripts/init-db.sql` — 볼륨이 비어 있는 최초 기동 때 한 번만 실행된다. pg_trgm은 마이그레이션보다 먼저 있어야 trgm 인덱스가 생성된다:
 ```sql
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-CREATE DATABASE grossary_test;
-\connect grossary_test
+CREATE DATABASE glossary_test;
+\connect glossary_test
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 ```
 
 `.env.example`:
 ```
-DATABASE_URL=postgres://grossary:grossary@localhost:5434/grossary
-DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5434/grossary_test
-POSTGRES_PASSWORD=grossary
+DATABASE_URL=postgres://glossary:glossary@localhost:5434/glossary
+DATABASE_URL_TEST=postgres://glossary:glossary@localhost:5434/glossary_test
+POSTGRES_PASSWORD=glossary
 ```
 
-`grossary_test`는 개발 환경 편의를 위한 것이다. 프로덕션 compose는 같은 init 스크립트를 쓰지 않는다(Task 15에서 별도 지정).
+`glossary_test`는 개발 환경 편의를 위한 것이다. 프로덕션 compose는 같은 init 스크립트를 쓰지 않는다(Task 15에서 별도 지정).
 
 - [ ] **Step 2: db 패키지와 스키마 작성**
 
 `packages/db/package.json`:
 ```json
 {
-  "name": "@grossary/db",
+  "name": "@glossary/db",
   "version": "0.0.0",
   "type": "module",
   "main": "./src/index.ts",
@@ -391,7 +391,7 @@ POSTGRES_PASSWORD=grossary
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
-    "@grossary/engine": "workspace:*",
+    "@glossary/engine": "workspace:*",
     "drizzle-orm": "^0.36.0",
     "postgres": "^3.4.5"
   },
@@ -512,7 +512,7 @@ export type Db = ReturnType<typeof createDb>;
 
 `packages/db/src/index.ts`:
 ```ts
-import { normalizeSurface } from "@grossary/engine";
+import { normalizeSurface } from "@glossary/engine";
 
 export * from "./schema/index.js";
 export { createDb } from "./client.js";
@@ -520,7 +520,7 @@ export type { Db } from "./client.js";
 
 /**
  * 표기 정규화 컬럼 값을 만든다.
- * 정규화 규칙 자체는 @grossary/engine이 소유한다. 여기서 재구현하지 말 것.
+ * 정규화 규칙 자체는 @glossary/engine이 소유한다. 여기서 재구현하지 말 것.
  */
 export function surfaceKeys(text: string): { normLoose: string; normSpace: string } {
   const { loose, space } = normalizeSurface(text);
@@ -544,7 +544,7 @@ export default defineConfig({
 
 `packages/db/tests/normalize-parity.test.ts`:
 ```ts
-import { normalizeSurface } from "@grossary/engine";
+import { normalizeSurface } from "@glossary/engine";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { createDb, surfaceKeys, terms, termSurfaces } from "../src/index.js";
@@ -590,13 +590,13 @@ test("저장된 정규화 컬럼이 engine 함수 출력과 정확히 일치한�
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres          # init-db.sql이 pg_trgm과 grossary_test를 만든다
+docker compose up -d postgres          # init-db.sql이 pg_trgm과 glossary_test를 만든다
 pnpm install
-pnpm --filter @grossary/engine build   # db 테스트가 engine의 dist를 import한다
-pnpm --filter @grossary/db db:generate
-DATABASE_URL=postgres://grossary:grossary@localhost:5434/grossary pnpm --filter @grossary/db db:migrate
-DATABASE_URL=postgres://grossary:grossary@localhost:5434/grossary_test pnpm --filter @grossary/db db:migrate
-DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5434/grossary_test pnpm --filter @grossary/db test
+pnpm --filter @glossary/engine build   # db 테스트가 engine의 dist를 import한다
+pnpm --filter @glossary/db db:generate
+DATABASE_URL=postgres://glossary:glossary@localhost:5434/glossary pnpm --filter @glossary/db db:migrate
+DATABASE_URL=postgres://glossary:glossary@localhost:5434/glossary_test pnpm --filter @glossary/db db:migrate
+DATABASE_URL_TEST=postgres://glossary:glossary@localhost:5434/glossary_test pnpm --filter @glossary/db test
 ```
 Expected: parity 테스트 PASS.
 
@@ -726,10 +726,10 @@ test("모든 신규 테이블에 조회가 가능하다", async () => {
 - [ ] **Step 4: 마이그레이션 생성·적용 후 테스트**
 
 ```bash
-pnpm --filter @grossary/db db:generate
-DATABASE_URL=postgres://grossary:grossary@localhost:5434/grossary pnpm --filter @grossary/db db:migrate
-DATABASE_URL=postgres://grossary:grossary@localhost:5434/grossary_test pnpm --filter @grossary/db db:migrate
-DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5434/grossary_test pnpm --filter @grossary/db test
+pnpm --filter @glossary/db db:generate
+DATABASE_URL=postgres://glossary:glossary@localhost:5434/glossary pnpm --filter @glossary/db db:migrate
+DATABASE_URL=postgres://glossary:glossary@localhost:5434/glossary_test pnpm --filter @glossary/db db:migrate
+DATABASE_URL_TEST=postgres://glossary:glossary@localhost:5434/glossary_test pnpm --filter @glossary/db test
 ```
 Expected: 전체 PASS.
 
@@ -753,7 +753,7 @@ git commit -m "feat: add auth and revision schemas"
 - Test: `apps/web/tests/api-error.test.ts`
 
 **Interfaces:**
-- Consumes: `@grossary/db`의 `createDb`
+- Consumes: `@glossary/db`의 `createDb`
 - Produces:
   - `getDb()` — 요청 간 공유되는 Drizzle 싱글턴
   - `apiError(code, message, status, details?)` → `Response`
@@ -764,7 +764,7 @@ git commit -m "feat: add auth and revision schemas"
 `apps/web/package.json`:
 ```json
 {
-  "name": "@grossary/web",
+  "name": "@glossary/web",
   "version": "0.0.0",
   "private": true,
   "scripts": {
@@ -775,8 +775,8 @@ git commit -m "feat: add auth and revision schemas"
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@grossary/db": "workspace:*",
-    "@grossary/engine": "workspace:*",
+    "@glossary/db": "workspace:*",
+    "@glossary/engine": "workspace:*",
     "next": "^16.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -805,7 +805,7 @@ const config: NextConfig = {
   // 모노레포에서는 트레이싱 루트를 워크스페이스 최상단으로 올려야
   // standalone 번들에 packages/*가 포함된다.
   outputFileTracingRoot: path.join(import.meta.dirname, "../.."),
-  transpilePackages: ["@grossary/db", "@grossary/engine"],
+  transpilePackages: ["@glossary/db", "@glossary/engine"],
 };
 
 export default config;
@@ -924,7 +924,7 @@ test("details가 있으면 함께 실린다", async () => {
 
 - [ ] **Step 3: 테스트 실패 확인 후 구현**
 
-Run: `pnpm --filter @grossary/web test`
+Run: `pnpm --filter @glossary/web test`
 Expected: FAIL — 모듈 없음
 
 `apps/web/src/lib/api-error.ts`:
@@ -950,7 +950,7 @@ export function apiError(
 
 `apps/web/src/lib/db.ts`:
 ```ts
-import { createDb, type Db } from "@grossary/db";
+import { createDb, type Db } from "@glossary/db";
 
 let cached: Db | undefined;
 
@@ -983,8 +983,8 @@ export async function GET() {
 - [ ] **Step 4: 테스트와 개발 서버 확인**
 
 ```bash
-pnpm --filter @grossary/web test
-pnpm --filter @grossary/web dev &
+pnpm --filter @glossary/web test
+pnpm --filter @glossary/web dev &
 curl -s localhost:3000/api/v1/health
 ```
 Expected: 테스트 PASS, health가 `{"status":"ok"}` 반환.
@@ -1008,7 +1008,7 @@ git commit -m "feat: scaffold next.js app with api error contract and health end
 - Test: `apps/web/tests/password.test.ts`, `apps/web/tests/session.test.ts`
 
 **Interfaces:**
-- Consumes: `users`, `sessions` from `@grossary/db`
+- Consumes: `users`, `sessions` from `@glossary/db`
 - Produces:
   - `hashPassword(plain): Promise<string>`, `verifyPassword(plain, stored): Promise<boolean>`
   - `createSession(userId): Promise<{ token: string; expiresAt: Date }>` — `token`은 쿠키에 담는 원문이고, DB에는 그 해시가 들어간다
@@ -1047,7 +1047,7 @@ test("손상된 저장값에서 예외 대신 false를 반환한다", async () =
 ```ts
 import { eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
-import { createDb, sessions, users } from "@grossary/db";
+import { createDb, sessions, users } from "@glossary/db";
 import { createSession, deleteSession, hashSessionToken } from "../src/lib/auth/session.js";
 import { hashPassword } from "../src/lib/auth/password.js";
 
@@ -1098,7 +1098,7 @@ test("토큰 원문으로 세션을 지운다", async () => {
 
 - [ ] **Step 2: 실패 확인 후 구현**
 
-Run: `pnpm --filter @grossary/web test`
+Run: `pnpm --filter @glossary/web test`
 Expected: FAIL — 모듈 없음
 
 `apps/web/src/lib/auth/password.ts`:
@@ -1137,10 +1137,10 @@ export async function verifyPassword(plain: string, stored: string): Promise<boo
 ```ts
 import { createHash, randomBytes } from "node:crypto";
 import { eq, lt } from "drizzle-orm";
-import { sessions } from "@grossary/db";
+import { sessions } from "@glossary/db";
 import { getDb } from "@/lib/db";
 
-export const SESSION_COOKIE = "grossary_session";
+export const SESSION_COOKIE = "glossary_session";
 const TTL_MS = 1000 * 60 * 60 * 24 * 14;
 
 /**
@@ -1175,7 +1175,7 @@ Task 4의 마이그레이션을 건드릴 이유가 없다.
 ```ts
 import { cookies } from "next/headers";
 import { and, eq, gt } from "drizzle-orm";
-import { sessions, users } from "@grossary/db";
+import { sessions, users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { hashSessionToken, SESSION_COOKIE } from "./session";
 
@@ -1208,7 +1208,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 ```ts
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { users } from "@grossary/db";
+import { users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { apiError } from "@/lib/api-error";
 import { verifyPassword } from "@/lib/auth/password";
@@ -1259,7 +1259,7 @@ export async function POST() {
 
 `apps/web/scripts/seed-admin.ts`:
 ```ts
-import { createDb, users } from "@grossary/db";
+import { createDb, users } from "@glossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 
 const [email, name] = process.argv.slice(2);
@@ -1330,8 +1330,8 @@ export default function LoginPage() {
 - [ ] **Step 4: 테스트와 수동 확인**
 
 ```bash
-pnpm --filter @grossary/web test
-ADMIN_PASSWORD=pw-for-local pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts admin@example.com Admin
+pnpm --filter @glossary/web test
+ADMIN_PASSWORD=pw-for-local pnpm --filter @glossary/web exec tsx scripts/seed-admin.ts admin@example.com Admin
 curl -s -X POST localhost:3000/api/v1/auth/login -H 'content-type: application/json' \
   -d '{"email":"admin@example.com","password":"pw-for-local"}' -i | head -20
 ```
@@ -1355,7 +1355,7 @@ git commit -m "feat: add session auth with scrypt password hashing"
 - Test: `apps/web/tests/api-key.test.ts`
 
 **Interfaces:**
-- Consumes: `apiKeys` from `@grossary/db`, `getCurrentUser`
+- Consumes: `apiKeys` from `@glossary/db`, `getCurrentUser`
 - Produces:
   - `generateApiKey(): { token: string; prefix: string; hash: string }`
   - `hashApiKey(token: string): string`
@@ -1387,7 +1387,7 @@ test("매 발급마다 서로 다른 토큰이 나온다", () => {
 
 - [ ] **Step 2: 실패 확인 후 구현**
 
-Run: `pnpm --filter @grossary/web test`
+Run: `pnpm --filter @glossary/web test`
 Expected: FAIL — 모듈 없음
 
 `apps/web/src/lib/auth/api-key.ts`:
@@ -1417,7 +1417,7 @@ export function parseApiKey(token: string): { prefix: string } | null {
 `apps/web/src/lib/auth/require.ts`:
 ```ts
 import { and, eq, isNull, or, gt } from "drizzle-orm";
-import { apiKeys } from "@grossary/db";
+import { apiKeys } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { apiError } from "@/lib/api-error";
 import { getCurrentUser, type CurrentUser } from "./current-user";
@@ -1472,7 +1472,7 @@ export function isResponse(value: unknown): value is Response {
 ```ts
 import { desc } from "drizzle-orm";
 import { z } from "zod";
-import { apiKeys } from "@grossary/db";
+import { apiKeys } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { apiError } from "@/lib/api-error";
 import { getCurrentUser } from "@/lib/auth/current-user";
@@ -1612,7 +1612,7 @@ export default function ApiKeysPage() {
 
 - [ ] **Step 4: 테스트 실행**
 
-Run: `pnpm --filter @grossary/web test`
+Run: `pnpm --filter @glossary/web test`
 Expected: api-key 테스트 3개 PASS.
 
 - [ ] **Step 5: 키 발급과 인증 수동 확인**
@@ -1641,7 +1641,7 @@ git commit -m "feat: add api key issuance and scoped auth"
 - Test: `apps/web/tests/slug.test.ts`, `apps/web/tests/terms-create.test.ts`
 
 **Interfaces:**
-- Consumes: `terms`, `termSurfaces`, `termRevisions`, `surfaceKeys` from `@grossary/db`; `requireAuth`
+- Consumes: `terms`, `termSurfaces`, `termRevisions`, `surfaceKeys` from `@glossary/db`; `requireAuth`
 - Produces:
   - `slugify(input: string): string`
   - `termInputBaseSchema` / `termInputSchema` / `termPatchSchema` (zod) — `{ termType, nameEn?, nameKo?, fullNameEn?, fullNameKo?, domain[], status, definitionMd?, surfaces[] }`
@@ -1685,7 +1685,7 @@ test("슬러그로 만들 수 없는 입력에는 빈 문자열을 반환한다"
 ```ts
 import { eq } from "drizzle-orm";
 import { afterEach, expect, test } from "vitest";
-import { createDb, terms, termRevisions, termSurfaces } from "@grossary/db";
+import { createDb, terms, termRevisions, termSurfaces } from "@glossary/db";
 import { createTerm } from "../src/lib/terms/create.js";
 
 const db = createDb(process.env.DATABASE_URL_TEST!);
@@ -1751,7 +1751,7 @@ test("슬러그가 겹치면 접미사를 붙여 고유하게 만든다", async 
 
 - [ ] **Step 3: 실패 확인 후 구현**
 
-Run: `DATABASE_URL_TEST=... pnpm --filter @grossary/web test`
+Run: `DATABASE_URL_TEST=... pnpm --filter @glossary/web test`
 Expected: FAIL — 모듈 없음
 
 `apps/web/src/lib/terms/slug.ts`:
@@ -1810,7 +1810,7 @@ export type SurfaceInput = z.infer<typeof surfaceInputSchema>;
 
 `apps/web/src/lib/terms/surfaces.ts` — 생성(Task 8)과 수정(Task 10)이 공유하는 파생 규칙:
 ```ts
-import { surfaceKeys } from "@grossary/db";
+import { surfaceKeys } from "@glossary/db";
 import type { SurfaceInput } from "./schema";
 
 /** 표준 표기 필드만 추린 공통 형태. TermInput과 terms 테이블 row 양쪽이 만족한다. */
@@ -1855,7 +1855,7 @@ export function deriveSurfaces(names: CanonicalNames, explicit: SurfaceInput[]):
 `apps/web/src/lib/terms/create.ts`:
 ```ts
 import { eq, inArray, like } from "drizzle-orm";
-import { surfaceKeys, terms, termRevisions, termSurfaces } from "@grossary/db";
+import { surfaceKeys, terms, termRevisions, termSurfaces } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { slugify } from "./slug";
 import { defaultCaseSensitive, deriveSurfaces } from "./surfaces";
@@ -1985,7 +1985,7 @@ export async function POST(request: Request) {
 
 중복이 있어도 409를 던지지 않는다. 동음이의어를 허용하기로 했으므로 저장은 진행하고 `warnings`로만 알린다.
 
-Run: `DATABASE_URL_TEST=... pnpm --filter @grossary/web test`
+Run: `DATABASE_URL_TEST=... pnpm --filter @glossary/web test`
 Expected: slug 4개 + create 4개 전부 PASS.
 
 - [ ] **Step 5: 커밋**
@@ -2019,7 +2019,7 @@ git commit -m "feat: add term creation with duplicate warnings and revision trac
 ```ts
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { createDb, terms } from "@grossary/db";
+import { createDb, terms } from "@glossary/db";
 import { createTerm } from "../src/lib/terms/create.js";
 import { getTermByIdOrSlug, listTerms } from "../src/lib/terms/query.js";
 
@@ -2079,13 +2079,13 @@ test("없는 슬러그는 null을 반환한다", async () => {
 
 - [ ] **Step 2: 실패 확인 후 구현**
 
-Run: `DATABASE_URL_TEST=... pnpm --filter @grossary/web test`
+Run: `DATABASE_URL_TEST=... pnpm --filter @glossary/web test`
 Expected: FAIL — 모듈 없음
 
 `apps/web/src/lib/terms/query.ts`:
 ```ts
 import { and, arrayContains, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
-import { surfaceKeys, terms, termSurfaces } from "@grossary/db";
+import { surfaceKeys, terms, termSurfaces } from "@glossary/db";
 import { getDb } from "@/lib/db";
 
 export interface TermSummary {
@@ -2242,7 +2242,7 @@ export async function GET(request: Request) {
 
 - [ ] **Step 4: 테스트 실행**
 
-Run: `DATABASE_URL_TEST=... pnpm --filter @grossary/web test`
+Run: `DATABASE_URL_TEST=... pnpm --filter @glossary/web test`
 Expected: query 테스트 6개 PASS.
 
 - [ ] **Step 5: 커밋**
@@ -2275,7 +2275,7 @@ git commit -m "feat: add term detail and surface-based list search"
 ```ts
 import { eq } from "drizzle-orm";
 import { afterEach, expect, test } from "vitest";
-import { createDb, terms } from "@grossary/db";
+import { createDb, terms } from "@glossary/db";
 import { createTerm } from "../src/lib/terms/create.js";
 import { deleteTerm, listRevisions, updateTerm } from "../src/lib/terms/update.js";
 
@@ -2336,13 +2336,13 @@ test("삭제하면 리비전도 함께 사라진다", async () => {
 
 - [ ] **Step 2: 실패 확인 후 구현**
 
-Run: `DATABASE_URL_TEST=... pnpm --filter @grossary/web test`
+Run: `DATABASE_URL_TEST=... pnpm --filter @glossary/web test`
 Expected: FAIL — 모듈 없음
 
 `apps/web/src/lib/terms/update.ts`:
 ```ts
 import { desc, eq, sql } from "drizzle-orm";
-import { surfaceKeys, terms, termRevisions, termSurfaces } from "@grossary/db";
+import { surfaceKeys, terms, termRevisions, termSurfaces } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { findDuplicates, type DuplicateWarning } from "./create";
 import { defaultCaseSensitive, deriveSurfaces } from "./surfaces";
@@ -2516,7 +2516,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ idOrSlug: s
 
 - [ ] **Step 4: 테스트 실행**
 
-Run: `DATABASE_URL_TEST=... pnpm --filter @grossary/web test`
+Run: `DATABASE_URL_TEST=... pnpm --filter @glossary/web test`
 Expected: update 테스트 4개 PASS, 기존 테스트 전부 유지.
 
 - [ ] **Step 5: 커밋**
@@ -2549,7 +2549,7 @@ AI-Lint가 M2 이전에도 바로 쓸 수 있는 엔드포인트다.
 ```ts
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { createDb, terms } from "@grossary/db";
+import { createDb, terms } from "@glossary/db";
 import { createTerm } from "../src/lib/terms/create.js";
 import { lookupTerms } from "../src/lib/terms/lookup.js";
 
@@ -2602,13 +2602,13 @@ test("중복 입력도 각각 결과를 돌려준다", async () => {
 
 - [ ] **Step 2: 실패 확인 후 구현**
 
-Run: `DATABASE_URL_TEST=... pnpm --filter @grossary/web test`
+Run: `DATABASE_URL_TEST=... pnpm --filter @glossary/web test`
 Expected: FAIL — 모듈 없음
 
 `apps/web/src/lib/terms/lookup.ts`:
 ```ts
 import { eq, inArray, sql } from "drizzle-orm";
-import { surfaceKeys, terms, termSurfaces } from "@grossary/db";
+import { surfaceKeys, terms, termSurfaces } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import type { TermSummary } from "./query";
 
@@ -2713,7 +2713,7 @@ export async function POST(request: Request) {
 
 - [ ] **Step 4: 테스트 실행**
 
-Run: `DATABASE_URL_TEST=... pnpm --filter @grossary/web test`
+Run: `DATABASE_URL_TEST=... pnpm --filter @glossary/web test`
 Expected: lookup 테스트 5개 PASS.
 
 - [ ] **Step 5: 커밋**
@@ -2943,7 +2943,7 @@ export default function Home() {
 - [ ] **Step 4: 화면 확인**
 
 ```bash
-pnpm --filter @grossary/web dev
+pnpm --filter @glossary/web dev
 ```
 로그인 후 `/terms`에서 목록이 뜨고, 별칭으로 검색해도 결과가 나오고, 상세에서 동음이의어 배너와 표기 목록이 보이는지 확인.
 
@@ -3259,8 +3259,8 @@ diff 뷰와 revert는 M3에서 붙인다. M1은 "언제 누가 몇 번 고쳤는
 - [ ] **Step 3: 타입 검사와 화면 확인**
 
 ```bash
-pnpm --filter @grossary/web typecheck
-pnpm --filter @grossary/web dev
+pnpm --filter @glossary/web typecheck
+pnpm --filter @glossary/web dev
 ```
 `/terms/new`에서 용어를 만들고, 같은 표기를 다시 만들어 경고 배너가 뜨는지, 편집 후 `/terms/<slug>/history`에 리비전 2개가 보이는지 확인.
 
@@ -3357,7 +3357,7 @@ test("완전히 빈 행은 건너뛴다", async () => {
 
 - [ ] **Step 2: 실패 확인 후 파서 구현**
 
-Run: `pnpm --filter @grossary/web add exceljs && DATABASE_URL_TEST=... pnpm --filter @grossary/web test`
+Run: `pnpm --filter @glossary/web add exceljs && DATABASE_URL_TEST=... pnpm --filter @glossary/web test`
 Expected: FAIL — 모듈 없음
 
 `apps/web/src/lib/import/parse-xlsx.ts`:
@@ -3472,7 +3472,7 @@ export async function parseGlossaryWorkbook(
 ```ts
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { createDb, terms } from "@grossary/db";
+import { createDb, terms } from "@glossary/db";
 import { createTerm } from "../src/lib/terms/create.js";
 import { dryRunImport } from "../src/lib/import/apply.js";
 import type { ImportRow } from "../src/lib/import/parse-xlsx.js";
@@ -3531,7 +3531,7 @@ test("total은 파싱 실패 행까지 세고 ready는 세지 않는다", async 
 
 `apps/web/src/lib/import/apply.ts`:
 ```ts
-import { surfaceKeys } from "@grossary/db";
+import { surfaceKeys } from "@glossary/db";
 import { createTerm, findDuplicates } from "@/lib/terms/create";
 import type { ImportRow, RowError } from "./parse-xlsx";
 
@@ -3736,7 +3736,7 @@ export default function ImportPage() {
 }
 ```
 
-Run: `DATABASE_URL_TEST=... pnpm --filter @grossary/web test`
+Run: `DATABASE_URL_TEST=... pnpm --filter @glossary/web test`
 Expected: import-parse 테스트 5개 PASS.
 
 - [ ] **Step 6: 커밋**
@@ -3780,10 +3780,10 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /app/packages ./packages
 COPY . .
-RUN pnpm --filter @grossary/engine build && pnpm --filter @grossary/web build
+RUN pnpm --filter @glossary/engine build && pnpm --filter @glossary/web build
 
 FROM build AS migrator
-CMD ["pnpm", "--filter", "@grossary/db", "db:migrate"]
+CMD ["pnpm", "--filter", "@glossary/db", "db:migrate"]
 
 FROM base AS runner
 ENV NODE_ENV=production
@@ -3812,7 +3812,7 @@ services:
     build: .
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://grossary:${POSTGRES_PASSWORD}@postgres:5432/grossary
+      DATABASE_URL: postgres://glossary:${POSTGRES_PASSWORD}@postgres:5432/glossary
       NODE_ENV: production
     ports:
       - "3000:3000"
@@ -3826,7 +3826,7 @@ services:
       target: migrator
     restart: "no"
     environment:
-      DATABASE_URL: postgres://grossary:${POSTGRES_PASSWORD}@postgres:5432/grossary
+      DATABASE_URL: postgres://glossary:${POSTGRES_PASSWORD}@postgres:5432/glossary
     depends_on:
       postgres:
         condition: service_healthy
@@ -3835,20 +3835,20 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: grossary
+      POSTGRES_USER: glossary
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: grossary
+      POSTGRES_DB: glossary
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./scripts/init-prod-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U grossary"]
+      test: ["CMD-SHELL", "pg_isready -U glossary"]
       interval: 5s
       retries: 10
 
 volumes:
   pgdata:
-    name: grossary_pgdata
+    name: glossary_pgdata
 ```
 
 `scripts/init-prod-db.sql`:
@@ -3869,10 +3869,10 @@ set -euo pipefail
 OUT_DIR="${1:-./backups}"
 mkdir -p "$OUT_DIR"
 STAMP=$(date +%Y%m%d-%H%M%S)
-OUT="$OUT_DIR/grossary-$STAMP.dump"
+OUT="$OUT_DIR/glossary-$STAMP.dump"
 
 docker compose -f docker-compose.prod.yml exec -T postgres \
-  pg_dump -U grossary -Fc grossary > "$OUT"
+  pg_dump -U glossary -Fc glossary > "$OUT"
 
 echo "backup written: $OUT ($(du -h "$OUT" | cut -f1))"
 ```
@@ -3885,11 +3885,11 @@ set -euo pipefail
 DUMP="${1:?usage: restore.sh <dump-file>}"
 
 docker compose -f docker-compose.prod.yml exec -T postgres \
-  psql -U grossary -d postgres -c "DROP DATABASE IF EXISTS grossary;"
+  psql -U glossary -d postgres -c "DROP DATABASE IF EXISTS glossary;"
 docker compose -f docker-compose.prod.yml exec -T postgres \
-  psql -U grossary -d postgres -c "CREATE DATABASE grossary;"
+  psql -U glossary -d postgres -c "CREATE DATABASE glossary;"
 docker compose -f docker-compose.prod.yml exec -T postgres \
-  pg_restore -U grossary -d grossary --no-owner < "$DUMP"
+  pg_restore -U glossary -d glossary --no-owner < "$DUMP"
 
 echo "restored from $DUMP"
 ```
@@ -3900,7 +3900,7 @@ echo "restored from $DUMP"
 ```ts
 const spec = {
   openapi: "3.1.0",
-  info: { title: "Grossary API", version: "1.0.0" },
+  info: { title: "Glossary API", version: "1.0.0" },
   servers: [{ url: "/api/v1" }],
   components: {
     securitySchemes: { apiKey: { type: "http", scheme: "bearer", bearerFormat: "glk_<prefix>_<secret>" } },
@@ -3987,27 +3987,27 @@ M1의 스펙은 손으로 유지한다. zod에서 자동 생성하는 파이프�
 
     read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
     docker compose -f docker-compose.prod.yml run --rm -e ADMIN_PASSWORD migrate \
-      pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts <email> <name>
+      pnpm --filter @glossary/web exec tsx scripts/seed-admin.ts <email> <name>
     unset ADMIN_PASSWORD
 
 ## 백업
 
-    ./scripts/backup.sh /var/backups/grossary
+    ./scripts/backup.sh /var/backups/glossary
 
 이미지 첨부까지 DB 안에 있으므로 이 dump 파일 하나가 전체 백업이다.
 cron 예시 (매일 03:00):
 
-    0 3 * * * cd /opt/grossary && ./scripts/backup.sh /var/backups/grossary
+    0 3 * * * cd /opt/glossary && ./scripts/backup.sh /var/backups/glossary
 
 ## 복구 및 서버 이동
 
-    ./scripts/restore.sh /var/backups/grossary/grossary-20260824-030000.dump
+    ./scripts/restore.sh /var/backups/glossary/glossary-20260824-030000.dump
 
 **복구 절차는 실제로 한 번 실행해서 확인한 뒤 운영에 들어간다.** 검증하지 않은 백업은 백업이 아니다.
 
 ## 주의
 
-- Compose 볼륨 이름은 `grossary_pgdata`로 고정되어 있다. 이 이름을 바꾸면 기존 데이터에
+- Compose 볼륨 이름은 `glossary_pgdata`로 고정되어 있다. 이 이름을 바꾸면 기존 데이터에
   접근할 수 없게 된다.
 - API 키 평문 토큰은 발급 응답에서만 볼 수 있다. 분실하면 재발급해야 한다.
 ```
@@ -4017,7 +4017,7 @@ cron 예시 (매일 03:00):
 pnpm install
 pnpm build
 pnpm typecheck
-DATABASE_URL_TEST=postgres://grossary:grossary@localhost:5434/grossary_test pnpm test
+DATABASE_URL_TEST=postgres://glossary:glossary@localhost:5434/glossary_test pnpm test
 docker compose -f docker-compose.prod.yml build
 ```
 Expected: 타입 검사 통과, 전체 테스트 통과, 이미지 빌드 성공.
@@ -4063,13 +4063,13 @@ git commit -m "feat: add production docker setup, backup scripts, and openapi sp
 확인하지 **않은** 것과 그 이유:
 
 - `up -d`로 기동해보지 않았다. `docker-compose.prod.yml`은 개발용 compose와 같은
-  볼륨 이름(`grossary_pgdata`)을 쓰므로 이 개발 머신에서 띄우면 개발 데이터에
+  볼륨 이름(`glossary_pgdata`)을 쓰므로 이 개발 머신에서 띄우면 개발 데이터에
   그대로 붙는다. 운영 호스트에서 첫 기동할 때 확인할 항목이다.
 - `scripts/backup.sh` → `scripts/restore.sh` 왕복을 실행하지 않았다. `restore.sh`는
   `DROP DATABASE`를 포함하고, 이 머신에는 다른 프로젝트의 컨테이너도 있다. 두
   스크립트는 `bash -n` 문법 검사만 통과한 상태다.
   **운영 투입 전에 `restore.sh --rehearse`로 한 번 돌려야 한다** — 그 경로는
-  운영 DB를 건드리지 않고 별도 DB(`grossary_rehearsal`)로 복구해 건수만 확인한다.
+  운영 DB를 건드리지 않고 별도 DB(`glossary_rehearsal`)로 복구해 건수만 확인한다.
   `docs/operations.md`의 "복구" 절이 이 절차를 가리킨다.
 
 ## M2로 넘기는 것

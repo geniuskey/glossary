@@ -1,4 +1,4 @@
-import { createDb, users } from "@grossary/db";
+import { createDb, users } from "@glossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 
 // 비밀번호는 argv로 받지 않는다 — Windows/리눅스 모두 프로세스 목록(예: Get-CimInstance

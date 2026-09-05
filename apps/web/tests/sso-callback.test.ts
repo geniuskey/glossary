@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from "vitest";
-import { createDb, ssoConfig, users } from "@grossary/db";
+import { createDb, ssoConfig, users } from "@glossary/db";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { GET as callbackGet } from "../src/app/auth/sso/callback/route.js";
 import { GET as startGet } from "../src/app/auth/sso/start/route.js";
@@ -46,7 +46,7 @@ beforeEach(async () => {
       authorizationEndpoint: "https://idp.example.com/authorize",
       tokenEndpoint: TOKEN_ENDPOINT,
       userinfoEndpoint: "",
-      clientId: "grossary",
+      clientId: "glossary",
       clientSecret: "s3cr3t",
       scopes: ["openid", "profile", "email"],
       subjectClaims: ["sub"],
@@ -64,6 +64,7 @@ beforeEach(async () => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  delete process.env.INITIAL_ADMIN_EMAIL;
 });
 
 const FLOW = { state: "state-token", nonce: "nonce-token", verifier: "verifier-token", protocol: "oidc" as const };
@@ -73,7 +74,7 @@ function stubIdp(claims: Record<string, unknown>, userinfo?: Record<string, unkn
     if (String(url) === TOKEN_ENDPOINT) {
       const completeClaims = {
         iss: ISSUER,
-        aud: "grossary",
+        aud: "glossary",
         exp: Math.floor(Date.now() / 1000) + 300,
         ...claims,
       };
@@ -94,12 +95,19 @@ function stubIdp(claims: Record<string, unknown>, userinfo?: Record<string, unkn
   });
 }
 
-function callbackRequest(query: Record<string, string>, options: { cookie?: boolean; protocol?: "oidc" | "oauth2" } = {}) {
+function callbackRequest(
+  query: Record<string, string>,
+  options: { cookie?: boolean; protocol?: "oidc" | "oauth2"; refreshUserId?: string } = {},
+) {
   const url = new URL(`${BASE}/auth/sso/callback`);
   for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
   const headers = new Headers();
   if (options.cookie !== false) {
-    headers.set("cookie", flowCookie({ ...FLOW, protocol: options.protocol ?? "oidc" }, true).split(";")[0]!);
+    headers.set("cookie", flowCookie({
+      ...FLOW,
+      protocol: options.protocol ?? "oidc",
+      ...(options.refreshUserId ? { refreshUserId: options.refreshUserId } : {}),
+    }, true).split(";")[0]!);
   }
   return new Request(url, { headers });
 }
@@ -149,6 +157,27 @@ test("성공하면 세션 쿠키를 주고 홈으로 보낸다", async () => {
   // 흐름 쿠키는 반드시 지운다 — 남으면 같은 state로 콜백을 다시 먹일 수 있다.
   expect(cookies.some((c) => c.startsWith(`${SSO_FLOW_COOKIE}=`) && c.includes("Max-Age=0"))).toBe(true);
   expect(await userByEmail(email)).toBeDefined();
+});
+
+test("설정에서 시작한 재동기화는 SSO 이름을 덮어쓰고 설정으로 돌아온다", async () => {
+  const subject = `refresh-sub-${Date.now()}`;
+  const email = `refresh-callback-${Date.now()}@example.com`;
+  const [user] = await db.insert(users).values({
+    email,
+    name: "직접 바꾼 이름",
+    externalId: subject,
+  }).returning();
+  createdUserIds.push(user!.id);
+  stubIdp({ sub: subject, email, name: "회사 이름", nonce: FLOW.nonce });
+
+  const res = await callbackGet(callbackRequest(
+    { code: "refresh-code", state: FLOW.state },
+    { refreshUserId: user!.id },
+  ));
+
+  expect(location(res)).toBe(`${BASE}/settings?ssoRefresh=success`);
+  const [saved] = await db.select({ name: users.name }).from(users).where(eq(users.id, user!.id));
+  expect(saved?.name).toBe("회사 이름");
 });
 
 test("OAuth 2.0은 access token으로 사용자 정보를 조회해 로그인한다", async () => {
@@ -215,7 +244,7 @@ test("ID 토큰의 audience가 다르면 로그인시키지 않는다", async ()
 test("JWKS에 없는 키로 서명된 ID 토큰은 거절하고 검증 단계를 로그에 남긴다", async () => {
   const idToken = await new SignJWT({
     iss: ISSUER,
-    aud: "grossary",
+    aud: "glossary",
     exp: Math.floor(Date.now() / 1000) + 300,
     sub: "sub-untrusted",
     email: "untrusted@example.com",
@@ -330,6 +359,19 @@ test("자동 생성이 꺼져 있으면 없는 계정은 만들지 않는다", a
 
   expect(location(res)).toBe(`${BASE}/login?sso=no_account`);
   expect(await userByEmail(email)).toBeUndefined();
+});
+
+test("환경변수로 지정한 최초 관리자 이메일은 자동 생성 설정과 무관하게 관리자로 만든다", async () => {
+  const email = `initial-admin-${Date.now()}@example.com`;
+  process.env.INITIAL_ADMIN_EMAIL = email.toUpperCase();
+  await db.update(ssoConfig).set({ autoCreate: false }).where(eq(ssoConfig.id, SSO_CONFIG_ID));
+  stubIdp({ sub: "initial-admin-sub", email, name: "최초 관리자", nonce: FLOW.nonce });
+
+  const res = await callbackGet(callbackRequest({ code: "c", state: FLOW.state }));
+
+  expect(location(res)).toBe(`${BASE}/`);
+  const row = await userByEmail(email);
+  expect(row?.role).toBe("admin");
 });
 
 test("토큰 교환이 실패하면 사유는 로그로만 남기고 token 오류로 되돌린다", async () => {

@@ -3,6 +3,8 @@ import { BrandMark } from "@/components/app-shell";
 import { InfoFooter } from "@/components/info-links";
 import { needsSetup } from "@/lib/auth/setup";
 import { SetupForm } from "./setup-form";
+import { initialAdminEmail, ssoLoginUrl } from "@/lib/auth/policy";
+import { loadSsoConfig, resolveLoginSsoMode, resolvePasswordLoginEnabled } from "@/lib/auth/sso/config";
 
 // needsSetup(DB 조회)이 빌드 시 프리렌더로 실행되지 않도록 런타임 렌더로 고정한다.
 export const dynamic = "force-dynamic";
@@ -12,6 +14,12 @@ export const dynamic = "force-dynamic";
 // (tests/screen-guards.test.ts의 PROTO_B_ALLOWLIST에 등록되어 있다.)
 export default async function SetupPage() {
   if (!(await needsSetup())) redirect("/login");
+  const ssoConfig = await loadSsoConfig();
+  if (!resolvePasswordLoginEnabled(ssoConfig)) {
+    const ssoHref = ssoLoginUrl(resolveLoginSsoMode(ssoConfig, true));
+    if (initialAdminEmail() && ssoHref) redirect(ssoHref);
+    redirect("/login?config=sso-required");
+  }
 
   // 로그인 화면과 같은 틀(브랜드 → 카드)을 쓰되, 한 번만 하는 일이라는 안내를
   // 카드 안에 둔다 — 처음 온 사람은 여기가 가입 화면인지 설정 화면인지 모른다.
@@ -20,7 +28,7 @@ export default async function SetupPage() {
       <div className="w-full max-w-sm animate-fade-up">
         <header className="mb-6 flex flex-col items-center text-center">
           <BrandMark size={38} />
-          <h1 className="mt-3 text-xl font-semibold tracking-tight text-ink">Grossary</h1>
+          <h1 className="mt-3 text-xl font-semibold tracking-tight text-ink">Glossary</h1>
           <p className="mt-2 text-sm text-ink-2">개념 하나에 표기 여럿, 함께 관리하는 사전</p>
         </header>
 

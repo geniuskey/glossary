@@ -1,4 +1,4 @@
-import { surfaceKeys } from "@grossary/db";
+import { surfaceKeys } from "@glossary/db";
 import { createTerm, findDuplicates } from "@/lib/terms/create";
 import type { ImportRow, RowError } from "./parse-xlsx";
 

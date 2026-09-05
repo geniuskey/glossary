@@ -1,7 +1,7 @@
 import "server-only";
 
 import { and, asc, eq, gt, sql } from "drizzle-orm";
-import { sessions, users } from "@grossary/db";
+import { sessions, users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 
 export type ManagedUserRole = "admin" | "editor";
@@ -51,7 +51,7 @@ export async function changeManagedUserRole(
   return getDb().transaction(async (tx) => {
     // 서로 다른 관리자가 동시에 상대를 강등해 관리자가 0명이 되는 경쟁 조건을
     // 막는다. 역할 변경을 직렬화한 뒤 actor 권한도 트랜잭션 안에서 다시 확인한다.
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('grossary_admin_roles'))`);
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('glossary_admin_roles'))`);
 
     const [actor] = await tx.select({ role: users.role }).from(users).where(eq(users.id, actorId)).limit(1);
     if (actor?.role !== "admin") return { ok: false, reason: "actor_forbidden" };

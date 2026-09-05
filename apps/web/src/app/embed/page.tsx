@@ -18,7 +18,7 @@ export default async function EmbedPage({ searchParams }: { searchParams: Promis
     return (
       <main className="grid min-h-screen place-items-center bg-paper p-6">
         <div className="card max-w-md p-6 text-center">
-          <h1 className="text-base font-semibold">Grossary 로그인이 필요합니다</h1>
+          <h1 className="text-base font-semibold">Glossary 로그인이 필요합니다</h1>
           <p className="mt-2 text-sm leading-6 text-ink-2">새 창에서 로그인한 뒤 이 블록을 새로고침해 주세요. 계속 보이면 두 서비스가 같은 사이트 범위에서 운영되는지 확인하세요.</p>
           <Link href="/login" target="_blank" className="btn-primary mt-4">새 창에서 로그인</Link>
         </div>
@@ -52,7 +52,7 @@ export default async function EmbedPage({ searchParams }: { searchParams: Promis
     <main className={cx("min-h-screen bg-panel", options.border && "p-2")}>
       <div className={cx("overflow-auto", options.border && "rounded-lg border border-line")}>
         <table className="w-full border-collapse text-left text-xs">
-          <caption className="sr-only">공개 용어 {total}개 중 최대 {EMBED_LIMIT}개를 표시하는 Grossary 공유 시트</caption>
+          <caption className="sr-only">공개 용어 {total}개 중 최대 {EMBED_LIMIT}개를 표시하는 Glossary 공유 시트</caption>
           <thead className="sticky top-0 z-10 bg-panel-2 text-ink-2">
             <tr>
               {columns.map((column) => (

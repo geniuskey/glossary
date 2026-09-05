@@ -4,11 +4,13 @@ import {
   activeParams,
   buildFilterHref,
   buildPageHref,
+  buildPageSizeHref,
   buildSortHref,
   hiddenSearchFields,
   paginationInfo,
   parseListParams,
   parsePage,
+  parsePageSize,
   sortStateOf,
 } from "../src/lib/terms/list-params.js";
 import { DOMAIN_VALUE_MAX, TERM_QUERY_MAX } from "../src/lib/terms/limits.js";
@@ -98,6 +100,15 @@ test("parsePage: 유효한 양의 정수 문자열은 그대로 통과한다", (
 // 확인한다.
 test("parsePage: page=1e20(유한하지만 거대한 값)은 MAX_SAFE_INTEGER로 클램프된다 (F1)", () => {
   expect(parsePage("1e20")).toBe(Number.MAX_SAFE_INTEGER);
+});
+
+test("parsePageSize: 기본값은 50이고 1~1000 범위로 클램프된다", () => {
+  expect(parsePageSize(undefined)).toBe(50);
+  expect(parsePageSize("abc")).toBe(50);
+  expect(parsePageSize("0")).toBe(1);
+  expect(parsePageSize("250.9")).toBe(250);
+  expect(parsePageSize("1000")).toBe(1000);
+  expect(parsePageSize("5000")).toBe(1000);
 });
 
 // R93: 페이지네이션 계산 — totalPages, 이전/다음 존재 여부, 경계.
@@ -252,6 +263,19 @@ test("buildPageHref: 정렬도 함께 보존한다(필터만 보존하면 페이
   expect(usp.get("dir")).toBe("asc");
   expect(usp.get("type")).toBe("concept");
   expect(usp.get("page")).toBe("3");
+});
+
+test("페이지 크기는 페이지 이동·필터·정렬에서 유지되고 크기를 바꾸면 1페이지로 돌아간다", () => {
+  const parsed = parseListParams({ q: "AE", sort: "nameKo", dir: "asc", page: "4", pageSize: "500" });
+
+  expect(new URL(buildPageHref(parsed, 5), "http://x").searchParams.get("pageSize")).toBe("500");
+  expect(new URL(buildFilterHref(parsed, "q"), "http://x").searchParams.get("pageSize")).toBe("500");
+  expect(new URL(buildSortHref(parsed, "slug", "asc"), "http://x").searchParams.get("pageSize")).toBe("500");
+
+  const resized = new URL(buildPageSizeHref(parsed, 1000), "http://x");
+  expect(resized.searchParams.get("pageSize")).toBe("1000");
+  expect(resized.searchParams.get("page")).toBe("1");
+  expect(resized.searchParams.get("q")).toBe("AE");
 });
 
 test("buildFilterHref: 지정한 필터 하나만 빠지고 정렬과 나머지 필터는 남는다", () => {

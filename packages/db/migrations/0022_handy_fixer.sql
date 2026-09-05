@@ -1,0 +1,1 @@
+ALTER TABLE "sso_config" ADD COLUMN "password_login_enabled" boolean;

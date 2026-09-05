@@ -28,9 +28,9 @@ MIN_BYTES="${MIN_BYTES:-4096}"
 compose() { docker compose -f "$COMPOSE_FILE" "$@"; }
 
 stamp="$(date +%Y%m%d-%H%M%S)"
-final="${BACKUP_DIR}/grossary-${stamp}.dump"
+final="${BACKUP_DIR}/glossary-${stamp}.dump"
 host_tmp="${final}.partial"
-container_tmp="/tmp/grossary-${stamp}.dump"
+container_tmp="/tmp/glossary-${stamp}.dump"
 
 cleanup() {
   rm -f "$host_tmp"
@@ -41,7 +41,7 @@ trap cleanup EXIT
 mkdir -p "$BACKUP_DIR"
 
 echo "[1/4] dump 생성 중 (컨테이너 내부: ${container_tmp})"
-compose exec -T postgres sh -c "pg_dump -U grossary -Fc grossary > '${container_tmp}'"
+compose exec -T postgres sh -c "pg_dump -U glossary -Fc glossary > '${container_tmp}'"
 
 echo "[2/4] dump 검증 중 (pg_restore --list)"
 if ! compose exec -T postgres pg_restore --list "$container_tmp" >/dev/null; then

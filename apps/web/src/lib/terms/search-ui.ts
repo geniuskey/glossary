@@ -2,7 +2,7 @@ import type { SurfaceKindLiteral, TermStatusLiteral } from "./enums";
 
 /**
  * R136: 검색창의 자동완성 드롭다운(components/search-box.tsx)은 Client
- * Component다. R114와 같은 이유로 이 모듈은 `@grossary/db`를 import하지 않는다
+ * Component다. R114와 같은 이유로 이 모듈은 `@glossary/db`를 import하지 않는다
  * — 여기 모아 둔 것은 **서버(홈의 결과 목록)와 클라이언트(드롭다운)가 같은
  * 규칙으로 만들어야 하는 조각들**뿐이다. 규칙이 두 벌이 되면 드롭다운에서
  * 누른 항목과 Enter로 간 결과가 서로 다른 곳으로 가는데, 그건 화면 어디에도

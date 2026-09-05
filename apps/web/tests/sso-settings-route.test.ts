@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
-import { createDb, ssoConfig, users } from "@grossary/db";
+import { createDb, ssoConfig, users } from "@glossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
 
@@ -18,6 +18,7 @@ vi.mock("next/headers", () => ({
 }));
 
 const { GET: ssoGet, PUT: ssoPut } = await import("../src/app/api/v1/sso/route.js");
+const { POST: passwordLoginPost } = await import("../src/app/api/v1/auth/login/route.js");
 const { POST: discoverPost } = await import("../src/app/api/v1/sso/discover/route.js");
 const { GET: proxyCheckGet } = await import("../src/app/api/v1/sso/proxy-check/route.js");
 const { loadSsoConfig, SSO_CONFIG_ID } = await import("../src/lib/auth/sso/config.js");
@@ -35,6 +36,8 @@ afterEach(() => {
   currentHeaders = new Headers();
   delete process.env.AUTH_MODE;
   delete process.env.SSO_TRUST_PROXY_HEADERS;
+  delete process.env.OAUTH2_PROXY_ENABLED;
+  delete process.env.PASSWORD_LOGIN_ENABLED;
 });
 
 afterAll(async () => {
@@ -217,6 +220,7 @@ test("관리자 연결 확인은 그 요청에 도착한 oauth2-proxy 헤더를 
   const body = await res.json();
   expect(body.proxyHeaders).toMatchObject({
     authMode: "oauth2-proxy",
+    proxyAvailable: true,
     trusted: true,
     detected: true,
     identity: {
@@ -226,4 +230,58 @@ test("관리자 연결 확인은 그 요청에 도착한 oauth2-proxy 헤더를 
       organization: "보안팀",
     },
   });
+});
+
+test("oauth2-proxy 선택은 배포 capability가 있을 때만 저장한다", async () => {
+  await db.update(ssoConfig).set({ mode: "disabled", enabled: false }).where(eq(ssoConfig.id, SSO_CONFIG_ID));
+  await loginAs("admin");
+
+  const unavailable = await ssoPut(putRequest({ mode: "oauth2-proxy" }));
+  expect(unavailable.status).toBe(400);
+  expect((await unavailable.json()).error.message).toContain("OAUTH2_PROXY_ENABLED=true");
+
+  process.env.OAUTH2_PROXY_ENABLED = "true";
+  const saved = await ssoPut(putRequest({ mode: "oauth2-proxy" }));
+  expect(saved.status).toBe(200);
+  expect((await saved.json()).sso.mode).toBe("oauth2-proxy");
+
+  // 다음 테스트 파일이 로컬 세션을 쓸 수 있도록 이 파일 안에서 즉시 되돌린다.
+  await db.update(ssoConfig).set({ mode: "disabled", enabled: false }).where(eq(ssoConfig.id, SSO_CONFIG_ID));
+});
+
+test("비밀번호 로그인이 꺼져 있으면 SSO 사용 안 함으로 저장해 잠글 수 없다", async () => {
+  await db.update(ssoConfig).set({ mode: "oidc", enabled: true, passwordLoginEnabled: false }).where(eq(ssoConfig.id, SSO_CONFIG_ID));
+  await loginAs("admin");
+
+  const response = await ssoPut(putRequest({ mode: "disabled" }));
+  expect(response.status).toBe(400);
+  expect((await response.json()).error.message).toContain("ID/비밀번호 로그인을 먼저 허용");
+  expect((await loadSsoConfig()).mode).toBe("oidc");
+});
+
+test("관리자가 ID/비밀번호 로그인을 끄면 로그인 API에도 즉시 적용된다", async () => {
+  await db.update(ssoConfig).set({
+    mode: "oidc",
+    enabled: true,
+    passwordLoginEnabled: true,
+    issuer: "https://idp.example.com",
+    jwksUri: "https://idp.example.com/jwks",
+    authorizationEndpoint: "https://idp.example.com/authorize",
+    tokenEndpoint: "https://idp.example.com/token",
+    clientId: "glossary-test",
+    clientSecret: "secret",
+  }).where(eq(ssoConfig.id, SSO_CONFIG_ID));
+  await loginAs("admin");
+
+  const saved = await ssoPut(putRequest({ passwordLoginEnabled: false }));
+  expect(saved.status).toBe(200);
+  expect((await saved.json()).sso.passwordLoginEnabled).toBe(false);
+
+  const login = await passwordLoginPost(new Request("http://x/api/v1/auth/login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: "nobody@example.com", password: "wrong" }),
+  }));
+  expect(login.status).toBe(403);
+  expect((await login.json()).error.code).toBe("password_login_disabled");
 });

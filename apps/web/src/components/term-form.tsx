@@ -146,6 +146,8 @@ export function TermForm({
   // "저장이 됐는지 몰라서" 또는 "경고를 읽었지만 무심코" 다시 제출해 같은
   // 용어를 두 번 만드는 일이 구조적으로 불가능해진다.
   const [savedSlug, setSavedSlug] = useState<string | null>(null);
+  const [expectedRevision, setExpectedRevision] = useState(initial?.expectedRevision);
+  const [saveToast, setSaveToast] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<WarningList>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [issues, setIssues] = useState<string[] | null>(null);
@@ -173,7 +175,7 @@ export function TermForm({
     topic: "주제",
     ownerId: "담당자",
     status: "공개 상태",
-    definitionMd: "정의",
+    definitionMd: "한줄 정의",
     bodyMd: "본문",
     surfaces: "추가 표기",
   };
@@ -218,6 +220,12 @@ export function TermForm({
   }, [dirty, savedSlug]);
 
   useEffect(() => {
+    if (!saveToast) return;
+    const timer = window.setTimeout(() => setSaveToast(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [saveToast]);
+
+  useEffect(() => {
     if (!fieldErrors) return;
     const firstField = Object.keys(fieldErrors)[0];
     const control = firstField ? document.querySelector<HTMLElement>(`[name="${CSS.escape(firstField)}"]`) : null;
@@ -248,6 +256,8 @@ export function TermForm({
 
   function updateField<K extends keyof TermFormState>(key: K, value: TermFormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+    setWarnings([]);
+    setSaveToast(null);
   }
 
   function updateSurface(index: number, patch: Partial<SurfaceDraft>) {
@@ -301,7 +311,7 @@ export function TermForm({
     }
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", String(index));
-    event.dataTransfer.setData("application/x-grossary-surface-index", String(index));
+    event.dataTransfer.setData("application/x-glossary-surface-index", String(index));
     draggedSurfaceIndexRef.current = index;
     setSurfaceMenu(null);
     setDraggedSurfaceIndex(index);
@@ -331,7 +341,7 @@ export function TermForm({
   function handleSurfaceDrop(event: DragEvent<HTMLElement>, kind: ExplicitSurfaceKindLiteral) {
     event.preventDefault();
     event.stopPropagation();
-    const rawIndex = event.dataTransfer.getData("application/x-grossary-surface-index") || event.dataTransfer.getData("text/plain");
+    const rawIndex = event.dataTransfer.getData("application/x-glossary-surface-index") || event.dataTransfer.getData("text/plain");
     const transferred = rawIndex === "" ? Number.NaN : Number(rawIndex);
     const index = Number.isInteger(transferred) ? transferred : draggedSurfaceIndexRef.current;
     if (index !== null) moveSurface(index, kind);
@@ -357,7 +367,7 @@ export function TermForm({
       const response = await fetch(`/api/v1/terms/${encodeURIComponent(editSlug)}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ slug: slugDraft, expectedRevision: initial?.expectedRevision }),
+        body: JSON.stringify({ slug: slugDraft, expectedRevision }),
       });
       const body = await response.json().catch(() => null) as {
         term?: { slug?: string };
@@ -374,6 +384,7 @@ export function TermForm({
 
       const nextSlug = body.term.slug;
       setSlugDraft(nextSlug);
+      setExpectedRevision((revision) => revision === undefined ? undefined : revision + 1);
       router.replace(`/edit/${encodeURIComponent(nextSlug)}`);
       router.refresh();
     } catch {
@@ -423,7 +434,7 @@ export function TermForm({
     setFieldErrors(null);
     setConflict(null);
 
-    const payload = buildTermPayload(formWithPendingSurfaces, initial?.expectedRevision);
+    const payload = buildTermPayload(formWithPendingSurfaces, expectedRevision);
     const url = editSlug !== undefined ? `/api/v1/terms/${editSlug}` : "/api/v1/terms";
     const method = editSlug !== undefined ? "PATCH" : "POST";
 
@@ -445,6 +456,18 @@ export function TermForm({
     setSaving(false);
 
     if (outcome.kind === "success") {
+      if (editSlug !== undefined) {
+        // 수정 화면은 저장 뒤에도 같은 맥락에서 계속 다듬을 수 있어야 한다.
+        // 현재 입력을 새 기준점으로 삼고 리비전만 올려 다음 저장의 경합 검사를
+        // 이어 간다. 상세 화면 이동은 사용자가 취소 링크를 눌렀을 때만 일어난다.
+        initialSnapshotRef.current = formSnapshot;
+        setExpectedRevision((revision) => revision === undefined ? undefined : revision + 1);
+        setWarnings(outcome.warnings);
+        setSaveToast(outcome.warnings.length > 0
+          ? `저장했습니다. 겹치는 추가 표기 ${outcome.warnings.length}개를 확인해 주세요.`
+          : "변경사항을 저장했습니다.");
+        return;
+      }
       if (outcome.warnings.length > 0) {
         // R108: 동음이의어 경고가 있으면 곧장 상세 화면으로 넘어가지 않는다.
         // 계획서 스케치는 여기서도 무조건 router.push했는데, 그러면 경고를 볼
@@ -519,9 +542,9 @@ export function TermForm({
         </div>
       )}
 
-      {savedSlug && warnings.length > 0 && (
+      {warnings.length > 0 && (
         <div className="note note-warn" aria-live="polite">
-          <p className="mb-1 font-medium">저장했습니다. 다만 같은 표기의 다른 용어가 있습니다</p>
+          <p className="mb-1 font-medium">같은 표기의 다른 용어가 있습니다</p>
           <ul className="space-y-0.5">
             {warnings.map((w) => (
               <li key={`${w.surfaceText}:${w.conflictingSlug}`}>
@@ -949,7 +972,7 @@ export function TermForm({
 
       <section className={cx("card", compact ? "p-3" : "p-4 sm:p-5")}>
         <div className={compact ? "mb-2 flex items-baseline gap-2" : "mb-3"}>
-          <h2 className="text-sm font-semibold text-ink">정의</h2>
+          <h2 className="text-sm font-semibold text-ink">한줄 정의</h2>
           <HelpTip text="검색 결과에서 먼저 읽히는 짧은 설명입니다." />
         </div>
         <textarea
@@ -959,12 +982,12 @@ export function TermForm({
           maxLength={TERM_MARKDOWN_MAX}
           onChange={(event) => updateField("definitionMd", event.target.value)}
           disabled={locked}
-          aria-label="정의"
+          aria-label="한줄 정의"
           aria-invalid={errorsFor("definitionMd") ? true : undefined}
           aria-describedby={errorsFor("definitionMd") ? "definitionMd-error" : undefined}
           rows={compact ? 2 : 3}
           placeholder="한두 문장으로 이 용어가 무엇인지…"
-          className="field"
+          className="field korean-editor-font"
         />
         <FormFieldError id="definitionMd-error" errors={errorsFor("definitionMd")} />
       </section>
@@ -972,7 +995,7 @@ export function TermForm({
       <section>
         <div className={compact ? "mb-2 flex items-baseline gap-2" : "mb-3"}>
           <h2 className="text-sm font-semibold text-ink">본문</h2>
-          <HelpTip text="예시나 배경처럼 정의만으로 부족한 맥락을 남깁니다." />
+          <HelpTip text="예시나 배경처럼 한줄 정의만으로 부족한 맥락을 남깁니다." />
         </div>
         <MarkdownEditor
           label="용어 본문"
@@ -1013,6 +1036,14 @@ export function TermForm({
           )}
         </div>
       </div>
+
+      {saveToast && (
+        <div className="fixed bottom-5 right-5 z-[80] flex max-w-sm items-center gap-3 rounded-lg border border-ok/35 bg-ok-soft px-4 py-3 text-sm text-ok shadow-pop animate-fade-up" role="status" aria-live="polite">
+          <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-ok text-xs font-bold text-panel" aria-hidden="true">✓</span>
+          <span className="min-w-0 flex-1">{saveToast}</span>
+          <button type="button" className="text-base leading-none opacity-60 hover:opacity-100" aria-label="알림 닫기" onClick={() => setSaveToast(null)}>×</button>
+        </div>
+      )}
     </form>
   );
 }

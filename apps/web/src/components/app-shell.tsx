@@ -57,10 +57,10 @@ export function AppShell({
           둘 다 처리해서 네비게이션 항목이 두 곳에 중복되지 않게 한다. */}
       <CollapsibleSidebar
         brand={(
-          <Link href="/" title="Grossary 홈" className="sidebar-brand flex items-center gap-2.5 lg:min-w-0 lg:flex-1 lg:px-2" aria-label="Grossary 홈">
+          <Link href="/" title="Glossary 홈" className="sidebar-brand flex items-center gap-2.5 lg:min-w-0 lg:flex-1 lg:px-2" aria-label="Glossary 홈">
             <BrandMark />
             <span className="sidebar-expanded-only hidden min-w-0 flex-col leading-none lg:flex">
-              <span className="text-[15px] font-semibold tracking-tight text-ink">Grossary</span>
+              <span className="text-[15px] font-semibold tracking-tight text-ink">Glossary</span>
               <span className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-ink-3">
                 용어집
               </span>
@@ -106,7 +106,10 @@ export function AppShell({
             계정 팝오버의 z-index가 아무리 높아도 이 부모가 낮으면 표 아래로
             들어가므로, 앱 전역 상단 바 자체가 작업 영역보다 위에 있어야 한다. */}
         <header className="sticky top-14 z-[70] shrink-0 border-b border-line bg-panel/90 px-4 py-2 backdrop-blur lg:top-0 lg:px-6">
-          <div className="flex w-full items-center gap-2 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(16rem,42rem)_minmax(0,1fr)] lg:gap-4">
+          {/* 우측 액션은 실제 콘텐츠 폭을 먼저 확보하고, 검색창은 남은 폭 안에서
+              42rem까지 유동적으로 늘고 줄어든다. 타이틀 열에는 한글 약 4자 폭을
+              남겨 좁은 데스크톱에서도 제목이 여러 줄로 뭉개지지 않게 한다. */}
+          <div className="flex w-full items-center gap-2 lg:grid lg:grid-cols-[minmax(4rem,1fr)_minmax(0,42rem)_auto] lg:gap-4">
             <h1 className="sr-only min-w-0 truncate text-sm font-semibold tracking-tight text-ink lg:not-sr-only">
               {title}
             </h1>
@@ -141,7 +144,7 @@ export function AppShell({
   );
 }
 
-/** Grossary의 G와 새로 보탠 지식을 뜻하는 점을 결합한 마크.
+/** Glossary의 G와 새로 보탠 지식을 뜻하는 점을 결합한 마크.
  * 홈·인증 화면·앱 셸이 한 컴포넌트를 공유해 브랜드가 언제나 같게 보인다. */
 export function BrandMark({ size = 30 }: { size?: number }) {
   return (

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, expect, test, vi } from "vitest";
-import { createDb, sessions, users } from "@grossary/db";
+import { createDb, sessions, users } from "@glossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
 
@@ -46,7 +46,7 @@ async function loginAs(role: "admin" | "editor", label: string) {
 }
 
 function patchRequest(role: "admin" | "editor", extra: Record<string, unknown> = {}) {
-  return new Request("https://grossary.example.com/api/v1/admin/users/id", {
+  return new Request("https://glossary.example.com/api/v1/admin/users/id", {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ role, ...extra }),
@@ -60,7 +60,7 @@ test("사용자 관리 API는 비로그인·편집자 접근을 거부한다", a
   const editor = await loginAs("editor", "editor-guard");
   expect((await listUsers()).status).toBe(403);
   expect((await patchUser(patchRequest("admin"), { params: Promise.resolve({ id: editor.id }) })).status).toBe(403);
-  expect((await deleteSessions(new Request("https://grossary.example.com", { method: "DELETE" }), {
+  expect((await deleteSessions(new Request("https://glossary.example.com", { method: "DELETE" }), {
     params: Promise.resolve({ id: editor.id }),
   })).status).toBe(403);
 });
@@ -114,14 +114,14 @@ test("관리자는 다른 사용자의 모든 세션을 종료하지만 자기 �
   await createSession(target.id);
   await createSession(target.id);
 
-  const res = await deleteSessions(new Request("https://grossary.example.com", { method: "DELETE" }), {
+  const res = await deleteSessions(new Request("https://glossary.example.com", { method: "DELETE" }), {
     params: Promise.resolve({ id: target.id }),
   });
   expect(res.status).toBe(200);
   expect((await res.json()).revoked).toBe(2);
   expect(await db.select().from(sessions).where(eq(sessions.userId, target.id))).toHaveLength(0);
 
-  const self = await deleteSessions(new Request("https://grossary.example.com", { method: "DELETE" }), {
+  const self = await deleteSessions(new Request("https://glossary.example.com", { method: "DELETE" }), {
     params: Promise.resolve({ id: admin.id }),
   });
   expect(self.status).toBe(409);

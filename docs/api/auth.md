@@ -4,7 +4,7 @@
 
 | 주체 | 방식 |
 |---|---|
-| 사람(웹 UI) | `grossary_session` 쿠키 |
+| 사람(웹 UI) | `glossary_session` 쿠키 |
 | 도구(AI-Lint, CI) | `Authorization: Bearer glk_<prefix>_<secret>` |
 
 요청에 `Authorization` 헤더가 있으면 API 키 경로를, 없으면 세션 경로를 탄다.
@@ -22,7 +22,7 @@ Content-Type: application/json
 { "email": "admin@example.com", "name": "Admin", "password": "8자 이상" }
 ```
 
-성공하면 로그인과 똑같이 `Set-Cookie: grossary_session=...`을 내려준다 — 만든 즉시
+성공하면 로그인과 똑같이 `Set-Cookie: glossary_session=...`을 내려준다 — 만든 즉시
 로그인 상태가 된다. `name`은 생략하면 이메일이 쓰인다.
 
 ```
@@ -50,7 +50,7 @@ Content-Type: application/json
 { "email": "kim@example.com", "name": "김개발", "password": "8자 이상" }
 ```
 
-성공하면 로그인과 똑같이 `Set-Cookie: grossary_session=...`을 내려준다 — 만든 즉시
+성공하면 로그인과 똑같이 `Set-Cookie: glossary_session=...`을 내려준다 — 만든 즉시
 로그인 상태가 된다. `name`은 생략하면 이메일이 쓰이고, 이 이름이 수정 이력에 그대로
 나간다.
 
@@ -84,7 +84,23 @@ Content-Type: application/json
 { "email": "admin@example.com", "password": "..." }
 ```
 
-성공하면 `Set-Cookie: grossary_session=...`을 내려준다.
+관리자 패널의 **로그인 · SSO → ID/비밀번호 로그인 허용**을 끄면 이 창구와 가입·비밀번호 최초
+설정 창구는 `403 password_login_disabled`를 반환한다. DB 설정이 아직 없는 최초 부팅만
+`PASSWORD_LOGIN_ENABLED` 환경변수를 초기값으로 사용한다.
+
+## 내 표시 이름 변경
+
+로그인한 사용자는 SSO 계정을 포함해 자신의 표시 이름을 직접 바꿀 수 있다. 이메일과
+역할은 이 창구에서 변경하지 않는다.
+
+```http
+PATCH /api/v1/account
+Content-Type: application/json
+
+{ "name": "김의윤" }
+```
+
+성공하면 `Set-Cookie: glossary_session=...`을 내려준다.
 
 ```
 200  로그인 성공
@@ -100,6 +116,19 @@ Content-Type: application/json
 쿠키 속성은 `HttpOnly; SameSite=Lax; Path=/`다. `Secure`는 붙지 않는다 — 온프레미스
 기본 구성이 평문 HTTP라서 붙이면 브라우저가 쿠키를 버린다. TLS를 씌운다면
 `apps/web/src/app/api/v1/auth/login/route.ts`에서 직접 추가한다.
+
+## SSO 정보 다시 가져오기
+
+SSO로 연결된 사용자가 설정 화면에서 자신의 이름·이메일·그룹을 IdP 값으로 다시
+맞출 때 사용한다. oauth2-proxy에서는 현재 요청 헤더를 즉시 반영하고, 직접
+OIDC/OAuth2 연결에서는 `redirectTo`로 받은 인증 시작 주소로 이동해야 한다.
+
+```http
+POST /api/v1/account/sso-refresh
+```
+
+직접 연결에서 재인증이 끝나면 `/settings?ssoRefresh=success`로 돌아온다. 재동기화
+중 다른 회사 계정을 선택하면 `identity_mismatch`로 막고 어느 계정도 덮어쓰지 않는다.
 
 ## 로그아웃
 
@@ -126,7 +155,7 @@ JSON 에러 봉투를 쓸 수 없다 — 이 저장소의 "모든 에러는 JSON
 
 둘 다 응답은 302뿐이다. 실패하면 `/login?sso=<코드>`로 돌아온다
 (`disabled` `state` `idp` `token` `no_subject` `no_email` `not_allowed` `no_account`
-`email_conflict` `server` — 모르는 코드는 일반 문구로 뭉갠다. 쿼리스트링은 누구나
+`email_conflict` `identity_mismatch` `server` — 모르는 코드는 일반 문구로 뭉갠다. 쿼리스트링은 누구나
 만들 수 있어서, 그대로 보여주면 로그인 화면이 임의 문구를 띄우는 창구가 된다).
 
 ### SSO 설정
@@ -141,13 +170,15 @@ GET /api/v1/sso
 ```json
 {
   "sso": {
+    "mode": "oidc",
     "enabled": true,
+    "passwordLoginEnabled": false,
     "protocol": "oidc",
     "buttonLabel": "회사 계정으로 로그인",
     "issuer": "https://login.example.com/realms/company",
     "jwksUri": "https://login.example.com/realms/company/protocol/openid-connect/certs",
     "authorizationEndpoint": "…", "tokenEndpoint": "…", "userinfoEndpoint": "…",
-    "clientId": "grossary",
+    "clientId": "glossary",
     "hasClientSecret": true,
     "nameClaims": ["name", "displayName", "preferred_username"],
     "groupClaims": ["groups", "roles"],
@@ -160,6 +191,8 @@ GET /api/v1/sso
 }
 ```
 
+- `mode`가 실제 로그인 방식이며 `disabled`, `oidc`, `oauth2`, `oauth2-proxy` 중 하나다.
+  `enabled`와 `protocol`은 이전 API 클라이언트 호환을 위해 함께 반환한다.
 - `clientSecret`은 **어떤 응답에도 실리지 않는다.** 채워져 있는지만(`hasClientSecret`)
   알려준다.
 - `redirectUri`는 IdP에 등록할 주소다. 인가·토큰 요청에 실제로 실리는 값과 **같은
@@ -171,7 +204,7 @@ GET /api/v1/sso
 PUT /api/v1/sso
 Content-Type: application/json
 
-{ "protocol": "oauth2", "userinfoEndpoint": "https://login.example.com/userinfo", "nameClaims": ["displayName", "name"], "clientSecret": "" }
+{ "mode": "oauth2", "protocol": "oauth2", "userinfoEndpoint": "https://login.example.com/userinfo", "nameClaims": ["displayName", "name"], "clientSecret": "" }
 ```
 
 부분 갱신이다. 보낸 필드만 바뀐다.
@@ -190,6 +223,11 @@ Content-Type: application/json
   보내면 400이다.
 - Issuer/JWKS/엔드포인트/외부 주소는 `http(s)`만 받는다. 서버가 이 중 일부 주소로
   직접 요청하기 때문이다.
+- `mode: "oauth2-proxy"`는 배포 환경의 `OAUTH2_PROXY_ENABLED=true`가 확인될 때만
+  저장된다. 환경변수는 capability만 열고 활성 방식은 바꾸지 않는다.
+- `passwordLoginEnabled`는 ID/비밀번호 로그인과 새 계정 가입 허용 여부다.
+- `mode: "disabled"`는 `passwordLoginEnabled: true`일 때만 저장된다. 모든 로그인 경로를
+  동시에 닫는 설정은 거절한다.
 
 ```http
 POST /api/v1/sso/discover
@@ -219,10 +257,10 @@ OIDC는 `<issuer>/.well-known/openid-configuration`, OAuth 2.0은
 GET /api/v1/sso/proxy-check
 ```
 
-관리자의 현재 요청에 실제 도착한 헤더를 읽어 `authMode`, `trusted`, `detected`, 사용한
-헤더명과 복원된 사용자 정보를 반환한다. 저장된 샘플 값을 검사하는 API가 아니다.
-`AUTH_MODE=oauth2-proxy`에서는 관리자 자신도 이메일 헤더로 식별되어야 하며, 혼합
-OIDC/OAuth2 모드에서는 `SSO_TRUST_PROXY_HEADERS=true`일 때만 인증 헤더로 사용한다.
+관리자의 현재 요청에 실제 도착한 헤더를 읽어 `ssoMode`, `proxyAvailable`, `trusted`,
+`detected`, 사용한 헤더명과 복원된 사용자 정보를 반환한다. 저장된 샘플 값을 검사하는
+API가 아니다. oauth2-proxy가 실제 활성 모드이면 관리자 자신도 이메일 헤더로 식별되어야
+한다. OIDC/OAuth2 모드에서는 capability가 켜져 있어도 이 헤더를 인증에 사용하지 않는다.
 구성과 보안 전제는 [SSO 연결](/guide/sso)을 따른다.
 
 ## API 키

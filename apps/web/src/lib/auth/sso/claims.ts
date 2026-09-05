@@ -11,6 +11,8 @@
  * 테스트가 실제 IdP 없이 돌 수 있어야 한다.
  */
 
+import { repairMojibake } from "./encoding";
+
 export type Claims = Record<string, unknown>;
 
 /** 설정 화면은 "name, displayName" 한 줄로 받는다. 쉼표·줄바꿈 아무거나 허용한다. */
@@ -81,7 +83,7 @@ export function pickGroups(claims: Claims, paths: readonly string[]): string[] {
       // 그룹 하나를 문자열로 주는 IdP와 "a,b,c"로 이어 주는 IdP가 둘 다 있다.
       // 공백은 나누지 않는다 — 그룹 이름에 공백이 흔하다("Sensor Team").
       for (const part of value.split(",")) {
-        const name = part.trim();
+        const name = repairMojibake(part);
         if (name && !seen.has(name)) {
           seen.add(name);
           out.push(name);
@@ -198,7 +200,7 @@ export function resolveIdentity(claims: Claims, mapping: ClaimMapping): Identity
     identity: {
       subject,
       email: email.toLowerCase(),
-      name: pickClaim(claims, mapping.nameClaims) ?? email,
+      name: repairMojibake(pickClaim(claims, mapping.nameClaims) ?? email),
       groups: pickGroups(claims, mapping.groupClaims),
     },
   };

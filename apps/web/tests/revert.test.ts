@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { afterEach, expect, test } from "vitest";
-import { createDb, terms, termRevisions } from "@grossary/db";
+import { createDb, terms, termRevisions } from "@glossary/db";
 import { createTerm } from "../src/lib/terms/create.js";
 import { revertTerm, type RevertResult } from "../src/lib/terms/revert.js";
 import { listRevisions, updateTerm, type UpdateTermSuccess } from "../src/lib/terms/update.js";

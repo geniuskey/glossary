@@ -12,9 +12,9 @@ export const TERM_QUALITY_PROFILE_LABEL: Record<TermQualityProfile, string> = {
 };
 
 export const TERM_QUALITY_PROFILE_DESCRIPTION: Record<ResolvedTermQualityProfile, string> = {
-  mapping: "Full name 또는 정의로 표기의 뜻을 연결합니다.",
-  context: "정의와 도메인·업무 분류로 사내 맥락을 구분합니다.",
-  guidance: "정의와 분류 맥락에 실제 사용법·주의사항을 본문으로 더합니다.",
+  mapping: "Full name 또는 한줄 정의로 표기의 뜻을 연결합니다.",
+  context: "한줄 정의와 도메인·업무 분류로 사내 맥락을 구분합니다.",
+  guidance: "한줄 정의와 분류 맥락에 실제 사용법·주의사항을 본문으로 더합니다.",
 };
 
 export interface TermQualitySettings {

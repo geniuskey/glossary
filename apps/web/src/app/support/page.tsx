@@ -4,12 +4,12 @@ import { PROJECT_LINKS } from "@/lib/project-links";
 
 export const metadata: Metadata = {
   title: "지원",
-  description: "Grossary 사용, 오류, 기능 제안과 보안 문제 지원 채널",
+  description: "Glossary 사용, 오류, 기능 제안과 보안 문제 지원 채널",
 };
 
 export default function SupportPage() {
   return (
-    <InfoPageShell current="/support" eyebrow="Support" title="문제에 맞는 채널로 알려주세요" description="Grossary는 셀프호스팅 소프트웨어입니다. 계정과 데이터, 서버 운영 문제는 먼저 해당 배포의 관리자에게 문의하고, 제품 자체의 오류와 제안은 GitHub에 남겨 주세요.">
+    <InfoPageShell current="/support" eyebrow="Support" title="문제에 맞는 채널로 알려주세요" description="Glossary는 셀프호스팅 소프트웨어입니다. 계정과 데이터, 서버 운영 문제는 먼저 해당 배포의 관리자에게 문의하고, 제품 자체의 오류와 제안은 GitHub에 남겨 주세요.">
       <div className="grid gap-3 sm:grid-cols-2">
         <InfoCard title="사용 방법과 운영 문서" href={PROJECT_LINKS.documentation} external>설치, 환경 변수, 백업·복구, SSO와 API 사용법을 검색합니다.</InfoCard>
         <InfoCard title="버그 신고" href={PROJECT_LINKS.newBug} external>재현 절차, 기대한 결과, 실제 결과와 실행 환경을 이슈로 남깁니다.</InfoCard>

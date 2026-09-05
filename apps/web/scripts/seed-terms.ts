@@ -1,6 +1,6 @@
 import path from "node:path";
 import { eq } from "drizzle-orm";
-import { users } from "@grossary/db";
+import { users } from "@glossary/db";
 import { getDb } from "../src/lib/db.js";
 import { SEED_PACKS, packByKey, type SeedPack } from "../src/lib/seed/glossaries.js";
 import { createTerm, findDuplicates } from "../src/lib/terms/create.js";

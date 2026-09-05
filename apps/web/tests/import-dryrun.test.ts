@@ -1,6 +1,6 @@
 import { eq, inArray, like } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
-import { apiKeys, createDb, termSurfaces, terms, users } from "@grossary/db";
+import { apiKeys, createDb, termSurfaces, terms, users } from "@glossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createTerm } from "../src/lib/terms/create.js";
 import { listRevisions } from "../src/lib/terms/update.js";

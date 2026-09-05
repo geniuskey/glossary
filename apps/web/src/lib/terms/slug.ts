@@ -1,7 +1,7 @@
 import { isUuid } from "@/lib/api-error";
 import { TERM_SLUG_MAX } from "./limits";
 
-export const RESERVED_SLUGS = new Set(["lookup", "new", "suggest"]);
+export const RESERVED_SLUGS = new Set(["lookup", "new", "paste-check", "suggest"]);
 
 export function slugify(input: string): string {
   return input

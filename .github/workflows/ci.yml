@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      DATABASE_URL_TEST: postgres://grossary:grossary@localhost:5434/grossary_test
+      DATABASE_URL_TEST: postgres://glossary:glossary@localhost:5434/glossary_test
     steps:
       - uses: actions/checkout@v7
 
@@ -36,8 +36,8 @@ jobs:
 
       - name: Migrate databases
         run: |
-          DATABASE_URL=postgres://grossary:grossary@localhost:5434/grossary pnpm --filter @grossary/db db:migrate
-          DATABASE_URL=postgres://grossary:grossary@localhost:5434/grossary_test pnpm --filter @grossary/db db:migrate
+          DATABASE_URL=postgres://glossary:glossary@localhost:5434/glossary pnpm --filter @glossary/db db:migrate
+          DATABASE_URL=postgres://glossary:glossary@localhost:5434/glossary_test pnpm --filter @glossary/db db:migrate
 
       - run: pnpm typecheck
       - run: pnpm test

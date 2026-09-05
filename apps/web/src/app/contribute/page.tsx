@@ -29,7 +29,7 @@ export default async function ContributePage() {
 
       <section className="grid gap-3 sm:grid-cols-3" aria-label="참여 방법">
         <Guide number="1" title="아는 용어 고르기" body="제품이나 업무에서 자주 본 표현을 고릅니다." />
-        <Guide number="2" title="한 항목만 채우기" body="정의, 본문, 분야 중 아는 것부터 적습니다." />
+        <Guide number="2" title="한 항목만 채우기" body="한줄 정의, 본문, 분야 중 아는 것부터 적습니다." />
         <Guide number="3" title="검토 후 공개하기" body="충분히 읽을 수 있는 수준이 되면 상태를 공개 · 사용으로 바꿉니다." />
       </section>
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";
-import { loadSsoConfig, publicSsoConfig, saveSsoConfig, SSO_PROTOCOLS } from "@/lib/auth/sso/config";
+import { loadSsoConfig, publicSsoConfig, saveSsoConfig, SSO_MODES, SSO_PROTOCOLS } from "@/lib/auth/sso/config";
 import { redirectUriFor } from "@/lib/auth/sso/flow";
 
 const ALLOWED_METHODS = ["GET", "PUT"];
@@ -21,7 +21,9 @@ const nameList = z.array(z.string().trim().min(1)).max(20);
 // 본문으로 들어와 덮어써지지 않게 한다.
 const patchSchema = z
   .object({
+    mode: z.enum(SSO_MODES),
     enabled: z.boolean(),
+    passwordLoginEnabled: z.boolean(),
     protocol: z.enum(SSO_PROTOCOLS),
     buttonLabel: z.string().trim().min(1).max(60),
     issuer: endpoint,
@@ -64,7 +66,6 @@ export const PUT = withApiErrors(async (request: Request) => {
   if (!parsed.success) {
     return apiError("validation_failed", "SSO 설정 값이 올바르지 않습니다.", 400, parsed.error.flatten());
   }
-
   const result = await saveSsoConfig(parsed.data, admin.id);
   if (!result.ok) {
     // 켜기 전에 갖춰야 하는 값이 빠진 경우다. 무엇이 빠졌는지 그대로 돌려준다.

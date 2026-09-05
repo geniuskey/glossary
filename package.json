@@ -1,14 +1,14 @@
 {
-  "name": "grossary",
+  "name": "glossary",
   "private": true,
   "license": "Apache-2.0",
-  "homepage": "https://geniuskey.github.io/grossary/",
+  "homepage": "https://geniuskey.github.io/glossary/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/geniuskey/grossary.git"
+    "url": "git+https://github.com/geniuskey/glossary.git"
   },
   "bugs": {
-    "url": "https://github.com/geniuskey/grossary/issues"
+    "url": "https://github.com/geniuskey/glossary/issues"
   },
   "packageManager": "pnpm@9.12.0",
   "engines": {

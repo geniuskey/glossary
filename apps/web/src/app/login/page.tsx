@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { BrandMark } from "@/components/app-shell";
 import { InfoFooter } from "@/components/info-links";
 import { needsSetup } from "@/lib/auth/setup";
-import { loadSsoConfig } from "@/lib/auth/sso/config";
+import { loadSsoConfig, resolveLoginSsoMode, resolvePasswordLoginEnabled } from "@/lib/auth/sso/config";
 import { ssoErrorMessage } from "@/lib/auth/sso/errors";
+import { initialAdminEmail, isInitialAdminEmail, ssoLoginUrl } from "@/lib/auth/policy";
+import { inspectProxyHeaders } from "@/lib/auth/sso/proxy-headers";
 import { LoginForm } from "./login-form";
 
 // needsSetup(DB 조회)이 빌드 시 프리렌더로 실행되지 않도록 런타임 렌더로 고정한다.
@@ -17,13 +20,34 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  if (await needsSetup()) redirect("/setup");
-
   const raw = await searchParams;
   // R132: SSO 콜백은 실패하면 ?sso=<코드>로 여기 되돌린다(브라우저 이동이라
   // JSON 에러를 보여줄 데가 없다). 모르는 코드는 일반 문구로 뭉갠다.
   const ssoError = ssoErrorMessage(Array.isArray(raw.sso) ? raw.sso[0] : raw.sso);
+  const configCode = Array.isArray(raw.config) ? raw.config[0] : raw.config;
   const sso = await loadSsoConfig();
+  const passwordEnabled = resolvePasswordLoginEnabled(sso);
+  const setupNeeded = await needsSetup();
+  const ssoMode = resolveLoginSsoMode(sso, setupNeeded);
+  const ssoHref = ssoLoginUrl(ssoMode);
+  const ssoBootstrapReady = Boolean(initialAdminEmail() && ssoHref);
+  const proxyIdentity = setupNeeded && ssoMode === "oauth2-proxy"
+    ? inspectProxyHeaders(await headers()).identity
+    : null;
+  const wrongBootstrapIdentity = Boolean(proxyIdentity && !isInitialAdminEmail(proxyIdentity.email));
+  if (setupNeeded && passwordEnabled && !ssoBootstrapReady) redirect("/setup");
+  if (setupNeeded && proxyIdentity && !wrongBootstrapIdentity) redirect("/");
+  const ssoAccessDenied = configCode === "sso-access-denied";
+  if (!passwordEnabled && ssoHref && !ssoError && !wrongBootstrapIdentity && !ssoAccessDenied && (!setupNeeded || ssoBootstrapReady)) redirect(ssoHref);
+  const configurationError = ssoAccessDenied
+    ? "지정한 최초 관리자 계정은 확인됐지만 SSO 허용 그룹 정책을 통과하지 못했습니다. SSO 그룹 설정을 확인해 주세요."
+    : wrongBootstrapIdentity
+    ? "INITIAL_ADMIN_EMAIL로 지정한 회사 계정이 먼저 로그인해야 합니다. 현재 oauth2-proxy 계정에서 로그아웃한 뒤 지정 계정으로 다시 접속해 주세요."
+    : !passwordEnabled && !ssoHref
+    ? "비밀번호 로그인이 꺼져 있지만 사용할 수 있는 SSO 연결이 없습니다. 배포 환경 변수를 확인해 주세요."
+    : setupNeeded && !passwordEnabled && !ssoBootstrapReady
+      ? "비밀번호 로그인이 꺼져 있지만 INITIAL_ADMIN_EMAIL이 준비되지 않았습니다. 배포 환경 변수를 확인해 주세요."
+      : null;
 
   // 카드 바깥(브랜드·설명)은 상호작용이 없어 서버 컴포넌트에 남긴다 — 이 화면의
   // 클라이언트 번들이 입력 처리만 싣도록. app-shell.tsx가 셸을 서버에 두는 것과 같은 이유다.
@@ -32,45 +56,42 @@ export default async function LoginPage({
       <div className="w-full max-w-sm animate-fade-up">
         <header className="mb-6 flex flex-col items-center text-center">
           <BrandMark size={38} />
-          <h1 className="mt-3 text-xl font-semibold tracking-tight text-ink">Grossary</h1>
+          <h1 className="mt-3 text-xl font-semibold tracking-tight text-ink">Glossary</h1>
           <p className="mt-2 text-sm text-ink-2">개념 하나에 표기 여럿, 함께 관리하는 사전</p>
         </header>
 
         <div className="card p-6 shadow-pop">
           <h2 className="text-[15px] font-semibold tracking-tight text-ink">로그인</h2>
-          <p className="mt-1 text-xs text-ink-3">등록된 계정으로 용어집에 들어갑니다.</p>
+          <p className="mt-1 text-xs text-ink-3">{passwordEnabled ? "등록된 계정으로 용어집에 들어갑니다." : "회사 계정으로 용어집에 들어갑니다."}</p>
 
           {ssoError && (
             <p className="note-danger mt-4" role="alert">
               {ssoError}
             </p>
           )}
+          {configurationError && <p className="note-danger mt-4" role="alert">{configurationError}</p>}
 
-          {sso.enabled && (
+          {ssoHref && !wrongBootstrapIdentity && !ssoAccessDenied && (
             <div className="mt-4">
               {/* 링크는 /api/가 아니라 /auth/sso/start다 — 브라우저 이동 창구는
                   JSON 에러 봉투를 쓸 수 없어 API 바깥에 둔다(PROTO A도 /api/ href를 금한다). */}
-              <a href="/auth/sso/start" className="btn-ghost w-full py-2.5">
-                {sso.buttonLabel}
+              <a href={ssoHref} className="btn-ghost w-full py-2.5">
+                {ssoMode === "oidc" || ssoMode === "oauth2" ? sso.buttonLabel : "회사 계정으로 로그인"}
               </a>
-              <p className="mt-4 flex items-center gap-3 text-[11px] text-ink-3">
-                <span className="h-px flex-1 bg-line" />
-                또는 이메일로
-                <span className="h-px flex-1 bg-line" />
-              </p>
+              {passwordEnabled && <p className="mt-4 flex items-center gap-3 text-[11px] text-ink-3"><span className="h-px flex-1 bg-line" />또는 이메일로<span className="h-px flex-1 bg-line" /></p>}
             </div>
           )}
 
-          <LoginForm />
+          {passwordEnabled && <LoginForm />}
 
           {/* R131: 개방 편집 위키라 계정 발급을 관리자가 쥐고 있지 않다. 처음 온
               사람이 로그인 화면에서 막히지 않도록 가입 경로를 여기서 연다. */}
-          <p className="mt-5 border-t border-line pt-4 text-center text-xs text-ink-3">
+          {passwordEnabled && <p className="mt-5 border-t border-line pt-4 text-center text-xs text-ink-3">
             계정이 없으신가요?{" "}
             <Link href="/signup" className="link font-medium">
               계정 만들기
             </Link>
-          </p>
+          </p>}
         </div>
         <InfoFooter className="mt-6" />
       </div>

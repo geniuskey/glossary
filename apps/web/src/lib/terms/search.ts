@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { businessCategories, surfaceKeys, terms, termSurfaces } from "@grossary/db";
+import { businessCategories, surfaceKeys, terms, termSurfaces } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { SUGGEST_LIMIT, type Suggestion } from "./search-ui";
 import type { SurfaceKind, TermSummary } from "./query";

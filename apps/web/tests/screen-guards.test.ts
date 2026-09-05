@@ -121,15 +121,25 @@ test("관리자 화면은 사용자 목록을 읽기 전에 관리자 역할을 
   expect(userQuery).toBeGreaterThan(roleGuard);
 });
 
-test("관리자 화면은 홈·AI 활용 기준·AI 연결·사용자를 탭으로 분리한다", () => {
+test("관리자 화면은 홈·AI 활용 기준·AI 연결·SSO·사용자를 탭으로 분리한다", () => {
   const content = stripComments(readFileSync(path.join(appDir, "admin", "page.tsx"), "utf8"));
   expect(content).toContain('aria-label="관리자 하위 메뉴"');
   expect(content).toContain('{ key: "home", label: "홈 화면" }');
   expect(content).toContain('{ key: "quality", label: "AI 활용 기준" }');
   expect(content).toContain('{ key: "ai", label: "AI 연결" }');
+  expect(content).toContain('{ key: "sso", label: "로그인 · SSO" }');
   expect(content).toContain('{ key: "users", label: "사용자" }');
   expect(content).toContain('else if (tab === "quality")');
   expect(content).toContain('else if (tab === "ai")');
+  expect(content).toContain('else if (tab === "sso")');
+  expect(content).not.toContain('href="/statistics"');
+  expect(content).not.toContain('href="/classifications"');
+  expect(content).not.toContain('href="/settings/sso"');
+});
+
+test("기존 SSO 설정 주소는 관리자 SSO 탭으로 보낸다", () => {
+  const content = stripComments(readFileSync(path.join(appDir, "settings", "sso", "page.tsx"), "utf8"));
+  expect(content).toContain('redirect("/admin?tab=sso")');
 });
 
 test("AI 연결 화면은 자격 증명 입력 뒤 모델 목록을 불러와 select로 전환한다", () => {
@@ -255,7 +265,7 @@ test("PROTO G: 마지막 빈 줄에서 만든 용어는 현재 표의 마지막 
 test("PROTO I: 시트 열 레이아웃은 내용과 무관한 고정 폭·저장된 순서·실제 drop을 사용한다", () => {
   const content = stripComments(readFileSync(path.join(componentsDir, "terms-grid.tsx"), "utf8"));
 
-  expect(content).toContain('const ORDER_KEY = "grossary.grid.order"');
+  expect(content).toContain('const ORDER_KEY = "glossary.grid.order"');
   expect(content).toContain('style={{ width: `max(100%, ${fixedTableWidth}px)` }}');
   expect(content).not.toContain('"w-max min-w-full table-fixed');
   expect(content).toContain("draggable");

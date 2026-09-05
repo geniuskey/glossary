@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
-import { afterAll, beforeAll, expect, test } from "vitest";
-import { createDb, users } from "@grossary/db";
+import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
+import { createDb, users } from "@glossary/db";
 import { POST as registerPost } from "../src/app/api/v1/auth/register/route.js";
 import { POST as loginPost } from "../src/app/api/v1/auth/login/route.js";
 import { hashPassword } from "../src/lib/auth/password.js";
@@ -8,6 +8,10 @@ import { SESSION_COOKIE } from "../src/lib/auth/session.js";
 
 const db = createDb(process.env.DATABASE_URL!);
 const createdUserIds: string[] = [];
+
+afterEach(() => {
+  delete process.env.PASSWORD_LOGIN_ENABLED;
+});
 
 // 가입 창구는 계정이 하나도 없으면 403이다(첫 계정은 /setup이 관리자로 만든다).
 // 테스트 DB는 다른 파일이 자기 사용자를 지우고 나가므로 비어 있을 수 있어,
@@ -153,4 +157,14 @@ test("본문이 없으면 400이다", async () => {
   const res = await register(undefined);
 
   expect(res.status).toBe(400);
+});
+
+test("환경변수로 비밀번호 로그인을 끄면 로그인과 가입을 모두 막는다", async () => {
+  process.env.PASSWORD_LOGIN_ENABLED = "false";
+  const login = await loginPost(postRequest("/api/v1/auth/login", { email: "x@example.com", password: "irrelevant" }));
+  const signup = await register({ email: uniqueEmail(), password: "hunter2hunter2" });
+  expect(login.status).toBe(403);
+  expect(signup.status).toBe(403);
+  await expect(login.json()).resolves.toMatchObject({ error: { code: "password_login_disabled" } });
+  await expect(signup.json()).resolves.toMatchObject({ error: { code: "password_login_disabled" } });
 });

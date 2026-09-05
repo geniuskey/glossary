@@ -8,7 +8,7 @@ import type { TermTypeLiteral } from "@/lib/terms/enums";
  * 여기 있는 항목은 "정답"이 아니라 출발점이다. 팀이 쓰는 말이 다르면 고치거나
  * 지우면 된다. 그래서 seed-terms.ts는 이미 있는 표기와 겹치는 항목을 건너뛴다.
  *
- * @grossary/db도 zod도 import하지 않는다(R114와 같은 이유 — 이 모듈은 스크립트와
+ * @glossary/db도 zod도 import하지 않는다(R114와 같은 이유 — 이 모듈은 스크립트와
  * 테스트 양쪽에서 읽힌다). 값이 스키마를 통과하는지는 tests/seed-glossaries.test.ts가
  * termInputSchema에 실제로 먹여서 확인한다.
  */

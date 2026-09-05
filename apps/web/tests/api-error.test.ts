@@ -7,12 +7,15 @@ import { GET as unmatchedGet, POST as unmatchedPost } from "../src/app/api/v1/[.
 import * as loginRoute from "../src/app/api/v1/auth/login/route.js";
 import * as logoutRoute from "../src/app/api/v1/auth/logout/route.js";
 import * as registerRoute from "../src/app/api/v1/auth/register/route.js";
+import * as accountRoute from "../src/app/api/v1/account/route.js";
+import * as accountSsoRefreshRoute from "../src/app/api/v1/account/sso-refresh/route.js";
 import * as healthRoute from "../src/app/api/v1/health/route.js";
 import * as keysRoute from "../src/app/api/v1/keys/route.js";
 import * as keyIdRoute from "../src/app/api/v1/keys/[id]/route.js";
 import * as termsRoute from "../src/app/api/v1/terms/route.js";
 import * as termLookupRoute from "../src/app/api/v1/terms/lookup/route.js";
 import * as termSuggestRoute from "../src/app/api/v1/terms/suggest/route.js";
+import * as termPasteCheckRoute from "../src/app/api/v1/terms/paste-check/route.js";
 import * as termIdOrSlugRoute from "../src/app/api/v1/terms/[idOrSlug]/route.js";
 import * as termRevisionsRoute from "../src/app/api/v1/terms/[idOrSlug]/revisions/route.js";
 import * as openapiRoute from "../src/app/api/v1/openapi/route.js";
@@ -24,6 +27,7 @@ import * as ssoDiscoverRoute from "../src/app/api/v1/sso/discover/route.js";
 import * as ssoProxyCheckRoute from "../src/app/api/v1/sso/proxy-check/route.js";
 import * as adminHomeContentRoute from "../src/app/api/v1/admin/home-content/route.js";
 import * as adminTermQualityRoute from "../src/app/api/v1/admin/term-quality/route.js";
+import * as adminTermDefinitionsRoute from "../src/app/api/v1/admin/term-definitions/route.js";
 import * as adminAiConfigRoute from "../src/app/api/v1/admin/ai-config/route.js";
 import * as adminAiConfigTestRoute from "../src/app/api/v1/admin/ai-config/test/route.js";
 import * as adminAiConfigModelsRoute from "../src/app/api/v1/admin/ai-config/models/route.js";
@@ -55,6 +59,8 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "auth/login", mod: loginRoute, allowed: ["POST"], allow: "POST" },
   { name: "auth/logout", mod: logoutRoute, allowed: ["POST"], allow: "POST" },
   { name: "auth/register", mod: registerRoute, allowed: ["POST"], allow: "POST" },
+  { name: "account", mod: accountRoute, allowed: ["PATCH"], allow: "PATCH" },
+  { name: "account/sso-refresh", mod: accountSsoRefreshRoute, allowed: ["POST"], allow: "POST" },
   { name: "health", mod: healthRoute, allowed: ["GET"], allow: "GET, HEAD" },
   { name: "keys", mod: keysRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
   { name: "keys/[id]", mod: keyIdRoute, allowed: ["DELETE"], allow: "DELETE" },
@@ -71,6 +77,7 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "terms/lookup", mod: termLookupRoute, allowed: ["POST"], allow: "POST" },
   // R136: 자동완성 라우트는 GET만 처리한다.
   { name: "terms/suggest", mod: termSuggestRoute, allowed: ["GET"], allow: "GET, HEAD" },
+  { name: "terms/paste-check", mod: termPasteCheckRoute, allowed: ["POST"], allow: "POST" },
   // Task 10: terms/[idOrSlug] 라우트는 이제 GET/PATCH/DELETE를 처리한다. 이 행을
   // 갱신하지 않으면 새로 추가된 PATCH/DELETE의 405 스텁 누락이나 Allow 헤더
   // 불일치를 아무 테스트도 못 잡는다.
@@ -103,6 +110,7 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "sso/proxy-check", mod: ssoProxyCheckRoute, allowed: ["GET"], allow: "GET, HEAD" },
   { name: "admin/home-content", mod: adminHomeContentRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
   { name: "admin/term-quality", mod: adminTermQualityRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
+  { name: "admin/term-definitions", mod: adminTermDefinitionsRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "admin/ai-config", mod: adminAiConfigRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
   { name: "admin/ai-config/test", mod: adminAiConfigTestRoute, allowed: ["POST"], allow: "POST" },
   { name: "admin/ai-config/models", mod: adminAiConfigModelsRoute, allowed: ["POST"], allow: "POST" },

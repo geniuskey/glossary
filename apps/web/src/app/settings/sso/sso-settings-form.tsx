@@ -7,7 +7,9 @@ import { formatClaimList, parseClaimList } from "@/lib/auth/sso/claims";
 // page.tsx는 평범한 Server Component로 남아 인증 게이트(PROTO B)를 그대로 받는다.
 
 interface SsoView {
+  mode: SsoMode;
   enabled: boolean;
+  passwordLoginEnabled: boolean;
   protocol: "oidc" | "oauth2";
   buttonLabel: string;
   issuer: string;
@@ -32,7 +34,9 @@ interface SsoView {
 }
 
 interface Form {
+  mode: SsoMode;
   enabled: boolean;
+  passwordLoginEnabled: boolean;
   protocol: "oidc" | "oauth2";
   buttonLabel: string;
   issuer: string;
@@ -55,6 +59,8 @@ interface Form {
 
 interface ProxyHeaderCheck {
   authMode: "local" | "oidc" | "oauth2" | "oauth2-proxy";
+  ssoMode: SsoMode;
+  proxyAvailable: boolean;
   trusted: boolean;
   detected: boolean;
   headerNames: { preferredUsername: string; email: string; groups: string };
@@ -63,9 +69,45 @@ interface ProxyHeaderCheck {
   identity: { email: string; name: string; groups: string[]; organization: string | null } | null;
 }
 
+export type SsoMode = "disabled" | "oidc" | "oauth2" | "oauth2-proxy";
+
+const MODE_LABEL: Record<SsoMode, string> = {
+  disabled: "SSO 사용하지 않음",
+  oidc: "OpenID Connect",
+  oauth2: "OAuth 2.0",
+  "oauth2-proxy": "oauth2-proxy",
+};
+
+export interface SsoRuntimeView {
+  authMode: ProxyHeaderCheck["authMode"];
+  proxyAvailable: boolean;
+  proxyHeaderNames: ProxyHeaderCheck["headerNames"];
+}
+
+export function effectiveSsoMode(configured: { mode: SsoMode }): SsoMode {
+  return configured.mode;
+}
+
+export function proxyAccessPolicyPayload(form: {
+  passwordLoginEnabled: boolean;
+  allowedGroups: string;
+  adminGroups: string;
+  autoCreate: boolean;
+}) {
+  return {
+    mode: "oauth2-proxy" as const,
+    passwordLoginEnabled: form.passwordLoginEnabled,
+    allowedGroups: parseClaimList(form.allowedGroups),
+    adminGroups: parseClaimList(form.adminGroups),
+    autoCreate: form.autoCreate,
+  };
+}
+
 function toForm(sso: SsoView): Form {
   return {
+    mode: sso.mode,
     enabled: sso.enabled,
+    passwordLoginEnabled: sso.passwordLoginEnabled,
     protocol: sso.protocol,
     buttonLabel: sso.buttonLabel,
     issuer: sso.issuer,
@@ -87,7 +129,7 @@ function toForm(sso: SsoView): Form {
   };
 }
 
-export function SsoSettingsForm() {
+export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
   const [form, setForm] = useState<Form | null>(null);
   const [view, setView] = useState<SsoView | null>(null);
   const [redirectUri, setRedirectUri] = useState("");
@@ -123,14 +165,26 @@ export function SsoSettingsForm() {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
-  function selectProtocol(protocol: Form["protocol"]) {
+  function selectMode(mode: SsoMode) {
+    if (mode === "oauth2-proxy" && !runtime.proxyAvailable) return;
+    if (mode === "disabled" && !form?.passwordLoginEnabled) return;
+    if (mode === "disabled") {
+      setForm((prev) => prev ? { ...prev, mode, enabled: false } : prev);
+      return;
+    }
+    if (mode === "oauth2-proxy") {
+      setForm((prev) => prev ? { ...prev, mode, enabled: false } : prev);
+      return;
+    }
     setForm((prev) => {
       if (!prev) return prev;
       const scopes = parseClaimList(prev.scopes).filter((scope) => scope !== "openid");
       return {
         ...prev,
-        protocol,
-        scopes: formatClaimList(protocol === "oidc" ? ["openid", ...scopes] : scopes),
+        mode,
+        enabled: true,
+        protocol: mode,
+        scopes: formatClaimList(mode === "oidc" ? ["openid", ...scopes] : scopes),
       };
     });
   }
@@ -186,8 +240,10 @@ export function SsoSettingsForm() {
       const res = await fetch("/api/v1/sso", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+        body: JSON.stringify(form.mode === "oauth2-proxy" ? proxyAccessPolicyPayload(form) : {
+          mode: form.mode,
           enabled: form.enabled,
+          passwordLoginEnabled: form.passwordLoginEnabled,
           protocol: form.protocol,
           buttonLabel: form.buttonLabel,
           issuer: form.issuer,
@@ -220,7 +276,10 @@ export function SsoSettingsForm() {
       setView(body.sso);
       setForm(toForm(body.sso));
       setRedirectUri(body.redirectUri);
-      setMessage({ kind: "ok", text: "저장했습니다." });
+      setMessage({
+        kind: "ok",
+        text: form.mode === "oauth2-proxy" ? "oauth2-proxy와 SSO 접근 정책을 저장했습니다." : "SSO 설정을 저장했습니다.",
+      });
     } catch {
       setMessage({ kind: "bad", text: "네트워크 오류로 저장하지 못했습니다." });
     } finally {
@@ -255,45 +314,127 @@ export function SsoSettingsForm() {
     );
   }
 
+  const activeMode = effectiveSsoMode(view);
+  const mode = effectiveSsoMode(form);
+  const directMode = mode === "oidc" || mode === "oauth2";
+  const modeChanged = activeMode !== mode;
+
   return (
     <div className="space-y-6">
       <section className="card p-5">
-        <h2 className="text-sm font-semibold text-ink">연결</h2>
-        <p className="mt-1 text-xs text-ink-3">
-          인증 서버에는 아래 리디렉션 URI를 등록하세요. 두 방식 모두 인가 코드 + PKCE를 사용합니다.
+        <h2 className="text-sm font-semibold text-ink">ID/비밀번호 로그인</h2>
+        <p className="mt-1 text-xs leading-5 text-ink-3">
+          로컬 이메일 계정의 로그인과 새 계정 가입을 허용할지 정합니다.
         </p>
+        <label className="mt-4 flex items-start gap-3 rounded-xl border border-line bg-panel-2 p-3 text-sm text-ink">
+          <input
+            type="checkbox"
+            checked={form.passwordLoginEnabled}
+            disabled={mode === "disabled" && form.passwordLoginEnabled}
+            onChange={(event) => set("passwordLoginEnabled", event.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-brand"
+          />
+          <span>
+            <span className="block font-medium">ID/비밀번호 로그인 허용</span>
+            <span className="mt-1 block text-xs leading-5 text-ink-3">
+              끄면 로그인 화면의 이메일 폼과 가입 경로가 닫히고 회사 로그인만 사용할 수 있습니다.
+            </span>
+          </span>
+        </label>
+        {mode === "disabled" && form.passwordLoginEnabled && (
+          <p className="mt-2 text-xs text-ink-3">SSO를 사용하지 않는 동안에는 유일한 로그인 경로이므로 끌 수 없습니다.</p>
+        )}
+      </section>
 
-        <div className="mt-3 rounded-lg border border-line bg-panel-2 px-3 py-2">
-          <span className="text-[11px] text-ink-3">리디렉션 URI</span>
-          <p className="break-all font-mono text-xs text-ink">{redirectUri}</p>
+      <section className="card p-5">
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-ink">SSO 로그인 방식</h2>
+            <p className="mt-1 text-xs leading-5 text-ink-3">
+              네 가지 방식 중 현재 배포에 실제 적용되는 하나를 표시합니다.
+            </p>
+          </div>
+          <span className="chip shrink-0">적용 중 · {MODE_LABEL[activeMode]}</span>
         </div>
 
-        <label className="mt-4 flex items-center gap-2 text-sm text-ink">
-          <input type="checkbox" checked={form.enabled} onChange={(e) => set("enabled", e.target.checked)} />
-          로그인 화면에 SSO 버튼 보이기
-        </label>
+        {runtime.authMode === "oauth2-proxy" ? (
+          <div className="note-warn mt-4 text-xs leading-5">
+            <p className="font-medium">기존 환경변수 <code className="font-mono" translate="no">AUTH_MODE=oauth2-proxy</code>를 호환 모드로 읽고 있습니다.</p>
+            <p className="mt-1">
+              앞으로는 <code className="font-mono" translate="no">OAUTH2_PROXY_ENABLED=true</code>로 바꾸고 기존 <code className="font-mono" translate="no">AUTH_MODE</code>는 제거하세요.
+              환경변수는 proxy 사용 가능 여부만 정하며, 실제 로그인 방식은 이 화면에서 저장합니다.
+            </p>
+          </div>
+        ) : runtime.proxyAvailable ? (
+          <p className="note-ok mt-4 text-xs leading-5">
+            네 가지 로그인 방식 모두 이 화면에서 선택합니다. 이 배포는 oauth2-proxy 사용이 허용되어 있습니다.
+          </p>
+        ) : (
+          <p className="note-warn mt-4 text-xs leading-5">
+            oauth2-proxy를 선택하려면 배포 환경에 <code className="font-mono" translate="no">OAUTH2_PROXY_ENABLED=true</code>를 설정하고 앱을 다시 시작하세요.
+            나머지 세 방식은 지금 바로 선택할 수 있습니다.
+          </p>
+        )}
 
         <fieldset className="mt-4">
-          <legend className="label">로그인 방식</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <ProtocolOption
-              value="oidc"
-              checked={form.protocol === "oidc"}
-              title="OpenID Connect (OIDC)"
-              description="ID 토큰의 JWKS 서명·Issuer·Audience·Nonce를 검증합니다. 가능하면 이 방식을 권장합니다."
-              onChange={selectProtocol}
+          <legend className="sr-only">SSO 로그인 방식 선택</legend>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <ModeOption
+              value="disabled"
+              checked={mode === "disabled"}
+              title="SSO 사용하지 않음"
+              description="회사 로그인 없이 로컬 계정만 사용합니다."
+              disabled={!form.passwordLoginEnabled}
+              disabledHint={!form.passwordLoginEnabled ? "ID/비밀번호 로그인 허용 필요" : undefined}
+              onChange={selectMode}
             />
-            <ProtocolOption
+            <ModeOption
+              value="oidc"
+              checked={mode === "oidc"}
+              title="OpenID Connect"
+              description="ID 토큰의 서명과 표준 보안 claim을 검증합니다."
+              disabled={false}
+              onChange={selectMode}
+            />
+            <ModeOption
               value="oauth2"
-              checked={form.protocol === "oauth2"}
+              checked={mode === "oauth2"}
               title="OAuth 2.0"
-              description="Access Token으로 사용자 정보 API를 호출합니다. OIDC를 제공하지 않는 사내 서버에 사용합니다."
-              onChange={selectProtocol}
+              description="Access Token으로 사용자 정보 API를 호출합니다."
+              disabled={false}
+              onChange={selectMode}
+            />
+            <ModeOption
+              value="oauth2-proxy"
+              checked={mode === "oauth2-proxy"}
+              title="oauth2-proxy"
+              description="앞단 프록시가 인증하고 검증된 헤더를 전달합니다."
+              disabled={!runtime.proxyAvailable}
+              disabledHint={runtime.proxyAvailable ? "이 배포에서 선택 가능" : "OAUTH2_PROXY_ENABLED 필요"}
+              onChange={selectMode}
             />
           </div>
         </fieldset>
+        {modeChanged && (
+          <p className="mt-3 text-xs font-medium text-brand" role="status">
+            {MODE_LABEL[mode]} 방식은 아래 저장 버튼을 누른 뒤 적용됩니다.
+          </p>
+        )}
+      </section>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+      {directMode && (
+        <section className="card p-5">
+          <h2 className="text-sm font-semibold text-ink">{MODE_LABEL[mode]} 연결</h2>
+          <p className="mt-1 text-xs text-ink-3">
+            인증 서버에는 아래 리디렉션 URI를 등록하세요. 인가 코드 + PKCE를 사용합니다.
+          </p>
+
+          <div className="mt-3 rounded-lg border border-line bg-panel-2 px-3 py-2">
+            <span className="text-[11px] text-ink-3">리디렉션 URI</span>
+            <p className="break-all font-mono text-xs text-ink">{redirectUri}</p>
+          </div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <TextField label="버튼 문구" value={form.buttonLabel} onChange={(v) => set("buttonLabel", v)} />
 
           <div className="sm:col-span-2">
@@ -387,10 +528,11 @@ export function SsoSettingsForm() {
             onChange={(v) => set("baseUrl", v)}
             hint="프록시 뒤라 Host 헤더를 못 믿을 때만"
           />
-        </div>
-      </section>
+          </div>
+        </section>
+      )}
 
-      <section className="card p-5">
+      {mode === "oauth2-proxy" && <section className="card p-5">
         <div className="flex flex-wrap items-start gap-3">
           <div className="min-w-0 flex-1">
             <h2 className="text-sm font-semibold text-ink">oauth2-proxy 헤더</h2>
@@ -403,6 +545,14 @@ export function SsoSettingsForm() {
             {checkingProxy ? "확인 중…" : "연결 확인"}
           </button>
         </div>
+
+        <p className="mt-3 text-xs text-ink-2">
+          <code className="font-mono" translate="no">OAUTH2_PROXY_ENABLED={runtime.proxyAvailable ? "true" : "false"}</code>
+          {runtime.authMode === "oauth2-proxy" && <>
+            <span aria-hidden="true"> · </span>
+            <span>기존 AUTH_MODE 호환 사용 중</span>
+          </>}
+        </p>
 
         {proxyCheck && (
           <div aria-live="polite" className={`mt-4 ${proxyCheck.detected ? "note-ok" : "note-warn"}`}>
@@ -419,24 +569,24 @@ export function SsoSettingsForm() {
               </p>
             )}
             <p className="mt-1 text-xs">
-              AUTH_MODE={proxyCheck.authMode} · {proxyCheck.trusted ? "헤더 신뢰 사용" : "헤더 신뢰 안 함"}
+              저장 모드: {MODE_LABEL[proxyCheck.ssoMode]} · {proxyCheck.proxyAvailable ? "proxy 사용 가능" : "proxy 사용 불가"} · {proxyCheck.trusted ? "헤더 검사 허용" : "헤더 검사 안 함"}
             </p>
           </div>
         )}
 
         <div className="mt-4 grid gap-2 text-xs text-ink-2 sm:grid-cols-3">
-          <HeaderName label="닉네임" value={proxyCheck?.headerNames.preferredUsername ?? "X-Forwarded-Preferred-Username"} />
-          <HeaderName label="사용자 식별·이메일" value={proxyCheck?.headerNames.email ?? "X-Forwarded-Email"} />
-          <HeaderName label="그룹·조직" value={proxyCheck?.headerNames.groups ?? "X-Forwarded-Groups"} />
+          <HeaderName label="닉네임" value={proxyCheck?.headerNames.preferredUsername ?? runtime.proxyHeaderNames.preferredUsername} />
+          <HeaderName label="사용자 식별·이메일" value={proxyCheck?.headerNames.email ?? runtime.proxyHeaderNames.email} />
+          <HeaderName label="그룹·조직" value={proxyCheck?.headerNames.groups ?? runtime.proxyHeaderNames.groups} />
         </div>
 
         <p className="note-warn mt-4 text-xs leading-5">
           앱 포트를 외부에 직접 공개하지 말고, nginx가 클라이언트의 동일한 X-Forwarded-* 헤더를 제거한 뒤
           oauth2-proxy가 확인한 값으로 덮어쓰게 구성하세요. 직접 접속이 가능하면 헤더를 위조해 다른 사용자를 사칭할 수 있습니다.
         </p>
-      </section>
+      </section>}
 
-      <section className="card p-5">
+      {directMode && <section className="card p-5">
         <h2 className="text-sm font-semibold text-ink">값 매핑</h2>
         <p className="mt-1 text-xs leading-relaxed text-ink-3">
           회사마다 같은 값을 다른 이름으로 줍니다(name / displayName / preferred_username). 후보를 쉼표로 여러 개
@@ -480,9 +630,9 @@ export function SsoSettingsForm() {
             </div>
           )}
         </div>
-      </section>
+      </section>}
 
-      <section className="card p-5">
+      {mode !== "disabled" && <section className="card p-5">
         <h2 className="text-sm font-semibold text-ink">접근과 권한</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <TextField
@@ -504,7 +654,7 @@ export function SsoSettingsForm() {
           <input type="checkbox" checked={form.autoCreate} onChange={(e) => set("autoCreate", e.target.checked)} />
           처음 보는 사람의 계정을 자동으로 만들기
         </label>
-      </section>
+      </section>}
 
       {message && (
         <p role={message.kind === "bad" ? "alert" : "status"} className={message.kind === "ok" ? "note-ok" : "note-danger"}>
@@ -514,7 +664,13 @@ export function SsoSettingsForm() {
 
       <div className="flex justify-end">
         <button type="button" className="btn-primary" onClick={save} disabled={busy}>
-          {busy ? "저장 중…" : "SSO 설정 저장"}
+          {busy
+            ? "저장 중…"
+            : mode === "oauth2-proxy"
+              ? "접근 정책 저장"
+              : mode === "disabled"
+                ? "SSO 사용 안 함 저장"
+                : `${MODE_LABEL[mode]} 설정 저장`}
         </button>
       </div>
     </div>
@@ -567,32 +723,44 @@ function TextField({
   );
 }
 
-function ProtocolOption({
+function ModeOption({
   value,
   checked,
   title,
   description,
+  disabled,
+  disabledHint,
   onChange,
 }: {
-  value: Form["protocol"];
+  value: SsoMode;
   checked: boolean;
   title: string;
   description: string;
-  onChange: (value: Form["protocol"]) => void;
+  disabled: boolean;
+  disabledHint?: string;
+  onChange: (value: SsoMode) => void;
 }) {
   return (
-    <label className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors ${checked ? "border-brand bg-brand-soft/55" : "border-line hover:border-line-strong hover:bg-panel-2"}`}>
+    <label className={`flex gap-3 rounded-xl border p-3 transition-colors ${
+      checked
+        ? "border-brand bg-brand-soft/55"
+        : disabled
+          ? "cursor-not-allowed border-line bg-panel-2 opacity-70"
+          : "cursor-pointer border-line hover:border-line-strong hover:bg-panel-2"
+    }`}>
       <input
         type="radio"
-        name="sso-protocol"
+        name="sso-mode"
         value={value}
         checked={checked}
+        disabled={disabled}
         onChange={() => onChange(value)}
         className="mt-0.5 h-4 w-4 shrink-0 accent-brand"
       />
       <span className="min-w-0">
         <span className="block text-sm font-medium text-ink">{title}</span>
         <span className="mt-1 block text-xs leading-5 text-ink-3">{description}</span>
+        {disabledHint && <span className="mt-1.5 block text-[11px] font-medium text-brand">{disabledHint}</span>}
       </span>
     </label>
   );

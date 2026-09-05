@@ -1,7 +1,7 @@
 import { and, eq, inArray, like, ne } from "drizzle-orm";
 import {
   attachmentRefs, attachments, surfaceKeys, terms, termRevisions, termSurfaces,
-} from "@grossary/db";
+} from "@glossary/db";
 import { isUuid } from "@/lib/api-error";
 import { extractAttachmentHashes } from "@/lib/attachments/refs";
 import { getDb } from "@/lib/db";

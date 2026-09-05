@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import sharp from "sharp";
 import { eq } from "drizzle-orm";
-import { attachmentRefs, attachments, createDb, terms } from "@grossary/db";
+import { attachmentRefs, attachments, createDb, terms } from "@glossary/db";
 import { extractAttachmentHashes } from "../src/lib/attachments/refs.js";
 import { MAX_IMAGE_EDGE, processImage, safeOriginalFilename } from "../src/lib/attachments/image.js";
 import { createTerm } from "../src/lib/terms/create.js";

@@ -3,6 +3,7 @@ import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { registerUser } from "@/lib/auth/register";
 import { createSession, isSecureRequest, purgeExpiredSessions, sessionCookie } from "@/lib/auth/session";
 import { needsSetup } from "@/lib/auth/setup";
+import { loadPasswordLoginEnabled } from "@/lib/auth/sso/config";
 
 const bodySchema = z.object({
   email: z.string().trim().email().max(254),
@@ -16,6 +17,9 @@ export { GET, PUT, PATCH, DELETE, OPTIONS };
 
 // R131: 개방 가입 창구. 로그인 화면에서 누구나 계정을 만들 수 있다.
 export const POST = withApiErrors(async (request: Request) => {
+  if (!(await loadPasswordLoginEnabled())) {
+    return apiError("password_login_disabled", "비밀번호 계정 생성이 비활성화되어 있습니다.", 403);
+  }
   // 계정이 하나도 없을 때는 여기가 아니라 /setup이 열려야 한다. 그 순간 이 창구를
   // 열어두면 사전을 만든 첫 사람이 editor가 되어 관리자가 영영 없는 설치가 된다
   // (관리자는 최초 설정이나 seed-admin.ts로만 생긴다).

@@ -10,9 +10,9 @@ import {
 
 describe("시트 공유 URL", () => {
   test("현재 필터·정렬을 보존하고 열과 옵션을 URL에 명시한다", () => {
-    const base = embedBaseQuery({ q: "AE", domain: "ISP", sort: "nameEn", dir: "asc", page: 3 });
+    const base = embedBaseQuery({ q: "AE", domain: "ISP", sort: "nameEn", dir: "asc", page: 3, pageSize: 50 });
     const path = buildEmbedPath(base, ["nameEn", "definitionMd"], { compact: true, links: false, border: true });
-    const url = new URL(path, "https://grossary.example.com");
+    const url = new URL(path, "https://glossary.example.com");
 
     expect(url.pathname).toBe("/embed");
     expect(Object.fromEntries(url.searchParams)).toMatchObject({
@@ -29,7 +29,7 @@ describe("시트 공유 URL", () => {
   });
 
   test("정렬이 생략되어도 공유 결과는 기본 정렬을 URL에 고정한다", () => {
-    expect(embedBaseQuery({ page: 1 })).toBe("sort=updatedAt&dir=desc");
+    expect(embedBaseQuery({ page: 1, pageSize: 50 })).toBe("sort=updatedAt&dir=desc");
   });
 
   test("공유용 필터는 현재 시트와 독립적으로 바꾸거나 전체로 해제한다", () => {
@@ -39,7 +39,7 @@ describe("시트 공유 URL", () => {
       { compact: false, links: true, border: true },
       { q: "", type: "identifier", status: "", domain: "", category: "security", topic: "인증" },
     );
-    const params = new URL(path, "https://grossary.example.com").searchParams;
+    const params = new URL(path, "https://glossary.example.com").searchParams;
 
     expect(Object.fromEntries(params)).toMatchObject({
       type: "identifier",
@@ -74,8 +74,8 @@ describe("시트 공유 URL", () => {
   });
 
   test("iframe 코드는 접근 가능한 제목과 고정된 공유 URL을 포함한다", () => {
-    expect(buildIframeCode("https://grossary.example.com/embed?columns=nameEn", false)).toBe(
-      '<iframe src="https://grossary.example.com/embed?columns=nameEn" title="Grossary 용어 시트" width="100%" height="560" loading="lazy" style="border:0"></iframe>',
+    expect(buildIframeCode("https://glossary.example.com/embed?columns=nameEn", false)).toBe(
+      '<iframe src="https://glossary.example.com/embed?columns=nameEn" title="Glossary 용어 시트" width="100%" height="560" loading="lazy" style="border:0"></iframe>',
     );
   });
 });

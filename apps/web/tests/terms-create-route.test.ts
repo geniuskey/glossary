@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterEach, expect, test, vi } from "vitest";
-import { createDb, terms, users } from "@grossary/db";
+import { createDb, terms, users } from "@glossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
 import { createTerm } from "../src/lib/terms/create.js";

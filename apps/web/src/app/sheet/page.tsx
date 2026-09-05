@@ -13,19 +13,16 @@ import { SORT_KEYS, type SortDir, type SortKey } from "@/lib/terms/grid";
 import {
   buildFilterHref,
   buildPageHref,
+  buildPageSizeHref,
   buildSortDirHref,
   buildSortHref,
+  PAGE_SIZE_OPTIONS,
   paginationInfo,
   parseListParams,
 } from "@/lib/terms/list-params";
 import { listTermRows, termFacets } from "@/lib/terms/query";
-import { cx } from "@/lib/ui/format";
 
 export const metadata = { title: "시트" };
-
-// 표는 한 화면에서 훑는 물건이라 20줄은 너무 적다. 그렇다고 무한정 늘리면
-// 첫 페인트가 느려지므로 한 화면 스크롤 두어 번 분량으로 잡는다.
-const PAGE_SIZE = 50;
 
 // 열 머리글을 처음 눌렀을 때의 방향. 이름은 사전처럼 ㄱ→ㅎ이 자연스럽고,
 // 수정 시각만 최신이 위로 오는 게 자연스럽다.
@@ -69,7 +66,7 @@ export default async function TermsPage({
       sort: parsed.sort,
       dir: parsed.dir,
       page: parsed.page,
-      pageSize: PAGE_SIZE,
+      pageSize: parsed.pageSize,
     }),
     termFacets(),
     listDomains(),
@@ -79,7 +76,8 @@ export default async function TermsPage({
     ...facets.domains.map((domain) => domain.value),
   ])];
 
-  const pagination = paginationInfo(parsed.page, total, PAGE_SIZE);
+  const pagination = paginationInfo(parsed.page, total, parsed.pageSize);
+  const pageSizeOptions = [...new Set([...PAGE_SIZE_OPTIONS, parsed.pageSize])].sort((a, b) => a - b);
   const filters: SheetFilter[] = [
     {
       name: "type",
@@ -119,7 +117,7 @@ export default async function TermsPage({
   ];
 
   // 정렬 링크는 서버에서 만든다 — buildSortHref가 있는 list-params.ts는
-  // @grossary/db를 import하므로 Client Component가 직접 부를 수 없다(R114).
+  // @glossary/db를 import하므로 Client Component가 직접 부를 수 없다(R114).
   const sortHrefs = Object.fromEntries(
     SORT_KEYS.map((key) => [key, buildSortHref(parsed, key, SORT_FALLBACK_DIR[key])]),
   ) as Record<SortKey, string>;
@@ -148,7 +146,7 @@ export default async function TermsPage({
       <header className="relative z-[60] shrink-0 border-b border-line bg-panel/70 px-4 py-3 backdrop-blur lg:px-6">
         <div className="flex flex-wrap items-center gap-2 xl:flex-nowrap">
           <p className="text-lg font-semibold tracking-tight lg:hidden">시트</p>
-          <SheetFilterBar query={parsed.q ?? ""} filters={filters} />
+          <SheetFilterBar query={parsed.q ?? ""} />
           <span className="ml-auto flex shrink-0 items-center gap-1.5">
             {facets.needsContribution > 0 && (
               <Link href="/contribute" className="chip border-warn/30 bg-warn-soft text-warn">
@@ -177,40 +175,32 @@ export default async function TermsPage({
         rows={items}
         viewerName={user.name || user.email}
         canDelete={user.role === "admin"}
-        rowOffset={(parsed.page - 1) * PAGE_SIZE}
+        rowOffset={(parsed.page - 1) * parsed.pageSize}
         sortHrefs={sortHrefs}
         sortDirHrefs={sortDirHrefs}
         sortState={{ key: parsed.sort ?? "updatedAt", dir: parsed.dir ?? "desc" }}
         query={parsed.q}
-        // 도메인 후보는 이 페이지의 50줄이 아니라 사전 전체에서 뽑는다 — 표에서
+        // 도메인 후보는 현재 페이지의 행이 아니라 사전 전체에서 뽑는다 — 표에서
         // 도메인을 새로 칠 때 이미 쓰던 값이 후보에 없으면 오타가 새 도메인이 된다.
         knownDomains={knownDomains}
+        domainColors={domainOptions.map(({ label, color }) => ({ label, color }))}
         categoryOptions={facets.categories.map((category) => ({ key: category.value, label: category.label }))}
+        filters={filters}
         activeFilters={activeGridFilters}
+        pagination={{
+          page: pagination.page,
+          totalPages: Math.max(1, pagination.totalPages),
+          previousHref: buildPageHref(parsed, parsed.page - 1),
+          nextHref: buildPageHref(parsed, parsed.page + 1),
+          hasPrevious: pagination.hasPrev,
+          hasNext: pagination.hasNext,
+          pageSize: parsed.pageSize,
+          pageSizeOptions: pageSizeOptions.map((pageSize) => ({
+            pageSize,
+            href: buildPageSizeHref(parsed, pageSize),
+          })),
+        }}
       />
-
-      {/* R93: 51번째 용어부터는 이 링크 없이는 UI로 영원히 도달 불가능하다.
-          현재 필터와 정렬을 전부 보존하면서 page만 바꾼다. */}
-      <nav className="flex shrink-0 items-center justify-center gap-3 border-t border-line bg-panel px-4 py-2 text-xs">
-        <PageLink href={buildPageHref(parsed, parsed.page - 1)} enabled={pagination.hasPrev}>
-          이전
-        </PageLink>
-        <span className="text-ink-3">
-          {pagination.page} / {Math.max(1, pagination.totalPages)}
-        </span>
-        <PageLink href={buildPageHref(parsed, parsed.page + 1)} enabled={pagination.hasNext}>
-          다음
-        </PageLink>
-      </nav>
     </AppShell>
-  );
-}
-
-function PageLink({ href, enabled, children }: { href: string; enabled: boolean; children: React.ReactNode }) {
-  if (!enabled) return <span className="text-ink-3/50">{children}</span>;
-  return (
-    <Link href={href} className={cx("text-ink-2 hover:text-ink")}>
-      {children}
-    </Link>
   );
 }

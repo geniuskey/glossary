@@ -3,6 +3,7 @@ import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { normalizeEmail } from "@/lib/auth/register";
 import { createFirstAdmin, needsSetup } from "@/lib/auth/setup";
 import { createSession, isSecureRequest, sessionCookie } from "@/lib/auth/session";
+import { loadPasswordLoginEnabled } from "@/lib/auth/sso/config";
 
 const bodySchema = z.object({
   email: z.string().trim().email().max(254),
@@ -17,6 +18,9 @@ export { GET, PUT, PATCH, DELETE, OPTIONS };
 // 최초 설정 창구다. users 테이블이 비어 있을 때만 관리자 계정을 만든다. 설정이
 // 끝난 뒤에는 이 엔드포인트로 계정을 만들 수 없다(로그인/키 발급 화면을 쓴다).
 export const POST = withApiErrors(async (request: Request) => {
+  if (!(await loadPasswordLoginEnabled())) {
+    return apiError("password_login_disabled", "비밀번호 기반 최초 설정이 비활성화되어 있습니다.", 403);
+  }
   // 이미 설정이 끝났으면 비밀번호 해싱(scrypt) 비용을 치르기 전에 바로 막는다.
   // 로그인과 달리 여기서는 타이밍 오라클을 걱정할 필요가 없다.
   if (!(await needsSetup())) {

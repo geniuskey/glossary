@@ -1,5 +1,5 @@
 import { asc, eq, sql } from "drizzle-orm";
-import { terms, users } from "@grossary/db";
+import { terms, users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { userDisplayLabel } from "@/lib/workspace/identity-display-values";
 

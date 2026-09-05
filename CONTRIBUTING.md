@@ -1,4 +1,4 @@
-# Grossary에 기여하기
+# Glossary에 기여하기
 
 버그 제보, 문서 수정, 기능 제안과 코드 기여를 환영합니다. 변경을 시작하기 전에 이 문서와
 [행동 강령](./CODE_OF_CONDUCT.md)을 읽어 주세요.
@@ -7,7 +7,7 @@
 
 - 작은 오타·명확한 버그 수정은 바로 Pull Request를 열어도 됩니다.
 - 새 기능, 데이터 모델·API 변경, 큰 UI 변경은 구현 전에
-  [이슈](https://github.com/geniuskey/grossary/issues)를 열어 문제와 사용 흐름을 합의해 주세요.
+  [이슈](https://github.com/geniuskey/glossary/issues)를 열어 문제와 사용 흐름을 합의해 주세요.
 - 보안 취약점은 공개 이슈가 아니라 [SECURITY.md](./SECURITY.md)의 비공개 채널을 사용합니다.
 
 ## 개발 환경
@@ -19,12 +19,12 @@ corepack enable
 pnpm install
 cp .env.example .env
 docker compose up -d
-pnpm --filter @grossary/db db:migrate
-pnpm --filter @grossary/web dev
+pnpm --filter @glossary/db db:migrate
+pnpm --filter @glossary/web dev
 ```
 
-개발 DB는 기본적으로 `localhost:5434/grossary`, 테스트 DB는
-`localhost:5434/grossary_test`를 사용합니다. 테스트가 개발 데이터를 건드리지 않도록
+개발 DB는 기본적으로 `localhost:5434/glossary`, 테스트 DB는
+`localhost:5434/glossary_test`를 사용합니다. 테스트가 개발 데이터를 건드리지 않도록
 `DATABASE_URL_TEST`가 없으면 DB 테스트는 시작되지 않습니다.
 
 ## 변경 원칙
@@ -47,8 +47,8 @@ pnpm build
 pnpm docs:build
 ```
 
-DB 없이 빠르게 확인하려면 `pnpm --filter @grossary/engine test`를 먼저 실행할 수 있습니다.
-DB 테스트 방법은 [테스트 문서](https://geniuskey.github.io/grossary/guide/testing)를 참고하세요.
+DB 없이 빠르게 확인하려면 `pnpm --filter @glossary/engine test`를 먼저 실행할 수 있습니다.
+DB 테스트 방법은 [테스트 문서](https://geniuskey.github.io/glossary/guide/testing)를 참고하세요.
 
 ## Pull Request
 

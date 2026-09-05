@@ -31,14 +31,14 @@ FROM deps AS builder
 ARG APP_VERSION
 ENV NEXT_PUBLIC_APP_VERSION=${APP_VERSION}
 COPY . .
-RUN pnpm turbo run build --filter=@grossary/web
+RUN pnpm turbo run build --filter=@glossary/web
 
 # ---- 운영 런타임 ----
 FROM base AS runner
 ENV NODE_ENV=production
-LABEL org.opencontainers.image.title="Grossary" \
+LABEL org.opencontainers.image.title="Glossary" \
       org.opencontainers.image.description="Self-hosted collaborative glossary for organization-specific terminology, optimized for Korean and English." \
-      org.opencontainers.image.source="https://github.com/geniuskey/grossary" \
+      org.opencontainers.image.source="https://github.com/geniuskey/glossary" \
       org.opencontainers.image.licenses="Apache-2.0"
 RUN addgroup -g 1001 -S nodejs && adduser -S -u 1001 -G nodejs nextjs
 
@@ -59,11 +59,11 @@ CMD ["node", "apps/web/server.js"]
 # drizzle-kit도 tsx도 devDependency라 runner에는 없다. 이 스테이지가 그 둘을 갖는다.
 FROM builder AS migrator
 ENV NODE_ENV=production
-LABEL org.opencontainers.image.title="Grossary Database Migrator" \
-      org.opencontainers.image.description="Database migration companion for the matching Grossary application image." \
-      org.opencontainers.image.source="https://github.com/geniuskey/grossary" \
+LABEL org.opencontainers.image.title="Glossary Database Migrator" \
+      org.opencontainers.image.description="Database migration companion for the matching Glossary application image." \
+      org.opencontainers.image.source="https://github.com/geniuskey/glossary" \
       org.opencontainers.image.licenses="Apache-2.0"
-CMD ["pnpm", "--filter", "@grossary/db", "db:migrate"]
+CMD ["pnpm", "--filter", "@glossary/db", "db:migrate"]
 
 # Docker Hub에 `docker build -t ... .`로 올릴 기본 산출물은 반드시 웹 앱이어야
 # 한다. migrator가 마지막 단계면 target을 생략한 이미지가 마이그레이션 명령만

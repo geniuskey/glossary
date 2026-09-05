@@ -1,6 +1,6 @@
 import { afterAll, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
-import { businessCategories, createDb, terms } from "@grossary/db";
+import { businessCategories, createDb, terms } from "@glossary/db";
 import {
   createBusinessCategory,
   deleteBusinessCategory,

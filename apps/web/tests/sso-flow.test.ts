@@ -20,7 +20,7 @@ const CFG = {
   protocol: "oidc" as const,
   authorizationEndpoint: "https://idp.example.com/authorize?p=b2c_1_signin",
   tokenEndpoint: "https://idp.example.com/token",
-  clientId: "grossary",
+  clientId: "glossary",
   clientSecret: "s3cr3t",
   tokenAuthMethod: "client_secret_post",
   scopes: ["profile", "email"],
@@ -50,6 +50,19 @@ test("흐름 상태는 쿠키 헤더에서 그대로 되살아난다", () => {
   expect(decodeFlowState(encodeFlowState({ ...flow, nonce: "" }))).toBeNull();
   expect(decodeFlowState("not-base64url-json")).toBeNull();
   expect(decodeFlowState(undefined)).toBeNull();
+});
+
+test("SSO 정보 재동기화 흐름은 현재 사용자 id를 콜백까지 보존한다", () => {
+  const flow = {
+    state: "st",
+    nonce: "no",
+    verifier: "ve",
+    protocol: "oidc" as const,
+    refreshUserId: "user-id",
+  };
+
+  expect(decodeFlowState(encodeFlowState(flow))).toEqual(flow);
+  expect(decodeFlowState(encodeFlowState({ ...flow, refreshUserId: "" }))).toBeNull();
 });
 
 // 쿠키가 남아 있으면 같은 state로 콜백을 다시 먹일 수 있다(코드 재사용).
@@ -153,7 +166,7 @@ test("client_secret_basic이면 시크릿이 본문이 아니라 Authorization�
   );
 
   const captured = seen as unknown as { headers: Record<string, string>; body: string };
-  expect(captured.headers.authorization).toBe(`Basic ${Buffer.from("grossary:s3cr3t", "utf8").toString("base64")}`);
+  expect(captured.headers.authorization).toBe(`Basic ${Buffer.from("glossary:s3cr3t", "utf8").toString("base64")}`);
   expect(new URLSearchParams(captured.body).get("client_secret")).toBeNull();
 });
 

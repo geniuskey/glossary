@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
-import { createDb, workspaceSettings, users } from "@grossary/db";
+import { createDb, workspaceSettings, users } from "@glossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
 import { DEFAULT_HOME_CONTENT } from "../src/lib/workspace/home-content-values.js";
@@ -48,7 +48,7 @@ async function loginAs(role: "admin" | "editor") {
 }
 
 function patchRequest(body: unknown) {
-  return new Request("https://grossary.example.com/api/v1/admin/home-content", {
+  return new Request("https://glossary.example.com/api/v1/admin/home-content", {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),

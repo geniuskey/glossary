@@ -1,4 +1,4 @@
-import { termStatusEnum, termTypeEnum } from "@grossary/db";
+import { termStatusEnum, termTypeEnum } from "@glossary/db";
 import { DEFAULT_DIR, DEFAULT_SORT, SORT_DIRS, SORT_KEYS, type SortDir, type SortKey } from "./grid";
 import { DOMAIN_VALUE_MAX, TERM_QUERY_MAX } from "./limits";
 import type { BusinessCategory, TermStatus, TermType } from "./query";
@@ -14,6 +14,10 @@ import type { BusinessCategory, TermStatus, TermType } from "./query";
 
 export type RawSearchParams = Record<string, string | string[] | undefined>;
 
+export const DEFAULT_PAGE_SIZE = 50;
+export const MAX_PAGE_SIZE = 1000;
+export const PAGE_SIZE_OPTIONS = [50, 100, 250, 500, 1000] as const;
+
 export interface ParsedListParams {
   q?: string;
   type?: TermType;
@@ -27,6 +31,7 @@ export interface ParsedListParams {
   sort?: SortKey;
   dir?: SortDir;
   page: number;
+  pageSize: number;
 }
 
 function firstValue(raw: string | string[] | undefined): string | undefined {
@@ -81,6 +86,14 @@ export function parsePage(raw: string | string[] | undefined): number {
   return Math.min(Number.MAX_SAFE_INTEGER, Math.max(1, Math.floor(n)));
 }
 
+export function parsePageSize(raw: string | string[] | undefined): number {
+  const value = firstValue(raw);
+  if (value === undefined) return DEFAULT_PAGE_SIZE;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return DEFAULT_PAGE_SIZE;
+  return Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(n)));
+}
+
 export function parseListParams(raw: RawSearchParams): ParsedListParams {
   return {
     q: firstTextValue(raw.q, TERM_QUERY_MAX),
@@ -92,6 +105,7 @@ export function parseListParams(raw: RawSearchParams): ParsedListParams {
     sort: narrowEnum(raw.sort, SORT_KEYS),
     dir: narrowEnum(raw.dir, SORT_DIRS),
     page: parsePage(raw.page),
+    pageSize: parsePageSize(raw.pageSize),
   };
 }
 
@@ -116,7 +130,7 @@ export function paginationInfo(page: number, total: number, pageSize: number): P
 }
 
 export type FilterName = "q" | "type" | "domain" | "category" | "topic" | "status";
-type ParamName = FilterName | "sort" | "dir";
+type ParamName = FilterName | "sort" | "dir" | "pageSize";
 
 // R93/R94: 현재 활성 필터(빈 값이 아닌 것만)를 이름 붙은 목록으로 뽑는다.
 // buildPageHref(페이지네이션 링크)와 hiddenSearchFields(검색 폼의 hidden
@@ -147,6 +161,7 @@ export function activeParams(params: ParsedListParams): Array<{ name: ParamName;
   const out: Array<{ name: ParamName; value: string }> = [...activeFilters(params)];
   if (params.sort) out.push({ name: "sort", value: params.sort });
   if (params.dir) out.push({ name: "dir", value: params.dir });
+  if (params.pageSize !== DEFAULT_PAGE_SIZE) out.push({ name: "pageSize", value: String(params.pageSize) });
   return out;
 }
 
@@ -165,6 +180,11 @@ function hrefWith(params: ParsedListParams, overrides: Partial<Record<ParamName 
 // 바꾼다.
 export function buildPageHref(params: ParsedListParams, targetPage: number): string {
   return hrefWith(params, { page: String(targetPage) });
+}
+
+/** 페이지 크기가 달라지면 현재 행의 위치도 달라지므로 첫 페이지부터 다시 본다. */
+export function buildPageSizeHref(params: ParsedListParams, pageSize: number): string {
+  return hrefWith(params, { pageSize: String(pageSize), page: "1" });
 }
 
 /**

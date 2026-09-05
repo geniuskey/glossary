@@ -4,7 +4,7 @@ import { PROJECT_LINKS } from "@/lib/project-links";
 
 export const metadata: Metadata = {
   title: "도움말",
-  description: "Grossary에서 용어를 찾고 등록하고 함께 관리하는 방법",
+  description: "Glossary에서 용어를 찾고 등록하고 함께 관리하는 방법",
 };
 
 export default function HelpPage() {
@@ -15,7 +15,7 @@ export default function HelpPage() {
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <InfoCard title="용어 찾기" href="/">이름뿐 아니라 약어·별칭·비슷한 표기까지 검색합니다.</InfoCard>
           <InfoCard title="표에서 빠르게 편집" href="/sheet">여러 용어를 한 화면에서 필터링하고 셀을 직접 수정합니다.</InfoCard>
-          <InfoCard title="새 용어 등록" href="/new">이름, 표기, 정의와 관리 정보를 한 번에 등록합니다.</InfoCard>
+          <InfoCard title="새 용어 등록" href="/new">이름, 표기, 한줄 정의와 관리 정보를 한 번에 등록합니다.</InfoCard>
           <InfoCard title="미완성 용어 정리" href="/contribute">비어 있는 항목과 공개 검토를 기다리는 초안을 확인합니다.</InfoCard>
           <InfoCard title="관계 살펴보기" href="/graph">도메인·업무 분류·주제로 이어지는 용어를 관계도로 봅니다.</InfoCard>
           <InfoCard title="용어집에 질문·가르치기" href="/chat">공개 용어를 질문하고, 모르는 용어나 기존 용어집 목록을 대화로 초안에 추가합니다.</InfoCard>

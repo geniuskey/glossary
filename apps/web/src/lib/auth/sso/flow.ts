@@ -15,7 +15,7 @@ import { sanitizeSsoValue } from "./diagnostics";
  * 서명 키가 필요 없고(둘 다 우리가 방금 만든 값이다), 로그인이 중간에 버려져도
  * 청소할 행이 남지 않는다.
  */
-export const SSO_FLOW_COOKIE = "grossary_sso";
+export const SSO_FLOW_COOKIE = "glossary_sso";
 const FLOW_TTL_SECONDS = 600;
 // 쿠키를 이 경로에만 보낸다 — /sheet 같은 평범한 요청에 로그인 중간 상태가 실려 다닐 이유가 없다.
 const FLOW_COOKIE_PATH = "/auth/sso";
@@ -25,6 +25,8 @@ export interface FlowState {
   nonce: string;
   verifier: string;
   protocol: SsoProtocol;
+  /** 설정 화면에서 시작한 재동기화라면, 다른 IdP 계정으로 바뀌지 않도록 현재 사용자 id를 묶는다. */
+  refreshUserId?: string;
 }
 
 export function randomToken(bytes = 32): string {
@@ -45,11 +47,12 @@ export function decodeFlowState(raw: string | undefined | null): FlowState | nul
   try {
     const parsed: unknown = JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
     if (!parsed || typeof parsed !== "object") return null;
-    const { state, nonce, verifier, protocol } = parsed as Record<string, unknown>;
+    const { state, nonce, verifier, protocol, refreshUserId } = parsed as Record<string, unknown>;
     if (typeof state !== "string" || typeof nonce !== "string" || typeof verifier !== "string") return null;
     if (protocol !== "oidc" && protocol !== "oauth2") return null;
     if (!state || !nonce || !verifier) return null;
-    return { state, nonce, verifier, protocol };
+    if (refreshUserId !== undefined && (typeof refreshUserId !== "string" || !refreshUserId)) return null;
+    return { state, nonce, verifier, protocol, ...(refreshUserId ? { refreshUserId } : {}) };
   } catch {
     return null;
   }

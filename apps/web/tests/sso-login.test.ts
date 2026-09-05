@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
-import { createDb, users } from "@grossary/db";
+import { createDb, users } from "@glossary/db";
 import { applySsoLogin } from "../src/lib/auth/sso/login.js";
 import { hashPassword } from "../src/lib/auth/password.js";
 
@@ -59,7 +59,7 @@ test("자동 생성이 꺼져 있으면 계정을 만들지 않는다", async ()
 
 // 계정을 찾는 열쇠는 이메일이 아니라 sub다. 이메일로만 찾으면 회사 이메일이 바뀐
 // 사람이 새 계정으로 갈라지고, 그때부터 이력이 두 사람 것으로 쪼개진다.
-test("이메일이 바뀌어도 같은 sub면 같은 계정이다", async () => {
+test("이메일이 바뀌어도 같은 sub면 같은 계정이고 사용자가 관리하는 이름은 유지한다", async () => {
   const first = identity();
   const created = await login({ identity: first, isAdmin: false, autoCreate: true });
   expect(created.ok).toBe(true);
@@ -76,7 +76,7 @@ test("이메일이 바뀌어도 같은 sub면 같은 계정이다", async () => 
   expect(again.user.id).toBe(created.user.id);
   expect(again.created).toBe(false);
   const row = await rowOf(again.user.id);
-  expect(row.name).toBe("김철수(변경)");
+  expect(row.name).toBe("김철수");
   expect(row.email).not.toBe(first.email);
 });
 
@@ -143,7 +143,7 @@ test("로그인할 때마다 SSO 그룹/조직을 최신 claim으로 동기화�
 });
 
 // 이메일을 따라가려다 users_email_lower_unique를 위반하면 로그인 전체가 500이 된다.
-// 이름·역할은 갱신하되 이메일만 두는 편이 낫다.
+// 역할·그룹은 갱신하되 이메일과 사용자가 관리하는 이름은 두는 편이 낫다.
 test("바뀐 이메일을 다른 계정이 이미 쓰고 있으면 이메일만 그대로 둔다", async () => {
   const taken = `${unique("taken")}@example.com`;
   const other = await login({ identity: identity({ email: taken }), isAdmin: false, autoCreate: true });
@@ -163,10 +163,59 @@ test("바뀐 이메일을 다른 계정이 이미 쓰고 있으면 이메일만 
   expect(result.ok).toBe(true);
   const row = await rowOf(created.user.id);
   expect(row.email).toBe(mine.email);
-  expect(row.name).toBe("이름은 바뀐다");
+  expect(row.name).toBe(mine.name);
   const [dupes] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(users)
     .where(sql`lower(${users.email}) = ${taken}`);
   expect(dupes!.n).toBe(1);
+});
+
+test("과거에 저장된 깨진 SSO 이름은 다음 로그인에서 복구한다", async () => {
+  const id = identity({ name: Buffer.from("김의윤", "utf8").toString("latin1") });
+  const created = await login({ identity: id, isAdmin: false, autoCreate: true });
+  expect(created.ok).toBe(true);
+  if (!created.ok) return;
+
+  await login({ identity: { ...id, name: "김의윤" }, isAdmin: false, autoCreate: true });
+  expect((await rowOf(created.user.id)).name).toBe("김의윤");
+});
+
+test("사용자가 요청한 재동기화는 정상 형태의 기존 이름도 SSO 값으로 덮어쓴다", async () => {
+  const id = identity({ name: "회사 이름" });
+  const created = await login({ identity: id, isAdmin: false, autoCreate: true });
+  expect(created.ok).toBe(true);
+  if (!created.ok) return;
+  await db.update(users).set({ name: "직접 바꾼 이름" }).where(eq(users.id, created.user.id));
+
+  const refreshed = await login({
+    identity: id,
+    isAdmin: false,
+    autoCreate: false,
+    refreshProfile: true,
+    expectedUserId: created.user.id,
+  });
+
+  expect(refreshed.ok).toBe(true);
+  expect((await rowOf(created.user.id)).name).toBe("회사 이름");
+});
+
+test("재동기화 중 다른 SSO 계정을 선택하면 어느 계정도 덮어쓰지 않는다", async () => {
+  const mine = identity({ name: "내 회사 이름" });
+  const other = identity({ name: "다른 회사 이름" });
+  const mineCreated = await login({ identity: mine, isAdmin: false, autoCreate: true });
+  const otherCreated = await login({ identity: other, isAdmin: false, autoCreate: true });
+  expect(mineCreated.ok && otherCreated.ok).toBe(true);
+  if (!mineCreated.ok || !otherCreated.ok) return;
+
+  const result = await login({
+    identity: { ...other, name: "덮어쓰면 안 되는 이름" },
+    isAdmin: false,
+    autoCreate: false,
+    refreshProfile: true,
+    expectedUserId: mineCreated.user.id,
+  });
+
+  expect(result).toEqual({ ok: false, reason: "identity_mismatch" });
+  expect((await rowOf(otherCreated.user.id)).name).toBe("다른 회사 이름");
 });

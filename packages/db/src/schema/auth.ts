@@ -3,6 +3,7 @@ import { boolean, check, index, pgEnum, pgTable, text, timestamp, uniqueIndex, u
 
 export const userRoleEnum = pgEnum("user_role", ["admin", "editor"]);
 export const ssoProtocolEnum = pgEnum("sso_protocol", ["oidc", "oauth2"]);
+export const ssoModeEnum = pgEnum("sso_mode", ["disabled", "oidc", "oauth2", "oauth2-proxy"]);
 
 export const users = pgTable(
   "users",
@@ -79,6 +80,8 @@ export const ssoConfig = pgTable(
     enabled: boolean("enabled").notNull().default(false),
     buttonLabel: text("button_label").notNull().default("회사 계정으로 로그인"),
     protocol: ssoProtocolEnum("protocol").notNull().default("oidc"),
+    mode: ssoModeEnum("mode"),
+    passwordLoginEnabled: boolean("password_login_enabled"),
 
     issuer: text("issuer").notNull().default(""),
     jwksUri: text("jwks_uri").notNull().default(""),

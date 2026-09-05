@@ -1,4 +1,4 @@
-import type { terms, termSurfaces } from "@grossary/db";
+import type { terms, termSurfaces } from "@glossary/db";
 import type { DuplicateWarning } from "./create";
 import type { BusinessCategory, SurfaceKind, SurfaceRow, TermStatus, TermType } from "./query";
 

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { createDb, terms } from "@grossary/db";
+import { createDb, terms } from "@glossary/db";
 import { retrieveGlossaryContext } from "../src/lib/ai/retrieval.js";
 import { createTerm } from "../src/lib/terms/create.js";
 

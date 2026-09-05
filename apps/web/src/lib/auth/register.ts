@@ -1,4 +1,4 @@
-import { users } from "@grossary/db";
+import { users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { hashPassword } from "./password";
 

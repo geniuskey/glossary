@@ -8,7 +8,7 @@
 // 테스트한다.
 //
 // R114와 같은 이유로 apply.ts/parse-xlsx.ts의 타입을 그대로 import하지
-// 않는다 — 그 두 파일은 @grossary/db(drizzle-orm)와 lib/terms/create.ts를
+// 않는다 — 그 두 파일은 @glossary/db(drizzle-orm)와 lib/terms/create.ts를
 // 끌어오는 서버 전용 모듈이다. import-form.tsx는 Client Component이므로,
 // 여기서 독립된 wire 타입을 다시 선언해 서버 전용 코드가 클라이언트 번들로
 // 새는 걸 막는다.

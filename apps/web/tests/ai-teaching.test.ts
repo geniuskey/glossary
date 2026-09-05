@@ -33,7 +33,7 @@ test("모르는 용어 질문에서는 표기만 수집하고 AI 지식으로 �
   expect(result.ready).toBe(false);
   expect(result.draft).toMatchObject({ nameEn: "T/O", definitionMd: null, bodyMd: null });
   expect(result.answer).toContain("Full name");
-  expect(result.answer).toContain("한 줄 정의");
+  expect(result.answer).toContain("한줄 정의");
   expect(result.answer).toContain("상세 설명");
 });
 

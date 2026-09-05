@@ -182,9 +182,18 @@ test("드래그 중 소스를 비활성화하지 않고 동기 ref로 드롭을 
 test("편집 폼은 slug를 별도 버튼으로 변경하고 새 편집 URL로 이동한다", () => {
   expect(code).toContain('name="slug"');
   expect(code).toContain('"URL 변경"');
-  expect(code).toContain('body: JSON.stringify({ slug: slugDraft, expectedRevision: initial?.expectedRevision })');
+  expect(code).toContain('body: JSON.stringify({ slug: slugDraft, expectedRevision })');
   expect(code).toContain('router.replace(`/edit/${encodeURIComponent(nextSlug)}`)');
   expect(code).toContain('disabled={locked || dirty || !slugChanged || Boolean(slugDraftIssue)}');
+});
+
+test("수정 저장은 편집 화면에 남아 기준 스냅샷과 리비전을 갱신하고 토스트로 알린다", () => {
+  const editSuccess = code.slice(code.indexOf('if (editSlug !== undefined) {'), code.indexOf('if (outcome.warnings.length > 0)'));
+  expect(editSuccess).toContain("initialSnapshotRef.current = formSnapshot");
+  expect(editSuccess).toContain("setExpectedRevision");
+  expect(editSuccess).toContain("setSaveToast");
+  expect(editSuccess).not.toContain("router.push");
+  expect(code).toContain('role="status" aria-live="polite"');
 });
 
 test("편집 화면은 밀도 높은 레이아웃과 접힌 URL 변경 영역을 사용한다", () => {

@@ -1,6 +1,6 @@
 import { afterAll, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { businessCategories, createDb, terms, users } from "@grossary/db";
+import { businessCategories, createDb, terms, users } from "@glossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
 
@@ -39,7 +39,7 @@ async function loginAs(role: "admin" | "editor") {
 }
 
 function jsonRequest(method: "POST" | "DELETE", body?: unknown) {
-  return new Request("https://grossary.example.com/api/v1/admin/categories", {
+  return new Request("https://glossary.example.com/api/v1/admin/categories", {
     method,
     headers: body === undefined ? undefined : { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),

@@ -1,5 +1,5 @@
 /** 환경변수 원문을 안전한 CSP frame-ancestors 값으로 좁힌다. */
-export function embedFrameAncestors(raw = process.env.GROSSARY_EMBED_ANCESTORS): string {
+export function embedFrameAncestors(raw = process.env.GLOSSARY_EMBED_ANCESTORS): string {
   const allowed = new Set<string>(["'self'"]);
   for (const token of raw?.split(/[\s,]+/).filter(Boolean) ?? []) {
     try {

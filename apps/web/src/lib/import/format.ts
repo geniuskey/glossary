@@ -5,7 +5,7 @@
  * 전부 이 한 곳을 읽는다. 세 곳에 따로 적으면 "문서에는 있는데 파서는 모르는
  * 열"이 반드시 생긴다 — 그 순간 설명은 도움이 아니라 함정이 된다.
  *
- * R114와 같은 이유로 @grossary/db도 exceljs도 import하지 않는다. 이 모듈은
+ * R114와 같은 이유로 @glossary/db도 exceljs도 import하지 않는다. 이 모듈은
  * 서버 파서와 화면 컴포넌트 양쪽에서 읽히므로 어느 쪽 무거운 의존도 끌고
  * 들어오면 안 된다.
  */
@@ -142,8 +142,8 @@ export const IMPORT_COLUMNS: readonly ImportColumn[] = [
   },
   {
     field: "definitionMd",
-    header: "정의",
-    otherHeaders: ["definition", "설명"],
+    header: "한줄 정의",
+    otherHeaders: ["definition", "정의", "설명"],
     requirement: "optional",
     hint: "설명 본문. 마크다운을 그대로 씁니다.",
     width: 40,
@@ -308,7 +308,7 @@ export const IMPORT_RULES: readonly string[] = [
   "이미 등록된 용어와 겹치거나 파일 안에서 중복인 행은 기본적으로 건너뜁니다 — 검사 결과에서 직접 골라야 등록됩니다.",
 ];
 
-export const TEMPLATE_FILENAME = "grossary-import-sample.xlsx";
+export const TEMPLATE_FILENAME = "glossary-import-sample.xlsx";
 
 /** 샘플 파일을 내려받는 경로(app/import/template/route.ts). */
 export const TEMPLATE_HREF = "/import/template";

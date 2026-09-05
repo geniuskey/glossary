@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { surfaceKeys } from "@grossary/db";
+import { surfaceKeys } from "@glossary/db";
 import { AppShell } from "@/components/app-shell";
 import { MarkdownContent } from "@/components/markdown-content";
 import { CompletionBadge, CompletionProgress, MissingFields } from "@/components/term-completion";

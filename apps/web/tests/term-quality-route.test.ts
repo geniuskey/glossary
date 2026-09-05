@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
-import { createDb, users, workspaceSettings } from "@grossary/db";
+import { createDb, users, workspaceSettings } from "@glossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
 import { DEFAULT_TERM_QUALITY } from "../src/lib/workspace/term-quality-values.js";
@@ -42,7 +42,7 @@ async function loginAs(role: "admin" | "editor") {
 }
 
 function patchRequest(body: unknown) {
-  return new Request("https://grossary.example.com/api/v1/admin/term-quality", {
+  return new Request("https://glossary.example.com/api/v1/admin/term-quality", {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -50,7 +50,7 @@ function patchRequest(body: unknown) {
 }
 
 function previewRequest(body: unknown) {
-  return new Request("https://grossary.example.com/api/v1/admin/term-quality", {
+  return new Request("https://glossary.example.com/api/v1/admin/term-quality", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { sql } from "drizzle-orm";
-import { termRevisions, terms, users } from "@grossary/db";
+import { termRevisions, terms, users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { buildDailyStatistics, type DailyCount, type DailyStatisticsPoint } from "./statistics-series";
 

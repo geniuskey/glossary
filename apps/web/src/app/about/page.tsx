@@ -5,12 +5,12 @@ import { PROJECT_LINKS } from "@/lib/project-links";
 
 export const metadata: Metadata = {
   title: "소개",
-  description: "Grossary 프로젝트의 목적과 설계 원칙",
+  description: "Glossary 프로젝트의 목적과 설계 원칙",
 };
 
 export default function AboutPage() {
   return (
-    <InfoPageShell current="/about" eyebrow="About" title="조직의 말을 하나의 기준으로" description="Grossary는 엑셀과 문서에 흩어진 용어를 하나의 사전으로 모으고, 사람이 찾기 쉽고 도구도 읽을 수 있게 만드는 셀프호스팅 용어집 플랫폼입니다.">
+    <InfoPageShell current="/about" eyebrow="About" title="조직의 말을 하나의 기준으로" description="Glossary는 엑셀과 문서에 흩어진 용어를 하나의 사전으로 모으고, 사람이 찾기 쉽고 도구도 읽을 수 있게 만드는 셀프호스팅 용어집 플랫폼입니다.">
       <section className="grid gap-3 md:grid-cols-3" aria-label="설계 원칙">
         <InfoCard title="개념과 표기의 분리">하나의 개념에 표준 이름, 약어, 풀네임, 별칭과 금지 표기를 함께 연결합니다.</InfoCard>
         <InfoCard title="위키형 협업">승인 절차보다 빠른 편집을 택하고, 전체 수정 이력과 되돌리기로 안전하게 관리합니다.</InfoCard>

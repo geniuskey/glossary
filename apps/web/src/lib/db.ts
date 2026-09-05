@@ -1,4 +1,4 @@
-import { createDb, type Db } from "@grossary/db";
+import { createDb, type Db } from "@glossary/db";
 
 let cached: Db | undefined;
 

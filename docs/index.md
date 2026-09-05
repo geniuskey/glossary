@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: Grossary
+  name: Glossary
   text: 조직 특화형 용어집 관리 플랫폼
   tagline: 한국어와 영어로 쓰이는 팀의 용어를 단일 사전으로 모으고, 도구가 API 한 번으로 문서를 검증할 수 있게 만든다.
   actions:
@@ -14,7 +14,7 @@ hero:
       link: /api/
     - theme: alt
       text: GitHub
-      link: https://github.com/geniuskey/grossary
+      link: https://github.com/geniuskey/glossary
 
 features:
   - title: 단일 사전 + 동음이의어

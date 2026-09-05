@@ -300,7 +300,7 @@ services:
   postgres: # 16-alpine, pg_trgm
 volumes:
   pgdata:
-    name: grossary_pgdata   # 디렉터리명 파생 방지 — 명시 고정
+    name: glossary_pgdata   # 디렉터리명 파생 방지 — 명시 고정
 ```
 
 볼륨 `name:` 명시는 사고 방지용이다. Compose 볼륨명은 기본적으로 프로젝트 디렉터리명에서 파생되므로, 디렉터리를 옮기거나 이름을 고치면 빈 볼륨이 새로 생성되고 앱은 멀쩡히 뜬 채 데이터만 사라진다.

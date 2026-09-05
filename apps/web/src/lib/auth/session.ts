@@ -1,9 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { eq, lt } from "drizzle-orm";
-import { sessions } from "@grossary/db";
+import { sessions } from "@glossary/db";
 import { getDb } from "@/lib/db";
 
-export const SESSION_COOKIE = "grossary_session";
+export const SESSION_COOKIE = "glossary_session";
 const TTL_MS = 1000 * 60 * 60 * 24 * 14;
 export const SESSION_TTL_SECONDS = TTL_MS / 1000;
 

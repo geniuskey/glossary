@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
-import { createDb, sessions, users } from "@grossary/db";
+import { createDb, sessions, users } from "@glossary/db";
 import {
   clearSessionCookie,
   createSession,

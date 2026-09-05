@@ -1,7 +1,7 @@
 import { desc, eq, inArray, sql } from "drizzle-orm";
 import {
   apiKeys, attachmentRefs, attachments, surfaceKeys, terms, termRevisions, termSurfaces, users,
-} from "@grossary/db";
+} from "@glossary/db";
 import { extractAttachmentHashes } from "@/lib/attachments/refs";
 import { getDb } from "@/lib/db";
 import { checkSurfaceConflicts } from "./schema";
@@ -101,7 +101,7 @@ export function isRevisionConflict(err: unknown): boolean {
   return e.code === "23505" && e.constraint_name === "term_revisions_unique";
 }
 
-async function currentRevisionNumber(termId: string): Promise<number> {
+export async function currentRevisionNumber(termId: string): Promise<number> {
   const [latest] = await getDb()
     .select({ n: sql<number>`coalesce(max(${termRevisions.revisionNumber}), 0)::int` })
     .from(termRevisions)

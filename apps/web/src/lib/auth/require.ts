@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { and, eq, isNull, or, gt } from "drizzle-orm";
-import { apiKeys } from "@grossary/db";
+import { apiKeys } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { apiError } from "@/lib/api-error";
 import { getCurrentUser, type CurrentUser } from "./current-user";

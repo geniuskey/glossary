@@ -64,7 +64,7 @@ function mergeDraft(previous: TermTeachingDraft | null, extracted: z.infer<typeo
 
 const FIELD_QUESTION: Record<TeachingField, string> = {
   fullName: "Full name 또는 확장명 (없다면 ‘없음’)",
-  definition: "이 용어를 구분할 수 있는 한 줄 정의",
+  definition: "이 용어를 구분할 수 있는 한줄 정의",
   body: "사용 맥락·예시·주의사항을 포함한 상세 설명",
 };
 
@@ -106,7 +106,7 @@ export async function extractPastedGlossary(
     "TSV, CSV, Markdown 표, 글머리표, 번호 목록, 필드명이 다른 텍스트를 해석하세요.",
     "사용자가 실제로 제공한 사실만 옮기고 일반 지식, 추측, 번역으로 빈 필드를 채우지 마세요.",
     "nameEn/nameKo에는 대표 표기, fullNameEn/fullNameKo에는 풀네임 또는 확장명만 넣으세요.",
-    "짧은 정의는 definitionMd, 예시·주의·사용 맥락을 포함한 긴 내용은 bodyMd에 넣으세요.",
+    "짧은 한줄 정의는 definitionMd, 예시·주의·사용 맥락을 포함한 긴 내용은 bodyMd에 넣으세요.",
     "언어별 값이 하나뿐이면 해당 언어 필드만 채우고 나머지는 null로 두세요.",
     "헤더·설명 행은 용어로 만들지 말고, 대표 표기가 없는 행은 제외하세요.",
     "동일한 용어가 반복되면 한 항목으로 합치고 최대 25개까지만 반환하세요.",
@@ -149,7 +149,7 @@ export async function collectTermTeaching(
   const system = [
     "당신은 사용자가 직접 알려준 사실만 구조화하는 용어집 입력 도우미입니다.",
     "사용자의 질문과 답변에서 새로 등록하려는 조직 용어 하나를 식별하세요.",
-    "절대로 일반 지식, 추측, 번역으로 Full name·정의·설명을 채우지 마세요.",
+    "절대로 일반 지식, 추측, 번역으로 Full name·한줄 정의·설명을 채우지 마세요.",
     "‘X가 뭐야?’ 같은 질문은 X라는 표기만 제공하며 X의 뜻을 제공한 것이 아닙니다.",
     "이전 초안은 사용자가 명시적으로 수정한 경우에만 바꾸고, 모르는 값은 null로 두세요.",
     "사용자가 ‘없음’, ‘생략’, ‘필요 없음’이라고 한 항목만 skipped를 true로 바꾸세요.",

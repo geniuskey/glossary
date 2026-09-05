@@ -5,15 +5,15 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 const PREFIX = "v1";
 
 function key(): Buffer {
-  const secret = process.env.GROSSARY_ENCRYPTION_KEY?.trim();
+  const secret = process.env.GLOSSARY_ENCRYPTION_KEY?.trim();
   if (!secret || secret.length < 32) {
-    throw new Error("GROSSARY_ENCRYPTION_KEY는 32자 이상으로 설정해야 합니다.");
+    throw new Error("GLOSSARY_ENCRYPTION_KEY는 32자 이상으로 설정해야 합니다.");
   }
   return createHash("sha256").update(secret, "utf8").digest();
 }
 
 export function aiEncryptionReady(): boolean {
-  return (process.env.GROSSARY_ENCRYPTION_KEY?.trim().length ?? 0) >= 32;
+  return (process.env.GLOSSARY_ENCRYPTION_KEY?.trim().length ?? 0) >= 32;
 }
 
 export function encryptAiSecret(value: string): string {

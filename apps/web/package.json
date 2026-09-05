@@ -1,5 +1,5 @@
 {
-  "name": "@grossary/web",
+  "name": "@glossary/web",
   "version": "0.1.6",
   "private": true,
   "license": "Apache-2.0",
@@ -14,8 +14,9 @@
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/state": "^6.5.2",
-    "@grossary/db": "workspace:*",
-    "@grossary/engine": "workspace:*",
+    "@fontsource-variable/noto-sans-kr": "^5.3.0",
+    "@glossary/db": "workspace:*",
+    "@glossary/engine": "workspace:*",
     "codemirror": "^6.0.2",
     "drizzle-orm": "^0.36.0",
     "exceljs": "^4.4.0",

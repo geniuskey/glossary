@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import { eq } from "drizzle-orm";
 import { afterAll, expect, test, vi } from "vitest";
-import { apiKeys, createDb, terms } from "@grossary/db";
+import { apiKeys, createDb, terms } from "@glossary/db";
 import { generateApiKey } from "../src/lib/auth/api-key.js";
 import { SESSION_COOKIE } from "../src/lib/auth/session.js";
 

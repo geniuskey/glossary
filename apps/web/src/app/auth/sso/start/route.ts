@@ -1,5 +1,9 @@
 import { methodStubs } from "@/lib/api-error";
-import { loadSsoConfig } from "@/lib/auth/sso/config";
+import { eq } from "drizzle-orm";
+import { users } from "@glossary/db";
+import { getCurrentUser } from "@/lib/auth/current-user";
+import { getDb } from "@/lib/db";
+import { loadSsoConfig, resolveSsoMode } from "@/lib/auth/sso/config";
 import {
   buildAuthorizeUrl,
   flowCookie,
@@ -31,16 +35,43 @@ function loginRedirect(base: string, code: SsoErrorCode): Response {
 }
 
 export async function GET(request: Request): Promise<Response> {
+  const refreshRequested = new URL(request.url).searchParams.get("refresh") === "1";
   const cfg = await loadSsoConfig().catch((error) => {
     logSsoFailure("config_load", { route: "start" }, error);
     return null;
   });
   const base = resolveBaseUrl(request, { baseUrl: cfg?.baseUrl ?? "" });
   if (!cfg) return loginRedirect(base, "server");
-  if (!cfg.enabled || !cfg.authorizationEndpoint || !cfg.clientId) return loginRedirect(base, "disabled");
+  if (resolveSsoMode(cfg) !== cfg.protocol || !cfg.authorizationEndpoint || !cfg.clientId) {
+    return loginRedirect(base, "disabled");
+  }
+
+  let refreshUserId: string | undefined;
+  if (refreshRequested) {
+    const user = await getCurrentUser();
+    if (!user) return loginRedirect(base, "state");
+    const [account] = await getDb()
+      .select({ externalId: users.externalId })
+      .from(users)
+      .where(eq(users.id, user.id))
+      .limit(1);
+    if (!account?.externalId) {
+      return new Response(null, {
+        status: 302,
+        headers: { location: `${base}/settings?ssoRefresh=identity_mismatch` },
+      });
+    }
+    refreshUserId = user.id;
+  }
 
   const verifier = randomToken();
-  const flow = { state: randomToken(), nonce: randomToken(), verifier, protocol: cfg.protocol };
+  const flow = {
+    state: randomToken(),
+    nonce: randomToken(),
+    verifier,
+    protocol: cfg.protocol,
+    ...(refreshUserId ? { refreshUserId } : {}),
+  };
 
   try {
     const url = buildAuthorizeUrl(cfg, {

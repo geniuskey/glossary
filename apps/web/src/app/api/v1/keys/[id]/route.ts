@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { apiKeys } from "@grossary/db";
+import { apiKeys } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { apiError, methodStubs, requireUuid, withApiErrors } from "@/lib/api-error";
 import { getCurrentUser } from "@/lib/auth/current-user";

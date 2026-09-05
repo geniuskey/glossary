@@ -7,13 +7,13 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: grossary
+      POSTGRES_USER: glossary
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      POSTGRES_DB: grossary
+      POSTGRES_DB: glossary
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U grossary -d grossary"]
+      test: ["CMD-SHELL", "pg_isready -U glossary -d glossary"]
       interval: 5s
       retries: 10
 
@@ -27,9 +27,9 @@ services:
       - -h
       - postgres
       - -U
-      - grossary
+      - glossary
       - -d
-      - grossary
+      - glossary
       - -v
       - ON_ERROR_STOP=1
       - -c
@@ -39,30 +39,36 @@ services:
         condition: service_healthy
 
   migrator:
-    image: ${GROSSARY_MIGRATOR_IMAGE:?GROSSARY_MIGRATOR_IMAGE is required}
+    image: ${GLOSSARY_MIGRATOR_IMAGE:?GLOSSARY_MIGRATOR_IMAGE is required}
     restart: "no"
     environment:
-      DATABASE_URL: postgres://grossary:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/grossary
+      DATABASE_URL: postgres://glossary:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/glossary
     depends_on:
       database-init:
         condition: service_completed_successfully
 
   app:
-    image: ${GROSSARY_IMAGE:?GROSSARY_IMAGE is required}
+    image: ${GLOSSARY_IMAGE:?GLOSSARY_IMAGE is required}
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://grossary:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/grossary
+      DATABASE_URL: postgres://glossary:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/glossary
       NODE_ENV: production
-      GROSSARY_EMBED_ANCESTORS: ${GROSSARY_EMBED_ANCESTORS:-}
-      GROSSARY_ENCRYPTION_KEY: ${GROSSARY_ENCRYPTION_KEY:-}
-      AUTH_MODE: ${AUTH_MODE:-local}
-      SSO_TRUST_PROXY_HEADERS: ${SSO_TRUST_PROXY_HEADERS:-false}
+      GLOSSARY_EMBED_ANCESTORS: ${GLOSSARY_EMBED_ANCESTORS:-}
+      GLOSSARY_ENCRYPTION_KEY: ${GLOSSARY_ENCRYPTION_KEY:-}
+      OAUTH2_PROXY_ENABLED: ${OAUTH2_PROXY_ENABLED:-false}
+      # 0.1.6 이전 배포의 무중단 설정 전환용. 새 배포에서는 사용하지 않는다.
+      AUTH_MODE: ${AUTH_MODE:-}
+      # 최초 부팅/기존 설치의 초기값. 저장 후에는 관리자 패널의 DB 설정이 우선한다.
+      PASSWORD_LOGIN_ENABLED: ${PASSWORD_LOGIN_ENABLED:-true}
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}
+      SSO_LOGIN_URL: ${SSO_LOGIN_URL:-}
+      SSO_TRUST_PROXY_HEADERS: ${SSO_TRUST_PROXY_HEADERS:-}
       OAUTH2_PROXY_PREFERRED_USERNAME_HEADER: ${OAUTH2_PROXY_PREFERRED_USERNAME_HEADER:-X-Forwarded-Preferred-Username}
       OAUTH2_PROXY_EMAIL_HEADER: ${OAUTH2_PROXY_EMAIL_HEADER:-X-Forwarded-Email}
       OAUTH2_PROXY_GROUPS_HEADER: ${OAUTH2_PROXY_GROUPS_HEADER:-X-Forwarded-Groups}
       OAUTH2_SUBJECT_FIELD: ${OAUTH2_SUBJECT_FIELD:-}
     ports:
-      - "${GROSSARY_PORT:-3000}:3000"
+      - "${GLOSSARY_PORT:-3000}:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,4 +77,4 @@ services:
 
 volumes:
   pgdata:
-    name: grossary_hub_pgdata
+    name: glossary_hub_pgdata

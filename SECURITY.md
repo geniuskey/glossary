@@ -8,7 +8,7 @@
 ## 취약점 신고
 
 공개 GitHub Issue를 만들지 말고
-[GitHub Security Advisory](https://github.com/geniuskey/grossary/security/advisories/new)로
+[GitHub Security Advisory](https://github.com/geniuskey/glossary/security/advisories/new)로
 비공개 신고해 주세요.
 
 가능하면 다음 정보를 포함합니다.
@@ -30,4 +30,5 @@
 - 앱 포트와 Postgres 포트를 신뢰할 수 있는 네트워크로 제한합니다.
 - 정기적으로 DB 백업을 만들고 복구 절차를 시험합니다.
 - 앱과 migrator 이미지를 같은 버전으로 고정하고 보안 업데이트를 추적합니다.
-- `SSO_TRUST_PROXY_HEADERS`는 신뢰된 프록시가 헤더를 덮어쓰는 구성에서만 켭니다.
+- `OAUTH2_PROXY_ENABLED`는 신뢰된 프록시가 인증 헤더를 덮어쓰고 앱 포트 직접 접근이
+  차단된 구성에서만 켭니다. 실제 oauth2-proxy 모드는 **관리자 패널 → 로그인 · SSO**에서 선택합니다.

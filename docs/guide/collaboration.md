@@ -69,7 +69,7 @@ https://glossary.example.com/embed?domain=ISP&category=design&topic=노출%20제
 ```
 
 ```html
-<iframe src="https://glossary.example.com/embed?..." title="Grossary 용어 시트" width="100%" height="560" loading="lazy" style="border:1px solid #e7e3dc;border-radius:8px"></iframe>
+<iframe src="https://glossary.example.com/embed?..." title="Glossary 용어 시트" width="100%" height="560" loading="lazy" style="border:1px solid #e7e3dc;border-radius:8px"></iframe>
 ```
 
 <img src="/images/sheet-embed.png" width="1440" height="960" loading="lazy" alt="선택한 열만 표시하는 읽기 전용 용어 시트 임베드 화면">
@@ -77,10 +77,10 @@ https://glossary.example.com/embed?domain=ISP&category=design&topic=노출%20제
 운영 환경에는 iframe을 허용할 Confluence origin을 설정한다.
 
 ```dotenv
-GROSSARY_EMBED_ANCESTORS=https://confluence.example.com
+GLOSSARY_EMBED_ANCESTORS=https://confluence.example.com
 ```
 
 여러 출처는 쉼표로 구분한다. 값이 비어 있으면 동일 출처 외에는 프레임 삽입이 차단된다.
 공유 표는 최대 200개의 공개 상태 용어만 보여 주며 초안은 노출하지 않는다. 임베드 화면도
-Grossary 로그인을 요구한다. 브라우저의 서드파티 쿠키 제한을 피하려면
-Grossary와 Confluence를 같은 사이트 범위의 서브도메인으로 운영하는 편이 안전하다.
+Glossary 로그인을 요구한다. 브라우저의 서드파티 쿠키 제한을 피하려면
+Glossary와 Confluence를 같은 사이트 범위의 서브도메인으로 운영하는 편이 안전하다.

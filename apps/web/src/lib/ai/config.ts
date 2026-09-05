@@ -1,7 +1,7 @@
 import "server-only";
 
 import { eq, type InferSelectModel } from "drizzle-orm";
-import { aiConfig } from "@grossary/db";
+import { aiConfig } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { aiEncryptionReady, decryptAiSecret, encryptAiSecret } from "./crypto";
 import type { AiHeaderInput, AiProvider, PublicAiConfig } from "./config-values";
@@ -147,7 +147,7 @@ export async function saveAiConfig(input: AiConfigPatch, updatedBy: string): Pro
   const current = await loadAiConfig();
   const touchesSecrets = input.apiKey !== undefined || input.customHeaders.length > 0 || Boolean(current.apiKeyEncrypted || current.customHeadersEncrypted);
   if (touchesSecrets && !aiEncryptionReady()) {
-    return { ok: false, problems: ["서버에 GROSSARY_ENCRYPTION_KEY를 32자 이상으로 설정한 뒤 다시 시도해 주세요."] };
+    return { ok: false, problems: ["서버에 GLOSSARY_ENCRYPTION_KEY를 32자 이상으로 설정한 뒤 다시 시도해 주세요."] };
   }
 
   let existing: { apiKey: string; headers: StoredAiHeader[] } = { apiKey: "", headers: [] };

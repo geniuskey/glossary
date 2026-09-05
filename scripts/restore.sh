@@ -14,7 +14,7 @@
 #   3) 사람에게 명시적으로 확인받는다 (set -euo pipefail로는 실수를 못 막는다)
 #   4) app 컨테이너를 멈춘 뒤 교체하고, 끝나면 다시 띄운다
 #
-# 그리고 **리허설 경로**(--rehearse)를 제공한다. 별도 DB(grossary_rehearsal)로
+# 그리고 **리허설 경로**(--rehearse)를 제공한다. 별도 DB(glossary_rehearsal)로
 # 복구해 검증만 하고 운영 DB는 건드리지 않는다. docs/operations.md의
 # "복구 절차는 실제로 한 번 실행해서 확인한 뒤 운영에 들어간다"는 지침은
 # **이 경로를 가리킨다** — 그 지침을 운영 DB에 그대로 적용하면 안 된다.
@@ -73,36 +73,36 @@ fi
 echo "      검증 통과."
 
 if [ "$MODE" = "rehearse" ]; then
-  target="grossary_rehearsal"
+  target="glossary_rehearsal"
   echo "[2/4] 리허설 DB(${target})를 새로 만든다 — 운영 DB는 건드리지 않는다"
-  compose exec -T postgres psql -U grossary -d postgres \
+  compose exec -T postgres psql -U glossary -d postgres \
     -c "DROP DATABASE IF EXISTS ${target};" -c "CREATE DATABASE ${target};"
   echo "[3/4] 리허설 DB로 복구"
-  compose exec -T postgres pg_restore -U grossary -d "$target" --no-owner "$container_tmp"
+  compose exec -T postgres pg_restore -U glossary -d "$target" --no-owner "$container_tmp"
   echo "[4/4] 복구 결과 확인"
-  compose exec -T postgres psql -U grossary -d "$target" -At \
+  compose exec -T postgres psql -U glossary -d "$target" -At \
     -c "select 'terms=' || count(*) from terms;" \
     -c "select 'term_surfaces=' || count(*) from term_surfaces;" \
     -c "select 'term_revisions=' || count(*) from term_revisions;"
   echo "리허설 완료. 위 건수가 예상과 맞으면 이 백업은 복구 가능하다."
   echo "리허설 DB를 지우려면:"
-  echo "  docker compose -f ${COMPOSE_FILE} exec -T postgres psql -U grossary -d postgres -c 'DROP DATABASE ${target};'"
+  echo "  docker compose -f ${COMPOSE_FILE} exec -T postgres psql -U glossary -d postgres -c 'DROP DATABASE ${target};'"
   exit 0
 fi
 
 # ---- 여기서부터 파괴적 ----
 echo
-echo "!! 운영 DB(grossary)를 ${DUMP} 내용으로 교체한다. 현재 데이터는 사라진다."
-echo "!! 진행하려면 정확히 다음을 입력해라: replace grossary"
+echo "!! 운영 DB(glossary)를 ${DUMP} 내용으로 교체한다. 현재 데이터는 사라진다."
+echo "!! 진행하려면 정확히 다음을 입력해라: replace glossary"
 printf '> '
 read -r confirm
-[ "$confirm" = "replace grossary" ] || { echo "중단했다. 아무것도 건드리지 않았다."; exit 1; }
+[ "$confirm" = "replace glossary" ] || { echo "중단했다. 아무것도 건드리지 않았다."; exit 1; }
 
 mkdir -p "$BACKUP_DIR"
 safety="${BACKUP_DIR}/pre-restore-$(date +%Y%m%d-%H%M%S).dump"
 echo "[2/4] 되돌리기용 안전 덤프: ${safety}"
 safety_tmp="/tmp/pre-restore-$(date +%s).dump"
-compose exec -T postgres sh -c "pg_dump -U grossary -Fc grossary > '${safety_tmp}'"
+compose exec -T postgres sh -c "pg_dump -U glossary -Fc glossary > '${safety_tmp}'"
 compose exec -T postgres pg_restore --list "$safety_tmp" >/dev/null
 compose cp "postgres:${safety_tmp}" "$safety"
 compose exec -T postgres rm -f "$safety_tmp" >/dev/null 2>&1 || true
@@ -113,9 +113,9 @@ compose stop app
 app_stopped=1
 
 echo "[4/4] DB 교체"
-compose exec -T postgres psql -U grossary -d postgres \
-  -c "DROP DATABASE IF EXISTS grossary;" -c "CREATE DATABASE grossary;"
-compose exec -T postgres pg_restore -U grossary -d grossary --no-owner "$container_tmp"
+compose exec -T postgres psql -U glossary -d postgres \
+  -c "DROP DATABASE IF EXISTS glossary;" -c "CREATE DATABASE glossary;"
+compose exec -T postgres pg_restore -U glossary -d glossary --no-owner "$container_tmp"
 
 echo "app 컨테이너를 다시 띄운다"
 done_ok=1

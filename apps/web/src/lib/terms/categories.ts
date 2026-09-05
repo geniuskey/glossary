@@ -1,7 +1,7 @@
 import "server-only";
 
 import { and, asc, eq, inArray, notExists, or, sql } from "drizzle-orm";
-import { businessCategories, terms } from "@grossary/db";
+import { businessCategories, terms } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { slugify } from "./slug";
 

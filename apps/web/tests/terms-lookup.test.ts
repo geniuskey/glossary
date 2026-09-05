@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
-import { apiKeys, createDb, terms, termSurfaces } from "@grossary/db";
+import { apiKeys, createDb, terms, termSurfaces } from "@glossary/db";
 import { generateApiKey } from "../src/lib/auth/api-key.js";
 import { SESSION_COOKIE } from "../src/lib/auth/session.js";
 import { createTerm, RESERVED_SLUGS } from "../src/lib/terms/create.js";

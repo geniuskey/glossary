@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ExcelJS from "exceljs";
-import { surfaceKeys } from "@grossary/db";
+import { surfaceKeys } from "@glossary/db";
 import { expect, test } from "vitest";
 import { TERM_STATUSES, TERM_TYPES } from "../src/lib/terms/enums.js";
 import {

@@ -103,5 +103,5 @@ export function buildEmbedPath(
 
 export function buildIframeCode(url: string, border: boolean): string {
   const style = border ? "border:1px solid #e7e3dc;border-radius:8px" : "border:0";
-  return `<iframe src="${url}" title="Grossary 용어 시트" width="100%" height="560" loading="lazy" style="${style}"></iframe>`;
+  return `<iframe src="${url}" title="Glossary 용어 시트" width="100%" height="560" loading="lazy" style="${style}"></iframe>`;
 }

@@ -273,7 +273,7 @@ test("toCsv: 모든 값을 따옴표로 감싸고 값 안의 따옴표는 두 �
   const columns = [columnByKey("nameEn"), columnByKey("definitionMd")];
   const csv = toCsv([row({ nameEn: 'He said "hi"', definitionMd: "a,b" })], columns);
   const lines = csv.split("\r\n");
-  expect(lines[0]).toBe('"대표 영문 표기","정의"');
+  expect(lines[0]).toBe('"대표 영문 표기","한줄 정의"');
   expect(lines[1]).toBe('"He said ""hi""","a,b"');
 });
 
@@ -408,6 +408,15 @@ test("planPaste: 새 행의 잘못된 enum 값은 기본값으로 밀지 않고 
 
   expect(creates).toEqual([{ line: 2, values: { nameEn: "B", status: "active" } }]);
   expect(plan.errors.join(" ")).toContain("1번째 줄");
+});
+
+test("planPaste: 한 줄에 잘못된 값이 여러 개면 발견한 오류를 모두 모은다", () => {
+  const columns = [columnByKey("nameEn"), columnByKey("termType"), columnByKey("status")];
+  const { plan, creates } = planPaste([], columns, { r: 0, c: 0 }, [["A", "unknown-type", "unknown-status"]]);
+  expect(creates).toEqual([]);
+  expect(plan.errors).toHaveLength(2);
+  expect(plan.errors[0]).toContain("Type");
+  expect(plan.errors[1]).toContain("상태");
 });
 
 // 이 표에서 복사한 줄을 그대로 표 끝에 붙여넣는 것(줄 복제)이 가장 흔한

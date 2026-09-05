@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
-import { afterAll, afterEach, expect, test, vi } from "vitest";
-import { createDb, sessions, users } from "@grossary/db";
+import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
+import { createDb, sessions, ssoConfig, users } from "@glossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createSession, hashSessionToken, SESSION_COOKIE } from "../src/lib/auth/session.js";
+import { loadSsoConfig, SSO_CONFIG_ID, type SsoConfig } from "../src/lib/auth/sso/config.js";
 
 // getCurrentUser는 next/headers의 cookies()가 실제 요청 컨텍스트 안에서만 동작한다는
 // 전제로 만들어졌다. vitest는 그 컨텍스트가 없으므로 next/headers를 모킹해서
@@ -22,6 +23,20 @@ const { getCurrentUser } = await import("../src/lib/auth/current-user.js");
 
 const db = createDb(process.env.DATABASE_URL!);
 const createdUserIds: string[] = [];
+let originalConfig: SsoConfig;
+
+async function setMode(mode: "disabled" | "oidc" | "oauth2-proxy") {
+  await db.update(ssoConfig).set({
+    mode,
+    enabled: mode === "oidc",
+    protocol: mode === "oidc" ? "oidc" : undefined,
+  }).where(eq(ssoConfig.id, SSO_CONFIG_ID));
+}
+
+beforeAll(async () => {
+  originalConfig = await loadSsoConfig();
+  await setMode("disabled");
+});
 
 async function makeUser() {
   const [row] = await db
@@ -36,15 +51,19 @@ async function makeUser() {
   return row!;
 }
 
-afterEach(() => {
+afterEach(async () => {
   currentCookieValue = undefined;
   currentHeaders = new Headers();
   delete process.env.AUTH_MODE;
   delete process.env.SSO_TRUST_PROXY_HEADERS;
+  delete process.env.OAUTH2_PROXY_ENABLED;
+  delete process.env.INITIAL_ADMIN_EMAIL;
+  await setMode("disabled");
 });
 
 afterAll(async () => {
   for (const id of createdUserIds) await db.delete(users).where(eq(users.id, id));
+  await db.update(ssoConfig).set(originalConfig).where(eq(ssoConfig.id, SSO_CONFIG_ID));
 });
 
 test("유효한 세션이면 사용자 정보를 반환한다", async () => {
@@ -88,7 +107,8 @@ test("DB에 저장된 해시값을 쿠키에 그대로 넣어도 인증되지 �
 
 test("oauth2-proxy 모드는 이메일 헤더로 기존 계정을 연결하고 첫 그룹을 조직으로 돌려준다", async () => {
   const user = await makeUser();
-  process.env.AUTH_MODE = "oauth2-proxy";
+  await setMode("oauth2-proxy");
+  process.env.OAUTH2_PROXY_ENABLED = "true";
   currentHeaders = new Headers({
     "x-forwarded-email": user.email.toUpperCase(),
     "x-forwarded-preferred-username": encodeURIComponent("김의윤"),
@@ -98,7 +118,7 @@ test("oauth2-proxy 모드는 이메일 헤더로 기존 계정을 연결하고 �
   await expect(getCurrentUser()).resolves.toEqual({
     id: user.id,
     email: user.email,
-    name: "김의윤",
+    name: user.name,
     role: user.role,
     organization: "보안팀",
   });
@@ -112,23 +132,36 @@ test("oauth2-proxy 전용 모드는 헤더가 없으면 유효한 로컬 세션�
   const user = await makeUser();
   const { token } = await createSession(user.id);
   currentCookieValue = token;
-  process.env.AUTH_MODE = "oauth2-proxy";
+  await setMode("oauth2-proxy");
+  process.env.OAUTH2_PROXY_ENABLED = "true";
 
   await expect(getCurrentUser()).resolves.toBeNull();
 });
 
-test("oidc 혼합 모드는 명시적으로 켠 경우에만 프록시 헤더를 신뢰한다", async () => {
+test("환경변수로 지정한 SSO 이메일은 관리자 그룹 없이도 관리자로 승격한다", async () => {
   const user = await makeUser();
+  await setMode("oauth2-proxy");
+  process.env.OAUTH2_PROXY_ENABLED = "true";
+  process.env.INITIAL_ADMIN_EMAIL = user.email.toUpperCase();
+  currentHeaders = new Headers({
+    "x-forwarded-email": user.email,
+    "x-forwarded-preferred-username": encodeURIComponent("최초 관리자"),
+  });
+
+  await expect(getCurrentUser()).resolves.toMatchObject({ id: user.id, role: "admin" });
+  const [saved] = await db.select({ role: users.role }).from(users).where(eq(users.id, user.id));
+  expect(saved?.role).toBe("admin");
+});
+
+test("직접 OIDC 모드에서는 proxy capability가 켜져 있어도 헤더로 인증하지 않는다", async () => {
+  const user = await makeUser();
+  await setMode("oidc");
   const { token } = await createSession(user.id);
   currentCookieValue = token;
   currentHeaders = new Headers({
     "x-forwarded-email": user.email,
     "x-forwarded-preferred-username": encodeURIComponent("프록시 이름"),
   });
-  process.env.AUTH_MODE = "oidc";
-
+  process.env.OAUTH2_PROXY_ENABLED = "true";
   await expect(getCurrentUser()).resolves.toMatchObject({ name: user.name });
-
-  process.env.SSO_TRUST_PROXY_HEADERS = "true";
-  await expect(getCurrentUser()).resolves.toMatchObject({ name: "프록시 이름" });
 });

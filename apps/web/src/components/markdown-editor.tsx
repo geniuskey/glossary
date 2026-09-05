@@ -209,7 +209,15 @@ export function MarkdownEditor({
           EditorView.theme({
             "&": { height: resizable ? "100%" : "auto", minHeight: compact ? "10rem" : "16rem", backgroundColor: "transparent", color: "rgb(var(--ink))" },
             ".cm-scroller": { overflow: "auto" },
-            ".cm-content": { minHeight: resizable ? "100%" : compact ? "10rem" : "16rem", padding: compact ? "0.75rem" : "1rem", caretColor: "rgb(var(--brand))" },
+            ".cm-content": {
+              minHeight: resizable ? "100%" : compact ? "10rem" : "16rem",
+              padding: compact ? "0.75rem" : "1rem",
+              caretColor: "rgb(var(--brand))",
+              fontFamily: '"Noto Sans KR Variable", "Noto Sans KR", Pretendard, sans-serif',
+              fontSize: "14px",
+              lineHeight: "1.75",
+              letterSpacing: "-0.012em",
+            },
             ".cm-gutters": { backgroundColor: "rgb(var(--panel-2))", color: "rgb(var(--ink-3))", border: "none" },
             ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "rgb(var(--brand) / 0.06)" },
             ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { backgroundColor: "rgb(var(--selection) / 0.2)" },
@@ -248,6 +256,7 @@ export function MarkdownEditor({
         ? "fixed inset-0 z-[100] flex h-[100dvh] flex-col overflow-hidden bg-panel"
         : cx(
           "overflow-hidden rounded-xl border border-line bg-panel",
+          "korean-editor-font",
           resizable && "flex h-80 min-h-64 max-h-[75dvh] flex-col resize-y",
         )}
     >

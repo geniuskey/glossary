@@ -96,5 +96,5 @@ M3로 미룬다.
 
 설계 스펙과 구현 계획은 저장소에 그대로 있다.
 
-- [설계 문서](https://github.com/geniuskey/grossary/blob/main/docs/superpowers/specs/2026-08-24-glossary-platform-design.md)
-- [M1 구현 계획](https://github.com/geniuskey/grossary/blob/main/docs/superpowers/plans/2026-08-24-m1-lexicon-core.md)
+- [설계 문서](https://github.com/geniuskey/glossary/blob/main/docs/superpowers/specs/2026-08-24-glossary-platform-design.md)
+- [M1 구현 계획](https://github.com/geniuskey/glossary/blob/main/docs/superpowers/plans/2026-08-24-m1-lexicon-core.md)

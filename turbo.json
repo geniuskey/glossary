@@ -4,6 +4,6 @@
     "build": { "dependsOn": ["^build"], "outputs": ["dist/**", ".next/**", "!.next/cache/**"] },
     "test": { "dependsOn": ["^build"], "env": ["DATABASE_URL_TEST"] },
     "typecheck": { "dependsOn": ["^build"] },
-    "@grossary/db#build": { "dependsOn": ["^build"], "outputs": [] }
+    "@glossary/db#build": { "dependsOn": ["^build"], "outputs": [] }
   }
 }

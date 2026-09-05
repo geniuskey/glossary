@@ -133,7 +133,7 @@ export function TermQualityPanel({
             글자 수 보조 기준
           </summary>
           <div className="grid gap-3 border-t border-line bg-panel-2/30 px-4 py-3 sm:grid-cols-2">
-            <NumberField id="definition-min-chars" name="definitionMinChars" label="정의 최소 글자 수" value={settings.definitionMinChars} disabled={saving} onChange={(value) => update("definitionMinChars", value)} />
+            <NumberField id="definition-min-chars" name="definitionMinChars" label="한줄 정의 최소 글자 수" value={settings.definitionMinChars} disabled={saving} onChange={(value) => update("definitionMinChars", value)} />
             <NumberField id="body-min-chars" name="bodyMinChars" label="본문 최소 글자 수" value={settings.bodyMinChars} disabled={saving} onChange={(value) => update("bodyMinChars", value)} />
             <p className="text-[11px] leading-5 text-ink-3 sm:col-span-2">0자는 내용 존재 여부만 검사합니다. 1자 이상이면 프로필의 구조적 조건에 최소 길이를 추가하며 Full name을 별도로 제한하지 않습니다.</p>
           </div>

@@ -68,7 +68,7 @@ const businessCategoriesSchema = {
 export const openApiSpec = {
   openapi: "3.1.0",
   info: {
-    title: "Grossary 용어집 API",
+    title: "Glossary 용어집 API",
     version: "1.0.0",
     description:
       "센서 제품군 용어집. 사내망 온프레미스 배포이며 평문 HTTP로 동작할 수 있다 " +
@@ -83,7 +83,7 @@ export const openApiSpec = {
   security: [{ sessionCookie: [] }, { apiKey: [] }],
   components: {
     securitySchemes: {
-      sessionCookie: { type: "apiKey", in: "cookie", name: "grossary_session" },
+      sessionCookie: { type: "apiKey", in: "cookie", name: "glossary_session" },
       apiKey: {
         type: "http",
         scheme: "bearer",
@@ -149,6 +149,45 @@ export const openApiSpec = {
     },
   },
   paths: {
+    "/account": {
+      patch: {
+        summary: "현재 사용자의 표시 이름 변경",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["name"],
+          additionalProperties: false,
+          properties: { name: { type: "string", minLength: 1, maxLength: 100 } },
+        } } } },
+        responses: {
+          "200": json("변경된 사용자", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden"),
+          "404": errorResponse("not_found"),
+        },
+      },
+    },
+    "/account/sso-refresh": {
+      post: {
+        summary: "현재 사용자의 SSO 이름·이메일·그룹 다시 가져오기",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("즉시 갱신된 사용자 또는 SSO 재인증 시작 주소", {
+            type: "object",
+            required: ["refreshed"],
+            properties: {
+              refreshed: { type: "boolean" },
+              user: { type: "object" },
+              redirectTo: { type: "string" },
+            },
+          }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden"),
+          "409": errorResponse("operation_conflict"),
+        },
+      },
+    },
     "/openapi": {
       get: {
         summary: "이 스펙 자체를 JSON으로 돌려준다",
@@ -189,7 +228,7 @@ export const openApiSpec = {
           },
         },
         responses: {
-          "200": json("grossary_session 쿠키를 Set-Cookie로 내려준다", { type: "object" }),
+          "200": json("glossary_session 쿠키를 Set-Cookie로 내려준다", { type: "object" }),
           "400": errorResponse("validation_failed"),
           "403": errorResponse("forbidden — 이미 초기 설정이 끝났다"),
         },
@@ -215,7 +254,7 @@ export const openApiSpec = {
           },
         },
         responses: {
-          "200": json("grossary_session 쿠키를 Set-Cookie로 내려준다", { type: "object" }),
+          "200": json("glossary_session 쿠키를 Set-Cookie로 내려준다", { type: "object" }),
           "400": errorResponse("validation_failed"),
           "401": errorResponse("unauthorized — 계정 없음과 비밀번호 불일치를 구분하지 않는다"),
         },
@@ -244,7 +283,7 @@ export const openApiSpec = {
           },
         },
         responses: {
-          "200": json("계정을 만들고 grossary_session 쿠키를 Set-Cookie로 내려준다", { type: "object" }),
+          "200": json("계정을 만들고 glossary_session 쿠키를 Set-Cookie로 내려준다", { type: "object" }),
           "400": errorResponse("validation_failed — 이메일 형식 또는 8자 미만 비밀번호"),
           "403": errorResponse("forbidden — 계정이 하나도 없다. /setup으로 관리자를 먼저 만든다"),
           "409": errorResponse("email_taken — 이미 가입된 이메일(대소문자 무시)"),
@@ -363,6 +402,53 @@ export const openApiSpec = {
           "400": errorResponse("validation_failed"),
           "401": errorResponse("unauthorized"),
           "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+    },
+    "/admin/term-definitions": {
+      get: {
+        summary: "본문은 있고 한줄 정의가 없는 용어의 LLM 검토 대기열 조회",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("{ items, total }", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+      post: {
+        summary: "용어 본문을 근거로 한줄 정의 제안 생성 (저장하지 않음)",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["termId"],
+          additionalProperties: false,
+          properties: { termId: { type: "string", format: "uuid" } },
+        } } } },
+        responses: {
+          "200": json("{ suggestion }", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "409": errorResponse("ai_not_enabled 또는 operation_conflict"),
+          "422": errorResponse("본문 근거 부족"),
+          "502": errorResponse("ai_provider_error"),
+        },
+      },
+      patch: {
+        summary: "관리자가 검토한 한줄 정의 한 건 승인",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["termId", "definitionMd", "expectedRevision"],
+          additionalProperties: false,
+          properties: {
+            termId: { type: "string", format: "uuid" },
+            definitionMd: { type: "string", minLength: 1, maxLength: 1000 },
+            expectedRevision: { type: "integer", minimum: 1 },
+          },
+        } } } },
+        responses: {
+          "200": json("승인 결과", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "409": errorResponse("revision_conflict 또는 operation_conflict"),
         },
       },
     },
@@ -632,7 +718,9 @@ export const openApiSpec = {
               schema: {
                 type: "object",
                 properties: {
+                  mode: { type: "string", enum: ["disabled", "oidc", "oauth2", "oauth2-proxy"] },
                   enabled: { type: "boolean" },
+                  passwordLoginEnabled: { type: "boolean" },
                   protocol: { type: "string", enum: ["oidc", "oauth2"] },
                   buttonLabel: { type: "string" },
                   issuer: { type: "string" },
@@ -921,6 +1009,27 @@ export const openApiSpec = {
           "400": errorResponse("validation_failed — multipart가 아니거나, file이 없거나, 행 수 상한 초과"),
           "401": errorResponse("unauthorized"),
           "413": errorResponse("payload_too_large — 10MB 초과"),
+        },
+      },
+    },
+    "/terms/paste-check": {
+      post: {
+        summary: "시트 붙여넣기 전체 사전 검사",
+        description: "기존 행 수정과 새 행 생성을 실제 저장하기 전에 검증하고 발견한 오류를 모두 반환합니다.",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["updates", "creates"],
+          additionalProperties: false,
+          properties: {
+            updates: { type: "array", maxItems: 200, items: { type: "object" } },
+            creates: { type: "array", maxItems: 200, items: { type: "object" } },
+          },
+        } } } },
+        responses: {
+          "200": json("{ ok, errors[] }", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
         },
       },
     },

@@ -1,4 +1,4 @@
-// R114: 이 파일은 Client Component(term-form.tsx)에서 import된다. @grossary/db를
+// R114: 이 파일은 Client Component(term-form.tsx)에서 import된다. @glossary/db를
 // 거기서 직접 import하면 drizzle-orm과 postgres.js가 클라이언트 번들에 딸려온다
 // (서버 전용 패키지가 브라우저로 새는 것 — 빌드는 되지만 번들 크기와 잠재적
 // 비밀 노출 양쪽으로 나쁘다). 그래서 DB pgEnum과 별개로 리터럴 배열을 여기 둔다.

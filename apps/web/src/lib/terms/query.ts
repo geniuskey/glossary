@@ -9,7 +9,7 @@ import {
   termStatusEnum,
   termTypeEnum,
   users,
-} from "@grossary/db";
+} from "@glossary/db";
 import { isUuid } from "@/lib/api-error";
 import { getDb } from "@/lib/db";
 import { getTermQualitySettings } from "@/lib/workspace/term-quality";

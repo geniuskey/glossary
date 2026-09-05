@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
-import { aiConfig, createDb, users } from "@grossary/db";
+import { aiConfig, createDb, users } from "@glossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
 
@@ -35,7 +35,7 @@ afterAll(async () => {
 });
 
 function request(body: unknown) {
-  return new Request("https://grossary.example.com/api/v1/chat", {
+  return new Request("https://glossary.example.com/api/v1/chat", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),

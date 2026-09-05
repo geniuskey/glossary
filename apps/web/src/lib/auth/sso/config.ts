@@ -1,10 +1,15 @@
 import { eq, type InferSelectModel } from "drizzle-orm";
-import { ssoConfig } from "@grossary/db";
+import { ssoConfig } from "@glossary/db";
 import { getDb } from "@/lib/db";
+import { initialPasswordLoginEnabled } from "@/lib/auth/policy";
+import { oauth2ProxyDefaultSelected, oauth2ProxyEnabled } from "./proxy-headers";
 
 export type SsoConfig = InferSelectModel<typeof ssoConfig>;
 export const SSO_PROTOCOLS = ["oidc", "oauth2"] as const;
 export type SsoProtocol = (typeof SSO_PROTOCOLS)[number];
+export const SSO_MODES = ["disabled", "oidc", "oauth2", "oauth2-proxy"] as const;
+export type SsoMode = (typeof SSO_MODES)[number];
+type Env = Readonly<Record<string, string | undefined>>;
 
 /** 행은 언제나 이 하나다(sso_config_single_row 체크 제약이 이 값을 강제한다). */
 export const SSO_CONFIG_ID = "default";
@@ -25,7 +30,42 @@ export async function loadSsoConfig(): Promise<SsoConfig> {
   return created;
 }
 
-export type PublicSsoConfig = Omit<SsoConfig, "clientSecret"> & { hasClientSecret: boolean };
+export type PublicSsoConfig = Omit<SsoConfig, "clientSecret" | "mode" | "passwordLoginEnabled"> & {
+  mode: SsoMode;
+  passwordLoginEnabled: boolean;
+  hasClientSecret: boolean;
+};
+
+/** null mode는 마이그레이션 전 설정이다. 기존 AUTH_MODE proxy 배포를 먼저 보존한다. */
+export function resolveSsoMode(cfg: Pick<SsoConfig, "mode" | "enabled" | "protocol">, env: Env = process.env): SsoMode {
+  if (cfg.mode) return cfg.mode;
+  if (oauth2ProxyDefaultSelected(env)) return "oauth2-proxy";
+  return cfg.enabled ? cfg.protocol : "disabled";
+}
+
+/** 빈 설치에서만 capability를 proxy 최초 관리자 부트스트랩의 초기 모드로 사용한다. */
+export function resolveLoginSsoMode(
+  cfg: Pick<SsoConfig, "mode" | "enabled" | "protocol">,
+  setupNeeded: boolean,
+  env: Env = process.env,
+): SsoMode {
+  const configured = resolveSsoMode(cfg, env);
+  return cfg.mode === null && setupNeeded && configured === "disabled" && oauth2ProxyEnabled(env)
+    ? "oauth2-proxy"
+    : configured;
+}
+
+/** null은 기존 환경변수를 아직 화면 설정으로 가져오지 않은 호환 상태다. */
+export function resolvePasswordLoginEnabled(
+  cfg: Pick<SsoConfig, "passwordLoginEnabled">,
+  env: Env = process.env,
+): boolean {
+  return cfg.passwordLoginEnabled ?? initialPasswordLoginEnabled(env);
+}
+
+export async function loadPasswordLoginEnabled(): Promise<boolean> {
+  return resolvePasswordLoginEnabled(await loadSsoConfig());
+}
 
 /**
  * 화면·API로 나가는 형태. client_secret은 저장한 뒤로는 다시 내보내지 않는다 —
@@ -34,14 +74,19 @@ export type PublicSsoConfig = Omit<SsoConfig, "clientSecret"> & { hasClientSecre
  */
 export function publicSsoConfig(cfg: SsoConfig): PublicSsoConfig {
   const { clientSecret, ...rest } = cfg;
-  return { ...rest, hasClientSecret: clientSecret.length > 0 };
+  return {
+    ...rest,
+    mode: resolveSsoMode(cfg),
+    passwordLoginEnabled: resolvePasswordLoginEnabled(cfg),
+    hasClientSecret: clientSecret.length > 0,
+  };
 }
 
 // clientSecret만 따로 뽑아 null을 허용한다. 교집합(`& { clientSecret?: string | null }`)
 // 으로 붙이면 Partial 쪽의 `string | undefined`와 만나 null이 도로 사라진다.
 export type SsoConfigPatch = Partial<
-  Omit<SsoConfig, "id" | "updatedAt" | "updatedBy" | "lastClaimKeys" | "lastLoginAt" | "clientSecret">
-> & { clientSecret?: string | null };
+  Omit<SsoConfig, "id" | "updatedAt" | "updatedBy" | "lastClaimKeys" | "lastLoginAt" | "clientSecret" | "mode">
+> & { clientSecret?: string | null; mode?: SsoMode };
 
 /**
  * R132: 켜기 전에 갖춰야 하는 것들. 비어 있는 채로 enabled만 켜면 로그인 화면에
@@ -49,14 +94,24 @@ export type SsoConfigPatch = Partial<
  * 사용자에게 먼저 보인다. 그래서 저장 시점에 막는다.
  */
 export function validateSsoConfig(cfg: SsoConfig): string[] {
-  if (!cfg.enabled) return [];
+  const mode = resolveSsoMode(cfg);
+  if (mode === "disabled") {
+    return resolvePasswordLoginEnabled(cfg)
+      ? []
+      : ["SSO를 사용하지 않으려면 ID/비밀번호 로그인을 먼저 허용해야 합니다."];
+  }
+  if (mode === "oauth2-proxy") {
+    return oauth2ProxyEnabled()
+      ? []
+      : ["oauth2-proxy를 사용하려면 OAUTH2_PROXY_ENABLED=true로 설정하고 앱을 다시 시작해야 합니다."];
+  }
 
   const problems: string[] = [];
-  if (cfg.protocol === "oidc" && !cfg.issuer) problems.push("OIDC Issuer가 비어 있습니다.");
-  if (cfg.protocol === "oidc" && !cfg.jwksUri) problems.push("OIDC JWKS URI가 비어 있습니다. Issuer에서 설정을 불러오세요.");
+  if (mode === "oidc" && !cfg.issuer) problems.push("OIDC Issuer가 비어 있습니다.");
+  if (mode === "oidc" && !cfg.jwksUri) problems.push("OIDC JWKS URI가 비어 있습니다. Issuer에서 설정을 불러오세요.");
   if (!cfg.authorizationEndpoint) problems.push("인가 엔드포인트가 비어 있습니다.");
   if (!cfg.tokenEndpoint) problems.push("토큰 엔드포인트가 비어 있습니다.");
-  if (cfg.protocol === "oauth2" && !cfg.userinfoEndpoint) problems.push("OAuth 2.0 사용자 정보 엔드포인트가 비어 있습니다.");
+  if (mode === "oauth2" && !cfg.userinfoEndpoint) problems.push("OAuth 2.0 사용자 정보 엔드포인트가 비어 있습니다.");
   if (!cfg.clientId) problems.push("클라이언트 ID가 비어 있습니다.");
   if (!cfg.clientSecret) problems.push("클라이언트 시크릿이 비어 있습니다.");
   if (cfg.subjectClaims.length === 0) problems.push("주체(sub) claim 후보가 비어 있습니다.");
@@ -78,10 +133,20 @@ export type SaveResult = { ok: true; config: SsoConfig } | { ok: false; problems
  */
 export async function saveSsoConfig(patch: SsoConfigPatch, updatedBy: string | null): Promise<SaveResult> {
   const current = await loadSsoConfig();
-  const { clientSecret, ...rest } = patch;
+  const { clientSecret, mode: requestedMode, ...rest } = patch;
+  const compatibilityMode = requestedMode ?? (
+    patch.enabled !== undefined || patch.protocol !== undefined
+      ? ((patch.enabled ?? current.enabled) ? (patch.protocol ?? current.protocol) : "disabled")
+      : resolveSsoMode(current)
+  );
   const next: SsoConfig = {
     ...current,
     ...rest,
+    mode: compatibilityMode,
+    enabled: compatibilityMode === "oidc" || compatibilityMode === "oauth2",
+    protocol: compatibilityMode === "oidc" || compatibilityMode === "oauth2"
+      ? compatibilityMode
+      : (patch.protocol ?? current.protocol),
     clientSecret: clientSecret === null ? "" : clientSecret || current.clientSecret,
   };
 

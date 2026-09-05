@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { AccountMenu } from "@/components/account-menu";
 import { InfoFooter } from "@/components/info-links";
@@ -8,6 +9,9 @@ import { SearchBox } from "@/components/search-box";
 import { DomainBadges, StatusBadge } from "@/components/term-badges";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth/current-user";
 import { needsSetup } from "@/lib/auth/setup";
+import { initialAdminEmail, isInitialAdminEmail, ssoLoginUrl } from "@/lib/auth/policy";
+import { loadSsoConfig, resolveLoginSsoMode, resolvePasswordLoginEnabled } from "@/lib/auth/sso/config";
+import { inspectProxyHeaders } from "@/lib/auth/sso/proxy-headers";
 import { SURFACE_KIND_LABEL, TERM_TYPE_LABEL } from "@/lib/terms/enums";
 import { termFacets, type TermFacets } from "@/lib/terms/query";
 import { searchTerms, type SearchHit } from "@/lib/terms/search";
@@ -27,9 +31,28 @@ const HOME_NAV_VISIBILITY: Partial<Record<NavKey, string>> = {
 };
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
-  if (await needsSetup()) redirect("/setup");
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) {
+    const setupNeeded = await needsSetup();
+    const sso = await loadSsoConfig();
+    const passwordEnabled = resolvePasswordLoginEnabled(sso);
+    const ssoMode = resolveLoginSsoMode(sso, setupNeeded);
+    const ssoHref = ssoLoginUrl(ssoMode);
+    if (setupNeeded) {
+      if (initialAdminEmail() && ssoHref && !passwordEnabled) {
+        const proxyIdentity = ssoMode === "oauth2-proxy"
+          ? inspectProxyHeaders(await headers()).identity
+          : null;
+        if (proxyIdentity) redirect(isInitialAdminEmail(proxyIdentity.email)
+          ? "/login?config=sso-access-denied"
+          : "/login?config=initial-admin-required");
+        redirect(ssoHref);
+      }
+      redirect("/setup");
+    }
+    if (!passwordEnabled && ssoHref) redirect(ssoHref);
+    redirect("/login");
+  }
 
   const raw = await searchParams;
   const rawQ = Array.isArray(raw.q) ? raw.q[0] : raw.q;
@@ -74,10 +97,10 @@ function HomeHeader({ user }: { user: CurrentUser }) {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-panel/90 backdrop-blur">
       <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-2 px-4 sm:px-6">
-        <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="Grossary 홈" aria-current="page">
+        <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="Glossary 홈" aria-current="page">
           <BrandMark />
           <span className="flex flex-col leading-none">
-            <span className="text-[15px] font-semibold tracking-tight text-ink">Grossary</span>
+            <span className="text-[15px] font-semibold tracking-tight text-ink">Glossary</span>
             <span className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-ink-3">용어집</span>
           </span>
         </Link>
@@ -152,7 +175,7 @@ function HomeLanding({ facets, homeContent }: { facets: TermFacets; homeContent:
         </div>
         <div className="mt-8 grid gap-3 md:grid-cols-3">
           <JourneyCard number="01" title="먼저 찾아보고" body="약어, 별칭, 금지 표기까지 한 번에 검색해요." icon={<IconSearch />} />
-          <JourneyCard number="02" title="맥락을 보태고" body="이름과 정의, 실제로 쓰는 표현을 편하게 적어요." icon={<IconPen />} />
+          <JourneyCard number="02" title="맥락을 보태고" body="이름과 한줄 정의, 실제로 쓰는 표현을 편하게 적어요." icon={<IconPen />} />
           <JourneyCard number="03" title="함께 다듬어요" body="수정 이력이 남으니 부담 없이 더 좋은 표현을 제안해요." icon={<IconPeople />} />
         </div>
       </section>

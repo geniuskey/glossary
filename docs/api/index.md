@@ -21,6 +21,8 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | POST | [`/setup`](/api/auth#최초-설정) | — | 최초 관리자 계정 생성 (사용자 0명일 때만) |
 | POST | [`/auth/register`](/api/auth#계정-만들기) | — | 계정 만들기 (누구나, 역할은 editor 고정) |
 | POST | [`/auth/login`](/api/auth#로그인) | — | 세션 쿠키 발급 |
+| PATCH | [`/account`](/api/auth#내-표시-이름-변경) | 세션 | 내 표시 이름 변경 |
+| POST | [`/account/sso-refresh`](/api/auth#sso-정보-다시-가져오기) | 세션 | 내 SSO 이름·이메일·그룹 다시 가져오기 |
 | POST | [`/auth/logout`](/api/auth#로그아웃) | 세션 | 세션 폐기 |
 | GET | [`/keys`](/api/auth#키-목록) | 세션 | API 키 목록 |
 | POST | [`/keys`](/api/auth#키-발급) | 세션 | API 키 발급 |
@@ -60,7 +62,7 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 
 | 주체 | 방식 |
 |---|---|
-| 사람(웹 UI) | `grossary_session` 쿠키 또는 신뢰하도록 구성한 oauth2-proxy 헤더 |
+| 사람(웹 UI) | `glossary_session` 쿠키 또는 신뢰하도록 구성한 oauth2-proxy 헤더 |
 | 도구(AI-Lint, CI) | `Authorization: Bearer glk_<prefix>_<secret>` |
 
 `Authorization` 헤더가 있으면 API 키 경로를, 없으면 세션 경로를 탄다.

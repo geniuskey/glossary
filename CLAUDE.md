@@ -7,16 +7,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 pnpm install                          # corepack enable 선행
 docker compose up -d                  # Postgres 16 + pg_trgm, 호스트 5434
-pnpm --filter @grossary/db db:migrate
-pnpm --filter @grossary/web dev       # http://localhost:3000
+pnpm --filter @glossary/db db:migrate
+pnpm --filter @glossary/web dev       # http://localhost:3000
 
 pnpm build | pnpm test | pnpm typecheck     # 전체 (Turborepo)
-pnpm --filter @grossary/web test            # 워크스페이스 하나만
-pnpm --filter @grossary/web exec vitest run tests/terms-grid.test.ts   # 파일 하나
-pnpm --filter @grossary/web exec vitest run -t "위로 연다"             # 테스트 하나
+pnpm --filter @glossary/web test            # 워크스페이스 하나만
+pnpm --filter @glossary/web exec vitest run tests/terms-grid.test.ts   # 파일 하나
+pnpm --filter @glossary/web exec vitest run -t "위로 연다"             # 테스트 하나
 
-pnpm --filter @grossary/db db:generate      # 스키마 변경 후 마이그레이션 생성
-pnpm --filter @grossary/web exec tsx scripts/seed-terms.ts all   # 예시 용어집 93개
+pnpm --filter @glossary/db db:generate      # 스키마 변경 후 마이그레이션 생성
+pnpm --filter @glossary/web exec tsx scripts/seed-terms.ts all   # 예시 용어집 93개
 pnpm docs:dev                               # VitePress 문서
 ```
 
@@ -24,8 +24,8 @@ pnpm docs:dev                               # VitePress 문서
 `tests/setup.ts`가 시작 자체를 거부한다 — 테스트는 개발 DB에 붙지 않는다.
 
 ```bash
-DATABASE_URL_TEST='postgres://grossary:grossary@localhost:5434/grossary_test' \
-  pnpm --filter @grossary/web test
+DATABASE_URL_TEST='postgres://glossary:glossary@localhost:5434/glossary_test' \
+  pnpm --filter @glossary/web test
 ```
 
 `.env`는 루트 하나뿐이다. `apps/web`은 `next.config.ts`가, 스크립트는 각자

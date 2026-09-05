@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
-import { createDb, ssoConfig } from "@grossary/db";
+import { createDb, ssoConfig } from "@glossary/db";
 import {
   discoverSso,
   discoveryUrl,
@@ -10,6 +10,9 @@ import {
   saveSsoConfig,
   SSO_CONFIG_ID,
   validateSsoConfig,
+  resolveSsoMode,
+  resolveLoginSsoMode,
+  resolvePasswordLoginEnabled,
   type SsoConfig,
 } from "../src/lib/auth/sso/config.js";
 
@@ -29,27 +32,29 @@ afterAll(async () => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 const READY = {
+  mode: "oidc" as const,
   enabled: true,
   protocol: "oidc" as const,
   issuer: "https://idp.example.com",
   jwksUri: "https://idp.example.com/jwks",
   authorizationEndpoint: "https://idp.example.com/authorize",
   tokenEndpoint: "https://idp.example.com/token",
-  clientId: "grossary",
+  clientId: "glossary",
   clientSecret: "s3cr3t",
 };
 
 test("꺼져 있으면 아무것도 요구하지 않는다", () => {
-  expect(validateSsoConfig({ ...original, enabled: false })).toEqual([]);
+  expect(validateSsoConfig({ ...original, mode: "disabled", enabled: false })).toEqual([]);
 });
 
 // 빈 설정으로 enabled만 켜면 로그인 화면에 버튼이 생기고, 누른 사람은 IdP 대신
 // 에러로 튕긴다 — 그 실패는 운영자가 아니라 사용자에게 먼저 보인다.
 test("켤 때 빠진 값은 이름을 붙여 돌려준다", () => {
-  const problems = validateSsoConfig({ ...original, enabled: true });
+  const problems = validateSsoConfig({ ...original, mode: "oidc", enabled: true });
 
   expect(problems.length).toBeGreaterThan(0);
   expect(problems.join(" ")).toContain("클라이언트 ID");
@@ -68,7 +73,49 @@ test("바깥으로 나가는 설정에는 시크릿이 없고 있는지 여부�
 
   expect(view).not.toHaveProperty("clientSecret");
   expect(view.hasClientSecret).toBe(true);
+  expect(typeof view.passwordLoginEnabled).toBe("boolean");
   expect(publicSsoConfig({ ...original, clientSecret: "" }).hasClientSecret).toBe(false);
+});
+
+test("DB에 로그인 정책이 없을 때만 기존 PASSWORD_LOGIN_ENABLED를 초기값으로 쓴다", () => {
+  expect(resolvePasswordLoginEnabled({ passwordLoginEnabled: null }, { PASSWORD_LOGIN_ENABLED: "false" })).toBe(false);
+  expect(resolvePasswordLoginEnabled({ passwordLoginEnabled: null }, {})).toBe(true);
+  expect(resolvePasswordLoginEnabled({ passwordLoginEnabled: true }, { PASSWORD_LOGIN_ENABLED: "false" })).toBe(true);
+  expect(resolvePasswordLoginEnabled({ passwordLoginEnabled: false }, { PASSWORD_LOGIN_ENABLED: "true" })).toBe(false);
+});
+
+test("명시 모드가 없을 때는 기존 DB 값이나 예전 proxy 모드만 추론한다", () => {
+  expect(resolveSsoMode({ mode: null, enabled: true, protocol: "oidc" }, {})).toBe("oidc");
+  expect(resolveSsoMode({ mode: null, enabled: false, protocol: "oauth2" }, {})).toBe("disabled");
+  expect(resolveSsoMode(
+    { mode: null, enabled: true, protocol: "oidc" },
+    { OAUTH2_PROXY_ENABLED: "true" },
+  )).toBe("oidc");
+  expect(resolveSsoMode(
+    { mode: null, enabled: true, protocol: "oidc" },
+    { AUTH_MODE: "oauth2-proxy" },
+  )).toBe("oauth2-proxy");
+  expect(resolveSsoMode(
+    { mode: "disabled", enabled: true, protocol: "oidc" },
+    { OAUTH2_PROXY_ENABLED: "true" },
+  )).toBe("disabled");
+});
+
+test("새 proxy capability는 빈 설치의 최초 관리자 로그인에서만 초기 모드가 된다", () => {
+  const empty = { mode: null, enabled: false, protocol: "oidc" as const };
+  expect(resolveLoginSsoMode(empty, true, { OAUTH2_PROXY_ENABLED: "true" })).toBe("oauth2-proxy");
+  expect(resolveLoginSsoMode(empty, false, { OAUTH2_PROXY_ENABLED: "true" })).toBe("disabled");
+});
+
+test("oauth2-proxy 모드는 배포 capability가 없으면 저장 검증을 통과하지 않는다", () => {
+  vi.stubEnv("AUTH_MODE", "local");
+  vi.stubEnv("SSO_TRUST_PROXY_HEADERS", "false");
+  vi.stubEnv("OAUTH2_PROXY_ENABLED", "false");
+  expect(validateSsoConfig({ ...original, mode: "oauth2-proxy", enabled: false }).join(" ")).toContain(
+    "OAUTH2_PROXY_ENABLED=true",
+  );
+  vi.stubEnv("OAUTH2_PROXY_ENABLED", "true");
+  expect(validateSsoConfig({ ...original, mode: "oauth2-proxy", enabled: false })).toEqual([]);
 });
 
 test("설정을 저장하면 그대로 읽힌다", async () => {
@@ -144,7 +191,7 @@ test("발견 요청이 실패하면 null이다", async () => {
 });
 
 test("OAuth 2.0은 userinfo가 필수지만 Issuer와 JWKS는 요구하지 않는다", () => {
-  const oauth = { ...original, ...READY, protocol: "oauth2" as const, issuer: "", jwksUri: "", userinfoEndpoint: "" };
+  const oauth = { ...original, ...READY, mode: "oauth2" as const, protocol: "oauth2" as const, issuer: "", jwksUri: "", userinfoEndpoint: "" };
   expect(validateSsoConfig(oauth).join(" ")).toContain("사용자 정보");
   expect(validateSsoConfig({ ...oauth, userinfoEndpoint: "https://idp.example.com/me" })).toEqual([]);
 });

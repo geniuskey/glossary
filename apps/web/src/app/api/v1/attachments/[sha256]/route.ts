@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { attachments } from "@grossary/db";
+import { attachments } from "@glossary/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAuth } from "@/lib/auth/require";
 import { getDb } from "@/lib/db";

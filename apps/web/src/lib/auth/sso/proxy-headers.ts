@@ -1,4 +1,5 @@
 import type { SsoIdentity } from "./claims";
+import { repairMojibake } from "./encoding";
 
 export const AUTH_MODES = ["local", "oidc", "oauth2", "oauth2-proxy"] as const;
 export type AuthMode = (typeof AUTH_MODES)[number];
@@ -41,15 +42,29 @@ function enabled(value: string | undefined): boolean {
   return /^(1|true|yes|on)$/i.test(value?.trim() ?? "");
 }
 
+/**
+ * 이 배포가 oauth2-proxy가 검증한 헤더를 안전하게 받을 수 있다는 capability다.
+ * 예전 AUTH_MODE/SSO_TRUST_PROXY_HEADERS도 업데이트 중 인증이 끊기지 않게 받는다.
+ */
+export function oauth2ProxyEnabled(env: Env = process.env): boolean {
+  const legacyMode = authMode(env);
+  return enabled(env.OAUTH2_PROXY_ENABLED)
+    || legacyMode === "oauth2-proxy"
+    || ((legacyMode === "oidc" || legacyMode === "oauth2") && enabled(env.SSO_TRUST_PROXY_HEADERS));
+}
+
+/** 명시 모드가 아직 없는 기존 proxy 설치를 무중단으로 이어갈 조건이다. */
+export function oauth2ProxyDefaultSelected(env: Env = process.env): boolean {
+  return authMode(env) === "oauth2-proxy";
+}
+
 export function trustProxyHeaders(env: Env = process.env): boolean {
-  const mode = authMode(env);
-  if (mode === "oauth2-proxy") return true;
-  return (mode === "oidc" || mode === "oauth2") && enabled(env.SSO_TRUST_PROXY_HEADERS);
+  return oauth2ProxyEnabled(env);
 }
 
 /**
- * OAUTH2_PROXY_*_HEADER는 기존 배포 이름이고 SSO_PROXY_*_HEADER는 Grossary 쪽
- * 명시 이름이다. 둘 다 있으면 Grossary 이름을 우선한다.
+ * OAUTH2_PROXY_*_HEADER는 기존 배포 이름이고 SSO_PROXY_*_HEADER는 Glossary 쪽
+ * 명시 이름이다. 둘 다 있으면 Glossary 이름을 우선한다.
  */
 export function proxyHeaderNames(env: Env = process.env): ProxyHeaderNames {
   return {
@@ -89,11 +104,7 @@ export function decodeProxyHeader(raw: string | null): string | null {
     }
   }
 
-  if ([...value].every((character) => character.codePointAt(0)! <= 0xff)) {
-    const restored = Buffer.from(value, "latin1").toString("utf8");
-    if (!restored.includes("\uFFFD") && /[^\x00-\x7f]/.test(restored)) value = restored;
-  }
-  return value.trim() || null;
+  return repairMojibake(value) || null;
 }
 
 function groupsFrom(raw: string | null): string[] {
@@ -113,12 +124,13 @@ function groupsFrom(raw: string | null): string[] {
 export function inspectProxyHeaders(
   headers: Headers,
   env: Env = process.env,
+  trustedOverride?: boolean,
 ): ProxyHeaderInspection {
   const names = proxyHeaderNames(env);
   const entries = [names.preferredUsername, names.email, names.groups];
   const presentHeaders = entries.filter((name) => Boolean(headers.get(name)));
   const missingHeaders = entries.filter((name) => !headers.get(name));
-  const trusted = trustProxyHeaders(env);
+  const trusted = trustedOverride ?? trustProxyHeaders(env);
   const email = decodeProxyHeader(headers.get(names.email))?.toLowerCase() ?? null;
   const preferredUsername = decodeProxyHeader(headers.get(names.preferredUsername));
   const groups = groupsFrom(headers.get(names.groups));

@@ -12,7 +12,7 @@ import {
 import { HelpTip } from "@/components/help-tip";
 import type { GraphTerm } from "@/lib/terms/query";
 import { businessCategoryLabel } from "@/lib/terms/enums";
-import { DOMAIN_COLOR_PALETTE, domainColor } from "@/lib/terms/domain-colors";
+import { DOMAIN_COLOR_PALETTE, domainColor, domainColorStyle } from "@/lib/terms/domain-colors";
 import { displayName } from "@/lib/ui/format";
 
 const WIDTH = 1000;
@@ -165,6 +165,30 @@ export function buildTermColorHues(
   ]));
 }
 
+function buildTermColorStyles(
+  terms: readonly GraphTerm[],
+  domainColors: readonly { label: string; color: string }[],
+): ReadonlyMap<string, CSSProperties> {
+  const visibleTerms = terms.slice(0, TERM_LIMIT);
+  const configured = new Map(domainColors.map((domain) => [domain.label, domainColorStyle(domain.color)]));
+  const fallbackKeys = [...new Set(
+    visibleTerms.filter((term) => termCategoryKeys(term).length === 0).map(fallbackColorKey),
+  )].sort();
+  const fallback = new Map(fallbackKeys.map((key, index) => [
+    key,
+    domainColorStyle(DOMAIN_COLOR_PALETTE[index % DOMAIN_COLOR_PALETTE.length]!.key),
+  ]));
+  return new Map(visibleTerms.map((term) => {
+    const category = termCategoryKeys(term)[0];
+    return [
+      term.id,
+      category
+        ? graphColorStyle(categoryHue(category))
+        : configured.get(term.domain[0] ?? "") ?? fallback.get(fallbackColorKey(term)) ?? domainColorStyle(null),
+    ];
+  }));
+}
+
 export function buildGraphModel(terms: readonly GraphTerm[]): GraphModel {
   const hubDefs = new Map<string, { label: string; kind: HubKind }>();
   for (const term of terms.slice(0, TERM_LIMIT)) {
@@ -314,6 +338,11 @@ export function TermGraph({
 }) {
   const model = useMemo(() => buildGraphModel(terms), [terms]);
   const termColorHues = useMemo(() => buildTermColorHues(terms, domainColors), [domainColors, terms]);
+  const termColorStyles = useMemo(() => buildTermColorStyles(terms, domainColors), [domainColors, terms]);
+  const configuredDomainStyles = useMemo(
+    () => new Map(domainColors.map((domain) => [domain.label, domainColorStyle(domain.color)])),
+    [domainColors],
+  );
   const domainHues = useMemo(() => {
     const configured = new Map(domainColors.map((domain) => [domain.label, domainColor(domain.color).hue]));
     const labels = [...new Set(terms.slice(0, TERM_LIMIT).flatMap((term) => term.domain))].sort();
@@ -572,7 +601,11 @@ export function TermGraph({
                 aria-label={`${kindLabel(node.kind)} ${node.label}, 연결 ${neighbors.get(node.key)?.size ?? 0}개`}
                 aria-pressed={selectedHere}
                 className="group/hub cursor-grab outline-none active:cursor-grabbing"
-                style={category ? graphColorStyle(categoryHue(category)) : domainHue !== undefined ? graphColorStyle(domainHue) : undefined}
+                style={category
+                  ? graphColorStyle(categoryHue(category))
+                  : domain
+                    ? configuredDomainStyles.get(domain) ?? (domainHue !== undefined ? graphColorStyle(domainHue) : undefined)
+                    : undefined}
                 opacity={related ? 1 : 0.18}
                 onPointerDown={(event) => startNodeDrag(event, node.key)}
                 onFocus={() => setSelected(node.key)}
@@ -613,7 +646,7 @@ export function TermGraph({
             const label = node.label.slice(0, 18);
             const width = termNodeWidth(node.label);
             const selectedHere = selected === node.key;
-            const termHue = termColorHues.get(term.id) ?? DEFAULT_HUE;
+            const termStyle = termColorStyles.get(term.id) ?? graphColorStyle(DEFAULT_HUE);
             return (
               <a
                 key={node.key}
@@ -634,7 +667,7 @@ export function TermGraph({
                   transform={`translate(${stableCoordinate(node.x)} ${stableCoordinate(node.y)})`}
                   opacity={related ? 1 : 0.14}
                   className="cursor-grab active:cursor-grabbing"
-                  style={graphColorStyle(termHue)}
+                  style={termStyle}
                 >
                   <rect
                     x={-width / 2}

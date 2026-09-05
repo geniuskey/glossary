@@ -41,7 +41,7 @@ export function logSsoFailure(
   context: Record<string, unknown>,
   error?: unknown,
 ): void {
-  console.error("[Grossary SSO]", JSON.stringify({
+  console.error("[Glossary SSO]", JSON.stringify({
     time: new Date().toISOString(),
     stage,
     ...sanitizeSsoValue(context) as Record<string, unknown>,

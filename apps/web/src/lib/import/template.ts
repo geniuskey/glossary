@@ -16,7 +16,7 @@ const MUTED = "FF6B7280";
  */
 export async function buildImportTemplate(): Promise<ArrayBuffer> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Grossary";
+  wb.creator = "Glossary";
   wb.created = new Date();
 
   addDataSheet(wb);

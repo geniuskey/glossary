@@ -12,14 +12,14 @@ test("OpenAI-compatible API는 chat/completions와 custom header를 사용한다
     baseUrl: "http://127.0.0.1:11434/v1",
     model: "local-model",
     apiKey: "key-value",
-    customHeaders: [{ name: "X-Organization", value: "grossary" }],
+    customHeaders: [{ name: "X-Organization", value: "glossary" }],
   }, [{ role: "user", content: "IT란?" }])).resolves.toBe("용어집 답변");
 
   const [url, init] = fetchMock.mock.calls[0]!;
   expect(url).toBe("http://127.0.0.1:11434/v1/chat/completions");
   const headers = new Headers(init?.headers);
   expect(headers.get("authorization")).toBe("Bearer key-value");
-  expect(headers.get("x-organization")).toBe("grossary");
+  expect(headers.get("x-organization")).toBe("glossary");
   expect(JSON.parse(String(init?.body))).toMatchObject({ model: "local-model", stream: false });
 });
 

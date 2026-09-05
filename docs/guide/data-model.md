@@ -76,8 +76,8 @@
 `AE` 표기에는 `kind=abbreviation`을 지정한다. 약어를 Type으로도 중복 분류하지 않는다.
 
 ::: tip 정규화 컬럼은 손으로 채우지 않는다
-`norm_loose`/`norm_space`는 `@grossary/db`의 `surfaceKeys()`가 채운다. 그 함수는
-`@grossary/engine`의 `normalizeSurface()`를 그대로 호출한다.
+`norm_loose`/`norm_space`는 `@glossary/db`의 `surfaceKeys()`가 채운다. 그 함수는
+`@glossary/engine`의 `normalizeSurface()`를 그대로 호출한다.
 [아키텍처 § 정규화 함수의 단일 소유](/guide/architecture#반드시-지켜야-할-제약-정규화-함수의-단일-소유)를 본다.
 :::
 
@@ -126,7 +126,8 @@ alias가 먼저 나오면 린터가 금지 표기를 놓친다.
 - **sessions** — `id`(쿠키에 실리는 값), `user_id`, `expires_at`.
 - **api_keys** — 해시만 저장한다. `prefix`(유니크)로 식별하고 `scopes`로 제한하며
   `revoked_at`/`expires_at`으로 수명을 관리한다.
-- **sso_config** — `protocol`(`oidc` \| `oauth2`), Issuer/JWKS/엔드포인트, 클라이언트
+- **sso_config** — 활성 `mode`(`disabled` \| `oidc` \| `oauth2` \| `oauth2-proxy`),
+  ID/비밀번호 로그인 허용 여부, 직접 연결용 `protocol`, Issuer/JWKS/엔드포인트, 클라이언트
   정보, claim 후보와 접근 그룹을 담는 단일 설정 행. 클라이언트 시크릿은 API 응답에
   내보내지 않는다.
 

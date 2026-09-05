@@ -4,7 +4,7 @@ import { useLayoutEffect, useState } from "react";
 
 type Theme = "light" | "dark" | "system";
 
-const STORAGE_KEY = "grossary.theme";
+const STORAGE_KEY = "glossary.theme";
 
 const LABEL: Record<Theme, string> = { system: "시스템", light: "밝게", dark: "어둡게" };
 const NEXT: Record<Theme, Theme> = { system: "light", light: "dark", dark: "system" };

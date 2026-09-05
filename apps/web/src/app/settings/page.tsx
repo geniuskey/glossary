@@ -1,17 +1,39 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
+import { users } from "@glossary/db";
 import { AppShell } from "@/components/app-shell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getCurrentUser } from "@/lib/auth/current-user";
+import { ssoErrorMessage } from "@/lib/auth/sso/errors";
+import { getDb } from "@/lib/db";
 import { ApiKeysPanel } from "./api-keys/api-keys-panel";
+import { ProfileForm } from "./profile-form";
 
 export const metadata = { title: "설정" };
 
 const ROLE_LABEL = { admin: "관리자", editor: "편집자" } as const;
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+
+  const [account] = await getDb()
+    .select({ externalId: users.externalId })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1);
+  const rawRefreshStatus = (await searchParams).ssoRefresh;
+  const refreshStatus = Array.isArray(rawRefreshStatus) ? rawRefreshStatus[0] : rawRefreshStatus;
+  const initialSsoMessage = refreshStatus === "success"
+    ? { ok: true, text: "SSO 정보를 다시 가져왔습니다." }
+    : refreshStatus
+      ? { ok: false, text: ssoErrorMessage(refreshStatus) ?? "SSO 정보를 가져오지 못했습니다." }
+      : undefined;
 
   const displayName = user.name || user.email;
 
@@ -38,9 +60,12 @@ export default async function SettingsPage() {
             </div>
             <span className="chip ml-auto shrink-0">{ROLE_LABEL[user.role]}</span>
           </div>
-          <p className="mt-4 border-t border-line pt-4 text-xs leading-5 text-ink-3">
-            이름과 이메일은 로그인 계정에서 관리됩니다.
-          </p>
+          <ProfileForm
+            initialName={user.name}
+            canRefreshSso={Boolean(account?.externalId)}
+            initialSsoMessage={initialSsoMessage}
+          />
+          <p className="mt-2 text-xs leading-5 text-ink-3">이메일은 로그인 계정에서 관리되며, 표시 이름은 수정 이력에도 사용됩니다.</p>
         </section>
 
         <section className="card flex flex-col p-5" aria-labelledby="appearance-heading">

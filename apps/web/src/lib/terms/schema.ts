@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { surfaceKeys } from "@grossary/db";
+import { surfaceKeys } from "@glossary/db";
 import {
   DOMAIN_VALUE_MAX,
   TERM_DOMAIN_MAX,

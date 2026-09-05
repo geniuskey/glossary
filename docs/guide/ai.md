@@ -1,6 +1,6 @@
 # AI 활용과 용어 챗봇
 
-Grossary의 AI 기능은 일반 지식 챗봇을 만드는 것이 목적이 아니다. 에이전트가 알지 못하는
+Glossary의 AI 기능은 일반 지식 챗봇을 만드는 것이 목적이 아니다. 에이전트가 알지 못하는
 조직 내부 용어·약어·제품명을 용어집에서 찾아, 조직이 정한 의미와 사용법으로 이해시키는
 것이 목적이다.
 
@@ -49,12 +49,12 @@ API Key 같은 비밀이 섞일 수 있는 원문 대신 모델 없음, 인증 �
 
 ## 비밀값 보관
 
-API Key와 custom header 값은 `GROSSARY_ENCRYPTION_KEY`로 AES-256-GCM 암호화해 DB에
+API Key와 custom header 값은 `GLOSSARY_ENCRYPTION_KEY`로 AES-256-GCM 암호화해 DB에
 저장한다. 화면과 설정 조회 API는 평문을 다시 반환하지 않고 저장 여부와 header 이름만
 보여준다. 그래서 저장 뒤 API Key 입력란이 비어 보이는 것은 정상이다.
 
 ```dotenv
-GROSSARY_ENCRYPTION_KEY=replace-with-a-long-random-encryption-key
+GLOSSARY_ENCRYPTION_KEY=replace-with-a-long-random-encryption-key
 ```
 
 키는 32자 이상이어야 한다. 이 환경변수를 바꾸거나 잃으면 저장된 AI 비밀값을 복구할 수

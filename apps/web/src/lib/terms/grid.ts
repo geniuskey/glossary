@@ -10,7 +10,7 @@ import {
   type BusinessCategoryLiteral,
 } from "./enums";
 
-// R114와 같은 이유로 이 모듈은 @grossary/db를 import하지 않는다 — terms-grid.tsx
+// R114와 같은 이유로 이 모듈은 @glossary/db를 import하지 않는다 — terms-grid.tsx
 // (Client Component)가 여기서 타입과 컬럼 정의를 가져가기 때문이다. 대신 서버
 // 쪽(query.ts)이 이 모듈의 TermRow/SortKey를 자기 select의 계약으로 삼는다.
 // 방향을 이렇게 잡아야 "화면이 요구하는 모양"이 한 곳에만 적힌다.
@@ -103,7 +103,7 @@ export const GRID_COLUMNS: readonly GridColumn[] = [
   { key: "category", label: "업무 분류", kind: "enum", width: 140, options: CATEGORY_OPTIONS },
   { key: "topic", label: "주제", kind: "text", width: 180, hiddenByDefault: true },
   { key: "ownerName", label: "담당자", kind: "readonly", width: 140 },
-  { key: "definitionMd", label: "정의", kind: "longtext", width: 300 },
+  { key: "definitionMd", label: "한줄 정의", kind: "longtext", width: 300 },
   // 본문은 문서 한 편이 통째로 들어가는 칸이라 기본으로는 접어 둔다 — 켜 두면
   // 모든 줄이 마크다운 덩어리가 되어 표를 훑는 일 자체가 안 된다. 열 메뉴에서
   // 켜면 정의와 같은 여러 줄 상자로 고칠 수 있다.
@@ -596,9 +596,10 @@ function draftFromLine(
   anchorCol: number,
   line: readonly string[],
   lineNumber: number,
-): { row: PastedRow } | { error: string | null } {
+): { row: PastedRow | null; errors: string[] } {
   const values: CellPatch = {};
   let filled = 0;
+  const errors: string[] = [];
 
   for (let j = 0; j < line.length; j += 1) {
     const column = columns[anchorCol + j];
@@ -609,17 +610,20 @@ function draftFromLine(
     const parsed = patchForCell(column.key, raw, column.options?.map((option) => option.value));
     // 종류·상태가 잘못된 줄은 만들지 않는다. 그 값만 기본값으로 밀어 넣으면
     // 사용자가 적은 것과 다른 행이 조용히 생긴다.
-    if ("error" in parsed) return { error: `${lineNumber}번째 줄 · ${column.label}: ${parsed.error}` };
+    if ("error" in parsed) {
+      errors.push(`${lineNumber}번째 줄 · ${column.label}: ${parsed.error}`);
+      continue;
+    }
     Object.assign(values, parsed.patch);
     filled += 1;
   }
 
   // 엑셀 선택 영역에는 빈 줄이 딸려 오는 일이 흔하다 — 오류가 아니라 없는 줄이다.
-  if (filled === 0) return { error: null };
+  if (filled === 0) return { row: null, errors };
   if (!values.nameEn && !values.nameKo) {
-    return { error: `${lineNumber}번째 줄: 대표 영문·국문 표기가 없어 새 행을 만들지 않았습니다.` };
+    errors.push(`${lineNumber}번째 줄: 대표 영문·국문 표기가 없어 새 행을 만들 수 없습니다.`);
   }
-  return { row: { line: lineNumber, values } };
+  return { row: errors.length === 0 ? { line: lineNumber, values } : null, errors };
 }
 
 /**
@@ -647,8 +651,8 @@ export function planPaste(
     const row = rows[anchor.r + i];
     if (!row) {
       const draft = draftFromLine(columns, anchor.c, line, i + 1);
-      if ("row" in draft) creates.push(draft.row);
-      else if (draft.error) createErrors.push(draft.error);
+      if (draft.row) creates.push(draft.row);
+      createErrors.push(...draft.errors);
       continue;
     }
 

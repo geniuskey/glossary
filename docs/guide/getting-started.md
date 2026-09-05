@@ -29,14 +29,16 @@ cp .env.example .env
 | `DATABASE_URL` | 앱이 붙는 개발 DB |
 | `DATABASE_URL_TEST` | `packages/db` 통합 테스트 전용 DB |
 | `POSTGRES_PASSWORD` | 프로덕션 Compose에서만 쓴다 |
-| `AUTH_MODE` | 기본 `local`; oauth2-proxy 헤더 인증은 `oauth2-proxy` |
-| `SSO_TRUST_PROXY_HEADERS` | OIDC/OAuth2 혼합 모드의 헤더 신뢰 여부. 기본 `false` |
-| `GROSSARY_ENCRYPTION_KEY` | AI API Key와 custom header 암호화 키. AI 연결을 쓰면 32자 이상 고정값 필요 |
+| `OAUTH2_PROXY_ENABLED` | 이 배포가 oauth2-proxy의 검증된 헤더를 받을 수 있는지. 기본 `false`; 실제 방식은 설정 화면에서 선택 |
+| `PASSWORD_LOGIN_ENABLED` | 최초 부팅의 ID/비밀번호 로그인 초기값. 기본 `true`; 첫 관리자 로그인 후에는 관리자 패널 → 로그인 · SSO에서 관리 |
+| `INITIAL_ADMIN_EMAIL` | SSO로 최초 생성할 관리자 이메일. 대소문자를 구분하지 않음 |
+| `SSO_LOGIN_URL` | oauth2-proxy 로그인 진입점 재정의. 비우면 `/oauth2/start?rd=%2F` |
+| `GLOSSARY_ENCRYPTION_KEY` | AI API Key와 custom header 암호화 키. AI 연결을 쓰면 32자 이상 고정값 필요 |
 
 oauth2-proxy 배포의 헤더명·nginx 덮어쓰기·계정 연결 설정은 [SSO 연결](/guide/sso)을
 따른다.
 
-용어 챗봇을 사용한다면 `GROSSARY_ENCRYPTION_KEY`를 먼저 생성해 `.env`와 운영 비밀
+용어 챗봇을 사용한다면 `GLOSSARY_ENCRYPTION_KEY`를 먼저 생성해 `.env`와 운영 비밀
 저장소에 보관한다. 이 값을 바꾸거나 잃으면 DB에 저장한 AI 비밀값을 복호화할 수 없다.
 연결 방법은 [AI 활용과 챗봇](/guide/ai)을 따른다.
 
@@ -53,26 +55,26 @@ docker compose up -d
 
 ::: warning
 개발 머신에서 `docker-compose.prod.yml`로 `up`하지 마라. 두 파일이 같은 볼륨 이름
-(`grossary_pgdata`)을 쓴다. 볼륨 이름은 디렉터리명 파생을 막으려고 일부러 고정되어
+(`glossary_pgdata`)을 쓴다. 볼륨 이름은 디렉터리명 파생을 막으려고 일부러 고정되어
 있고, 프로덕션은 자기 호스트에서 도는 것을 전제한다.
 :::
 
 ## 4. 마이그레이션 적용
 
 ```bash
-pnpm --filter @grossary/db db:migrate
+pnpm --filter @glossary/db db:migrate
 ```
 
 스키마를 고쳤다면 마이그레이션을 먼저 생성한다.
 
 ```bash
-pnpm --filter @grossary/db db:generate
+pnpm --filter @glossary/db db:generate
 ```
 
 ## 5. 개발 서버
 
 ```bash
-pnpm --filter @grossary/web dev
+pnpm --filter @glossary/web dev
 ```
 
 http://localhost:3000 에서 뜬다.
@@ -95,7 +97,7 @@ http://localhost:3000 에서 뜬다.
 
 ```bash
 read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
-pnpm --filter @grossary/web exec tsx scripts/seed-admin.ts admin@example.com
+pnpm --filter @glossary/web exec tsx scripts/seed-admin.ts admin@example.com
 unset ADMIN_PASSWORD
 ```
 
@@ -108,7 +110,7 @@ unset ADMIN_PASSWORD
 로그인을 요구하는 이유는 권한을 나누기 위해서가 아니라 **수정 이력에 이름을 남기기**
 위해서다. 승인 절차가 없는 대신 모든 수정이 이력에 남고 언제든 되돌릴 수 있다.
 
-회사 계정(OpenID Connect 또는 OAuth 2.0)으로 로그인하게 하려면 관리자로 **설정 → SSO**에서 붙인다 —
+회사 계정(OpenID Connect, OAuth 2.0 또는 oauth2-proxy)으로 로그인하게 하려면 관리자로 **관리자 패널 → 로그인 · SSO**에서 붙인다 —
 [SSO 연결](/guide/sso). 재배포 없이 화면에서 고치는 값이고, 이름·그룹을 어떤 claim에서
 읽을지도 거기서 정한다(회사마다 `name` / `displayName` / `preferred_username`으로 갈린다).
 
@@ -118,7 +120,7 @@ unset ADMIN_PASSWORD
 용어집 세 묶음을 한 번에 넣을 수 있다.
 
 ```bash
-pnpm --filter @grossary/web exec tsx scripts/seed-terms.ts all
+pnpm --filter @glossary/web exec tsx scripts/seed-terms.ts all
 ```
 
 | 묶음 키 | 용어집 | 담긴 것 |
@@ -131,7 +133,7 @@ pnpm --filter @grossary/web exec tsx scripts/seed-terms.ts all
 원하는 묶음만 골라도 된다.
 
 ```bash
-pnpm --filter @grossary/web exec tsx scripts/seed-terms.ts it semiconductor
+pnpm --filter @glossary/web exec tsx scripts/seed-terms.ts it semiconductor
 ```
 
 인자 없이 실행하면 묶음 목록과 각 묶음의 용어 수를 찍고 끝난다.
@@ -154,9 +156,9 @@ pnpm --filter @grossary/web exec tsx scripts/seed-terms.ts it semiconductor
 | `pnpm typecheck` | 전체 타입 검사 |
 | `pnpm docs:dev` | 이 문서 사이트를 로컬에서 띄운다 |
 | `pnpm docs:build` | 문서 정적 빌드 (`docs/.vitepress/dist`) |
-| `pnpm --filter @grossary/web exec tsx scripts/seed-terms.ts all` | 예시 용어집 세 묶음 넣기 |
-| `pnpm --filter @grossary/engine test` | 정규화 엔진만 테스트 |
-| `pnpm --filter @grossary/db test` | DB 통합 테스트 (Postgres 필요) |
+| `pnpm --filter @glossary/web exec tsx scripts/seed-terms.ts all` | 예시 용어집 세 묶음 넣기 |
+| `pnpm --filter @glossary/engine test` | 정규화 엔진만 테스트 |
+| `pnpm --filter @glossary/db test` | DB 통합 테스트 (Postgres 필요) |
 
 `packages/db` 테스트는 실제 Postgres에 붙는다. 컨테이너가 떠 있지 않으면 실패한다.
 
@@ -177,7 +179,7 @@ pnpm --filter @grossary/web exec tsx scripts/seed-terms.ts it semiconductor
 | `/statistics` | 용어·사용자 성장과 도메인/업무 분류별 관리 통계 (관리자 전용) |
 | `/settings` | 계정·화면 설정과 API 키 발급·폐기 |
 | `/classifications` | 도메인과 업무 분류 관리 |
-| `/settings/sso` | SSO 연결 설정 (관리자 전용) |
+| `/admin?tab=sso` | 관리자 패널의 SSO 연결 탭 (`/settings/sso`는 이 주소로 이동) |
 | `/admin` | 홈 문구, 업무 분류 목록과 사용자·세션 관리 (관리자 전용) |
 
 옛 주소(`/terms`, `/terms/new`, `/terms/[slug]`, `/terms/[slug]/edit`,

@@ -1,21 +1,21 @@
-# Grossary
+# Glossary
 
-[![CI](https://github.com/geniuskey/grossary/actions/workflows/ci.yml/badge.svg)](https://github.com/geniuskey/grossary/actions/workflows/ci.yml)
-[![Docs](https://github.com/geniuskey/grossary/actions/workflows/docs.yml/badge.svg)](https://github.com/geniuskey/grossary/actions/workflows/docs.yml)
+[![CI](https://github.com/geniuskey/glossary/actions/workflows/ci.yml/badge.svg)](https://github.com/geniuskey/glossary/actions/workflows/ci.yml)
+[![Docs](https://github.com/geniuskey/glossary/actions/workflows/docs.yml/badge.svg)](https://github.com/geniuskey/glossary/actions/workflows/docs.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 
 특정 조직·팀·제품군이 실제로 사용하는 용어를 함께 정리하는 **셀프호스팅 용어집 관리
 플랫폼**. 엑셀과 컨플루언스에 흩어진 용어를 단일 사전으로 모으고, AI-Lint 같은 도구가
 API 한 번으로 문서의 표기를 검증할 수 있게 만든다.
 
-**문서: https://geniuskey.github.io/grossary/**
+**문서: https://geniuskey.github.io/glossary/**
 
-[도움말](https://geniuskey.github.io/grossary/help) ·
+[도움말](https://geniuskey.github.io/glossary/help) ·
 [지원](./SUPPORT.md) ·
 [기여 안내](./CONTRIBUTING.md) ·
 [보안 정책](./SECURITY.md) ·
 [변경 이력](./CHANGELOG.md) ·
-[GitHub Issues](https://github.com/geniuskey/grossary/issues)
+[GitHub Issues](https://github.com/geniuskey/glossary/issues)
 
 ## 언어 지원 범위
 
@@ -61,27 +61,29 @@ pnpm install
 cp .env.example .env
 docker compose up -d
 
-pnpm --filter @grossary/db db:migrate
+pnpm --filter @glossary/db db:migrate
 
-pnpm --filter @grossary/web dev   # http://localhost:3000
+pnpm --filter @glossary/web dev   # http://localhost:3000
 ```
 
-관리자 계정을 미리 만들 필요 없다. **처음 접속하면 관리자 계정을 만드는 화면**으로
-안내된다(`/setup`). 첫 관리자를 만들고 나면 그 화면은 닫히고 로그인으로 바뀐다.
-스크립트로 만들고 싶으면 `scripts/seed-admin.ts`도 여전히 쓸 수 있다.
+로컬 비밀번호 방식은 **처음 접속하면 관리자 계정을 만드는 화면**(`/setup`)으로 안내된다.
+oauth2-proxy 기반 SSO 전용 설치는 최초 부팅 전에 `.env`에 `OAUTH2_PROXY_ENABLED=true`, `INITIAL_ADMIN_EMAIL`,
+`PASSWORD_LOGIN_ENABLED=false`를 지정하면 해당 회사 계정이 최초 관리자로 생성되고 홈에서
+SSO 로그인을 자동 시작한다. 이후 실제 로그인 방식은 **관리자 패널 → 로그인 · SSO**에서 관리한다. 자세한 설정은
+[SSO 연결](https://geniuskey.github.io/glossary/guide/sso)을 참고한다.
 
 개발용 Postgres는 호스트 **5434** 포트에 뜬다. 자세한 절차는
-[시작하기](https://geniuskey.github.io/grossary/guide/getting-started)를 본다.
+[시작하기](https://geniuskey.github.io/glossary/guide/getting-started)를 본다.
 
-용어 챗봇을 쓰려면 `.env`의 `GROSSARY_ENCRYPTION_KEY`에 32자 이상의 고정값을 넣고,
+용어 챗봇을 쓰려면 `.env`의 `GLOSSARY_ENCRYPTION_KEY`에 32자 이상의 고정값을 넣고,
 관리자 패널의 **AI 연결**에서 Gemini 또는 OpenAI-compatible API를 설정한다. 이 키를
 바꾸거나 잃으면 DB에 암호화해 둔 API 키와 custom header를 복구할 수 없다.
 API Key를 입력하면 모델 목록을 불러오며, `Connected`는 선택 모델로 실제 생성 요청까지
-성공한 경우에만 표시된다. 자세한 설정은 [AI 활용과 챗봇](https://geniuskey.github.io/grossary/guide/ai)을 참고한다.
+성공한 경우에만 표시된다. 자세한 설정은 [AI 활용과 챗봇](https://geniuskey.github.io/glossary/guide/ai)을 참고한다.
 
 > [!WARNING]
 > 개발 머신에서 `docker-compose.prod.yml`로 `up`하지 마라. 두 파일이 같은 볼륨 이름
-> (`grossary_pgdata`)을 쓴다.
+> (`glossary_pgdata`)을 쓴다.
 
 ## 시트 공유와 Confluence 임베드
 
@@ -94,7 +96,7 @@ API Key를 입력하면 모델 목록을 불러오며, `Connected`는 선택 모
 https://glossary.example.com/embed?domain=ISP&category=design&topic=노출%20제어&columns=nameEn,nameKo,domain,category,definitionMd&compact=1&links=1&border=1
 ```
 
-`GROSSARY_EMBED_ANCESTORS=https://confluence.example.com`을 설정해야 해당 Confluence 출처에서만
+`GLOSSARY_EMBED_ANCESTORS=https://confluence.example.com`을 설정해야 해당 Confluence 출처에서만
 iframe이 열린다. 여러 출처는 쉼표로 구분한다. 임베드도 로그인 세션을 요구하므로 두 서비스는
 가급적 같은 사이트 범위(예: `glossary.example.com`과 `confluence.example.com`)에서 운영한다.
 
@@ -142,14 +144,14 @@ curl -s -H "Authorization: Bearer glk_..." \
 인증은 두 갈래다 — 사람은 세션 쿠키, 도구는 `Authorization: Bearer glk_<prefix>_<secret>`.
 모든 에러는 `{ error: { code, message, details? } }` 봉투를 쓴다. 예외 없음.
 
-자세한 것은 [API 레퍼런스](https://geniuskey.github.io/grossary/api/)를 본다.
+자세한 것은 [API 레퍼런스](https://geniuskey.github.io/glossary/api/)를 본다.
 
 ## Docker Hub 이미지 배포
 
 Docker Hub에는 웹 앱과 마이그레이터를 같은 저장소의 서로 다른 태그로 올린다.
 
 ```bash
-IMAGE=euiyun/grossary
+IMAGE=euiyun/glossary
 VERSION=0.1.6
 
 docker build --build-arg APP_VERSION="$VERSION" --target app -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
@@ -165,8 +167,8 @@ docker push "$IMAGE:latest-migrator"
 `latest`보다 앱·마이그레이터 양쪽을 같은 버전으로 고정하는 편이 안전하다.
 
 ```bash
-docker pull euiyun/grossary:0.1.6
-docker pull euiyun/grossary:0.1.6-migrator
+docker pull euiyun/glossary:0.1.6
+docker pull euiyun/glossary:0.1.6-migrator
 ```
 
 ```bash
@@ -188,7 +190,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 기동, 백업, 복구, TLS와 CSRF의 현재 상태는
-[운영 안내서](https://geniuskey.github.io/grossary/operations)에 있다.
+[운영 안내서](https://geniuskey.github.io/glossary/operations)에 있다.
 
 ## 진행 상황
 
@@ -198,7 +200,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 - **M3 위키 완성도** — CodeMirror Markdown 편집·GFM 미리보기, 이미지 붙여넣기·WebP 첨부,
   리비전 조회/revert는 구현됨. mermaid, diff 화면, 위키 링크·역참조, 병합 UI는 남음.
 
-[로드맵](https://geniuskey.github.io/grossary/guide/roadmap)에 자세한 범위가 있다.
+[로드맵](https://geniuskey.github.io/glossary/guide/roadmap)에 자세한 범위가 있다.
 
 ## 기여와 지원
 
@@ -206,13 +208,13 @@ docker compose -f docker-compose.prod.yml up -d --build
 영향을 먼저 논의한다. 개발 환경, 검사와 Pull Request 기준은
 [CONTRIBUTING.md](./CONTRIBUTING.md)를 따른다.
 
-- 사용·설치·운영 질문: [프로젝트 문서](https://geniuskey.github.io/grossary/)
-- 제품 오류: [버그 신고](https://github.com/geniuskey/grossary/issues/new?template=bug_report.yml)
-- 기능 제안: [기능 제안](https://github.com/geniuskey/grossary/issues/new?template=feature_request.yml)
+- 사용·설치·운영 질문: [프로젝트 문서](https://geniuskey.github.io/glossary/)
+- 제품 오류: [버그 신고](https://github.com/geniuskey/glossary/issues/new?template=bug_report.yml)
+- 기능 제안: [기능 제안](https://github.com/geniuskey/glossary/issues/new?template=feature_request.yml)
 - 보안 취약점: 공개 이슈 대신 [비공개 신고 절차](./SECURITY.md)
 
 ## 라이선스
 
-Grossary의 소스 코드와 문서는 [Apache License 2.0](./LICENSE)에 따라 배포됩니다.
+Glossary의 소스 코드와 문서는 [Apache License 2.0](./LICENSE)에 따라 배포됩니다.
 Copyright 2026 Euiyun Kim. 저작권 및 귀속 고지는 [NOTICE](./NOTICE)를 확인하세요.
 프로젝트 제작자 소개는 [euiyun.com](https://euiyun.com)에서 볼 수 있습니다.

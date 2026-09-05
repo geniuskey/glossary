@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { users } from "@grossary/db";
+import { users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { hashPassword } from "./password";
 
@@ -28,7 +28,7 @@ export async function createFirstAdmin(input: {
   const passwordHash = await hashPassword(input.password);
 
   return getDb().transaction(async (tx) => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('grossary_setup'))`);
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('glossary_setup'))`);
     const [c] = await tx.select({ n: sql<number>`count(*)::int` }).from(users);
     if ((c?.n ?? 0) > 0) return { ok: false, reason: "already_setup" };
 

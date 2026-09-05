@@ -148,6 +148,20 @@
       "when": 1788471111077,
       "tag": "0020_chubby_magdalene",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788569649861,
+      "tag": "0021_cooing_killer_shrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788577883465,
+      "tag": "0022_handy_fixer",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { domains, terms } from "@grossary/db";
+import { domains, terms } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { firstUnusedDomainColor } from "./domain-colors";
 import { slugify } from "./slug";
@@ -63,7 +63,7 @@ export async function createDomain(label: string): Promise<ManagedDomain | "dupl
   const db = getDb();
   const normalized = label.trim();
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('grossary_domain_catalog'))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('glossary_domain_catalog'))`);
     const current = await tx.select({ key: domains.key, label: domains.label, color: domains.color }).from(domains);
     if (current.some((domain) => domain.label.toLocaleLowerCase() === normalized.toLocaleLowerCase())) return "duplicate" as const;
     const color = firstUnusedDomainColor(new Set(current.map((domain) => domain.color)));
@@ -86,7 +86,7 @@ export async function updateDomain(
 ): Promise<"ok" | "not_found" | "duplicate_label" | "duplicate_color"> {
   const db = getDb();
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('grossary_domain_catalog'))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('glossary_domain_catalog'))`);
     const [current] = await tx.select().from(domains).where(eq(domains.key, key)).limit(1);
     if (!current) return "not_found" as const;
     const normalized = input.label?.trim();

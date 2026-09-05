@@ -114,21 +114,23 @@
 }
 
 .graph-category-node {
-  fill: hsl(var(--graph-category-hue) var(--graph-category-fill-s) var(--graph-category-fill-l));
-  stroke: hsl(var(--graph-category-hue) var(--graph-category-stroke-s) var(--graph-category-stroke-l));
+  fill: hsl(var(--graph-category-hue) calc(var(--graph-category-fill-s) + var(--domain-color-saturation-boost, 0%)) calc(var(--graph-category-fill-l) - var(--domain-color-lightness-drop, 0%)));
+  stroke: hsl(var(--graph-category-hue) calc(var(--graph-category-stroke-s) + var(--domain-color-saturation-boost, 0%)) calc(var(--graph-category-stroke-l) - var(--domain-color-lightness-drop, 0%)));
 }
 
 .graph-category-label {
-  fill: hsl(var(--graph-category-hue) var(--graph-category-text-s) var(--graph-category-text-l));
+  fill: hsl(var(--graph-category-hue) calc(var(--graph-category-text-s) + var(--domain-color-saturation-boost, 0%)) var(--graph-category-text-l));
 }
 
 .graph-category-swatch {
-  background-color: hsl(var(--graph-category-hue) var(--graph-category-stroke-s) var(--graph-category-stroke-l));
+  background-color: hsl(var(--graph-category-hue) calc(var(--graph-category-stroke-s) + var(--domain-color-saturation-boost, 0%)) calc(var(--graph-category-stroke-l) - var(--domain-color-lightness-drop, 0%)));
 }
 
-.domain-color-swatch {
-  border: 1px solid hsl(var(--graph-category-hue) var(--graph-category-stroke-s) var(--graph-category-stroke-l));
-  background-color: hsl(var(--graph-category-hue) var(--graph-category-fill-s) var(--graph-category-fill-l));
+.domain-color-swatch,
+.domain-color-chip {
+  border-color: hsl(var(--graph-category-hue) calc(var(--graph-category-stroke-s) + var(--domain-color-saturation-boost, 0%)) calc(var(--graph-category-stroke-l) - var(--domain-color-lightness-drop, 0%)));
+  background-color: hsl(var(--graph-category-hue) calc(var(--graph-category-fill-s) + var(--domain-color-saturation-boost, 0%)) calc(var(--graph-category-fill-l) - var(--domain-color-lightness-drop, 0%)));
+  color: hsl(var(--graph-category-hue) calc(var(--graph-category-text-s) + var(--domain-color-saturation-boost, 0%)) var(--graph-category-text-l));
 }
 
 @layer utilities {
@@ -359,6 +361,12 @@
 
   .markdown-body {
     @apply break-words text-[15px] leading-7 text-ink;
+  }
+  .korean-editor-font,
+  .korean-editor-font .markdown-body {
+    font-family: "Noto Sans KR Variable", "Noto Sans KR", Pretendard, sans-serif;
+    font-feature-settings: "kern", "ss01";
+    letter-spacing: -0.012em;
   }
   .markdown-body > :first-child { @apply mt-0; }
   .markdown-body > :last-child { @apply mb-0; }

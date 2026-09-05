@@ -1,7 +1,7 @@
 import "server-only";
 
 import { and, desc, inArray, ne, sql } from "drizzle-orm";
-import { surfaceKeys, terms, termSurfaces } from "@grossary/db";
+import { surfaceKeys, terms, termSurfaces } from "@glossary/db";
 import { getDb } from "@/lib/db";
 
 export interface ChatSource {

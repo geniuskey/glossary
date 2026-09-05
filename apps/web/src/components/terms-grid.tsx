@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { HelpTip } from "@/components/help-tip";
+import type { SheetFilter } from "@/components/sheet-filter-bar";
 import { STATUS_TONE } from "@/components/term-badges";
 import {
   businessCategoryLabel,
@@ -64,11 +65,13 @@ import {
 // 서버가 필드를 바꿔도 이 파일은 조용히 옛 모양을 믿는다.
 import type { TermWriteResponse } from "@/lib/terms/wire";
 import { cx, isoDate, relativeTime } from "@/lib/ui/format";
+import { domainColorStyle } from "@/lib/terms/domain-colors";
+import { rowDragOffset, type RowDragPreview } from "@/lib/ui/table-row-drag";
 
-const HIDDEN_KEY = "grossary.grid.hidden";
-const WIDTH_KEY = "grossary.grid.widths";
-const ORDER_KEY = "grossary.grid.order";
-const DENSITY_KEY = "grossary.grid.density";
+const HIDDEN_KEY = "glossary.grid.hidden";
+const WIDTH_KEY = "glossary.grid.widths";
+const ORDER_KEY = "glossary.grid.order";
+const DENSITY_KEY = "glossary.grid.density";
 
 /** 행 번호 + 체크박스 + 열기 버튼이 들어가는 왼쪽 고정 칸의 너비(px). */
 const GUTTER_W = 66;
@@ -85,6 +88,13 @@ type Batch = { label: string; entries: RowPatch[] };
 type CommitMode = "edit" | "undo" | "redo";
 
 const STATUS_VALUES: ReadonlySet<string> = new Set(TERM_STATUSES);
+const COLUMN_FILTER_NAME: Partial<Record<ColumnKey, SheetFilter["name"]>> = {
+  termType: "type",
+  status: "status",
+  domain: "domain",
+  category: "category",
+  topic: "topic",
+};
 
 /** enum 후보 목록의 값은 string이라 STATUS_TONE(유니온 키)에 바로 못 넣는다. */
 function statusTone(value: string): string | null {
@@ -103,7 +113,7 @@ export interface TermsGridProps {
   rowOffset: number;
   /**
    * 정렬 링크는 서버에서 만들어 넘긴다 — buildSortHref가 있는 list-params.ts는
-   * @grossary/db를 import하므로 클라이언트 번들로 끌고 올 수 없다(R114).
+   * @glossary/db를 import하므로 클라이언트 번들로 끌고 올 수 없다(R114).
    */
   sortHrefs: Partial<Record<SortKey, string>>;
   /** 머리글 우클릭 메뉴는 방향을 눌러 고르므로 토글이 아닌 두 방향의 링크가 필요하다. */
@@ -113,10 +123,25 @@ export interface TermsGridProps {
   query?: string;
   /** 도메인 입력 도우미에 띄울 기존 값들(이 페이지 밖의 것도 포함한다). */
   knownDomains: string[];
+  /** 분류 체계에서 관리하는 도메인별 고유 색상. */
+  domainColors: Array<{ label: string; color: string }>;
   /** 관리자 설정에서 관리하는 업무 분류. enum 셀의 선택지와 붙여넣기 검증에 함께 쓴다. */
   categoryOptions: Array<{ key: string; label: string }>;
+  /** 열 머리글과 우클릭 메뉴에서 고를 수 있는 서버 필터. */
+  filters: SheetFilter[];
   /** 표의 가로 스크롤과 무관하게 도구 막대에 계속 보일 현재 검색·필터 조건. */
   activeFilters: Array<{ key: string; label: string; value: string; href: string }>;
+  /** 현재 필터와 정렬을 보존한 페이지 이동 정보. 상태 막대에 함께 표시한다. */
+  pagination: {
+    page: number;
+    totalPages: number;
+    previousHref: string;
+    nextHref: string;
+    hasPrevious: boolean;
+    hasNext: boolean;
+    pageSize: number;
+    pageSizeOptions: Array<{ pageSize: number; href: string }>;
+  };
 }
 
 // --- 저장된 표 설정 ---------------------------------------------------------
@@ -197,6 +222,7 @@ export function TermsGrid(props: TermsGridProps) {
   // 머리글 우클릭 메뉴. column이 null이면 머리글의 빈 자리를 누른 것이라 열
   // 목록만 보여준다(정렬·이 열 숨기기는 가리키는 열이 없다).
   const [headerMenu, setHeaderMenu] = useState<{ column: GridColumn | null; x: number; y: number } | null>(null);
+  const [columnFilter, setColumnFilter] = useState<{ name: SheetFilter["name"]; x: number; y: number } | null>(null);
   const [sel, setSel] = useState<{ anchor: CellRef; focus: CellRef } | null>(null);
   const [editing, setEditing] = useState<{ r: number; c: number; value: string } | null>(null);
   // 클릭 한 번으로 다음 셀이 열리게 되면서 "편집기가 두 번 겹치는 찰나"가
@@ -224,6 +250,8 @@ export function TermsGrid(props: TermsGridProps) {
   const [now, setNow] = useState<Date | null>(null);
   const [draft, setDraft] = useState({ nameEn: "", nameKo: "" });
   const [creating, setCreating] = useState(false);
+  const [checkingPaste, setCheckingPaste] = useState(false);
+  const [pasteIssues, setPasteIssues] = useState<string[] | null>(null);
 
   const bodyRef = useRef<HTMLTableSectionElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -234,6 +262,10 @@ export function TermsGrid(props: TermsGridProps) {
   const categoryOptions = useMemo(
     () => props.categoryOptions.map((category) => ({ value: category.key, label: category.label })),
     [props.categoryOptions],
+  );
+  const domainColors = useMemo(
+    () => new Map(props.domainColors.map((domain) => [domain.label, domain.color])),
+    [props.domainColors],
   );
   const allColumns = useMemo(
     () => orderedColumns(order).map((column) => column.key === "category" ? { ...column, options: categoryOptions } : column),
@@ -259,20 +291,31 @@ export function TermsGrid(props: TermsGridProps) {
   // 후에만 상대 시간으로 바꾼다.
   useEffect(() => setNow(new Date()), []);
 
+  useEffect(() => {
+    if (!pasteIssues) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPasteIssues(null);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [pasteIssues]);
+
   // R133: 메뉴 안을 눌러도 닫히면 안 된다. mousedown에서 무조건 닫으면 mouseup
   // 전에 항목이 사라져 click도 change도 아예 발생하지 않는다 — 열 체크박스를
   // 눌러도 아무 일이 없던 원인이 이것이었다. 메뉴 밖에서 눌렀을 때만 닫는다.
   useEffect(() => {
-    if (!menu && !headerMenu) return;
+    if (!menu && !headerMenu && !columnFilter) return;
     const close = (event: MouseEvent) => {
       if (event.target instanceof Element && event.target.closest("[data-menu-root]")) return;
       setMenu(null);
       setHeaderMenu(null);
+      setColumnFilter(null);
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setMenu(null);
         setHeaderMenu(null);
+        setColumnFilter(null);
       }
     };
     document.addEventListener("mousedown", close);
@@ -281,7 +324,7 @@ export function TermsGrid(props: TermsGridProps) {
       document.removeEventListener("mousedown", close);
       document.removeEventListener("keydown", onKey);
     };
-  }, [menu, headerMenu]);
+  }, [menu, headerMenu, columnFilter]);
 
   useEffect(() => {
     if (!drag) return;
@@ -542,7 +585,7 @@ export function TermsGrid(props: TermsGridProps) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `grossary-${isoDate(new Date())}.csv`;
+    a.download = `glossary-${isoDate(new Date())}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -559,7 +602,30 @@ export function TermsGrid(props: TermsGridProps) {
   function openHeaderMenu(event: React.MouseEvent, column: GridColumn | null) {
     event.preventDefault();
     setMenu(null);
+    setColumnFilter(null);
     setHeaderMenu({ column, x: event.clientX, y: event.clientY });
+  }
+
+  function filterForColumn(column: GridColumn | null): SheetFilter | undefined {
+    if (!column) return undefined;
+    const name = COLUMN_FILTER_NAME[column.key];
+    return name ? props.filters.find((filter) => filter.name === name) : undefined;
+  }
+
+  function openColumnFilter(filter: SheetFilter, x: number, y: number) {
+    setMenu(null);
+    setHeaderMenu(null);
+    setColumnFilter({ name: filter.name, x, y });
+  }
+
+  function changeColumnFilter(filter: SheetFilter, value: string) {
+    const params = new URLSearchParams(window.location.search);
+    if (value) params.set(filter.name, value);
+    else params.delete(filter.name);
+    params.delete("page");
+    setColumnFilter(null);
+    const next = params.toString();
+    router.push(next ? `${window.location.pathname}?${next}` : window.location.pathname, { scroll: false });
   }
 
   function autoWidth(key: ColumnKey) {
@@ -617,14 +683,14 @@ export function TermsGrid(props: TermsGridProps) {
   }
 
   function startColumnDrag(event: React.DragEvent, column: GridColumn) {
-    if ((event.target as HTMLElement).closest("[data-column-resize]")) {
+    if ((event.target as HTMLElement).closest("[data-column-resize], [data-column-filter]")) {
       event.preventDefault();
       return;
     }
     event.stopPropagation();
     flushEdit();
     event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("application/x-grossary-column", column.key);
+    event.dataTransfer.setData("application/x-glossary-column", column.key);
     event.dataTransfer.setData("text/plain", column.label);
     setColumnDrag({ source: column.key, over: column.key, side: "before" });
     setSel(null);
@@ -664,7 +730,7 @@ export function TermsGrid(props: TermsGridProps) {
 
   function dropColumn(event: React.DragEvent<HTMLTableCellElement>, target: ColumnKey) {
     event.preventDefault();
-    const transferred = event.dataTransfer.getData("application/x-grossary-column");
+    const transferred = event.dataTransfer.getData("application/x-glossary-column");
     const source = defaultColumnOrder().includes(transferred as ColumnKey)
       ? transferred as ColumnKey
       : columnDrag?.source;
@@ -895,6 +961,10 @@ export function TermsGrid(props: TermsGridProps) {
 
     event.preventDefault();
     const { plan, creates } = planPaste(rows, columns, anchor, matrix);
+    if (plan.errors.length > 0) {
+      setPasteIssues(plan.errors);
+      return;
+    }
     void pasteInto(plan, creates, anchor, matrix);
   }
 
@@ -904,6 +974,40 @@ export function TermsGrid(props: TermsGridProps) {
     anchor: CellRef,
     matrix: readonly string[][],
   ) {
+    setCheckingPaste(true);
+    try {
+      const updateLines = new Map(rows.map((row, index) => [row.id, index - anchor.r + 1]));
+      const response = await fetch("/api/v1/terms/paste-check", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          updates: plan.updates.map((update) => ({
+            rowId: update.rowId,
+            line: Math.max(1, updateLines.get(update.rowId) ?? 1),
+            expectedRevision: rowsRef.current.find((row) => row.id === update.rowId)?.revision ?? 1,
+            values: update.patch,
+          })),
+          creates,
+        }),
+      });
+      const checked = await response.json().catch(() => null) as {
+        ok?: boolean;
+        errors?: string[];
+        error?: { message?: string };
+      } | null;
+      if (!response.ok || !checked?.ok) {
+        setPasteIssues(checked?.errors?.length
+          ? checked.errors
+          : [checked?.error?.message ?? `붙여넣을 내용을 검사하지 못했습니다 (${response.status}).`]);
+        return;
+      }
+    } catch {
+      setPasteIssues(["네트워크 오류로 붙여넣을 내용을 검사하지 못했습니다. 다시 시도해 주세요."]);
+      return;
+    } finally {
+      setCheckingPaste(false);
+    }
+
     const [, added] = await Promise.all([commit(plan, `${plan.cells}칸 붙여넣기`), createRows(creates)]);
 
     // 선택 영역은 실제로 존재하게 된 만큼만 잡는다 — 만들지 못한 줄까지 잡으면
@@ -1006,9 +1110,13 @@ export function TermsGrid(props: TermsGridProps) {
         hidden={hidden}
         density={density}
         menu={menu}
-        setMenu={setMenu}
+        setMenu={(next) => {
+          setColumnFilter(null);
+          setMenu(next);
+        }}
         onToggleColumn={toggleColumn}
         onMoveColumn={moveAnyColumn}
+        onReorderColumn={finishColumnMove}
         onDensity={setDensity}
         onResetWidths={resetWidths}
         onResetLayout={resetColumnLayout}
@@ -1072,6 +1180,8 @@ export function TermsGrid(props: TermsGridProps) {
                   scrolledX={scrolledX}
                   sortHrefs={props.sortHrefs}
                   sortState={props.sortState}
+                  filter={filterForColumn(col)}
+                  filterOpen={columnFilter?.name === COLUMN_FILTER_NAME[col.key]}
                   resizing={resizing?.key === col.key}
                   dragging={columnDrag?.source === col.key}
                   dropSide={columnDrag?.over === col.key ? columnDrag.side : null}
@@ -1085,6 +1195,12 @@ export function TermsGrid(props: TermsGridProps) {
                   onDrop={(event) => dropColumn(event, col.key)}
                   onDragEnd={() => setColumnDrag(null)}
                   onMove={(direction) => moveVisibleColumn(col.key, direction)}
+                  onOpenFilter={(event, filter) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const bounds = event.currentTarget.getBoundingClientRect();
+                    openColumnFilter(filter, bounds.left, bounds.bottom + 4);
+                  }}
                 />
               ))}
 
@@ -1224,7 +1340,7 @@ export function TermsGrid(props: TermsGridProps) {
                             비어 버린다. 고르는 동안 원래 값이 사라지면 "뭘 바꾸는
                             중인지"가 화면에서 지워지므로 밑에 그대로 깔아 둔다. */}
                         {(!isEditing || col.kind === "enum") && (
-                          <CellView row={row} column={col} now={now} query={props.query} />
+                          <CellView row={row} column={col} now={now} query={props.query} domainColors={domainColors} />
                         )}
 
                         {isEditing && (
@@ -1232,6 +1348,7 @@ export function TermsGrid(props: TermsGridProps) {
                             column={col}
                             value={editing.value}
                             knownDomains={props.knownDomains}
+                            domainColors={domainColors}
                             onChange={(v) => {
                               const next = { r, c, value: v };
                               editingRef.current = next;
@@ -1330,6 +1447,7 @@ export function TermsGrid(props: TermsGridProps) {
 
       <StatusBar
         rowCount={rows.length}
+        pagination={props.pagination}
         pickedCount={picked.size}
         range={range}
         busyCount={busy.size}
@@ -1338,30 +1456,81 @@ export function TermsGrid(props: TermsGridProps) {
         onCopyPicked={() => void copyText(toTsv(rows.filter((r) => picked.has(r.id)), columns))}
         onDelete={() => void deletePicked()}
         onClearPick={() => setPicked(new Set())}
+        onPageSizeChange={(pageSize) => {
+          const option = props.pagination.pageSizeOptions.find((item) => item.pageSize === pageSize);
+          if (option) router.push(option.href, { scroll: false });
+        }}
       />
 
       {headerMenu && (
         <HeaderMenu
           column={headerMenu.column}
-          allColumns={allColumns}
+          filter={filterForColumn(headerMenu.column)}
           x={headerMenu.x}
           y={headerMenu.y}
-          hidden={hidden}
           canHide={columns.length > 1}
           sortDirHrefs={props.sortDirHrefs}
           sortState={props.sortState}
           onToggleColumn={toggleColumn}
           onAutoWidth={autoWidth}
-          onResetWidths={resetWidths}
-          onShowAll={() => {
-            setHidden([]);
-            setSel(null);
+          onOpenFilter={(filter) => openColumnFilter(filter, headerMenu.x + 12, headerMenu.y + 12)}
+          onOpenColumns={() => {
+            setHeaderMenu(null);
+            setMenu("columns");
           }}
           onClose={() => setHeaderMenu(null)}
         />
       )}
 
+      {columnFilter && (() => {
+        const filter = props.filters.find((item) => item.name === columnFilter.name);
+        return filter ? (
+          <ColumnFilterPopover
+            key={filter.name}
+            filter={filter}
+            x={columnFilter.x}
+            y={columnFilter.y}
+            onChange={(value) => changeColumnFilter(filter, value)}
+            onClose={() => setColumnFilter(null)}
+          />
+        ) : null;
+      })()}
+
       <p className="sr-only" aria-live="polite">{layoutAnnouncement}</p>
+
+      {checkingPaste && (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-black/20 px-4 backdrop-blur-[1px]" role="status" aria-live="polite">
+          <div className="card px-5 py-4 text-sm text-ink shadow-pop">붙여넣을 수 있는지 검사 중…</div>
+        </div>
+      )}
+
+      {pasteIssues && (
+        <div
+          className="fixed inset-0 z-[90] grid place-items-center bg-black/35 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="paste-errors-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setPasteIssues(null);
+          }}
+        >
+          <section className="card flex max-h-[min(80dvh,42rem)] w-full max-w-2xl flex-col overflow-hidden shadow-pop">
+            <header className="flex items-center gap-3 border-b border-line px-4 py-3">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-danger-soft font-semibold text-danger" aria-hidden="true">!</span>
+              <div className="min-w-0">
+                <h2 id="paste-errors-title" className="font-semibold text-ink">붙여넣을 수 없습니다</h2>
+                <p className="text-xs text-ink-3">발견된 오류 {pasteIssues.length.toLocaleString("ko-KR")}개를 모두 수정한 뒤 다시 붙여넣어 주세요.</p>
+              </div>
+            </header>
+            <ol className="min-h-0 flex-1 list-decimal space-y-2 overflow-y-auto px-8 py-4 text-sm leading-6 text-ink-2 marker:font-mono marker:text-danger">
+              {pasteIssues.map((issue, index) => <li key={`${index}:${issue}`}>{issue}</li>)}
+            </ol>
+            <footer className="flex justify-end border-t border-line bg-panel-2/50 px-4 py-3">
+              <button type="button" autoFocus className="btn-primary" onClick={() => setPasteIssues(null)}>확인</button>
+            </footer>
+          </section>
+        </div>
+      )}
 
       {toasts.length > 0 && (
         <div className="pointer-events-none fixed bottom-16 right-5 z-50 flex flex-col items-end gap-2">
@@ -1443,6 +1612,48 @@ const SHORTCUTS: Array<[string, string]> = [
   ["Shift+Space", "그 줄을 선택 목록에 넣기"],
 ];
 
+function setColumnSettingDragImage(dataTransfer: DataTransfer, row: HTMLElement, bounds: DOMRect) {
+  const ghost = row.cloneNode(true) as HTMLElement;
+  const sourceInputs = row.querySelectorAll<HTMLInputElement>("input");
+  const cloneInputs = ghost.querySelectorAll<HTMLInputElement>("input");
+  sourceInputs.forEach((input, index) => {
+    const clone = cloneInputs.item(index);
+    if (clone) clone.checked = input.checked;
+  });
+  ghost.querySelectorAll<HTMLElement>("button, input").forEach((control) => {
+    control.tabIndex = -1;
+    control.style.pointerEvents = "none";
+  });
+  Object.assign(ghost.style, {
+    position: "fixed",
+    left: "-9999px",
+    top: "-9999px",
+    width: `${bounds.width}px`,
+    minHeight: `${bounds.height}px`,
+    border: "1px solid rgb(var(--brand) / 0.55)",
+    borderRadius: "9px",
+    background: "rgb(var(--panel))",
+    color: "rgb(var(--ink))",
+    boxShadow: "0 14px 34px rgb(0 0 0 / 0.2), 0 3px 10px rgb(var(--brand) / 0.16)",
+    opacity: "0.97",
+    transform: "rotate(0.4deg) scale(1.015)",
+    pointerEvents: "none",
+  });
+  document.body.appendChild(ghost);
+  dataTransfer.setDragImage(ghost, Math.max(20, bounds.width - 20), bounds.height / 2);
+  requestAnimationFrame(() => ghost.remove());
+}
+
+function ColumnDragDots() {
+  return (
+    <svg width="14" height="18" viewBox="0 0 14 18" fill="currentColor" aria-hidden="true">
+      <circle cx="4" cy="4" r="1.15" /><circle cx="10" cy="4" r="1.15" />
+      <circle cx="4" cy="9" r="1.15" /><circle cx="10" cy="9" r="1.15" />
+      <circle cx="4" cy="14" r="1.15" /><circle cx="10" cy="14" r="1.15" />
+    </svg>
+  );
+}
+
 function GridToolbar(props: {
   columns: readonly GridColumn[];
   allColumns: readonly GridColumn[];
@@ -1452,6 +1663,7 @@ function GridToolbar(props: {
   setMenu: (m: "columns" | "density" | "export" | "help" | null) => void;
   onToggleColumn: (key: ColumnKey) => void;
   onMoveColumn: (key: ColumnKey, direction: -1 | 1) => void;
+  onReorderColumn: (source: ColumnKey, target: ColumnKey, side: ColumnDropSide) => void;
   onDensity: (d: Density) => void;
   onResetWidths: () => void;
   onResetLayout: () => void;
@@ -1466,6 +1678,64 @@ function GridToolbar(props: {
   // 메뉴는 바깥 클릭으로 닫힌다(문서 리스너). 여기서 전파를 막지 않으면
   // 메뉴를 여는 클릭이 곧바로 닫기 리스너에 잡힌다.
   const stop = (e: React.MouseEvent) => e.stopPropagation();
+  const [settingsDrag, setSettingsDrag] = useState<{
+    source: ColumnKey;
+    over: ColumnKey;
+    side: ColumnDropSide;
+    itemHeight: number;
+  } | null>(null);
+  const settingsDragRef = useRef<ColumnKey | null>(null);
+  const settingsPreview = useMemo<RowDragPreview | null>(() => {
+    if (!settingsDrag) return null;
+    const keys = props.allColumns.map((column) => column.key);
+    const sourceIndex = keys.indexOf(settingsDrag.source);
+    const destinationIndex = moveColumn(keys, settingsDrag.source, settingsDrag.over, settingsDrag.side)
+      .indexOf(settingsDrag.source);
+    if (sourceIndex < 0 || destinationIndex < 0 || sourceIndex === destinationIndex) return null;
+    return { sourceIndex, destinationIndex, rowHeight: settingsDrag.itemHeight };
+  }, [props.allColumns, settingsDrag]);
+
+  function clearSettingsDrag() {
+    settingsDragRef.current = null;
+    setSettingsDrag(null);
+  }
+
+  function startSettingsDrag(event: React.DragEvent<HTMLButtonElement>, column: GridColumn) {
+    const row = event.currentTarget.closest<HTMLElement>("[data-column-setting-row]");
+    if (!row) {
+      event.preventDefault();
+      return;
+    }
+    const bounds = row.getBoundingClientRect();
+    settingsDragRef.current = column.key;
+    setSettingsDrag({ source: column.key, over: column.key, side: "before", itemHeight: bounds.height });
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-glossary-column-setting", column.key);
+    event.dataTransfer.setData("text/plain", column.label);
+    setColumnSettingDragImage(event.dataTransfer, row, bounds);
+  }
+
+  function dragSettingsOver(event: React.DragEvent<HTMLDivElement>, target: ColumnKey) {
+    const source = settingsDragRef.current;
+    if (!source || source === target) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const side: ColumnDropSide = event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+    setSettingsDrag((current) => current && current.over === target && current.side === side
+      ? current
+      : current ? { ...current, over: target, side } : null);
+  }
+
+  function dropSetting(event: React.DragEvent<HTMLDivElement>, target: ColumnKey) {
+    event.preventDefault();
+    const transferred = event.dataTransfer.getData("application/x-glossary-column-setting");
+    const source = defaultColumnOrder().find((key) => key === transferred) ?? settingsDragRef.current;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const side: ColumnDropSide = event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+    clearSettingsDrag();
+    if (source && source !== target) props.onReorderColumn(source, target, side);
+  }
 
   return (
     // relative z-50: 여기서 열리는 메뉴는 표 위로 펼쳐진다. 도구 막대가 쌓임
@@ -1555,14 +1825,22 @@ function GridToolbar(props: {
           onToggle={() => props.setMenu(props.menu === "columns" ? null : "columns")}
           width="w-72"
         >
-          <p className="px-2 pb-2 pt-1 text-[11px] leading-4 text-ink-3">
-            머리글을 끌어 순서를 바꿀 수 있습니다. 표시·순서·너비는 이 브라우저에 저장됩니다.
-          </p>
           <div className="max-h-72 overflow-y-auto overscroll-contain">
             {props.allColumns.map((col, index) => (
               <div
                 key={col.key}
-                className="group/column flex min-h-9 items-center gap-1 rounded-md px-1 hover:bg-panel-2"
+                data-column-setting-row
+                onDragOver={(event) => dragSettingsOver(event, col.key)}
+                onDrop={(event) => dropSetting(event, col.key)}
+                style={settingsDrag ? { transform: `translate3d(0, ${rowDragOffset(index, settingsPreview)}px, 0)` } : undefined}
+                className={cx(
+                  "group/column relative flex min-h-9 items-center gap-1 rounded-md px-1 transition-[transform,opacity,background-color] duration-200 ease-out motion-reduce:transition-none hover:bg-panel-2",
+                  settingsDrag && "will-change-transform",
+                  settingsDrag?.source === col.key && "opacity-0",
+                  settingsDrag?.over === col.key && settingsDrag.source !== col.key && "bg-brand-soft/60",
+                  settingsDrag?.over === col.key && settingsDrag.source !== col.key && settingsDrag.side === "before" && "border-t-2 border-t-brand",
+                  settingsDrag?.over === col.key && settingsDrag.source !== col.key && settingsDrag.side === "after" && "border-b-2 border-b-brand",
+                )}
               >
                 <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-1 py-1.5 text-xs text-ink-2">
                   <input
@@ -1575,23 +1853,19 @@ function GridToolbar(props: {
                 </label>
                 <button
                   type="button"
-                  className="grid h-8 w-8 place-items-center rounded text-ink-3 hover:bg-panel hover:text-ink disabled:opacity-25"
-                  onClick={() => props.onMoveColumn(col.key, -1)}
-                  disabled={index === 0}
-                  aria-label={`${col.label} 열을 왼쪽으로 이동`}
-                  title="왼쪽으로 이동"
+                  draggable
+                  onDragStart={(event) => startSettingsDrag(event, col)}
+                  onDragEnd={clearSettingsDrag}
+                  onKeyDown={(event) => {
+                    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+                    event.preventDefault();
+                    props.onMoveColumn(col.key, event.key === "ArrowUp" ? -1 : 1);
+                  }}
+                  className="grid h-8 w-8 shrink-0 cursor-grab place-items-center rounded text-ink-3 hover:bg-panel hover:text-ink active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45"
+                  aria-label={`${col.label} 열 순서 변경`}
+                  title="드래그하여 순서 변경 · 위아래 방향키로 한 칸 이동"
                 >
-                  ←
-                </button>
-                <button
-                  type="button"
-                  className="grid h-8 w-8 place-items-center rounded text-ink-3 hover:bg-panel hover:text-ink disabled:opacity-25"
-                  onClick={() => props.onMoveColumn(col.key, 1)}
-                  disabled={index === props.allColumns.length - 1}
-                  aria-label={`${col.label} 열을 오른쪽으로 이동`}
-                  title="오른쪽으로 이동"
-                >
-                  →
+                  <ColumnDragDots />
                 </button>
               </div>
             ))}
@@ -1603,7 +1877,6 @@ function GridToolbar(props: {
             className="w-full rounded px-2 py-1.5 text-left text-xs text-ink-2 hover:bg-panel-2"
           >
             열 레이아웃 초기화
-            <span className="mt-0.5 block text-[10px] text-ink-3">표시·순서·너비를 기본값으로 되돌립니다</span>
           </button>
         </Menu>
 
@@ -1679,37 +1952,32 @@ function Menu({
   );
 }
 
-/**
- * 머리글 우클릭 메뉴. 열 목록은 툴바에도 있지만, 표를 훑다가 "이 열은 치우고
- * 싶다"고 느끼는 자리는 언제나 그 열의 머리글이다 — 거기서 바로 닿아야 한다.
- */
+/** 머리글 우클릭 메뉴. 열별 동작만 두고 전체 열 관리는 단일 열 설정 메뉴로 보낸다. */
 function HeaderMenu({
   column,
-  allColumns,
+  filter,
   x,
   y,
-  hidden,
   canHide,
   sortDirHrefs,
   sortState,
   onToggleColumn,
   onAutoWidth,
-  onResetWidths,
-  onShowAll,
+  onOpenFilter,
+  onOpenColumns,
   onClose,
 }: {
   column: GridColumn | null;
-  allColumns: readonly GridColumn[];
+  filter?: SheetFilter;
   x: number;
   y: number;
-  hidden: ColumnKey[];
   canHide: boolean;
   sortDirHrefs: Partial<Record<SortKey, { asc: string; desc: string }>>;
   sortState: { key: SortKey; dir: SortDir };
   onToggleColumn: (key: ColumnKey) => void;
   onAutoWidth: (key: ColumnKey) => void;
-  onResetWidths: () => void;
-  onShowAll: () => void;
+  onOpenFilter: (filter: SheetFilter) => void;
+  onOpenColumns: () => void;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -1769,6 +2037,17 @@ function HeaderMenu({
             </>
           )}
 
+          {filter && (
+            <MenuAction
+              onClick={() => {
+                onOpenFilter(filter);
+                onClose();
+              }}
+            >
+              {filter.value ? `필터: ${filter.valueLabel ?? filter.value}` : "필터 설정…"}
+            </MenuAction>
+          )}
+
           <MenuAction
             onClick={() => {
               onToggleColumn(column.key);
@@ -1791,42 +2070,130 @@ function HeaderMenu({
           <span className="my-1 block h-px bg-line" />
         </>
       )}
-
-      <p className="px-2 pb-1 pt-1.5 text-[11px] font-medium text-ink">열 보이기</p>
-      {/* 여러 열을 연달아 켜고 끌 수 있어야 하므로 열을 켜고 끄는 자리(체크박스와
-          아래의 "모든 열 보이기")는 메뉴를 닫지 않는다. 어느 열이 켜졌는지
-          그 자리에서 바로 보이기도 한다. */}
-      <div className="max-h-64 overflow-auto">
-        {allColumns.map((col) => (
-          <label
-            key={col.key}
-            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-ink-2 hover:bg-panel-2"
-          >
-            <input
-              type="checkbox"
-              checked={!hidden.includes(col.key)}
-              onChange={() => onToggleColumn(col.key)}
-              className="h-3.5 w-3.5 accent-brand"
-            />
-            <span className="truncate">{col.label}</span>
-          </label>
-        ))}
-      </div>
-
-      <span className="my-1 block h-px bg-line" />
-      <MenuAction onClick={onShowAll} disabled={hidden.length === 0}>
-        모든 열 보이기
-      </MenuAction>
-      <MenuAction
-        onClick={() => {
-          onResetWidths();
-          onClose();
-        }}
-      >
-        열 너비 초기화
-      </MenuAction>
+      <MenuAction onClick={onOpenColumns}>열 설정…</MenuAction>
     </div>
   );
+}
+
+function ColumnFilterPopover({
+  filter,
+  x,
+  y,
+  onChange,
+  onClose,
+}: {
+  filter: SheetFilter;
+  x: number;
+  y: number;
+  onChange: (value: string) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ x, y });
+  const [search, setSearch] = useState("");
+  const visibleOptions = search
+    ? filter.options.filter((option) => option.label.toLocaleLowerCase("ko-KR").includes(search.toLocaleLowerCase("ko-KR")))
+    : filter.options;
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    setPos(clampMenuPosition(
+      { x, y },
+      { w: box.width, h: box.height },
+      { w: window.innerWidth, h: window.innerHeight },
+    ));
+  }, [x, y]);
+
+  return (
+    <div
+      ref={ref}
+      data-menu-root
+      role="dialog"
+      aria-label={`${filter.label} 필터`}
+      className="fixed z-[70] w-64 overflow-hidden rounded-xl border border-line bg-panel p-1.5 shadow-pop"
+      style={{ left: pos.x, top: pos.y }}
+    >
+      <div className="flex items-center gap-2 px-2 py-1.5">
+        <FilterIcon />
+        <p className="min-w-0 flex-1 truncate text-xs font-semibold text-ink">{filter.label} 필터</p>
+        <button
+          type="button"
+          aria-label="필터 메뉴 닫기"
+          onClick={onClose}
+          className="grid h-6 w-6 place-items-center rounded-md text-sm text-ink-3 hover:bg-panel-2 hover:text-ink"
+        >
+          ×
+        </button>
+      </div>
+      {filter.options.length > 8 && (
+        <div className="relative mb-1.5">
+          <span aria-hidden className="pointer-events-none absolute inset-y-0 left-2.5 grid place-items-center text-ink-3"><FilterSearchIcon /></span>
+          <input
+            autoFocus
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="field h-8 py-0 pl-8 text-xs"
+            placeholder={`${filter.label} 검색…`}
+            aria-label={`${filter.label} 선택지 검색`}
+          />
+        </div>
+      )}
+      <div className="max-h-72 overflow-y-auto overscroll-contain">
+        <FilterOptionButton label="전체" selected={!filter.value} autoFocus={filter.options.length <= 8} onClick={() => onChange("")} />
+        {visibleOptions.map((option) => (
+          <FilterOptionButton
+            key={option.value}
+            label={option.label}
+            count={option.count}
+            selected={filter.value === option.value}
+            onClick={() => onChange(option.value)}
+          />
+        ))}
+        {visibleOptions.length === 0 && <p className="px-3 py-6 text-center text-xs text-ink-3">일치하는 항목이 없습니다.</p>}
+      </div>
+    </div>
+  );
+}
+
+function FilterOptionButton({
+  label,
+  count,
+  selected,
+  autoFocus,
+  onClick,
+}: {
+  label: string;
+  count?: number;
+  selected: boolean;
+  autoFocus?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      autoFocus={autoFocus}
+      aria-pressed={selected}
+      className={cx(
+        "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs hover:bg-panel-2",
+        selected && "bg-brand-soft font-medium text-brand",
+      )}
+      onClick={onClick}
+    >
+      <span className="grid w-4 shrink-0 place-items-center" aria-hidden>{selected ? "✓" : ""}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {count !== undefined && <span className="font-mono tabular-nums text-ink-3">{count.toLocaleString("ko-KR")}</span>}
+    </button>
+  );
+}
+
+function FilterIcon() {
+  return <svg viewBox="0 0 20 20" aria-hidden className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 5h14M5.5 10h9M8 15h4" /></svg>;
+}
+
+function FilterSearchIcon() {
+  return <svg viewBox="0 0 20 20" aria-hidden className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="8.5" cy="8.5" r="4.75" /><path d="m12 12 4 4" /></svg>;
 }
 
 function MenuAction({
@@ -1859,6 +2226,7 @@ function MenuAction({
 
 function StatusBar(props: {
   rowCount: number;
+  pagination: TermsGridProps["pagination"];
   pickedCount: number;
   range: CellRange | null;
   busyCount: number;
@@ -1867,31 +2235,62 @@ function StatusBar(props: {
   onCopyPicked: () => void;
   onDelete: () => void;
   onClearPick: () => void;
+  onPageSizeChange: (pageSize: number) => void;
 }) {
   const cells = props.range ? rangeCells(props.range) : 0;
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-line bg-panel px-3 py-1.5 text-[11px]">
-      <span className="text-ink-3">
-        <span className="font-medium text-ink-2">{props.rowCount}</span>행
+    <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 overflow-x-auto whitespace-nowrap border-t border-line bg-panel px-3 py-1.5 text-[11px]">
+      <span className="flex min-w-0 items-center gap-3">
+        <span className="text-ink-3">
+          <span className="font-medium text-ink-2">{props.rowCount}</span>행
+        </span>
+
+        {cells > 1 && props.range && (
+          <span className="text-ink-3">
+            선택 {props.range.r1 - props.range.r0 + 1} × {props.range.c1 - props.range.c0 + 1}
+            <span className="ml-1 text-ink-3/70">({cells}칸)</span>
+          </span>
+        )}
+
+        {props.busyCount > 0 && (
+          <span className="flex items-center gap-1.5 text-brand">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
+            {props.busyCount}줄 저장 중
+          </span>
+        )}
       </span>
 
-      {cells > 1 && props.range && (
+      {/* R93: 51번째 용어부터는 이 링크 없이는 UI로 도달할 수 없다. 별도
+          바를 만들지 않고 상태선의 가운데 칸에 두어 항상 중앙에 맞춘다. */}
+      <nav aria-label="시트 페이지" className="flex items-center gap-3 justify-self-center">
+        <label className="flex items-center gap-1.5 text-ink-3">
+          <span>보기</span>
+          <select
+            aria-label="페이지당 행 수"
+            className="h-6 rounded-md border border-line bg-panel px-1.5 text-[11px] text-ink-2 focus:border-brand focus:outline-none"
+            value={String(props.pagination.pageSize)}
+            onChange={(event) => props.onPageSizeChange(Number(event.target.value))}
+          >
+            {props.pagination.pageSizeOptions.map((option) => (
+              <option key={option.pageSize} value={String(option.pageSize)}>{option.pageSize}행</option>
+            ))}
+          </select>
+        </label>
+        <StatusPageLink href={props.pagination.previousHref} enabled={props.pagination.hasPrevious}>
+          이전
+        </StatusPageLink>
         <span className="text-ink-3">
-          선택 {props.range.r1 - props.range.r0 + 1} × {props.range.c1 - props.range.c0 + 1}
-          <span className="ml-1 text-ink-3/70">({cells}칸)</span>
+          {props.pagination.page} / {props.pagination.totalPages}
         </span>
-      )}
+        <StatusPageLink href={props.pagination.nextHref} enabled={props.pagination.hasNext}>
+          다음
+        </StatusPageLink>
+      </nav>
 
-      {props.busyCount > 0 && (
-        <span className="flex items-center gap-1.5 text-brand">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
-          {props.busyCount}줄 저장 중
-        </span>
-      )}
-
-      {props.pickedCount > 0 && (
-        <span className="ml-auto flex flex-wrap items-center gap-1.5">
+      <span className="flex min-w-0 justify-end">
+        {props.pickedCount > 0 && (
+          <span className="flex shrink-0 flex-nowrap items-center gap-1.5">
           <span className="font-medium text-ink">{props.pickedCount}줄 선택</span>
           <select
             className="h-6 rounded-md border border-line bg-panel px-1.5 text-[11px] text-ink-2 focus:border-brand focus:outline-none"
@@ -1920,8 +2319,9 @@ function StatusBar(props: {
           <button type="button" className="btn-quiet btn-sm" onClick={props.onClearPick}>
             해제
           </button>
-        </span>
-      )}
+          </span>
+        )}
+      </span>
     </div>
   );
 }
@@ -1934,6 +2334,8 @@ function HeaderCell({
   scrolledX,
   sortHrefs,
   sortState,
+  filter,
+  filterOpen,
   resizing,
   dragging,
   dropSide,
@@ -1947,12 +2349,15 @@ function HeaderCell({
   onDrop,
   onDragEnd,
   onMove,
+  onOpenFilter,
 }: {
   column: GridColumn;
   frozen: boolean;
   scrolledX: boolean;
   sortHrefs: Partial<Record<SortKey, string>>;
   sortState: { key: SortKey; dir: SortDir };
+  filter?: SheetFilter;
+  filterOpen: boolean;
   resizing: boolean;
   dragging: boolean;
   dropSide: ColumnDropSide | null;
@@ -1966,6 +2371,7 @@ function HeaderCell({
   onDrop: (e: React.DragEvent<HTMLTableCellElement>) => void;
   onDragEnd: () => void;
   onMove: (direction: -1 | 1) => void;
+  onOpenFilter: (event: React.MouseEvent<HTMLButtonElement>, filter: SheetFilter) => void;
 }) {
   const href = column.sortKey ? sortHrefs[column.sortKey] : undefined;
   const on = column.sortKey !== undefined && column.sortKey === sortState.key;
@@ -2017,7 +2423,7 @@ function HeaderCell({
         ...(frozen && scrolledX ? { boxShadow: "6px 0 8px -8px rgb(0 0 0 / 0.45)" } : null),
       }}
     >
-      <span className="flex min-w-0 items-center">
+      <span className={cx("flex min-w-0 items-center", filter && "pr-7")}>
         {href ? (
           <Link
             href={href}
@@ -2034,6 +2440,28 @@ function HeaderCell({
           <span className="flex min-w-0 flex-1 items-center gap-1 px-1 py-2">{label}</span>
         )}
       </span>
+
+      {filter && (
+        <button
+          type="button"
+          draggable={false}
+          data-column-filter
+          aria-haspopup="dialog"
+          aria-expanded={filterOpen}
+          aria-label={`${column.label} 필터${filter.value ? `: ${filter.valueLabel ?? filter.value}` : ""}`}
+          title={filter.value ? `${filter.label}: ${filter.valueLabel ?? filter.value}` : `${filter.label} 필터`}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => onOpenFilter(event, filter)}
+          className={cx(
+            "absolute right-1.5 top-1/2 z-20 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md transition-[opacity,background-color,color] hover:bg-panel focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45",
+            filter.value
+              ? "bg-brand-soft text-brand opacity-100"
+              : "text-ink-3 opacity-0 group-hover/th:opacity-100",
+          )}
+        >
+          <FilterIcon />
+        </button>
+      )}
 
       {dropSide && (
         <span
@@ -2093,11 +2521,13 @@ function CellView({
   column,
   now,
   query,
+  domainColors,
 }: {
   row: TermRow;
   column: GridColumn;
   now: Date | null;
   query: string | undefined;
+  domainColors: ReadonlyMap<string, string>;
 }) {
   if (column.key === "updatedAt") {
     const at = new Date(row.updatedAt);
@@ -2151,7 +2581,11 @@ function CellView({
     return (
       <span className="flex items-center gap-1 overflow-hidden">
         {shown.map((d) => (
-          <span key={d} className="shrink-0 rounded bg-panel-2 px-1.5 py-0.5 text-[11px] text-ink-2">
+          <span
+            key={d}
+            className={cx("shrink-0 rounded border px-1.5 py-0.5 text-[11px]", domainColors.has(d) ? "domain-color-chip" : "border-line bg-panel-2 text-ink-2")}
+            style={domainColors.has(d) ? domainColorStyle(domainColors.get(d)) : undefined}
+          >
             {d}
           </span>
         ))}
@@ -2218,6 +2652,7 @@ function CellEditor({
   column,
   value,
   knownDomains,
+  domainColors,
   onChange,
   onCommit,
   onCancel,
@@ -2225,6 +2660,7 @@ function CellEditor({
   column: GridColumn;
   value: string;
   knownDomains: string[];
+  domainColors: ReadonlyMap<string, string>;
   onChange: (v: string) => void;
   onCommit: (value: string, move: "down" | "right" | null) => void;
   onCancel: () => void;
@@ -2238,6 +2674,7 @@ function CellEditor({
       <ListEditor
         value={value}
         knownDomains={knownDomains}
+        domainColors={domainColors}
         onChange={onChange}
         onCommit={onCommit}
         onCancel={onCancel}
@@ -2401,12 +2838,14 @@ function EnumEditor({
 function ListEditor({
   value,
   knownDomains,
+  domainColors,
   onChange,
   onCommit,
   onCancel,
 }: {
   value: string;
   knownDomains: string[];
+  domainColors: ReadonlyMap<string, string>;
   onChange: (v: string) => void;
   onCommit: (value: string, move: "down" | "right" | null) => void;
   onCancel: () => void;
@@ -2470,7 +2909,12 @@ function ListEditor({
               type="button"
               data-domain-chip="1"
               onClick={() => toggle(d)}
-              className={cx("chip !py-0.5 !text-[11px]", tokens.includes(d) && "chip-on")}
+              className={cx(
+                "chip !py-0.5 !text-[11px]",
+                domainColors.has(d) && "domain-color-chip",
+                tokens.includes(d) && "ring-2 ring-brand/45",
+              )}
+              style={domainColors.has(d) ? domainColorStyle(domainColors.get(d)) : undefined}
             >
               {d}
             </button>
@@ -2516,4 +2960,9 @@ function IconUndo({ flip = false }: { flip?: boolean }) {
       <path d="M5.5 4 3 6.5 5.5 9" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
+}
+
+function StatusPageLink({ href, enabled, children }: { href: string; enabled: boolean; children: React.ReactNode }) {
+  if (!enabled) return <span className="text-ink-3/50">{children}</span>;
+  return <Link href={href} className="text-ink-2 hover:text-ink">{children}</Link>;
 }

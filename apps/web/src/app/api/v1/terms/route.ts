@@ -1,4 +1,4 @@
-import { termStatusEnum, termTypeEnum } from "@grossary/db";
+import { termStatusEnum, termTypeEnum } from "@glossary/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { requireAuth, isResponse } from "@/lib/auth/require";
 import { termInputSchema } from "@/lib/terms/schema";

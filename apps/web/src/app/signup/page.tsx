@@ -4,6 +4,7 @@ import { BrandMark } from "@/components/app-shell";
 import { InfoFooter } from "@/components/info-links";
 import { needsSetup } from "@/lib/auth/setup";
 import { SignupForm } from "./signup-form";
+import { loadPasswordLoginEnabled } from "@/lib/auth/sso/config";
 
 // needsSetup(DB 조회)이 빌드 시 프리렌더로 실행되지 않도록 런타임 렌더로 고정한다.
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 // 계정이 하나도 없으면 여기가 아니라 최초 설정으로 보낸다: 첫 계정은 관리자여야
 // 하는데 이 화면은 editor만 만든다.
 export default async function SignupPage() {
+  if (!(await loadPasswordLoginEnabled())) redirect("/login");
   if (await needsSetup()) redirect("/setup");
 
   return (
@@ -20,7 +22,7 @@ export default async function SignupPage() {
       <div className="w-full max-w-sm animate-fade-up">
         <header className="mb-6 flex flex-col items-center text-center">
           <BrandMark size={38} />
-          <h1 className="mt-3 text-xl font-semibold tracking-tight text-ink">Grossary</h1>
+          <h1 className="mt-3 text-xl font-semibold tracking-tight text-ink">Glossary</h1>
           <p className="mt-2 text-sm text-ink-2">개념 하나에 표기 여럿, 함께 관리하는 사전</p>
         </header>
 

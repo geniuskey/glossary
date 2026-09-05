@@ -1,10 +1,11 @@
 import { sql } from "drizzle-orm";
 import { z } from "zod";
-import { users } from "@grossary/db";
+import { users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { DUMMY_PASSWORD_HASH, verifyPassword } from "@/lib/auth/password";
 import { normalizeEmail } from "@/lib/auth/register";
+import { loadPasswordLoginEnabled } from "@/lib/auth/sso/config";
 import { createSession, isSecureRequest, purgeExpiredSessions, sessionCookie } from "@/lib/auth/session";
 
 const bodySchema = z.object({
@@ -17,6 +18,9 @@ const { GET, PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
 export { GET, PUT, PATCH, DELETE, OPTIONS };
 
 export const POST = withApiErrors(async (request: Request) => {
+  if (!(await loadPasswordLoginEnabled())) {
+    return apiError("password_login_disabled", "비밀번호 로그인이 비활성화되어 있습니다. 회사 계정으로 로그인하세요.", 403);
+  }
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return apiError("validation_failed", "이메일과 비밀번호가 필요합니다.", 400, parsed.error.flatten());

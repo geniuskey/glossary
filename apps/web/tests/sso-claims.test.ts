@@ -84,7 +84,7 @@ test("ID 토큰 payload를 읽고, 형태가 아니면 null이다", () => {
 });
 
 test("ID 토큰 claim은 nonce·issuer·audience·만료 시각이 모두 맞아야 한다", () => {
-  const expected = { issuer: "https://idp.example.com", clientId: "grossary", nonce: "nonce", nowSeconds: 1000 };
+  const expected = { issuer: "https://idp.example.com", clientId: "glossary", nonce: "nonce", nowSeconds: 1000 };
   const valid = { iss: expected.issuer, aud: expected.clientId, nonce: expected.nonce, exp: 1001 };
 
   expect(validateIdTokenClaims(valid, expected)).toEqual({ ok: true });
@@ -98,11 +98,11 @@ test("ID 토큰 claim은 nonce·issuer·audience·만료 시각이 모두 맞아
 });
 
 test("audience가 여러 개면 이 클라이언트를 authorized party로 명시해야 한다", () => {
-  const expected = { clientId: "grossary", nonce: "nonce", nowSeconds: 1000 };
-  const claims = { aud: ["grossary", "other"], nonce: "nonce", exp: 1001 };
+  const expected = { clientId: "glossary", nonce: "nonce", nowSeconds: 1000 };
+  const claims = { aud: ["glossary", "other"], nonce: "nonce", exp: 1001 };
 
   expect(validateIdTokenClaims(claims, expected)).toEqual({ ok: false, reason: "audience" });
-  expect(validateIdTokenClaims({ ...claims, azp: "grossary" }, expected)).toEqual({ ok: true });
+  expect(validateIdTokenClaims({ ...claims, azp: "glossary" }, expected)).toEqual({ ok: true });
 });
 
 // 운영자 화면에 보여줄 목록이다. 여기에 값이 섞이면 사번·전화번호가 설정 테이블에 쌓인다.
@@ -124,6 +124,15 @@ test("이메일은 소문자로 눕히고, 이름이 없으면 이메일 표기�
   expect(result).toEqual({
     ok: true,
     identity: { subject: "abc", email: "kim@example.com", name: "Kim@Example.com", groups: [] },
+  });
+});
+
+test("OIDC/OAuth claim 안에서 이미 깨져 들어온 한글 이름과 그룹도 복원한다", () => {
+  const brokenName = Buffer.from("김의윤", "utf8").toString("latin1");
+  const brokenGroup = Buffer.from("플랫폼팀", "utf8").toString("latin1");
+  expect(resolveIdentity({ sub: "abc", email: "kim@example.com", name: brokenName, groups: [brokenGroup] }, MAPPING)).toEqual({
+    ok: true,
+    identity: { subject: "abc", email: "kim@example.com", name: "김의윤", groups: ["플랫폼팀"] },
   });
 });
 

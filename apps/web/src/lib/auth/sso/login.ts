@@ -1,12 +1,13 @@
 import { and, eq, ne, sql } from "drizzle-orm";
-import { users } from "@grossary/db";
+import { users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import type { CurrentUser } from "@/lib/auth/current-user";
 import type { SsoIdentity } from "./claims";
+import { looksLikeMojibake } from "./encoding";
 
 export type SsoLoginResult =
   | { ok: true; user: CurrentUser; created: boolean }
-  | { ok: false; reason: "no_account" | "email_conflict" };
+  | { ok: false; reason: "no_account" | "email_conflict" | "identity_mismatch" };
 
 /**
  * R132: IdP가 확인해 준 사람을 이 앱의 계정에 붙인다.
@@ -20,14 +21,21 @@ export async function applySsoLogin(input: {
   identity: SsoIdentity;
   isAdmin: boolean;
   autoCreate: boolean;
+  /** 사용자가 명시적으로 요청한 재동기화에서는 로컬에서 바꾼 표시 이름도 IdP 값으로 되돌린다. */
+  refreshProfile?: boolean;
+  /** 재동기화 도중 다른 회사 계정을 선택해 현재 세션과 다른 계정을 덮어쓰는 일을 막는다. */
+  expectedUserId?: string;
 }): Promise<SsoLoginResult> {
-  const { identity, isAdmin, autoCreate } = input;
+  const { identity, isAdmin, autoCreate, refreshProfile = false, expectedUserId } = input;
   const db = getDb();
 
   return db.transaction(async (tx) => {
     const [bySubject] = await tx.select().from(users).where(eq(users.externalId, identity.subject)).limit(1);
     if (bySubject) {
-      const patch = await syncPatch(tx, bySubject, identity, isAdmin);
+      if (expectedUserId && bySubject.id !== expectedUserId) {
+        return { ok: false as const, reason: "identity_mismatch" as const };
+      }
+      const patch = await syncPatch(tx, bySubject, identity, isAdmin, refreshProfile);
       return { ok: true as const, user: await applyPatch(tx, bySubject, patch), created: false };
     }
 
@@ -37,12 +45,15 @@ export async function applySsoLogin(input: {
       .where(sql`lower(${users.email}) = ${identity.email}`)
       .limit(1);
     if (byEmail) {
+      if (expectedUserId && byEmail.id !== expectedUserId) {
+        return { ok: false as const, reason: "identity_mismatch" as const };
+      }
       // 이미 다른 sub에 묶인 계정이다. 덮어쓰면 IdP에서 계정 하나를 지웠다 다시 만든
       // 사람이 남의 이력을 이어받는 일이 생기므로, 사람이 개입하도록 막는다.
       if (byEmail.externalId && byEmail.externalId !== identity.subject) {
         return { ok: false as const, reason: "email_conflict" as const };
       }
-      const patch = await syncPatch(tx, byEmail, identity, isAdmin);
+      const patch = await syncPatch(tx, byEmail, identity, isAdmin, refreshProfile);
       return {
         ok: true as const,
         user: await applyPatch(tx, byEmail, { ...patch, externalId: identity.subject }),
@@ -50,6 +61,7 @@ export async function applySsoLogin(input: {
       };
     }
 
+    if (expectedUserId) return { ok: false as const, reason: "identity_mismatch" as const };
     if (!autoCreate) return { ok: false as const, reason: "no_account" as const };
 
     // 비밀번호는 없다(null). 이 계정은 SSO로만 들어온다 — 임의의 해시를 채워 넣으면
@@ -74,18 +86,23 @@ type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 type UserRow = typeof users.$inferSelect;
 
 /**
- * 로그인할 때마다 IdP 쪽 값을 따라간다. 단 **역할은 올리기만 한다** —
- * 그룹 claim이 한 번 비어서 오는 것만으로 관리자가 편집자로 떨어지면,
- * 그 순간 아무도 계정을 되돌릴 수 없다(관리자 전용 화면에서 잠긴다).
+ * 그룹·이메일은 로그인할 때마다 IdP 값을 따라가고 역할은 올리기만 한다.
+ * 표시 이름은 최초 생성 뒤 사용자가 직접 관리한다. 다만 과거 mojibake 이름은
+ * 정상 SSO 이름으로 한 번 복구한다.
  */
 async function syncPatch(
   tx: Tx,
   existing: UserRow,
   identity: SsoIdentity,
   isAdmin: boolean,
+  refreshProfile: boolean,
 ): Promise<Partial<UserRow>> {
   const patch: Partial<UserRow> = {};
-  if (identity.name && identity.name !== existing.name) patch.name = identity.name;
+  if (
+    identity.name
+    && identity.name !== existing.name
+    && (refreshProfile || looksLikeMojibake(existing.name))
+  ) patch.name = identity.name;
   if (!sameGroups(identity.groups, existing.ssoGroups)) patch.ssoGroups = identity.groups;
   if (isAdmin && existing.role !== "admin") patch.role = "admin";
 

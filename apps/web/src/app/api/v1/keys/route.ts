@@ -1,6 +1,6 @@
 import { desc } from "drizzle-orm";
 import { z } from "zod";
-import { apiKeys } from "@grossary/db";
+import { apiKeys } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { getCurrentUser } from "@/lib/auth/current-user";

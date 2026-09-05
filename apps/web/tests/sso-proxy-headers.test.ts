@@ -3,6 +3,7 @@ import {
   authMode,
   decodeProxyHeader,
   inspectProxyHeaders,
+  oauth2ProxyEnabled,
   oauth2SubjectClaims,
   proxyHeaderNames,
   trustProxyHeaders,
@@ -11,12 +12,19 @@ import {
 afterEach(() => {
   delete process.env.AUTH_MODE;
   delete process.env.SSO_TRUST_PROXY_HEADERS;
+  delete process.env.OAUTH2_PROXY_ENABLED;
   delete process.env.OAUTH2_SUBJECT_FIELD;
 });
 
 test("oauth2-proxy 모드는 별도 스위치 없이 헤더를 신뢰한다", () => {
   expect(authMode({ AUTH_MODE: "oauth2-proxy" })).toBe("oauth2-proxy");
   expect(trustProxyHeaders({ AUTH_MODE: "oauth2-proxy", SSO_TRUST_PROXY_HEADERS: "false" })).toBe(true);
+});
+
+test("새 capability는 기존 AUTH_MODE와 독립적으로 proxy 헤더 사용 가능 여부를 연다", () => {
+  expect(oauth2ProxyEnabled({ OAUTH2_PROXY_ENABLED: "true" })).toBe(true);
+  expect(oauth2ProxyEnabled({ OAUTH2_PROXY_ENABLED: "false" })).toBe(false);
+  expect(trustProxyHeaders({ OAUTH2_PROXY_ENABLED: "true" })).toBe(true);
 });
 
 test("oidc/oauth2 모드는 명시적으로 켤 때만 프록시 헤더를 신뢰하고 local은 켤 수 없다", () => {
@@ -46,6 +54,11 @@ test("기본 헤더에서 이메일·닉네임·첫 그룹 조직을 읽는다",
 test("latin1로 보이는 UTF-8 한글과 percent-encoded 이름을 복원한다", () => {
   const mojibake = Buffer.from("김의윤", "utf8").toString("latin1");
   expect(decodeProxyHeader(mojibake)).toBe("김의윤");
+  const windows1252Mojibake = mojibake
+    .replaceAll("\u0080", "€")
+    .replaceAll("\u0098", "˜")
+    .replaceAll("\u009c", "œ");
+  expect(decodeProxyHeader(windows1252Mojibake)).toBe("김의윤");
   expect(decodeProxyHeader("%EA%B9%80%EC%9D%98%EC%9C%A4")).toBe("김의윤");
   expect(decodeProxyHeader("plain@example.com")).toBe("plain@example.com");
 });

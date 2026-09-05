@@ -1,5 +1,5 @@
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
-import { businessCategories, surfaceKeys, terms, termSurfaces, type Db } from "@grossary/db";
+import { businessCategories, surfaceKeys, terms, termSurfaces, type Db } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import type { BusinessCategory, SurfaceKind, TermStatus, TermSummary, TermType } from "./query";
 import { ownerDisplayLabelSql } from "./owners";

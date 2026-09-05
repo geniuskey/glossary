@@ -1,6 +1,7 @@
 export type ApiErrorCode =
   | "validation_failed"
   | "unauthorized"
+  | "password_login_disabled"
   | "forbidden"
   | "not_found"
   | "term_not_found"

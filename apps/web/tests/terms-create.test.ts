@@ -1,6 +1,6 @@
 import { eq, inArray, like, or, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
-import { createDb, terms, termRevisions, termSurfaces } from "@grossary/db";
+import { createDb, terms, termRevisions, termSurfaces } from "@glossary/db";
 import { isUuid } from "../src/lib/api-error.js";
 import { createTerm, isSlugConflict, RESERVED_SLUGS } from "../src/lib/terms/create.js";
 

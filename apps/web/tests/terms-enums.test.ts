@@ -1,4 +1,4 @@
-import { surfaceKindEnum, surfaceLangEnum, termQualityProfileEnum, termStatusEnum, termTypeEnum } from "@grossary/db";
+import { surfaceKindEnum, surfaceLangEnum, termQualityProfileEnum, termStatusEnum, termTypeEnum } from "@glossary/db";
 import { expect, test } from "vitest";
 import {
   EXPLICIT_SURFACE_KINDS,
@@ -8,7 +8,7 @@ import {
 } from "../src/lib/terms/enums.js";
 import { TERM_QUALITY_PROFILES } from "../src/lib/workspace/term-quality-values.js";
 
-// R114: enums.ts는 term-form.tsx(클라이언트 번들)가 @grossary/db를 직접 import하지
+// R114: enums.ts는 term-form.tsx(클라이언트 번들)가 @glossary/db를 직접 import하지
 // 않도록 하기 위한 리터럴 배열 사본이다. 사본이라 원본(DB pgEnum)과 어긋날 수
 // 있다 — 어긋나면 폼이 존재하지 않는 값을 보내 400을 받거나, 실제로 존재하는
 // 값을 선택지에서 빠뜨린다. 순서는 의미가 없으므로 집합으로 비교한다.
