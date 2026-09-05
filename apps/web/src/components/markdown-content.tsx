@@ -1,6 +1,10 @@
-import type { ComponentPropsWithoutRef } from "react";
+import { isValidElement, type ComponentPropsWithoutRef, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
+import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import { normalizeDisplayMath } from "@/lib/markdown/normalize";
+import { MermaidDiagram } from "./mermaid-diagram";
 
 const INTERNAL_ATTACHMENT_RE = /^\/api\/v1\/attachments\/[a-f0-9]{64}$/;
 
@@ -29,6 +33,14 @@ const components: Components = {
   table({ children }) {
     return <div className="my-4 overflow-x-auto"><table>{children}</table></div>;
   },
+  pre({ children }) {
+    const child = isValidElement<{ className?: string; children?: ReactNode }>(children) ? children : null;
+    if (child?.props.className?.split(" ").includes("language-mermaid")) {
+      const source = String(child.props.children ?? "").replace(/\n$/, "");
+      return <MermaidDiagram source={source} />;
+    }
+    return <pre>{children}</pre>;
+  },
   code({ className, children, ...props }) {
     const block = className?.startsWith("language-");
     return block
@@ -40,8 +52,8 @@ const components: Components = {
 export function MarkdownContent({ children, className = "" }: { children: string; className?: string }) {
   return (
     <div className={`markdown-body ${className}`}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} skipHtml>
-        {children}
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={components} skipHtml>
+        {normalizeDisplayMath(children)}
       </ReactMarkdown>
     </div>
   );

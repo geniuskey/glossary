@@ -46,6 +46,14 @@ test("Markdown 툴바는 H1~H6와 주요 GFM 블록을 선택 영역에 적용�
   expect(source).toContain('insertMarkdownBlock');
 });
 
+test("Markdown 툴바는 수식과 Mermaid 예제를 삽입한다", () => {
+  expect(source).toContain('label="인라인 수식"');
+  expect(source).toContain('label="블록 수식 삽입"');
+  expect(source).toContain('label="Mermaid 다이어그램 삽입"');
+  expect(source).toContain('```mermaid');
+  expect(source).toContain('\\\\sum_{i=1}^{n}');
+});
+
 test("자주 쓰는 인라인 서식과 제목에는 키보드 단축키가 있다", () => {
   expect(source).toContain('key === "b"');
   expect(source).toContain('key === "i"');

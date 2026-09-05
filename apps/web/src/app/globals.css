@@ -392,6 +392,12 @@
   .markdown-body th { @apply border border-line bg-panel-2 px-3 py-2 text-left font-medium; }
   .markdown-body td { @apply border border-line px-3 py-2 align-top; }
   .markdown-body hr { @apply my-7 border-line; }
+  .markdown-body .katex-display { @apply my-5 overflow-x-auto overflow-y-hidden py-1; }
+  .markdown-body .mermaid-diagram { @apply my-5 overflow-x-auto rounded-lg border border-line bg-panel-2 p-4 text-center; }
+  .markdown-body .mermaid-diagram svg { @apply mx-auto h-auto max-w-full; }
+  .markdown-body .mermaid-loading { @apply text-sm text-ink-3; }
+  .markdown-body .mermaid-error { @apply my-5 rounded-lg border border-danger/35 bg-danger-soft p-3 text-sm text-danger; }
+  .markdown-body .mermaid-error p { @apply mt-0; }
 
   [data-markdown-fullscreen="true"] .cm-editor,
   [data-markdown-fullscreen="true"] .cm-scroller {

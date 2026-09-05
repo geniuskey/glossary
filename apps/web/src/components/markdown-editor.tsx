@@ -306,6 +306,7 @@ export function MarkdownEditor({
             <ToolbarButton label="취소선" title="취소선" disabled={disabled} onClick={() => run((text, from, to) => wrapMarkdown(text, from, to, "~~", "~~", "취소선 텍스트"))}><span className="line-through">S</span></ToolbarButton>
             <ToolbarButton label="인라인 코드" title="인라인 코드" disabled={disabled} onClick={() => run((text, from, to) => wrapMarkdown(text, from, to, "`", "`", "코드"))}><span className="font-mono">&lt;/&gt;</span></ToolbarButton>
             <ToolbarButton label="링크" title="링크 (Ctrl+K)" disabled={disabled} onClick={() => run((text, from, to) => wrapMarkdown(text, from, to, "[", "](https://example.com)", "링크 텍스트"))}>링크</ToolbarButton>
+            <ToolbarButton label="인라인 수식" title="인라인 수식 삽입" disabled={disabled} onClick={() => run((text, from, to) => wrapMarkdown(text, from, to, "$", "$", "E = mc^2"))}>$x$</ToolbarButton>
           </div>
 
           <ToolbarDivider />
@@ -325,6 +326,18 @@ export function MarkdownEditor({
               disabled={disabled}
               onClick={() => run((text, from, to) => insertMarkdownBlock(text, from, to, "| 열 1 | 열 2 | 열 3 |\n| --- | --- | --- |\n| 내용 | 내용 | 내용 |"))}
             >표</ToolbarButton>
+            <ToolbarButton
+              label="블록 수식 삽입"
+              title="KaTeX 블록 수식 삽입"
+              disabled={disabled}
+              onClick={() => run((text, from, to) => insertMarkdownBlock(text, from, to, "$$\n\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}\n$$"))}
+            >수식</ToolbarButton>
+            <ToolbarButton
+              label="Mermaid 다이어그램 삽입"
+              title="Mermaid 흐름도 삽입"
+              disabled={disabled}
+              onClick={() => run((text, from, to) => insertMarkdownBlock(text, from, to, "```mermaid\nflowchart LR\n  A[시작] --> B[완료]\n```"))}
+            >Mermaid</ToolbarButton>
             <ToolbarButton label="구분선 삽입" title="구분선 삽입" disabled={disabled} onClick={() => run((text, from, to) => insertMarkdownBlock(text, from, to, "---"))}>구분선</ToolbarButton>
             <ToolbarButton
               label="이미지 첨부"

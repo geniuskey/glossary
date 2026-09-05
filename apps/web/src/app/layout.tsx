@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import "@fontsource-variable/noto-sans-kr";
+import "katex/dist/katex.min.css";
 import { InlineScript } from "@/components/inline-script";
 import "./globals.css";
 
