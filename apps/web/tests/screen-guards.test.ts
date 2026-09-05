@@ -173,6 +173,18 @@ test("용어 챗봇은 대화로 모은 용어를 확인 후 비공개 초안으
   expect(content).toContain("개 모두 초안으로 추가");
 });
 
+test("용어 챗봇은 세션 목록을 제공하고 현재 대화를 URL에 남겨 뒤로가기로 복원한다", () => {
+  const content = stripComments(readFileSync(path.join(componentsDir, "chat-panel.tsx"), "utf8"));
+  const page = stripComments(readFileSync(path.join(appDir, "c", "[id]", "page.tsx"), "utf8"));
+
+  expect(content).toContain('aria-label="챗봇 대화 기록"');
+  expect(content).toContain('fetch(`/api/v1/chat?session=${encodeURIComponent(sessionId)}`)');
+  expect(content).toContain('window.history.pushState(null, "", `/c/${encodeURIComponent(sessionId)}`)');
+  expect(content).toContain('window.history.replaceState(null, "", `/c/${encodeURIComponent(returnedSessionId)}`)');
+  expect(content).toContain('href={`/w/${source.slug}`}');
+  expect(page).toContain("initialSessionId={id}");
+});
+
 test("시트 도구 막대는 가로 스크롤 밖에서 현재 필터와 붙여넣기 도움말을 보여준다", () => {
   const content = stripComments(readFileSync(path.join(componentsDir, "terms-grid.tsx"), "utf8"));
   expect(content).toContain('aria-label="현재 적용된 필터"');

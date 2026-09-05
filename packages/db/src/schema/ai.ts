@@ -60,3 +60,17 @@ export const aiReviewQueue = pgTable(
     positiveRevision: check("ai_review_queue_positive_revision", sql`${t.revision} > 0`),
   }),
 );
+
+/** 로그인 사용자가 용어 챗봇에서 나눈 대화. 메시지의 부가 정보(출처와 용어 초안)도 함께 보관한다. */
+export const chatConversations = pgTable(
+  "chat_conversations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    messages: jsonb("messages").$type<unknown[]>().notNull().default(sql`'[]'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ userUpdatedIdx: index("chat_conversations_user_updated_idx").on(t.userId, t.updatedAt) }),
+);

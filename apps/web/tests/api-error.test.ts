@@ -118,7 +118,7 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "admin/ai-config", mod: adminAiConfigRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
   { name: "admin/ai-config/test", mod: adminAiConfigTestRoute, allowed: ["POST"], allow: "POST" },
   { name: "admin/ai-config/models", mod: adminAiConfigModelsRoute, allowed: ["POST"], allow: "POST" },
-  { name: "chat", mod: chatRoute, allowed: ["POST"], allow: "POST" },
+  { name: "chat", mod: chatRoute, allowed: ["GET", "POST", "PATCH", "DELETE"], allow: "GET, HEAD, POST, PATCH, DELETE" },
   { name: "contributions/suggestions", mod: contributionSuggestionsRoute, allowed: ["GET", "PATCH", "DELETE"], allow: "GET, HEAD, PATCH, DELETE" },
   { name: "contributions/review-queue", mod: contributionReviewQueueRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
   { name: "admin/categories", mod: adminCategoriesRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },

@@ -881,6 +881,16 @@ export const openApiSpec = {
       },
     },
     "/chat": {
+      get: {
+        summary: "내 챗봇 대화 세션 목록과 선택한 대화 조회",
+        security: [{ sessionCookie: [] }],
+        parameters: [{ name: "session", in: "query", schema: { type: "string", format: "uuid" } }],
+        responses: {
+          "200": json("최근 대화 세션과 선택한 대화 메시지", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+          "404": errorResponse("not_found"),
+        },
+      },
       post: {
         summary: "용어집에 근거한 AI 질문",
         description: "관련 용어를 근거로 답하고, 모르는 용어는 대화로 초안을 수집합니다. 여러 줄 용어집을 붙여넣으면 최대 25개 초안으로 구조화합니다.",
@@ -890,6 +900,7 @@ export const openApiSpec = {
           additionalProperties: false,
           properties: {
             question: { type: "string", minLength: 1, maxLength: 20000 },
+            sessionId: { type: "string", format: "uuid", description: "로그인 사용자가 이어갈 대화 세션" },
             history: { type: "array", maxItems: 8, items: { type: "object", required: ["role", "content"], properties: {
               role: { type: "string", enum: ["user", "assistant"] },
               content: { type: "string", minLength: 1, maxLength: 4000 },
@@ -916,6 +927,35 @@ export const openApiSpec = {
           "429": errorResponse("rate_limited"),
           "502": errorResponse("ai_provider_error"),
           "503": errorResponse("ai_not_enabled"),
+        },
+      },
+      patch: {
+        summary: "용어 초안 작업이 반영된 대화 메시지 저장",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["sessionId", "messages"],
+          additionalProperties: false,
+          properties: {
+            sessionId: { type: "string", format: "uuid" },
+            messages: { type: "array", maxItems: 500, items: { type: "object" } },
+          },
+        } } } },
+        responses: {
+          "200": json("저장 완료", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "404": errorResponse("not_found"),
+        },
+      },
+      delete: {
+        summary: "내 챗봇 대화 세션 삭제",
+        security: [{ sessionCookie: [] }],
+        parameters: [{ name: "session", in: "query", required: true, schema: { type: "string", format: "uuid" } }],
+        responses: {
+          "204": { description: "삭제됨" },
+          "401": errorResponse("unauthorized"),
+          "404": errorResponse("not_found"),
         },
       },
     },
