@@ -15,6 +15,7 @@ import {
 } from "react";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { HelpTip } from "@/components/help-tip";
+import { TermAiReviewPanel } from "@/components/term-ai-review-panel";
 import { ClassificationMultiSelect } from "@/components/classification-multi-select";
 import { STATUS_TONE, StatusBadge } from "@/components/term-badges";
 import {
@@ -32,6 +33,7 @@ import {
 } from "@/lib/terms/enums";
 import { TERM_FIELD_LABELS } from "@/lib/terms/form-labels";
 import { buildTermPayload, parseSurfaceBatch, type SurfaceDraft, type TermFormState } from "@/lib/terms/form-payload";
+import type { EditReviewField } from "@/lib/ai/edit-review-values";
 import { interpretResponse, type FormOutcome } from "@/lib/terms/form-response";
 import { TERM_DOMAIN_TEXT_MAX, TERM_MARKDOWN_MAX, TERM_NAME_MAX, TERM_SLUG_MAX } from "@/lib/terms/limits";
 import type { AssignableUser } from "@/lib/terms/owners";
@@ -147,6 +149,7 @@ export function TermForm({
   const [slugError, setSlugError] = useState<string | null>(null);
   const [surfaceBatch, setSurfaceBatch] = useState("");
   const [surfaceBatchKind, setSurfaceBatchKind] = useState<ExplicitSurfaceKindLiteral>("alias");
+  const [showFullNameFields, setShowFullNameFields] = useState(() => Boolean(initial?.fullNameEn || initial?.fullNameKo));
   const [draggedSurfaceIndex, setDraggedSurfaceIndex] = useState<number | null>(null);
   const [dragOverSurfaceKind, setDragOverSurfaceKind] = useState<ExplicitSurfaceKindLiteral | null>(null);
   const [surfaceMenu, setSurfaceMenu] = useState<{ index: number; x: number; y: number } | null>(null);
@@ -240,6 +243,7 @@ export function TermForm({
 
   useEffect(() => {
     if (!fieldErrors) return;
+    if (fieldErrors.fullNameEn || fieldErrors.fullNameKo) setShowFullNameFields(true);
     if (fieldErrors.surfaces) surfaceDetailsRef.current!.open = true;
     if (["qualityProfile", "domain", "category", "topic", "ownerId"].some((field) => fieldErrors[field])) {
       managementDetailsRef.current!.open = true;
@@ -302,6 +306,16 @@ export function TermForm({
     }));
     setSurfaceBatch("");
     setSurfaceAnnouncement(`${SURFACE_KIND_LABEL[surfaceBatchKind]}에 표기 ${values.length}개를 추가했습니다.`);
+  }
+
+  function applyAiSuggestion(field: EditReviewField, value: string | string[]) {
+    const normalized = Array.isArray(value) ? value.join(", ") : value;
+    setForm((current) => ({ ...current, [field]: normalized }));
+    setWarnings([]);
+    setSaveToast(null);
+    if (field === "fullNameEn" || field === "fullNameKo") setShowFullNameFields(true);
+    if (field === "bodyMd") bodyDetailsRef.current!.open = true;
+    if (field === "domain" || field === "category" || field === "topic") managementDetailsRef.current!.open = true;
   }
 
   function removeSurface(index: number) {
@@ -537,7 +551,7 @@ export function TermForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className={cx("w-full", compact ? "space-y-3" : "space-y-5")}>
+    <form onSubmit={onSubmit} className={cx("w-full", compact ? "space-y-3 pb-24" : "space-y-5")}>
       {conflict && (
         <div className="note note-warn" aria-live="polite">
           <p className="font-medium">{conflict.message}</p>
@@ -624,7 +638,7 @@ export function TermForm({
             <FormFieldError id="status-error" errors={errorsFor("status")} />
             <fieldset>
               <legend className="label">
-                <span className="inline-flex items-center gap-1.5">유형 <HelpTip text="항목 자체의 성격을 고릅니다. 약어와 풀네임은 추가 표기에서 관리합니다." /></span>
+                <span className="inline-flex items-center gap-1.5">유형 <HelpTip text="항목 자체의 성격을 고릅니다." /></span>
               </legend>
               <div className="grid grid-cols-2 gap-1 rounded-xl bg-panel-2 p-1 xl:grid-cols-4">
                 {TERM_TYPES.map((type) => (
@@ -667,7 +681,7 @@ export function TermForm({
                 onChange={(value) => updateField("nameKo", value)}
               />
 
-              {(labels.showFullNames || form.fullNameEn || form.fullNameKo) && (
+              {(showFullNameFields || labels.showFullNames || form.fullNameEn || form.fullNameKo) ? (
                 <>
                   <FormTextField
                     name="fullNameEn"
@@ -688,6 +702,17 @@ export function TermForm({
                     onChange={(value) => updateField("fullNameKo", value)}
                   />
                 </>
+              ) : (
+                <div className="sm:col-span-2">
+                  <button
+                    type="button"
+                    disabled={locked}
+                    onClick={() => setShowFullNameFields(true)}
+                    className="btn-quiet btn-sm"
+                  >
+                    + 확장명 추가
+                  </button>
+                </div>
               )}
             </div>
 
@@ -1065,6 +1090,15 @@ export function TermForm({
           </details>
       </div>
 
+      {editSlug !== undefined && (
+        <TermAiReviewPanel
+          termSlug={editSlug}
+          payload={buildTermPayload(formWithPendingSurfaces)}
+          disabled={locked || imageUploading}
+          onApply={applyAiSuggestion}
+        />
+      )}
+
       <details ref={bodyDetailsRef} className="group/details card">
         <CollapsibleSectionSummary
           title="상세 설명"
@@ -1093,42 +1127,48 @@ export function TermForm({
         </div>
       </details>
 
-      <div className={cx("sticky z-10 flex items-center justify-between gap-3 rounded-xl border border-line bg-panel/95 px-3 shadow-lg backdrop-blur", compact ? "bottom-2 py-2" : "bottom-3 py-2.5")}>
-        <p className="min-w-0 truncate text-xs text-ink-3" aria-live="polite">
-          {deleting ? "삭제 중…" : saving ? "저장 중…" : savedSlug ? "저장 완료" : editSlug === undefined ? "새 용어 작성 중" : dirty ? "저장하지 않은 변경사항이 있습니다" : "변경사항 없음"}
-        </p>
-        <div className="flex shrink-0 items-center gap-1.5">
-          {editSlug !== undefined && canDelete && (
-            <button type="button" onClick={() => void deleteCurrentTerm()} disabled={locked} className="btn-danger">
-              {deleting ? "삭제 중…" : "삭제"}
-            </button>
-          )}
-          <Link href={editSlug !== undefined ? `/w/${editSlug}` : "/sheet"} className="btn-quiet">
-            취소
-          </Link>
-          {savedSlug ? (
-            <Link href={`/w/${savedSlug}`} className="btn-primary">
-              저장됨 → {savedSlug}로 이동
+      <div className={cx(
+        compact
+          ? "term-form-bottom-bar fixed inset-x-0 bottom-0 z-[60] border-t border-line bg-panel/95 px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_24px_rgb(0_0_0/0.08)] backdrop-blur lg:left-60 lg:px-6"
+          : "sticky bottom-3 z-10 rounded-xl border border-line bg-panel/95 px-3 py-2.5 shadow-lg backdrop-blur",
+      )}>
+        <div className={cx("flex items-center justify-between gap-3", compact && "mx-auto w-full max-w-[87rem]")}>
+          <p className={cx("min-w-0 truncate text-xs text-ink-3", compact && "hidden sm:block")} aria-live="polite">
+            {deleting ? "삭제 중…" : saving ? "저장 중…" : savedSlug ? "저장 완료" : editSlug === undefined ? "새 용어 작성 중" : dirty ? "저장하지 않은 변경사항이 있습니다" : "변경사항 없음"}
+          </p>
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            {editSlug !== undefined && canDelete && (
+              <button type="button" onClick={() => void deleteCurrentTerm()} disabled={locked} className="btn-danger">
+                {deleting ? "삭제 중…" : "삭제"}
+              </button>
+            )}
+            <Link href={editSlug !== undefined ? `/w/${editSlug}` : "/sheet"} className="btn-quiet">
+              취소
             </Link>
-          ) : editSlug !== undefined && form.status === "draft" ? (
-            <>
-              <button type="submit" disabled={saving || imageUploading} className="btn-ghost">
-                {saving && submittingStatus === "draft" ? "초안 저장 중…" : "초안 저장"}
+            {savedSlug ? (
+              <Link href={`/w/${savedSlug}`} className="btn-primary">
+                저장됨 → {savedSlug}로 이동
+              </Link>
+            ) : editSlug !== undefined && form.status === "draft" ? (
+              <>
+                <button type="submit" disabled={saving || imageUploading} className="btn-ghost">
+                  {saving && submittingStatus === "draft" ? "초안 저장 중…" : "초안 저장"}
+                </button>
+                <button type="button" disabled={saving || imageUploading} onClick={() => void submitForm("active")} className="btn-primary">
+                  {saving && submittingStatus === "active" ? "공개 중…" : "공개하기"}
+                </button>
+              </>
+            ) : (
+              <button type="submit" disabled={saving || imageUploading} className="btn-primary">
+                {imageUploading ? "이미지 변환 중…" : saving ? "저장 중…" : editSlug === undefined ? "용어 저장" : "변경사항 저장"}
               </button>
-              <button type="button" disabled={saving || imageUploading} onClick={() => void submitForm("active")} className="btn-primary">
-                {saving && submittingStatus === "active" ? "공개 중…" : "공개하기"}
-              </button>
-            </>
-          ) : (
-            <button type="submit" disabled={saving || imageUploading} className="btn-primary">
-              {imageUploading ? "이미지 변환 중…" : saving ? "저장 중…" : editSlug === undefined ? "용어 저장" : "변경사항 저장"}
-            </button>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
       {saveToast && (
-        <div className="fixed bottom-5 right-5 z-[80] flex max-w-sm items-center gap-3 rounded-lg border border-ok/35 bg-ok-soft px-4 py-3 text-sm text-ok shadow-pop animate-fade-up" role="status" aria-live="polite">
+        <div className={cx("fixed right-5 z-[80] flex max-w-sm items-center gap-3 rounded-lg border border-ok/35 bg-ok-soft px-4 py-3 text-sm text-ok shadow-pop animate-fade-up", compact ? "bottom-20" : "bottom-5")} role="status" aria-live="polite">
           <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-ok text-xs font-bold text-panel" aria-hidden="true">✓</span>
           <span className="min-w-0 flex-1">{saveToast}</span>
           <button type="button" className="text-base leading-none opacity-60 hover:opacity-100" aria-label="알림 닫기" onClick={() => setSaveToast(null)}>×</button>

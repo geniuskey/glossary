@@ -18,9 +18,11 @@ const testDir = path.dirname(fileURLToPath(import.meta.url));
 const formPath = path.join(testDir, "..", "src", "components", "term-form.tsx");
 const helpTipPath = path.join(testDir, "..", "src", "components", "help-tip.tsx");
 const classificationSelectPath = path.join(testDir, "..", "src", "components", "classification-multi-select.tsx");
+const globalsPath = path.join(testDir, "..", "src", "app", "globals.css");
 const source = readFileSync(formPath, "utf8");
 const helpTipSource = readFileSync(helpTipPath, "utf8");
 const classificationSelectSource = readFileSync(classificationSelectPath, "utf8");
+const globalsSource = readFileSync(globalsPath, "utf8");
 
 // screen-guards.test.ts의 stripComments와 동일한 이유: 이 파일 자신의 주석
 // 안에 "router.push" 같은 판별 대상 문자열이 그대로 들어 있어서(설명하려고
@@ -73,6 +75,28 @@ test("savedSlug가 있으면 제출 버튼 대신 Link가 렌더된다 (R108)", 
   expect(linkIdx).toBeGreaterThan(-1);
   expect(submitBtnIdx).toBeGreaterThan(-1);
   expect(linkIdx).toBeLessThan(submitBtnIdx); // Link가 먼저(참 분기), submit 버튼은 else 분기
+});
+
+test("편집 폼은 저장 전 입력을 AI 검토하고 제안을 선택 반영한다", () => {
+  expect(code).toContain("<TermAiReviewPanel");
+  expect(code).toContain("payload={buildTermPayload(formWithPendingSurfaces)}");
+  expect(code).toContain("onApply={applyAiSuggestion}");
+  expect(code).toContain("function applyAiSuggestion");
+});
+
+test("값이 없는 영문·국문 확장명에도 사용자가 접근할 수 있다", () => {
+  expect(code).toContain("showFullNameFields");
+  expect(code).toContain("setShowFullNameFields(true)");
+  expect(code).toContain("+ 확장명 추가");
+  expect(code).toContain('field === "fullNameEn" || field === "fullNameKo"');
+  expect(code).not.toContain("약어와 풀네임은 추가 표기에서 관리합니다");
+});
+
+test("편집 화면의 저장 액션은 viewport 하단에 고정되고 본문이 가리지 않는다", () => {
+  expect(code).toContain('compact ? "space-y-3 pb-24"');
+  expect(code).toContain("term-form-bottom-bar fixed inset-x-0 bottom-0");
+  expect(code).toContain('compact ? "bottom-20" : "bottom-5"');
+  expect(globalsSource).toContain('body:has([data-sidebar-collapsed="true"]) .term-form-bottom-bar');
 });
 
 test("대표 표기와 한줄 정의가 기본 정보에 먼저 보이고 추가 표기·관리·본문은 상세 영역으로 이어진다", () => {

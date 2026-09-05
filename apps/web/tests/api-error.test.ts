@@ -17,6 +17,7 @@ import * as termLookupRoute from "../src/app/api/v1/terms/lookup/route.js";
 import * as termSuggestRoute from "../src/app/api/v1/terms/suggest/route.js";
 import * as termPasteCheckRoute from "../src/app/api/v1/terms/paste-check/route.js";
 import * as termIdOrSlugRoute from "../src/app/api/v1/terms/[idOrSlug]/route.js";
+import * as termAiReviewRoute from "../src/app/api/v1/terms/[idOrSlug]/ai-review/route.js";
 import * as termRevisionsRoute from "../src/app/api/v1/terms/[idOrSlug]/revisions/route.js";
 import * as openapiRoute from "../src/app/api/v1/openapi/route.js";
 import * as importRoute from "../src/app/api/v1/import/route.js";
@@ -82,6 +83,7 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   // 갱신하지 않으면 새로 추가된 PATCH/DELETE의 405 스텁 누락이나 Allow 헤더
   // 불일치를 아무 테스트도 못 잡는다.
   { name: "terms/[idOrSlug]", mod: termIdOrSlugRoute, allowed: ["GET", "PATCH", "DELETE"], allow: "GET, HEAD, PATCH, DELETE" },
+  { name: "terms/[idOrSlug]/ai-review", mod: termAiReviewRoute, allowed: ["POST"], allow: "POST" },
   // Task 10: 리비전 이력 라우트는 GET만 처리한다. 이 행이 없으면 POST/PUT/
   // PATCH/DELETE 스텁이 통째로 빠져도 아무 테스트도 못 잡는다.
   { name: "terms/[idOrSlug]/revisions", mod: termRevisionsRoute, allowed: ["GET"], allow: "GET, HEAD" },

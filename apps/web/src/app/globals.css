@@ -255,6 +255,10 @@
       left: calc(100% + 0.75rem);
       width: 13rem;
     }
+
+    body:has([data-sidebar-collapsed="true"]) .term-form-bottom-bar {
+      left: 4.5rem;
+    }
   }
 
   .card {
