@@ -64,6 +64,53 @@ test("관계도는 확대, 초기화와 조작 도움말을 제공한다", () =>
   expect(html).toContain('aria-live="polite"');
 });
 
+test("화면 반응형 배율만 노드 크기에서 보정하고 사용자 줌은 노드에도 적용한다", () => {
+  const testDir = path.dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(path.join(testDir, "../src/components/term-graph.tsx"), "utf8");
+
+  expect(source).toContain("1 / Math.max(0.01, canvasScale)");
+  expect(source).not.toContain("canvasScale * view.scale");
+  expect(source).toContain("getScreenCTM()");
+  expect(source).toContain("matrix.inverse()");
+});
+
+test("노드 배치는 화면 크기의 사각형 경계에 고정되지 않는다", () => {
+  const testDir = path.dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(path.join(testDir, "../src/components/term-graph.tsx"), "utf8");
+
+  expect(source).toContain("node.x += node.vx");
+  expect(source).toContain("node.y += node.vy");
+  expect(source).not.toContain("Math.min(WIDTH - inset");
+  expect(source).not.toContain("Math.min(HEIGHT - 40");
+});
+
+test("관계도 바탕을 누르면 선택을 해제하고 별도 해제 버튼은 표시하지 않는다", () => {
+  const testDir = path.dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(path.join(testDir, "../src/components/term-graph.tsx"), "utf8");
+
+  expect(source).toMatch(/function startPan[\s\S]*?setSelected\(null\)/);
+  expect(source).not.toContain(">강조 해제<");
+});
+
+test("용어 노드는 선택만 담당하고 상세 이동은 별도 링크로 제공한다", () => {
+  const html = renderToStaticMarkup(createElement(TermGraph, { terms: [term(1)] }));
+  const testDir = path.dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(path.join(testDir, "../src/components/term-graph.tsx"), "utf8");
+
+  expect(html).toContain('role="button"');
+  expect(html).not.toContain('aria-label="Term 1 상세 보기"');
+  expect(source).toContain("activeNode.term.slug");
+  expect(source).toContain("선택한 용어는 아래 상세 보기로 이동합니다.");
+});
+
+test("첫 클릭의 focus와 click이 연달아 발생해도 노드 선택을 토글 해제하지 않는다", () => {
+  const testDir = path.dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(path.join(testDir, "../src/components/term-graph.tsx"), "utf8");
+
+  expect(source).not.toContain("current === node.key ? null : node.key");
+  expect((source.match(/setSelected\(node\.key\)/g) ?? [])).toHaveLength(6);
+});
+
 test("용어가 많아도 모든 용어 이름을 채운 배지로 표시한다", () => {
   const terms = Array.from({ length: 60 }, (_, index) => term(index));
   const html = renderToStaticMarkup(createElement(TermGraph, { terms }));

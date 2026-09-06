@@ -27,11 +27,13 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
   return (
     <AppShell user={user} title="용어 관계도" current="graph" wide>
       <header className="shrink-0 border-b border-line bg-panel/70 px-4 py-3 backdrop-blur lg:px-6">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="mr-auto">
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+          <div className="mr-auto min-w-0">
             <p className="text-xs font-semibold tracking-[0.14em] text-brand lg:hidden">TERM MAP</p>
             <p className="mt-1 text-xl font-semibold lg:hidden">용어 관계도</p>
-            <p className="mt-1 text-xs text-ink-3 lg:mt-0">{terms.length}개 용어 · 허브는 최대 18개, 용어는 최대 100개를 표시합니다.</p>
+            <p className="mt-1 text-xs text-ink-3 lg:mt-0">
+              {terms.length}개 용어 · 연결 기준을 선택하고 노드를 눌러 주변 용어를 살펴보세요.
+            </p>
           </div>
           <GraphFilterBar
             values={{ domain: domain ?? "", category: category ?? "", topic: topic ?? "" }}
@@ -41,7 +43,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
           />
         </div>
       </header>
-      <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
+      <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4 lg:p-6">
         <TermGraph terms={terms} domainColors={domainOptions.map(({ label, color }) => ({ label, color }))} />
       </div>
     </AppShell>

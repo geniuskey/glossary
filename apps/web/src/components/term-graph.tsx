@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useEffect,
   useMemo,
@@ -312,9 +313,10 @@ function simulate(nodes: GraphNode[], edges: readonly GraphEdge[], alpha: number
     node.vx *= 0.84;
     node.vy *= 0.84;
     if (node.key === heldKey) continue;
-    const inset = Math.max(44, collisionRadius(node));
-    node.x = Math.max(inset, Math.min(WIDTH - inset, node.x + node.vx));
-    node.y = Math.max(40, Math.min(HEIGHT - 40, node.y + node.vy));
+    // 화면 가장자리는 좌표계의 끝이 아니다. 중심력만으로 군집이 지나치게
+    // 흩어지는 것을 막고, 드래그·시뮬레이션 좌표에는 사각형 경계를 두지 않는다.
+    node.x += node.vx;
+    node.y += node.vy;
   }
 }
 
@@ -356,6 +358,7 @@ export function TermGraph({
   }, [domainColors, terms]);
   const [nodes, setNodes] = useState(() => model.nodes.map((node) => ({ ...node })));
   const [view, setView] = useState<ViewTransform>({ x: 0, y: 0, scale: 1 });
+  const [canvasScale, setCanvasScale] = useState(1);
   const [selected, setSelected] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const nodesRef = useRef(nodes);
@@ -372,6 +375,21 @@ export function TermGraph({
     setSelected(null);
     setView({ x: 0, y: 0, scale: 1 });
   }, [model]);
+
+  // SVG viewBox가 컨테이너 크기에 맞춰질 때 생기는 반응형 배율만 역보정한다.
+  // 브라우저 크기만 바뀔 때는 노드가 뜻밖에 커지거나 작아지지 않지만, 사용자가
+  // 직접 확대·축소하면 노드·글자·연결선이 공간과 함께 자연스럽게 변한다.
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      const next = Math.min(entry.contentRect.width / WIDTH, entry.contentRect.height / HEIGHT);
+      if (Number.isFinite(next) && next > 0) setCanvasScale(next);
+    });
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     let frame: number | null = null;
@@ -426,14 +444,20 @@ export function TermGraph({
   const active = selected;
   const activeNode = active ? byKey.get(active) : undefined;
   const activeNeighbors = active ? neighbors.get(active) : undefined;
+  const relatedTerms = useMemo(() => activeNeighbors
+    ? [...activeNeighbors].map((key) => byKey.get(key)).filter((node): node is GraphNode => node?.kind === "term")
+    : [], [activeNeighbors, byKey]);
+  const visualNodeScale = 1 / Math.max(0.01, canvasScale);
+  const zoomLabel = useMemo(
+    () => new Intl.NumberFormat("ko-KR", { style: "percent" }).format(view.scale),
+    [view.scale],
+  );
 
   function graphPoint(clientX: number, clientY: number): { x: number; y: number } {
-    const box = svgRef.current?.getBoundingClientRect();
-    if (!box) return { x: WIDTH / 2, y: HEIGHT / 2 };
-    return {
-      x: ((clientX - box.left) / box.width) * WIDTH,
-      y: ((clientY - box.top) / box.height) * HEIGHT,
-    };
+    const matrix = svgRef.current?.getScreenCTM();
+    if (!matrix) return { x: WIDTH / 2, y: HEIGHT / 2 };
+    const point = new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse());
+    return { x: point.x, y: point.y };
   }
 
   function worldPoint(clientX: number, clientY: number): { x: number; y: number } {
@@ -468,10 +492,12 @@ export function TermGraph({
 
   function startPan(event: ReactPointerEvent<SVGSVGElement>) {
     if ((event.target as Element).closest("[data-graph-node]")) return;
+    setSelected(null);
     event.currentTarget.setPointerCapture(event.pointerId);
+    const point = graphPoint(event.clientX, event.clientY);
     panRef.current = {
-      startX: event.clientX,
-      startY: event.clientY,
+      startX: point.x,
+      startY: point.y,
       originX: view.x,
       originY: view.y,
     };
@@ -492,12 +518,12 @@ export function TermGraph({
     }
 
     const pan = panRef.current;
-    const box = svgRef.current?.getBoundingClientRect();
-    if (!pan || !box) return;
+    if (!pan) return;
+    const point = graphPoint(event.clientX, event.clientY);
     setView((current) => ({
       ...current,
-      x: pan.originX + ((event.clientX - pan.startX) / box.width) * WIDTH,
-      y: pan.originY + ((event.clientY - pan.startY) / box.height) * HEIGHT,
+      x: pan.originX + point.x - pan.startX,
+      y: pan.originY + point.y - pan.startY,
     }));
   }
 
@@ -524,27 +550,33 @@ export function TermGraph({
     heatRef.current(0.92);
   }
 
+  function resetView() {
+    setView({ x: 0, y: 0, scale: 1 });
+  }
+
   if (terms.length === 0) {
     return <div className="card px-5 py-16 text-center text-sm text-ink-3">조건에 맞는 용어가 없습니다.</div>;
   }
 
   return (
-    <section className="card relative flex min-h-[460px] flex-col overflow-hidden bg-panel-2/40 sm:min-h-[540px]">
-      <div className="absolute left-3 top-3 z-10 flex max-w-[calc(100%-8rem)] items-center gap-2 rounded-lg border border-line bg-panel/90 px-2.5 py-1.5 text-xs shadow-sm backdrop-blur">
+    <section className="card relative flex h-full min-h-[480px] flex-col overflow-hidden bg-panel-2/40 sm:min-h-[560px]">
+      <div className="absolute left-3 top-3 z-10 flex max-w-[calc(100%-12rem)] items-center gap-2 rounded-lg border border-line bg-panel/90 px-3 py-2 text-xs shadow-sm backdrop-blur">
         <span className="truncate font-medium text-ink">
           {activeNode ? `${kindLabel(activeNode.kind)} · ${activeNode.label}` : `${model.nodes.length}개 노드 · ${model.edges.length}개 연결`}
         </span>
-        <HelpTip text="빈 곳을 드래그해 이동하고 휠로 확대합니다. 노드를 드래그해 배치를 바꾸거나 허브를 눌러 연결된 용어만 강조할 수 있습니다." />
+        <HelpTip text="빈 곳을 드래그해 이동하고 휠로 확대·축소합니다. 노드를 드래그해 배치를 바꾸거나 눌러 연결을 강조할 수 있고, 선택한 용어는 아래 상세 보기로 이동합니다." />
       </div>
 
       <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-lg border border-line bg-panel/90 p-1 shadow-sm backdrop-blur">
-        <button type="button" className="btn-ghost grid h-7 w-7 place-items-center p-0" aria-label="축소" onClick={() => updateZoom(view.scale / 1.2)}>
+        <button type="button" className="btn-ghost grid h-9 w-9 place-items-center p-0" aria-label="축소" onClick={() => updateZoom(view.scale / 1.2)}>
           <IconMinus />
         </button>
-        <button type="button" className="btn-ghost grid h-7 w-7 place-items-center p-0" aria-label="확대" onClick={() => updateZoom(view.scale * 1.2)}>
+        <button type="button" className="btn-quiet h-9 min-w-12 px-2 text-[11px] tabular-nums" aria-label={`배율 ${zoomLabel}, 기본 배율로 돌아가기`} onClick={resetView}>
+          {zoomLabel}
+        </button>
+        <button type="button" className="btn-ghost grid h-9 w-9 place-items-center p-0" aria-label="확대" onClick={() => updateZoom(view.scale * 1.2)}>
           <IconPlus />
         </button>
-        <button type="button" className="btn-ghost h-7 px-2 text-[11px]" onClick={resetLayout}>초기화</button>
       </div>
 
       <svg
@@ -552,7 +584,7 @@ export function TermGraph({
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         role="group"
         aria-labelledby="term-graph-title term-graph-description"
-        className="min-h-[460px] w-full flex-1 cursor-grab touch-none select-none active:cursor-grabbing sm:min-h-[540px]"
+        className="min-h-[400px] w-full flex-1 cursor-grab touch-none select-none active:cursor-grabbing sm:min-h-[460px]"
         onWheel={handleWheel}
         onPointerDown={startPan}
         onPointerMove={movePointer}
@@ -564,7 +596,7 @@ export function TermGraph({
         <desc id="term-graph-description">허브와 용어 노드를 드래그할 수 있으며 확대, 축소, 이동과 연결 강조를 지원합니다.</desc>
         <rect width={WIDTH} height={HEIGHT} className="fill-transparent" />
         <g transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
-          <g className="stroke-line-strong" strokeWidth={1.15 / view.scale}>
+          <g className="stroke-line-strong" strokeWidth={1.15 / canvasScale}>
             {model.edges.map((edge) => {
               const source = byKey.get(edge.source);
               const target = byKey.get(edge.target);
@@ -614,28 +646,30 @@ export function TermGraph({
                     suppressClickRef.current = null;
                     return;
                   }
-                  setSelected((current) => current === node.key ? null : node.key);
+                  setSelected(node.key);
                 }}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter" && event.key !== " ") return;
                   event.preventDefault();
-                  setSelected((current) => current === node.key ? null : node.key);
+                  setSelected(node.key);
                 }}
               >
-                <circle
-                  r={node.radius}
-                  className={`${
-                    node.kind === "category"
-                      ? "graph-category-node"
-                      : node.kind === "topic"
-                        ? "fill-warn-soft stroke-warn"
-                        : domainHue !== undefined ? "graph-category-node" : "fill-panel-2 stroke-line-strong"
-                  } group-focus-visible/hub:stroke-[4px]`}
-                  strokeWidth={selectedHere ? 3.5 : 2}
-                />
-                <text textAnchor="middle" dy="4" className={`pointer-events-none text-[12px] font-semibold ${colored ? "graph-category-label" : "fill-ink"}`}>
-                  {node.label.slice(0, 12)}
-                </text>
+                <g transform={`scale(${visualNodeScale})`}>
+                  <circle
+                    r={node.radius}
+                    className={`${
+                      node.kind === "category"
+                        ? "graph-category-node"
+                        : node.kind === "topic"
+                          ? "fill-warn-soft stroke-warn"
+                          : domainHue !== undefined ? "graph-category-node" : "fill-panel-2 stroke-line-strong"
+                    } group-focus-visible/hub:stroke-[4px]`}
+                    strokeWidth={selectedHere ? 3.5 : 2}
+                  />
+                  <text textAnchor="middle" dy="4" className={`pointer-events-none text-[12px] font-semibold ${colored ? "graph-category-label" : "fill-ink"}`}>
+                    {node.label.slice(0, 12)}
+                  </text>
+                </g>
               </g>
             );
           })}
@@ -648,19 +682,27 @@ export function TermGraph({
             const selectedHere = selected === node.key;
             const termStyle = termColorStyles.get(term.id) ?? graphColorStyle(DEFAULT_HUE);
             return (
-              <a
+              <g
                 key={node.key}
-                href={`/w/${term.slug}`}
-                draggable={false}
                 data-graph-node
-                aria-label={`${node.label} 상세 보기${term.ownerName ? `, 담당 ${term.ownerName}` : ""}`}
-                className="outline-none"
+                role="button"
+                tabIndex={0}
+                aria-label={`용어 ${node.label}, 연결 ${neighbors.get(node.key)?.size ?? 0}개${term.ownerName ? `, 담당 ${term.ownerName}` : ""}`}
+                aria-pressed={selectedHere}
+                className="group/term outline-none"
                 onPointerDown={(event) => startNodeDrag(event, node.key)}
                 onFocus={() => setSelected(node.key)}
-                onClick={(event) => {
-                  if (suppressClickRef.current !== node.key) return;
+                onClick={() => {
+                  if (suppressClickRef.current === node.key) {
+                    suppressClickRef.current = null;
+                    return;
+                  }
+                  setSelected(node.key);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
                   event.preventDefault();
-                  suppressClickRef.current = null;
+                  setSelected(node.key);
                 }}
               >
                 <g
@@ -669,31 +711,56 @@ export function TermGraph({
                   className="cursor-grab active:cursor-grabbing"
                   style={termStyle}
                 >
-                  <rect
-                    x={-width / 2}
-                    y={-14}
-                    width={width}
-                    height={28}
-                    rx={9}
-                    className="graph-category-node transition-[stroke-width] motion-reduce:transition-none"
-                    strokeWidth={selectedHere ? 3 : 1.5}
-                  />
-                  <text textAnchor="middle" y="4" className="graph-category-label pointer-events-none text-[11px] font-semibold">
-                    {label}
-                  </text>
+                  <g transform={`scale(${visualNodeScale})`}>
+                    <rect
+                      x={-width / 2}
+                      y={-14}
+                      width={width}
+                      height={28}
+                      rx={9}
+                      className="graph-category-node transition-[stroke-width] group-focus-visible/term:stroke-[3px] motion-reduce:transition-none"
+                      strokeWidth={selectedHere ? 3 : 1.5}
+                    />
+                    <text textAnchor="middle" y="4" className="graph-category-label pointer-events-none text-[11px] font-semibold">
+                      {label}
+                    </text>
+                  </g>
                 </g>
-              </a>
+              </g>
             );
           })}
         </g>
       </svg>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-line bg-panel px-4 py-2 text-[11px] text-ink-3">
-        <TermColorLegend hues={[...new Set(domainHues.values())].slice(0, 3)} label="도메인" />
-        <LegendDot className="border border-brand bg-brand-soft" label="업무 분류" />
-        <LegendDot className="border border-warn bg-warn-soft" label="주제" />
-        <TermColorLegend hues={[...new Set(termColorHues.values())].slice(0, 3)} label="용어 · 분류색" />
-        {selected && <button type="button" className="ml-auto text-brand hover:underline" onClick={() => setSelected(null)}>강조 해제</button>}
+      <div className="border-t border-line bg-panel px-4 py-3">
+        {activeNode ? (
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+            <span className="rounded-md bg-brand-soft px-2 py-1 font-medium text-brand">{kindLabel(activeNode.kind)}</span>
+            <strong className="min-w-0 truncate text-sm text-ink">{activeNode.label}</strong>
+            <span className="text-ink-3">연결 {activeNeighbors?.size ?? 0}개</span>
+            {activeNode.kind === "term" && activeNode.term ? (
+              <Link href={`/w/${activeNode.term.slug}`} className="rounded font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45">상세 보기</Link>
+            ) : relatedTerms.length > 0 ? (
+              <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+                {relatedTerms.slice(0, 6).map((node) => (
+                  <Link key={node.key} href={`/w/${node.term!.slug}`} className="max-w-36 truncate rounded-md border border-line px-2 py-1 text-ink-2 hover:border-brand/50 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45">
+                    {node.label}
+                  </Link>
+                ))}
+                {relatedTerms.length > 6 && <span className="text-ink-3">외 {relatedTerms.length - 6}개</span>}
+              </span>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-xs text-ink-3">허브를 선택하면 연결된 용어만 강조됩니다. 빈 공간을 드래그해 이동할 수 있습니다.</p>
+        )}
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-ink-3">
+          <TermColorLegend hues={[...new Set(domainHues.values())].slice(0, 3)} label="도메인" />
+          <LegendDot className="border border-brand bg-brand-soft" label="업무 분류" />
+          <LegendDot className="border border-warn bg-warn-soft" label="주제" />
+          <TermColorLegend hues={[...new Set(termColorHues.values())].slice(0, 3)} label="용어 · 분류색 우선" />
+          <button type="button" className="ml-auto text-ink-3 underline-offset-2 hover:text-ink hover:underline" onClick={resetLayout}>배치 초기화</button>
+        </div>
       </div>
       <p className="sr-only" aria-live="polite">
         {activeNode ? `${kindLabel(activeNode.kind)} ${activeNode.label}, 연결 ${neighbors.get(activeNode.key)?.size ?? 0}개` : "전체 관계도"}
@@ -703,7 +770,7 @@ export function TermGraph({
 }
 
 function LegendDot({ className, label }: { className: string; label: string }) {
-  return <span className="inline-flex items-center"><i className={`mr-1.5 inline-block h-2.5 w-2.5 rounded-full ${className}`} />{label}</span>;
+  return <span className="inline-flex items-center"><i aria-hidden="true" className={`mr-1.5 inline-block h-2.5 w-2.5 rounded-full ${className}`} />{label}</span>;
 }
 
 function TermColorLegend({ hues, label }: { hues: number[]; label: string }) {
