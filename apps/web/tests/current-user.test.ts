@@ -1,4 +1,7 @@
 import { eq } from "drizzle-orm";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import { createDb, sessions, ssoConfig, users } from "@glossary/db";
 import { hashPassword } from "../src/lib/auth/password.js";
@@ -24,6 +27,12 @@ const { getCurrentUser } = await import("../src/lib/auth/current-user.js");
 const db = createDb(process.env.DATABASE_URL!);
 const createdUserIds: string[] = [];
 let originalConfig: SsoConfig;
+
+test("요청 컨텍스트를 DB 설정보다 먼저 읽어 빌드 중 DB 접근을 막는다", () => {
+  const testDir = path.dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(path.join(testDir, "../src/lib/auth/current-user.ts"), "utf8");
+  expect(source.indexOf("await Promise.all([cookies(), headers()])")).toBeLessThan(source.indexOf("await loadSsoConfig()"));
+});
 
 async function setMode(mode: "disabled" | "oidc" | "oauth2-proxy") {
   await db.update(ssoConfig).set({

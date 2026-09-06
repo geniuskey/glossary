@@ -21,6 +21,10 @@ export interface CurrentUser {
 }
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
+  // 요청 API를 DB 설정보다 먼저 읽어 이 함수가 항상 런타임 경계 안에서 실행되게
+  // 한다. 그렇지 않으면 Next 빌드가 페이지를 미리 렌더링하며 DB에 접근해, 런타임
+  // DATABASE_URL만 주입하는 Docker 이미지 빌드가 실패한다.
+  const [store, requestHeaders] = await Promise.all([cookies(), headers()]);
   const cfg = await loadSsoConfig();
   const configuredMode = resolveSsoMode(cfg);
   const bootstrapCandidate = cfg.mode === null
@@ -29,7 +33,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const setupNeeded = bootstrapCandidate ? await needsSetup() : false;
   const mode = resolveLoginSsoMode(cfg, setupNeeded);
   if (mode === "oauth2-proxy") {
-    const inspection = inspectProxyHeaders(await headers(), process.env, oauth2ProxyEnabled());
+    const inspection = inspectProxyHeaders(requestHeaders, process.env, oauth2ProxyEnabled());
     if (inspection.identity) {
       const bootstrapAdmin = isInitialAdminEmail(inspection.identity.email);
       // 최초 설치에서는 프록시를 통과한 첫 일반 사용자가 자동 생성되어 /setup을
@@ -79,7 +83,6 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     return null;
   }
 
-  const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
