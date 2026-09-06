@@ -40,14 +40,17 @@ function valueText(value: ContributionSuggestion["value"], field?: ContributionS
   return value.map((item) => field === "category" ? categoryLabels?.[item] ?? item : item).join(" · ");
 }
 
-export function AgentReviewPanel({ initialTerms, autoReviewEnabled, initialReviews, categoryLabels }: {
+export function AgentReviewPanel({ initialTerms, initialTermId, autoReviewEnabled, initialReviews, categoryLabels }: {
   initialTerms: ContributionTerm[];
+  initialTermId?: string;
   autoReviewEnabled: boolean;
   initialReviews: Record<string, PreparedReview>;
   categoryLabels: Record<string, string>;
 }) {
   const [terms, setTerms] = useState(initialTerms);
   const [index, setIndex] = useState(() => {
+    const selected = initialTerms.findIndex((term) => term.id === initialTermId);
+    if (selected >= 0) return selected;
     const actionable = initialTerms.findIndex((term) => (
       initialReviews[term.id]?.revision === term.revision
       && initialReviews[term.id]!.suggestions.length > 0

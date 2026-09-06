@@ -26,11 +26,14 @@ export default async function ContributePage({ searchParams }: { searchParams: P
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const rawTab = (await searchParams).tab;
+  const params = await searchParams;
+  const rawTab = params.tab;
   const requestedTab = Array.isArray(rawTab) ? rawTab[0] : rawTab;
   const tab = requestedTab === "agent" || requestedTab === "queue" ? requestedTab : "edit";
+  const rawTermId = params.termId;
+  const selectedTermId = tab === "agent" ? (Array.isArray(rawTermId) ? rawTermId[0] : rawTermId) : undefined;
   const [queue, storedAi, reviewQueue] = await Promise.all([
-    listContributionTerms(60, user.id),
+    listContributionTerms(60, user.id, selectedTermId),
     loadAiConfig(),
     listReviewQueue(),
   ]);
@@ -126,7 +129,7 @@ export default async function ContributePage({ searchParams }: { searchParams: P
           </p>
         )}
       </section>
-      </> : tab === "agent" ? <AgentReviewPanel initialTerms={queue.items} autoReviewEnabled={Boolean(ai.enabled && ai.secretsReadable && ai.autoReviewEnabled)} initialReviews={preparedReviews} categoryLabels={categoryLabels} /> : <ReviewQueuePanel queue={reviewQueue} />}
+      </> : tab === "agent" ? <AgentReviewPanel initialTerms={queue.items} initialTermId={selectedTermId} autoReviewEnabled={Boolean(ai.enabled && ai.secretsReadable && ai.autoReviewEnabled)} initialReviews={preparedReviews} categoryLabels={categoryLabels} /> : <ReviewQueuePanel queue={reviewQueue} />}
     </AppShell>
   );
 }

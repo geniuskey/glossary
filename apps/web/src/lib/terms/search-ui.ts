@@ -16,6 +16,11 @@ import type { SurfaceKindLiteral, TermStatusLiteral } from "./enums";
  */
 export const SUGGEST_LIMIT = 8;
 
+/** 검색 결과가 없을 때 입력값을 잃지 않고 새 용어 폼으로 넘기는 주소. */
+export function newTermHref(query: string): string {
+  return `/new?q=${encodeURIComponent(query.trim())}`;
+}
+
 export interface Suggestion {
   id: string;
   slug: string;

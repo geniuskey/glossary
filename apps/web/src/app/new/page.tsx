@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { TermForm } from "@/components/term-form";
 import { getCurrentUser } from "@/lib/auth/current-user";
+import { newTermFormState } from "@/lib/terms/form-payload";
 import { listAssignableUsers } from "@/lib/terms/owners";
 import { listBusinessCategories } from "@/lib/terms/categories";
 import { listDomains } from "@/lib/terms/domains";
@@ -11,9 +12,11 @@ import { listDomains } from "@/lib/terms/domains";
 // 같은 네임스페이스에서 부딪히지 않지만, RESERVED_SLUGS의 "new"는 그대로 둔다 —
 // 옛 주소 `/terms/new`가 next.config의 리다이렉트로 이 폼에 오기 때문에, 슬러그가
 // "new"인 용어가 생기면 그 용어의 옛 링크가 폼으로 새어 들어간다.
-export default async function NewTermPage() {
+export default async function NewTermPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  const rawQuery = (await searchParams).q;
+  const searchQuery = Array.isArray(rawQuery) ? rawQuery[0] : rawQuery;
   const [assignees, domainOptions, categoryOptions] = await Promise.all([listAssignableUsers(), listDomains(), listBusinessCategories()]);
 
   return (
@@ -35,7 +38,7 @@ export default async function NewTermPage() {
         </p>
       </header>
 
-      <TermForm assignees={assignees} domainOptions={domainOptions.map((domain) => domain.label)} categoryOptions={categoryOptions} />
+      <TermForm initial={newTermFormState(searchQuery)} assignees={assignees} domainOptions={domainOptions.map((domain) => domain.label)} categoryOptions={categoryOptions} />
     </AppShell>
   );
 }

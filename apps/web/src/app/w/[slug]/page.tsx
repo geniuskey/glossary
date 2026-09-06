@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { surfaceKeys } from "@glossary/db";
 import { AppShell } from "@/components/app-shell";
+import { HelpTip } from "@/components/help-tip";
 import { MarkdownContent } from "@/components/markdown-content";
 import { CompletionBadge, CompletionProgress, MissingFields } from "@/components/term-completion";
 import { CategoryBadges, DomainBadges, OwnerBadge, StatusBadge, TopicBadge } from "@/components/term-badges";
@@ -133,20 +134,27 @@ export default async function TermDetailPage({
 
         {fromSurface && (
           <p className="mt-3 flex flex-wrap items-center gap-1.5 text-sm text-ink-2">
+            <span className="text-ink-3">검색한 표현</span>
+            <span className="font-medium text-ink">{fromSurface.text}</span>
+            <span className="text-ink-3">· 이 개념에 등록된</span>
+            <span className="text-ink-2">{LANG_LABEL[fromSurface.lang] ?? fromSurface.lang}</span>
             <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${KIND_TONE[fromSurface.kind]}`}>
               {KIND_LABEL[fromSurface.kind]}
             </span>
-            <span className="font-medium text-ink">{fromSurface.text}</span>
-            <span className="text-ink-3">에서 넘어왔습니다</span>
+            <span className="text-ink-3">표기입니다.</span>
           </p>
         )}
 
         <div className="mt-4 flex flex-wrap items-center gap-2 border-b border-line pb-4">
           <StatusBadge status={term.status} />
-          <CompletionBadge completion={completion} />
           <DomainBadges domain={term.domain} />
           <CategoryBadges categories={term.categories} labels={term.categoryLabels} />
           <TopicBadge topic={term.topic} />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-b border-line py-2.5 text-xs text-ink-3" aria-label="관리 정보">
+          <span className="font-medium text-ink-2">관리 정보</span>
+          <CompletionBadge completion={completion} />
           <OwnerBadge ownerName={term.ownerName} mine={term.ownerId === user.id} />
           {/* F4: R40이 updatedAt을 TermDetail에 정식으로 추가한 이유가 "위키
               상세 페이지는 최근 수정을 보여줘야 한다"였는데, 그 화면이 지금
@@ -215,23 +223,11 @@ export default async function TermDetailPage({
         )}
 
         {term.definitionMd && (
-          <MarkdownContent className="mt-5">{term.definitionMd}</MarkdownContent>
+          <section className="mt-5" aria-labelledby="definition-heading">
+            <h2 id="definition-heading" className="label mb-2">한줄 정의</h2>
+            <MarkdownContent>{term.definitionMd}</MarkdownContent>
+          </section>
         )}
-
-        <section className="mt-6">
-          <h2 className="label mb-2">등록된 표기 {term.surfaces.length}</h2>
-          <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-panel">
-            {term.surfaces.map((s) => (
-              <li key={s.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-                <span className="min-w-0 flex-1 truncate">{s.text}</span>
-                <span className="text-xs text-ink-3">{LANG_LABEL[s.lang] ?? s.lang}</span>
-                <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${KIND_TONE[s.kind]}`}>
-                  {KIND_LABEL[s.kind]}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
 
         {term.bodyMd && (
           <section className="mt-6">
@@ -242,12 +238,38 @@ export default async function TermDetailPage({
           </section>
         )}
 
+        <section className="mt-6" aria-labelledby="surfaces-heading">
+          <h2 id="surfaces-heading" className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
+            이 개념을 가리키는 표기
+            <HelpTip text="아래 표현으로 검색해도 모두 이 개념으로 연결됩니다." />
+          </h2>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {term.surfaces.map((s) => {
+              const selected = fromSurface?.id === s.id;
+              return (
+                <li
+                  key={s.id}
+                  className={`flex max-w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm ${selected ? "border-brand/45 bg-brand-soft/55" : "border-line bg-panel"}`}
+                >
+                  <span className="min-w-0 break-words font-medium text-ink">{s.text}</span>
+                  <span className="shrink-0 text-[11px] text-ink-3">{LANG_LABEL[s.lang] ?? s.lang}</span>
+                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ${KIND_TONE[s.kind]}`}>
+                    {KIND_LABEL[s.kind]}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+
         {relatedTerms.length > 0 && (
           <section className="mt-8 border-t border-line pt-6" aria-labelledby="related-terms-heading">
             <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
               <div>
-                <h2 id="related-terms-heading" className="text-base font-semibold text-ink text-balance">같이 보면 좋은 용어</h2>
-                <p className="mt-1 text-xs leading-5 text-ink-3">같은 도메인, 업무 분류나 주제에서 이어지는 개념입니다.</p>
+                <h2 id="related-terms-heading" className="inline-flex items-center gap-1.5 text-base font-semibold text-ink text-balance">
+                  같이 보면 좋은 용어
+                  <HelpTip text="같은 도메인, 업무 분류나 주제에서 이어지는 개념입니다." />
+                </h2>
               </div>
               <Link href={graphHref} className="btn-ghost btn-sm shrink-0">
                 관계도에서 보기 <IconArrow />

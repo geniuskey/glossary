@@ -451,11 +451,12 @@ export interface ContributionTerm extends TermSummary {
 }
 
 /** 초안과 미완성 용어를 가장 비어 있고 오래 기다린 순으로 보여주는 공동 정리 대기열. */
-export async function listContributionTerms(limit = 60, currentUserId?: string): Promise<{ items: ContributionTerm[]; total: number }> {
+export async function listContributionTerms(limit = 60, currentUserId?: string, preferredTermId?: string): Promise<{ items: ContributionTerm[]; total: number }> {
   const db = getDb();
   const settings = await getTermQualitySettings();
   const needsContribution = needsContributionFilter(settings);
   const ownerRank = currentUserId ? sql`case when ${terms.ownerId} = ${currentUserId} then 0 else 1 end` : sql`1`;
+  const preferredRank = preferredTermId ? sql`case when ${terms.id} = ${preferredTermId} then 0 else 1 end` : sql`1`;
   const [rows, [counted]] = await Promise.all([
     db
       .select({
@@ -468,7 +469,7 @@ export async function listContributionTerms(limit = 60, currentUserId?: string):
       })
       .from(terms)
       .where(needsContribution)
-      .orderBy(ownerRank, desc(missingCount(settings)), terms.updatedAt, terms.id)
+      .orderBy(preferredRank, ownerRank, desc(missingCount(settings)), terms.updatedAt, terms.id)
       .limit(limit),
     db.select({ total: sql<number>`count(*)::int` }).from(terms).where(needsContribution),
   ]);

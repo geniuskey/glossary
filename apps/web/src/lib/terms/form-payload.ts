@@ -46,6 +46,27 @@ export interface TermWritePayload {
   expectedRevision?: number;
 }
 
+/** 새 용어 폼의 기본값. 검색어가 있으면 기존 표기 언어 규칙에 따라 대표 이름에 넣는다. */
+export function newTermFormState(searchQuery = ""): TermFormState {
+  const name = searchQuery.trim();
+  const nameKo = inferSurfaceLang(name) === "ko" ? name : "";
+  return {
+    qualityProfile: "auto",
+    nameEn: nameKo ? "" : name,
+    nameKo,
+    fullNameEn: "",
+    fullNameKo: "",
+    domain: "",
+    category: "",
+    topic: "",
+    ownerId: "",
+    status: "draft",
+    definitionMd: "",
+    bodyMd: "",
+    surfaces: [],
+  };
+}
+
 /** 쉼표나 줄바꿈으로 빠르게 입력한 추가 표기를 빈 값·중복 없이 정리한다. */
 export function parseSurfaceBatch(input: string): string[] {
   const seen = new Set<string>();

@@ -28,7 +28,7 @@ import {
   type SurfaceLangLiteral,
   type TermStatusLiteral,
 } from "@/lib/terms/enums";
-import { buildTermPayload, parseSurfaceBatch, type SurfaceDraft, type TermFormState } from "@/lib/terms/form-payload";
+import { buildTermPayload, newTermFormState, parseSurfaceBatch, type SurfaceDraft, type TermFormState } from "@/lib/terms/form-payload";
 import type { EditReviewField } from "@/lib/ai/edit-review-values";
 import { interpretResponse, type FormOutcome } from "@/lib/terms/form-response";
 import { TERM_DOMAIN_TEXT_MAX, TERM_MARKDOWN_MAX, TERM_NAME_MAX, TERM_SLUG_MAX } from "@/lib/terms/limits";
@@ -90,22 +90,6 @@ function managementSummary(form: TermFormState): string {
   return parts.length > 0 ? parts.join(" · ") : "+ 분류·담당자 추가";
 }
 
-const EMPTY: TermFormState = {
-  qualityProfile: "auto",
-  nameEn: "",
-  nameKo: "",
-  fullNameEn: "",
-  fullNameKo: "",
-  domain: "",
-  category: "",
-  topic: "",
-  ownerId: "",
-  status: "draft",
-  definitionMd: "",
-  bodyMd: "",
-  surfaces: [],
-};
-
 // 성공 변형의 warnings 필드 타입만 뽑아낸다. FormOutcome이 이미 유니온이므로
 // 조건부 타입을 곧바로 적용하면(나체 타입 매개변수가 아니라서) 분배되지 않고
 // never로 무너진다 — 제네릭 T를 한 겹 끼워야 분배 조건부 타입이 된다.
@@ -130,7 +114,7 @@ export function TermForm({
   const compact = editSlug !== undefined;
 
   const [form, setForm] = useState<TermFormState>(() => {
-    const source = initial ?? EMPTY;
+    const source = initial ?? newTermFormState();
     return {
       ...source,
       surfaces: source.surfaces.map((surface) => ({ ...surface, lang: inferSurfaceLang(surface.text) })),
@@ -170,7 +154,7 @@ export function TermForm({
   // dragover는 dragstart 직후 React 상태가 반영되기 전에도 발생할 수 있으므로
   // 드롭 허용 여부와 원본 인덱스는 동기적으로 갱신되는 ref를 기준으로 삼는다.
   const draggedSurfaceIndexRef = useRef<number | null>(null);
-  const initialSnapshotRef = useRef(JSON.stringify(buildTermPayload(initial ?? EMPTY)));
+  const initialSnapshotRef = useRef(JSON.stringify(buildTermPayload(initial ?? newTermFormState())));
 
   const locked = saving || deleting || renamingSlug || savedSlug !== null;
   const fieldDisplayLabel: Record<string, string> = {

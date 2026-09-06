@@ -3,9 +3,16 @@ import {
   groupSuggestions,
   matchedPrefixLength,
   moveActive,
+  newTermHref,
   termHref,
   type Suggestion,
 } from "../src/lib/terms/search-ui.js";
+
+test("검색 결과가 없을 때 검색어를 새 용어 주소에 안전하게 싣는다", () => {
+  const url = new URL(newTermHref("  AI-DLC / 검토  "), "http://x");
+  expect(url.pathname).toBe("/new");
+  expect(url.searchParams.get("q")).toBe("AI-DLC / 검토");
+});
 
 // search-ui.ts는 DB를 보지 않는다(R114). 그래서 여기 있는 것은 전부 순수 함수
 // 테스트다 — jsdom이 없는 저장소에서 드롭다운의 동작을 잠글 수 있는 유일한

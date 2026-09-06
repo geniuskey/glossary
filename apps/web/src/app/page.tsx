@@ -15,7 +15,7 @@ import { inspectProxyHeaders } from "@/lib/auth/sso/proxy-headers";
 import { SURFACE_KIND_LABEL } from "@/lib/terms/enums";
 import { termFacets, type TermFacets } from "@/lib/terms/query";
 import { searchTerms, type SearchHit } from "@/lib/terms/search";
-import { termHref } from "@/lib/terms/search-ui";
+import { newTermHref, termHref } from "@/lib/terms/search-ui";
 import { displayName, spineHue } from "@/lib/ui/format";
 import { getHomeContent } from "@/lib/workspace/home-content";
 import { DEFAULT_HOME_CONTENT, type HomeContent } from "@/lib/workspace/home-content-values";
@@ -223,7 +223,7 @@ function JourneyCard({ number, title, body, icon }: { number: string; title: str
 
 function Results({ q, hits }: { q: string; hits: SearchHit[] }) {
   if (hits.length === 0) return (
-    <section className="mt-8 pb-16"><div className="card px-6 py-10 text-center shadow-sm"><span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-brand-soft text-brand"><IconPen /></span><p className="mt-4 text-sm text-ink-2"><span className="font-semibold text-ink">{q}</span>와(과) 맞는 표기가 아직 없습니다.</p><p className="mt-1.5 text-xs text-ink-3">비슷한 표기까지 찾아봤어요. 첫 번째 작성자가 되어 주세요.</p><Link href="/new" className="btn-primary mt-5 rounded-full px-5 py-2.5">새 용어로 제안하기</Link></div></section>
+    <section className="mt-8 pb-16"><div className="card px-6 py-10 text-center shadow-sm"><span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-brand-soft text-brand"><IconPen /></span><p className="mt-4 text-sm text-ink-2"><span className="font-semibold text-ink">{q}</span>와(과) 맞는 표기가 아직 없습니다.</p><p className="mt-1.5 text-xs text-ink-3">비슷한 표기까지 찾아봤어요. 첫 번째 작성자가 되어 주세요.</p><Link href={newTermHref(q)} className="btn-primary mt-5 rounded-full px-5 py-2.5">새 용어로 제안하기</Link></div></section>
   );
   return (
     <section className="mt-8 rounded-2xl border border-line bg-panel/70 p-3 pb-5 shadow-sm backdrop-blur sm:p-5">

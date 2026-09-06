@@ -224,6 +224,11 @@ test("완성된 초안도 공개 검토를 위해 공동 정리 대기열에 남
   expect(draft?.status).toBe("draft");
 });
 
+test("제안 검토에서 지정한 용어는 제한된 공동 정리 목록에 우선 포함한다", async () => {
+  const queue = await listContributionTerms(1, undefined, completeDraftId);
+  expect(queue.items[0]?.id).toBe(completeDraftId);
+});
+
 test("기본 목록은 초안을 숨기고 명시 필터와 공동 편집 시트는 초안을 보여준다", async () => {
   const baseParams = { q: "CompleteDraftQueryProbe", page: 1, pageSize: 20 };
   expect((await listTerms(baseParams)).items.map((term) => term.id)).not.toContain(completeDraftId);

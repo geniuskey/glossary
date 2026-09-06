@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { buildTermPayload, parseSurfaceBatch, type TermFormState } from "../src/lib/terms/form-payload.js";
+import { buildTermPayload, newTermFormState, parseSurfaceBatch, type TermFormState } from "../src/lib/terms/form-payload.js";
 import { interpretResponse } from "../src/lib/terms/form-response.js";
 
 // R116: term-form.tsx는 Client Component라 jsdom 없는 이 저장소에서는 렌더
@@ -21,6 +21,14 @@ const BASE_FORM: TermFormState = {
   bodyMd: "",
   surfaces: [],
 };
+
+test("새 용어 폼은 영문 검색어를 대표 영문 용어로 초기화한다", () => {
+  expect(newTermFormState("  AI-DLC  ")).toMatchObject({ nameEn: "AI-DLC", nameKo: "", status: "draft" });
+});
+
+test("새 용어 폼은 한글이 포함된 검색어를 대표 국문 용어로 초기화한다", () => {
+  expect(newTermFormState("AI 수명주기")).toMatchObject({ nameEn: "", nameKo: "AI 수명주기", status: "draft" });
+});
 
 test("추가 표기 일괄 입력은 쉼표·줄바꿈으로 나누고 빈 값과 중복을 제거한다", () => {
   expect(parseSurfaceBatch(" T/O, TO\nT/O,\n 티오 ")).toEqual(["T/O", "TO", "티오"]);

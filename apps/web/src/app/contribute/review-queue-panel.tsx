@@ -47,7 +47,7 @@ export function ReviewQueuePanel({ queue }: { queue: ReviewQueueSnapshot }) {
               {item.errorMessage && <p className="mt-1 text-xs text-danger">{item.errorMessage}</p>}
             </div>
             <span className={cx("rounded-full px-2 py-1 text-[11px] font-semibold", status.className)}>{status.label}</span>
-            {item.status === "ready" && <Link href="/contribute?tab=agent" className="btn-quiet btn-sm">제안 보기</Link>}
+            {item.status === "ready" && <Link href={`/contribute?tab=agent&termId=${encodeURIComponent(item.termId)}`} className="btn-quiet btn-sm">제안 보기</Link>}
           </li>;
         })}
       </ul> : <p className="px-4 py-12 text-center text-sm text-ink-3">아직 AI 검토 큐에 등록된 용어가 없습니다.</p>}
