@@ -145,7 +145,8 @@ test("업무 분류가 없는 용어는 분류 체계에 저장한 대표 도메
   expect(hues.get(terms[0]!.id)).toBe(hues.get(terms[2]!.id));
 
   const html = renderToStaticMarkup(createElement(TermGraph, { terms, domainColors }));
-  expect((html.match(/graph-category-node/g) ?? [])).toHaveLength(5);
+  expect((html.match(/graph-category-node/g) ?? [])).toHaveLength(3);
+  expect((html.match(/graph-domain-node/g) ?? [])).toHaveLength(2);
   expect(html).not.toContain("fill-panel-2 stroke-line-strong\" transition-[stroke-width]");
 });
 
@@ -166,9 +167,22 @@ test("도메인 허브는 저장한 옅은 색이고 업무 분류는 용어 색
   ], domainColors }));
 
   expect(html).not.toContain("fill-panel-2 stroke-line-strong");
-  expect((html.match(/graph-category-node/g) ?? [])).toHaveLength(3);
+  expect((html.match(/graph-category-node/g) ?? [])).toHaveLength(2);
+  expect((html.match(/graph-domain-node/g) ?? [])).toHaveLength(1);
   expect(html).toContain("도메인");
   expect(html).toContain("용어 · 분류색");
+});
+
+test("도메인과 주제 허브는 용어와 다른 fill, stroke 스타일을 사용한다", () => {
+  const html = renderToStaticMarkup(createElement(TermGraph, { terms: [
+    term(1, { domain: ["IT"], topic: "API" }),
+  ] }));
+
+  expect(html).toContain("graph-domain-node");
+  expect(html).toContain("graph-domain-label");
+  expect(html).toContain("graph-topic-node");
+  expect(html).toContain("graph-topic-label");
+  expect(html).toContain("graph-topic-swatch");
 });
 
 test("마우스 이동만으로 선택 안내를 변경하지 않는다", () => {

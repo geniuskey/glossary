@@ -356,6 +356,9 @@ export function TermGraph({
     }
     return configured;
   }, [domainColors, terms]);
+  const categoryHues = useMemo(() => [...new Set(model.nodes
+    .filter((node) => node.kind === "category")
+    .map((node) => categoryHue(node.key.slice(2))))].slice(0, 3), [model.nodes]);
   const [nodes, setNodes] = useState(() => model.nodes.map((node) => ({ ...node })));
   const [view, setView] = useState<ViewTransform>({ x: 0, y: 0, scale: 1 });
   const [canvasScale, setCanvasScale] = useState(1);
@@ -622,7 +625,6 @@ export function TermGraph({
             const category = node.kind === "category" ? node.key.slice(2) : null;
             const domain = node.kind === "domain" ? node.key.slice(2) : null;
             const domainHue = domain ? domainHues.get(domain) : undefined;
-            const colored = category !== null || domainHue !== undefined;
             return (
               <g
                 key={node.key}
@@ -661,12 +663,20 @@ export function TermGraph({
                       node.kind === "category"
                         ? "graph-category-node"
                         : node.kind === "topic"
-                          ? "fill-warn-soft stroke-warn"
-                          : domainHue !== undefined ? "graph-category-node" : "fill-panel-2 stroke-line-strong"
+                          ? "graph-topic-node"
+                          : "graph-domain-node"
                     } group-focus-visible/hub:stroke-[4px]`}
                     strokeWidth={selectedHere ? 3.5 : 2}
                   />
-                  <text textAnchor="middle" dy="4" className={`pointer-events-none text-[12px] font-semibold ${colored ? "graph-category-label" : "fill-ink"}`}>
+                  <text
+                    textAnchor="middle"
+                    dy="4"
+                    className={`pointer-events-none text-[12px] font-semibold ${
+                      node.kind === "category"
+                        ? "graph-category-label"
+                        : node.kind === "topic" ? "graph-topic-label" : "graph-domain-label"
+                    }`}
+                  >
                     {node.label.slice(0, 12)}
                   </text>
                 </g>
@@ -755,10 +765,10 @@ export function TermGraph({
           <p className="text-xs text-ink-3">허브를 선택하면 연결된 용어만 강조됩니다. 빈 공간을 드래그해 이동할 수 있습니다.</p>
         )}
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-ink-3">
-          <TermColorLegend hues={[...new Set(domainHues.values())].slice(0, 3)} label="도메인" />
-          <LegendDot className="border border-brand bg-brand-soft" label="업무 분류" />
-          <LegendDot className="border border-warn bg-warn-soft" label="주제" />
-          <TermColorLegend hues={[...new Set(termColorHues.values())].slice(0, 3)} label="용어 · 분류색 우선" />
+          <TermColorLegend hues={[...new Set(domainHues.values())].slice(0, 3)} label="도메인" variant="domain" />
+          <TermColorLegend hues={categoryHues} label="업무 분류" variant="category" />
+          <LegendDot className="graph-topic-swatch border" label="주제" />
+          <TermColorLegend hues={[...new Set(termColorHues.values())].slice(0, 3)} label="용어 · 분류색 우선" variant="term" />
           <button type="button" className="ml-auto text-ink-3 underline-offset-2 hover:text-ink hover:underline" onClick={resetLayout}>배치 초기화</button>
         </div>
       </div>
@@ -773,12 +783,26 @@ function LegendDot({ className, label }: { className: string; label: string }) {
   return <span className="inline-flex items-center"><i aria-hidden="true" className={`mr-1.5 inline-block h-2.5 w-2.5 rounded-full ${className}`} />{label}</span>;
 }
 
-function TermColorLegend({ hues, label }: { hues: number[]; label: string }) {
+function TermColorLegend({
+  hues,
+  label,
+  variant,
+}: {
+  hues: number[];
+  label: string;
+  variant: "domain" | "category" | "term";
+}) {
   return (
     <span className="inline-flex items-center">
       <span className="mr-1.5 inline-flex -space-x-1" aria-hidden="true">
         {hues.map((hue) => {
-          return <i key={hue} className="graph-category-swatch h-2.5 w-2.5 rounded-full border border-panel" style={graphColorStyle(hue)} />;
+          return (
+            <i
+              key={hue}
+              className={`${variant === "domain" ? "graph-domain-swatch rounded-full" : "graph-category-swatch"} h-2.5 w-2.5 border border-panel ${variant === "term" ? "rounded-[3px]" : "rounded-full"}`}
+              style={graphColorStyle(hue)}
+            />
+          );
         })}
       </span>
       {label}

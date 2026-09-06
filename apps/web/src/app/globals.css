@@ -42,6 +42,15 @@
   --graph-category-stroke-l: 70%;
   --graph-category-text-s: 34%;
   --graph-category-text-l: 29%;
+  --graph-domain-fill-s: 24%;
+  --graph-domain-fill-l: 97%;
+  --graph-domain-stroke-s: 64%;
+  --graph-domain-stroke-l: 44%;
+  --graph-domain-text-s: 52%;
+  --graph-domain-text-l: 27%;
+  --graph-topic-fill: 180 111 8;
+  --graph-topic-stroke: 90 54 4;
+  --graph-topic-text: 255 255 255;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -77,6 +86,15 @@
     --graph-category-stroke-l: 65%;
     --graph-category-text-s: 38%;
     --graph-category-text-l: 88%;
+    --graph-domain-fill-s: 30%;
+    --graph-domain-fill-l: 18%;
+    --graph-domain-stroke-s: 65%;
+    --graph-domain-stroke-l: 66%;
+    --graph-domain-text-s: 45%;
+    --graph-domain-text-l: 88%;
+    --graph-topic-fill: 226 168 62;
+    --graph-topic-stroke: 114 78 12;
+    --graph-topic-text: 27 24 17;
   }
 }
 
@@ -111,6 +129,15 @@
   --graph-category-stroke-l: 65%;
   --graph-category-text-s: 38%;
   --graph-category-text-l: 88%;
+  --graph-domain-fill-s: 30%;
+  --graph-domain-fill-l: 18%;
+  --graph-domain-stroke-s: 65%;
+  --graph-domain-stroke-l: 66%;
+  --graph-domain-text-s: 45%;
+  --graph-domain-text-l: 88%;
+  --graph-topic-fill: 226 168 62;
+  --graph-topic-stroke: 114 78 12;
+  --graph-topic-text: 27 24 17;
 }
 
 .graph-category-node {
@@ -122,8 +149,38 @@
   fill: hsl(var(--graph-category-hue) calc(var(--graph-category-text-s) + var(--domain-color-saturation-boost, 0%)) var(--graph-category-text-l));
 }
 
+/* 도메인은 용어보다 채움은 옅고 윤곽은 선명하게, 주제는 고정 강조색으로
+   표현해 같은 색상 계열이 겹쳐도 노드의 역할이 즉시 구분되게 한다. */
+.graph-domain-node {
+  fill: hsl(var(--graph-category-hue) calc(var(--graph-domain-fill-s) + var(--domain-color-saturation-boost, 0%)) calc(var(--graph-domain-fill-l) - var(--domain-color-lightness-drop, 0%)));
+  stroke: hsl(var(--graph-category-hue) calc(var(--graph-domain-stroke-s) + var(--domain-color-saturation-boost, 0%)) var(--graph-domain-stroke-l));
+}
+
+.graph-domain-label {
+  fill: hsl(var(--graph-category-hue) calc(var(--graph-domain-text-s) + var(--domain-color-saturation-boost, 0%)) var(--graph-domain-text-l));
+}
+
+.graph-topic-node {
+  fill: rgb(var(--graph-topic-fill));
+  stroke: rgb(var(--graph-topic-stroke));
+}
+
+.graph-topic-label {
+  fill: rgb(var(--graph-topic-text));
+}
+
 .graph-category-swatch {
   background-color: hsl(var(--graph-category-hue) calc(var(--graph-category-stroke-s) + var(--domain-color-saturation-boost, 0%)) calc(var(--graph-category-stroke-l) - var(--domain-color-lightness-drop, 0%)));
+}
+
+.graph-domain-swatch {
+  border-color: hsl(var(--graph-category-hue) calc(var(--graph-domain-stroke-s) + var(--domain-color-saturation-boost, 0%)) var(--graph-domain-stroke-l));
+  background-color: hsl(var(--graph-category-hue) calc(var(--graph-domain-fill-s) + var(--domain-color-saturation-boost, 0%)) calc(var(--graph-domain-fill-l) - var(--domain-color-lightness-drop, 0%)));
+}
+
+.graph-topic-swatch {
+  border-color: rgb(var(--graph-topic-stroke));
+  background-color: rgb(var(--graph-topic-fill));
 }
 
 .domain-color-swatch,
