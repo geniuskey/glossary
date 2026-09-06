@@ -5,6 +5,8 @@ import {
 import { isUuid } from "@/lib/api-error";
 import { extractAttachmentHashes } from "@/lib/attachments/refs";
 import { getDb } from "@/lib/db";
+import { completionStatus } from "./completion";
+import { getTermQualitySettings } from "@/lib/workspace/term-quality";
 import { RESERVED_SLUGS, slugify } from "./slug";
 import { defaultCaseSensitive, deriveSurfaces } from "./surfaces";
 import type { SurfaceInput, TermInput } from "./schema";
@@ -161,6 +163,8 @@ export async function createTerm(
   authorKeyId: string | null = null,
 ) {
   const db = getDb();
+  const qualitySettings = await getTermQualitySettings();
+  const status = completionStatus({ ...input, categories: input.category ?? [] }, qualitySettings);
   const surfaces = deriveSurfaces(input, input.surfaces);
   // R32: 중복 경고는 저장 결과에 영향을 주지 않는 읽기 전용 조회다. 원자적으로
   // 묶어야 하는 쓰기가 아니므로 트랜잭션 밖에서 수행한다.
@@ -201,7 +205,7 @@ export async function createTerm(
             category: input.category ?? [],
             topic: input.topic ?? null,
             ownerId: input.ownerId ?? null,
-            status: input.status,
+            status,
             definitionMd: input.definitionMd ?? null,
             // R33: terms.body_md를 채우는 유일한 쓰기 경로. schema.ts에 bodyMd 필드를
             // 추가한 이유가 이것이다 — 안 그러면 이 컬럼은 영원히 null로만 읽힌다.

@@ -289,7 +289,7 @@ function Option({
         <span className="chip shrink-0 px-1.5 py-0 text-[10px]">{SURFACE_KIND_LABEL[item.matchedKind]}</span>
       )}
       {concept !== item.matchedText && <span className="truncate text-xs text-ink-3">{concept}</span>}
-      {/* 금지어·폐기어를 조용히 자동완성해 주면 이 사전이 존재하는 이유가 사라진다. */}
+      {/* 보완 필요 용어는 숨기지 않고 상태 배지로 현재 정리 수준을 알린다. */}
       {item.status !== "active" && <StatusBadge status={item.status} className="ml-auto shrink-0 text-[10px]" />}
     </li>
   );

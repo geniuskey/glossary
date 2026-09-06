@@ -17,16 +17,14 @@ import { MarkdownEditor } from "@/components/markdown-editor";
 import { HelpTip } from "@/components/help-tip";
 import { TermAiReviewPanel } from "@/components/term-ai-review-panel";
 import { ClassificationMultiSelect } from "@/components/classification-multi-select";
-import { STATUS_TONE, StatusBadge } from "@/components/term-badges";
+import { StatusBadge } from "@/components/term-badges";
 import {
   EXPLICIT_SURFACE_KINDS,
   SURFACE_KIND_LABEL,
-  TERM_STATUSES,
   TERM_STATUS_HINT,
   TERM_STATUS_LABEL,
   type ExplicitSurfaceKindLiteral,
   type SurfaceLangLiteral,
-  type TermStatusLiteral,
 } from "@/lib/terms/enums";
 import { buildTermPayload, newTermFormState, parseSurfaceBatch, type SurfaceDraft, type TermFormState } from "@/lib/terms/form-payload";
 import type { EditReviewField } from "@/lib/ai/edit-review-values";
@@ -108,7 +106,6 @@ export function TermForm({
     };
   });
   const [saving, setSaving] = useState(false);
-  const [submittingStatus, setSubmittingStatus] = useState<TermStatusLiteral | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [renamingSlug, setRenamingSlug] = useState(false);
   const [slugDraft, setSlugDraft] = useState(editSlug ?? "");
@@ -152,7 +149,7 @@ export function TermForm({
     category: "업무 분류",
     topic: "주제",
     ownerId: "담당자",
-    status: "공개 상태",
+    status: "정리 상태",
     definitionMd: "한줄 정의",
     bodyMd: "본문",
     surfaces: "추가 표기",
@@ -406,22 +403,19 @@ export function TermForm({
     }
   }
 
-  async function submitForm(statusOverride?: TermStatusLiteral) {
+  async function submitForm() {
     // R108: 방어선 두 번째 겹. 버튼이 이미 링크로 바뀐 뒤라도 Enter 키 등으로
     // submit 이벤트가 다시 뜰 수 있는 경로를 여기서도 막는다.
     if (locked) return;
     if (imageUploading) return;
 
     setSaving(true);
-    setSubmittingStatus(statusOverride ?? form.status);
     setErrorMessage(null);
     setIssues(null);
     setFieldErrors(null);
     setConflict(null);
 
-    const submittedForm = statusOverride === undefined
-      ? formWithPendingSurfaces
-      : { ...formWithPendingSurfaces, status: statusOverride };
+    const submittedForm = formWithPendingSurfaces;
     const payload = buildTermPayload(submittedForm, expectedRevision);
     // dirty 비교용 스냅샷에는 요청 경합용 expectedRevision을 넣지 않는다.
     const submittedSnapshot = JSON.stringify(buildTermPayload(submittedForm));
@@ -437,7 +431,6 @@ export function TermForm({
       });
     } catch {
       setSaving(false);
-      setSubmittingStatus(null);
       setErrorMessage("네트워크 오류로 저장하지 못했습니다.");
       return;
     }
@@ -445,7 +438,6 @@ export function TermForm({
     const body = await res.json().catch(() => null);
     const outcome = interpretResponse(res.status, res.ok, body);
     setSaving(false);
-    setSubmittingStatus(null);
 
     if (outcome.kind === "success") {
       if (editSlug !== undefined) {
@@ -453,18 +445,14 @@ export function TermForm({
         // 현재 입력을 새 기준점으로 삼고 리비전만 올려 다음 저장의 경합 검사를
         // 이어 간다. 상세 화면 이동은 사용자가 취소 링크를 눌렀을 때만 일어난다.
         initialSnapshotRef.current = submittedSnapshot;
-        if (statusOverride !== undefined) {
-          setForm((current) => ({ ...current, status: statusOverride }));
+        if (outcome.term.status) {
+          setForm((current) => ({ ...current, status: outcome.term.status! }));
         }
         setExpectedRevision((revision) => revision === undefined ? undefined : revision + 1);
         setWarnings(outcome.warnings);
         setSaveToast(outcome.warnings.length > 0
           ? `저장했습니다. 겹치는 추가 표기 ${outcome.warnings.length}개를 확인해 주세요.`
-          : statusOverride === "active" ? "용어를 공개했습니다."
-          : statusOverride === "draft" ? "초안으로 저장했습니다."
-          : statusOverride === "deprecated" ? "폐기됨 상태로 저장했습니다."
-          : statusOverride === "forbidden" ? "금지어 상태로 저장했습니다."
-          : "변경사항을 저장했습니다.");
+          : "변경사항을 저장했습니다. 정리 상태는 시스템이 자동으로 판정합니다.");
         return;
       }
       if (outcome.warnings.length > 0) {
@@ -569,31 +557,13 @@ export function TermForm({
           description="대표 이름과 짧은 정의처럼 가장 자주 확인하는 정보를 관리합니다."
           action={(
             <div className="ml-auto flex items-center gap-1.5">
-              {editSlug !== undefined ? (
-                <>
-                  <span title={TERM_STATUS_HINT[form.status]} aria-label={`공개 상태: ${TERM_STATUS_LABEL[form.status]}. ${TERM_STATUS_HINT[form.status]}`}>
-                    <StatusBadge status={form.status} />
-                  </span>
-                  <StatusChangeMenu status={form.status} disabled={locked || imageUploading} onSave={submitForm} />
-                </>
-              ) : (
-                <>
-                  <label htmlFor="term-status" className="text-xs font-medium text-ink-2">공개 상태</label>
-                  <HelpTip text={TERM_STATUS_HINT[form.status]} />
-                <select
-                  id="term-status"
-                  name="status"
-                  value={form.status}
-                  onChange={(event) => updateField("status", event.target.value as TermStatusLiteral)}
-                  disabled={locked}
-                  aria-invalid={errorsFor("status") ? true : undefined}
-                  aria-describedby={errorsFor("status") ? "status-error" : undefined}
-                  className={cx("field h-8 w-auto min-w-28 py-0 text-xs", STATUS_TONE[form.status])}
-                >
-                  {TERM_STATUSES.map((status) => <option key={status} value={status}>{TERM_STATUS_LABEL[status]}</option>)}
-                </select>
-                </>
-              )}
+              <span className="inline-flex items-center gap-1.5">
+                <span className="text-xs font-medium text-ink-2">정리 상태</span>
+                <HelpTip text={TERM_STATUS_HINT[form.status]} />
+                <span title={TERM_STATUS_HINT[form.status]} aria-label={`정리 상태: ${TERM_STATUS_LABEL[form.status]}. ${TERM_STATUS_HINT[form.status]}`}>
+                  <StatusBadge status={form.status} />
+                </span>
+              </span>
             </div>
           )}
         />
@@ -1062,15 +1032,6 @@ export function TermForm({
               <Link href={`/w/${savedSlug}`} className="btn-primary">
                 저장됨 → {savedSlug}로 이동
               </Link>
-            ) : editSlug !== undefined && form.status === "draft" ? (
-              <>
-                <button type="submit" disabled={saving || imageUploading} className="btn-ghost">
-                  {saving && submittingStatus === "draft" ? "초안 저장 중…" : "초안 저장"}
-                </button>
-                <button type="button" disabled={saving || imageUploading} onClick={() => void submitForm("active")} className="btn-primary">
-                  {saving && submittingStatus === "active" ? "공개 중…" : "공개하기"}
-                </button>
-              </>
             ) : (
               <button type="submit" disabled={saving || imageUploading} className="btn-primary">
                 {imageUploading ? "이미지 변환 중…" : saving ? "저장 중…" : editSlug === undefined ? "용어 저장" : "변경사항 저장"}
@@ -1108,93 +1069,6 @@ function CompactSectionTitle({
       <HelpTip text={description} />
       {action}
     </header>
-  );
-}
-
-const STATUS_ACTION_LABEL: Record<TermStatusLiteral, string> = {
-  draft: "초안으로 변경",
-  active: "다시 공개",
-  deprecated: "폐기됨으로 변경",
-  forbidden: "금지어로 변경",
-};
-
-function StatusChangeMenu({
-  status,
-  disabled,
-  onSave,
-}: {
-  status: TermStatusLiteral;
-  disabled: boolean;
-  onSave: (status: TermStatusLiteral) => Promise<void>;
-}) {
-  const [open, setOpen] = useState(false);
-  const [pendingStatus, setPendingStatus] = useState<TermStatusLiteral | null>(null);
-  const hostRef = useRef<HTMLDivElement>(null);
-  const menuStatuses = TERM_STATUSES.filter((candidate) => candidate !== status && !(status === "draft" && candidate === "active"));
-
-  useEffect(() => {
-    if (!open) return;
-    const closeFromOutside = (event: PointerEvent) => {
-      if (!hostRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeFromKeyboard = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", closeFromOutside);
-    document.addEventListener("keydown", closeFromKeyboard);
-    return () => {
-      document.removeEventListener("pointerdown", closeFromOutside);
-      document.removeEventListener("keydown", closeFromKeyboard);
-    };
-  }, [open]);
-
-  async function saveAs(nextStatus: TermStatusLiteral) {
-    setOpen(false);
-    setPendingStatus(nextStatus);
-    try {
-      await onSave(nextStatus);
-    } finally {
-      setPendingStatus(null);
-    }
-  }
-
-  return (
-    <div ref={hostRef} className="relative">
-      <button
-        type="button"
-        disabled={disabled || pendingStatus !== null}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-        className="btn-quiet btn-sm h-8 gap-1 border border-line"
-      >
-        {pendingStatus ? "변경 중…" : "상태 변경"}
-        <IconChevronDown open={open} />
-      </button>
-      {open && (
-        <div role="menu" aria-label="공개 상태 변경" className="absolute right-0 top-full z-[60] mt-1.5 w-44 overflow-hidden rounded-lg border border-line-strong bg-panel p-1 shadow-pop">
-          {menuStatuses.map((nextStatus) => (
-            <button
-              key={nextStatus}
-              type="button"
-              role="menuitem"
-              onClick={() => void saveAs(nextStatus)}
-              className="w-full rounded-md px-2.5 py-2 text-left text-xs text-ink-2 hover:bg-panel-2 hover:text-ink focus-visible:ring-2 focus-visible:ring-brand/40"
-            >
-              {STATUS_ACTION_LABEL[nextStatus]}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function IconChevronDown({ open }: { open: boolean }) {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" className={cx("transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden="true">
-      <path d="m4 6 4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }
 

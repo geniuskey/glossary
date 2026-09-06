@@ -47,7 +47,7 @@ function expectSaved(result: UpdateTermResult): UpdateTermSuccess {
 
 test("수정하면 리비전이 하나 늘어난다", async () => {
   const term = await seed();
-  await updateTerm(term.id, { nameKo: "블랙레벨", status: "deprecated" }, null);
+  await updateTerm(term.id, { nameKo: "블랙레벨", status: "draft" }, null);
 
   const revs = await listRevisions(term.id);
   expect(revs.map((r) => r.revisionNumber)).toEqual([2, 1]);
@@ -94,9 +94,9 @@ test("surfaces 없이 patch하면 기존 명시 표기가 유지된다 (R51)", a
   );
   expect(first.surfaces.map((s) => s.text).sort()).toEqual(["BLC", "Black Level"]);
 
-  const second = expectSaved(await updateTerm(term.id, { status: "deprecated" }, null));
+  const second = expectSaved(await updateTerm(term.id, { status: "active" }, null));
   expect(second.surfaces.map((s) => s.text).sort()).toEqual(["BLC", "Black Level"]);
-  expect(second.term.status).toBe("deprecated");
+  expect(second.term.status).toBe("draft");
 });
 
 // R51: surfaces를 빈 배열로 명시하면(undefined가 아니라 [] 자체) 그건 "명시
@@ -265,7 +265,7 @@ test("API 키로 patch해도 updatedBy가 지워지지 않고 authorKeyId가 기
 // 매번 뜬다.
 test("자기 자신의 기존 표기와는 중복 경고가 나지 않는다 (R56)", async () => {
   const term = await seed();
-  const result = expectSaved(await updateTerm(term.id, { status: "deprecated" }, null));
+  const result = expectSaved(await updateTerm(term.id, { status: "draft" }, null));
 
   const selfWarnings = result.warnings.filter((w) => w.conflictingTermId === term.id);
   expect(selfWarnings).toHaveLength(0);
@@ -299,7 +299,7 @@ test("normLoose가 같아도 kind가 다른 명시 표기는 파생 표기와 �
   );
   expect(withAlias.surfaces.map((s) => s.kind).sort()).toEqual(["alias", "canonical"]);
 
-  const statusOnly = expectSaved(await updateTerm(term.id, { status: "deprecated" }, null));
+  const statusOnly = expectSaved(await updateTerm(term.id, { status: "active" }, null));
   expect(statusOnly.surfaces.map((s) => s.kind).sort()).toEqual(["alias", "canonical"]);
 });
 

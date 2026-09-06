@@ -4,6 +4,8 @@ import {
 } from "@glossary/db";
 import { extractAttachmentHashes } from "@/lib/attachments/refs";
 import { getDb } from "@/lib/db";
+import { completionStatus } from "./completion";
+import { getTermQualitySettings } from "@/lib/workspace/term-quality";
 import { checkSurfaceConflicts } from "./schema";
 import {
   findDuplicates,
@@ -191,6 +193,15 @@ export async function updateTerm(
   // 보지 않는다.
   const warnings = await findDuplicates(nextSurfaces, termId);
   const nextBodyMd = input.bodyMd !== undefined ? input.bodyMd : oldTerm.bodyMd;
+  const qualitySettings = await getTermQualitySettings();
+  const status = completionStatus({
+    qualityProfile: input.qualityProfile ?? oldTerm.qualityProfile,
+    ...mergedNames,
+    definitionMd: input.definitionMd !== undefined ? input.definitionMd : oldTerm.definitionMd,
+    bodyMd: nextBodyMd,
+    domain: input.domain ?? oldTerm.domain,
+    categories: input.category ?? oldTerm.category,
+  }, qualitySettings);
   const attachmentHashes = extractAttachmentHashes(nextBodyMd);
   const attachmentRows = attachmentHashes.length
     ? await db.select({ id: attachments.id }).from(attachments).where(inArray(attachments.sha256, attachmentHashes))
@@ -227,7 +238,7 @@ export async function updateTerm(
           ...(input.category !== undefined ? { category: input.category } : {}),
           ...(input.topic !== undefined ? { topic: input.topic } : {}),
           ...(input.ownerId !== undefined ? { ownerId: input.ownerId } : {}),
-          ...(input.status !== undefined ? { status: input.status } : {}),
+          status,
           ...(input.definitionMd !== undefined ? { definitionMd: input.definitionMd } : {}),
           // R55: 브리프 원안은 bodyMd를 .set()에서 빠뜨려, 생성 후에는 body_md를
           // 채울 방법이 patch에도 없었다.

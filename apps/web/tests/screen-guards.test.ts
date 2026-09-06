@@ -167,16 +167,15 @@ test("AI 연결 화면은 테스트 성공을 녹색 Connected 상태로 표시�
   expect(content).toContain("Connected");
 });
 
-test("용어 챗봇은 대화로 모은 용어를 확인 후 비공개 초안으로 등록한다", () => {
+test("용어 챗봇은 대화로 모은 등록안을 확인 후 용어로 추가한다", () => {
   const content = stripComments(readFileSync(path.join(componentsDir, "chat-panel.tsx"), "utf8"));
   expect(content).toContain("teachingDraft: activeTeachingDraft()");
   expect(content).toContain('fetch("/api/v1/terms"');
-  expect(content).toContain('status: "draft"');
-  expect(content).toContain("초안으로 추가");
-  expect(content).toContain("용어 등록 초안");
-  expect(content).toContain("붙여넣은 용어 초안");
+  expect(content).toContain("용어로 추가");
+  expect(content).toContain("용어 등록안");
+  expect(content).toContain("붙여넣은 용어 등록안");
   expect(content).toContain("createTermsFromBatch");
-  expect(content).toContain("개 모두 초안으로 추가");
+  expect(content).toContain("개 모두 용어로 추가");
 });
 
 test("용어 챗봇은 세션 목록을 제공하고 현재 대화를 URL에 남겨 뒤로가기로 복원한다", () => {
@@ -269,7 +268,7 @@ test("PROTO G: '+' 줄 붙여넣기 표식이 핸들러와 JSX 양쪽에 있다 
 test("PROTO G: 마지막 빈 줄에서 만든 용어는 현재 표의 마지막 행에 붙는다", () => {
   const content = stripComments(readFileSync(path.join(componentsDir, "terms-grid.tsx"), "utf8"));
   const start = content.indexOf("async function createFromDraft()");
-  const end = content.indexOf("function bulkStatus", start);
+  const end = content.indexOf("async function deletePicked", start);
   const createFromDraft = content.slice(start, end);
 
   expect(start).toBeGreaterThanOrEqual(0);

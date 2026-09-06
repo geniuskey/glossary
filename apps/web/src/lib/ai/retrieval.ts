@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { surfaceKeys, termRelations, terms, termSurfaces } from "@glossary/db";
 import { getDb } from "@/lib/db";
 
@@ -8,7 +8,7 @@ export interface ChatSource {
   slug: string;
   title: string;
   definition: string | null;
-  status: "active" | "deprecated" | "forbidden";
+  status: "draft" | "active";
 }
 
 export interface ChatGrounding {
@@ -59,7 +59,6 @@ export async function retrieveGlossaryContext(question: string, limit = 12): Pro
       .from(termSurfaces)
       .innerJoin(terms, eq(terms.id, termSurfaces.termId))
       .where(and(
-        ne(terms.status, "draft"),
         sql`(
           (${termSurfaces.normLoose} = ${key})
           or (char_length(${termSurfaces.normLoose}) >= 2 and position(${termSurfaces.normLoose} in ${key}) > 0)
@@ -82,7 +81,6 @@ export async function retrieveGlossaryContext(question: string, limit = 12): Pro
       })
       .from(terms)
       .where(and(
-        ne(terms.status, "draft"),
         or(...keywords.map((word) => sql`${content} ilike ${`%${word}%`}`)),
       ))
       .orderBy(desc(sql`(${sql.join(keywords.map((word) => sql`case when ${content} ilike ${`%${word}%`} then 1 else 0 end`), sql` + `)})`), desc(terms.updatedAt))
@@ -129,7 +127,7 @@ export async function retrieveGlossaryContext(question: string, limit = 12): Pro
       definitionMd: terms.definitionMd,
       bodyMd: terms.bodyMd,
       replacedById: terms.replacedById,
-    }).from(terms).where(and(inArray(terms.id, ids), ne(terms.status, "draft"))),
+    }).from(terms).where(inArray(terms.id, ids)),
     getDb().select({ termId: termSurfaces.termId, text: termSurfaces.text, kind: termSurfaces.kind })
       .from(termSurfaces).where(inArray(termSurfaces.termId, ids)),
   ]);

@@ -122,30 +122,25 @@ test("상세 영역은 전체 너비로 쌓고 관리 필드는 넓은 화면에
   expect(code).toContain('className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"');
   expect(code).not.toContain('lg:grid-cols-[18rem_minmax(0,1fr)]');
   expect(code).not.toContain('title="추가 표기"');
-  expect(code).toContain('<label htmlFor="term-status" className="text-xs font-medium text-ink-2">공개 상태</label>');
+  expect(code).toContain('<span className="text-xs font-medium text-ink-2">정리 상태</span>');
   expect(code).toContain('action={(');
   expect(code).toContain('ref={managementDetailsRef}');
-  expect(code).toContain('STATUS_TONE[form.status]');
-});
-
-test("편집 화면은 상태 표시와 변경을 상단에 두고 초안 저장·공개는 하단에 둔다", () => {
   expect(code).toContain('<StatusBadge status={form.status} />');
-  expect(code).toContain('<StatusChangeMenu status={form.status}');
-  expect(code).toContain('editSlug !== undefined && form.status === "draft" ? (');
-  expect(code).toContain('saving && submittingStatus === "draft" ? "초안 저장 중…" : "초안 저장"');
-  expect(code).toContain('onClick={() => void submitForm("active")}');
-  expect(code).toContain('saving && submittingStatus === "active" ? "공개 중…" : "공개하기"');
-  expect(code).toContain('pendingStatus ? "변경 중…" : "상태 변경"');
-  expect(code).toContain('editSlug !== undefined ? (');
-  expect(code).toContain('<select\n                  id="term-status"');
 });
 
-test("공개하기는 현재 폼 전체를 active 상태로 저장하고 성공 뒤 기준 스냅샷과 화면 상태를 함께 갱신한다", () => {
-  expect(code).toContain('{ ...formWithPendingSurfaces, status: statusOverride }');
+test("정리 상태는 상단에 읽기 전용으로 표시하고 저장 동작은 하나만 둔다", () => {
+  expect(code).toContain('<StatusBadge status={form.status} />');
+  expect(code).toContain('정리 상태는 시스템이 자동으로 판정합니다.');
+  expect(code).not.toContain('StatusChangeMenu');
+  expect(code).not.toContain('공개하기');
+  expect(code).not.toContain('id="term-status"');
+});
+
+test("저장은 상태를 보내지 않고 서버가 돌려준 자동 판정을 화면에 반영한다", () => {
+  expect(code).toContain('const submittedForm = formWithPendingSurfaces');
   expect(code).toContain('const submittedSnapshot = JSON.stringify(buildTermPayload(submittedForm))');
   expect(code).toContain('initialSnapshotRef.current = submittedSnapshot');
-  expect(code).toContain('setForm((current) => ({ ...current, status: statusOverride }))');
-  expect(code).toContain('statusOverride === "active" ? "용어를 공개했습니다."');
+  expect(code).toContain('setForm((current) => ({ ...current, status: outcome.term.status! }))');
 });
 
 test("표기·분류는 접을 수 있고 상세 설명은 항상 열린 일반 카드로 표시한다", () => {

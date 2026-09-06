@@ -18,9 +18,9 @@ function base(overrides: Partial<TermInput> = {}): TermInput {
   };
 }
 
-test("새 용어는 명시적으로 공개하기 전까지 draft로 시작한다", () => {
+test("새 용어 요청에는 사용자가 고르는 상태를 주입하지 않는다", () => {
   const parsed = termInputSchema.parse({ nameEn: "Draft Probe" });
-  expect(parsed.status).toBe("draft");
+  expect(parsed.status).toBeUndefined();
 });
 
 test("업무 분류는 복수 선택을 보존하고 기존 단일 문자열 요청도 배열로 정규화한다", () => {

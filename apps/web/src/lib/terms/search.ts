@@ -78,7 +78,6 @@ export async function searchTerms(query: string, limit = 20): Promise<SearchHit[
            b.score AS "score"
     FROM best b
     JOIN ${terms} t ON t.id = b.term_id
-    WHERE t.status <> 'draft'
     ORDER BY b.exact DESC, b.score DESC, t.name_en ASC NULLS LAST, t.id
     LIMIT ${limit}
   `);
@@ -143,7 +142,6 @@ export async function suggestTerms(query: string, limit = SUGGEST_LIMIT): Promis
            b.exact AS "exact", b.prefix AS "prefix", b.score AS "score"
     FROM best b
     JOIN ${terms} t ON t.id = b.term_id
-    WHERE t.status <> 'draft'
     ORDER BY b.exact DESC, b.prefix DESC, b.score DESC, char_length(b.text), t.id
     LIMIT ${limit}
   `);

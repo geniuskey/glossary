@@ -62,10 +62,10 @@ test("질문 문장 안의 짧은 약어를 찾아 AI 근거와 출처를 만든
   expect(result.context).toContain("용어 챗봇 검색 회귀 테스트");
 });
 
-test("초안 용어는 검색 근거와 출처에서 제외한다", async () => {
+test("보완 필요 용어도 검색 근거와 출처로 활용한다", async () => {
   const result = await retrieveGlossaryContext(`${draftName}가 무엇인지 알려 줘`);
-  expect(result.sources.map((source) => source.slug)).not.toContain(draftSlug);
-  expect(result.context).not.toContain("외부 AI로 전달되면 안 되는 초안");
+  expect(result.sources.map((source) => source.slug)).toContain(draftSlug);
+  expect(result.context).toContain("외부 AI로 전달되면 안 되는 초안");
 });
 
 test("표기명이 없는 자연어 질문도 정의 내용으로 검색한다", async () => {

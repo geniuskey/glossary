@@ -71,7 +71,7 @@ const FIELD_QUESTION: Record<TeachingField, string> = {
 function nextQuestion(draft: TermTeachingDraft, missing: TeachingField[]): string {
   const name = teachingDraftName(draft);
   if (missing.length === 0) {
-    return `“${name}” 정보를 용어 초안으로 정리했습니다. 아래 내용을 확인한 뒤 **초안으로 추가**를 눌러 주세요. 고칠 내용이 있으면 대화로 말씀해 주세요.`;
+    return `“${name}” 정보를 용어 등록안으로 정리했습니다. 아래 내용을 확인한 뒤 **용어로 추가**를 눌러 주세요. 고칠 내용이 있으면 대화로 말씀해 주세요.`;
   }
   const questions = missing.map((field) => `- ${FIELD_QUESTION[field]}`).join("\n");
   return `“${name}”는 아직 용어집에 없네요. 제가 초안을 작성할 수 있도록 다음 내용을 알려주세요. 한 번에 적어도 되고 하나씩 답해도 됩니다.\n\n${questions}`;
@@ -135,7 +135,7 @@ export async function extractPastedGlossary(
     return { answer: "붙여넣은 내용에서 대표 표기가 있는 용어를 찾지 못했습니다.", batch: null };
   }
   return {
-    answer: `${drafts.length}개 용어를 비공개 초안으로 정리했습니다. 아래 내용을 확인한 뒤 **모두 초안으로 추가**를 눌러 주세요.`,
+    answer: `${drafts.length}개 용어 등록안을 정리했습니다. 아래 내용을 확인한 뒤 **모두 용어로 추가**를 눌러 주세요.`,
     batch: { drafts },
   };
 }

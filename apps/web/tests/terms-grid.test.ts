@@ -124,15 +124,15 @@ test("patchForCell: 도메인은 쉼표와 줄바꿈 둘 다로 쪼개고 중복
   expect(result).toEqual({ patch: { domain: ["ISP", "PM", "RF"] } });
 });
 
-test("patchForCell: 알 수 없는 enum 값은 patch가 아니라 error다", () => {
+test("patchForCell: 정리 상태는 입력값과 무관하게 읽기 전용이다", () => {
   const status = patchForCell("status", "not-a-status");
   expect(status).toHaveProperty("error");
   // 잘못 친 값이 메시지에 그대로 보여야 무엇을 고쳐야 할지 알 수 있다.
-  expect((status as { error: string }).error).toContain("not-a-status");
+  expect((status as { error: string }).error).toContain("시스템이 자동으로 판단");
 });
 
-test("patchForCell: 알려진 enum 값은 그대로 통과한다", () => {
-  expect(patchForCell("status", "deprecated")).toEqual({ patch: { status: "deprecated" } });
+test("patchForCell: 알려진 상태도 사용자가 바꿀 수 없다", () => {
+  expect(patchForCell("status", "active")).toHaveProperty("error");
 });
 
 test("patchForCell: 읽기 전용 열은 항상 error다", () => {
@@ -148,13 +148,13 @@ test("wouldClearBothNames: 마지막 표준명을 지우는 편집만 참이다"
   expect(wouldClearBothNames(onlyEn, { nameEn: null })).toBe(true);
   expect(wouldClearBothNames(onlyEn, { nameEn: "Other" })).toBe(false);
   // 관계없는 열을 고치는 것만으로 참이 되면 안 된다.
-  expect(wouldClearBothNames(onlyEn, { status: "deprecated" })).toBe(false);
+  expect(wouldClearBothNames(onlyEn, { status: "draft" })).toBe(false);
 });
 
 test("applyPatch는 원본을 건드리지 않는다(실패 시 되돌리기가 이것에 의존한다)", () => {
   const original = row();
-  const next = applyPatch(original, { status: "deprecated" });
-  expect(next.status).toBe("deprecated");
+  const next = applyPatch(original, { status: "draft" });
+  expect(next.status).toBe("draft");
   expect(original.status).toBe("active");
 });
 
@@ -193,7 +193,6 @@ test("ID 선택이 필요한 담당자를 제외한 상세 폼 필드는 표에�
       "fullNameKo",
       "nameEn",
       "nameKo",
-      "status",
       "topic",
     ].sort(),
   );
@@ -204,7 +203,7 @@ test("담당자 표시·slug·최근 수정은 읽기 전용이다", () => {
   // 표의 셀 단위 PATCH에서는 실수로 주소가 바뀌지 않도록 읽기 전용으로 둔다.
   // updatedAt은 저장할 때 서버가 찍는 값이다.
   const readonly = GRID_COLUMNS.filter((c) => c.kind === "readonly").map((c) => c.key);
-  expect(readonly).toEqual(["ownerName", "slug", "updatedAt"]);
+  expect(readonly).toEqual(["status", "ownerName", "slug", "updatedAt"]);
   for (const key of readonly) {
     expect(patchForCell(key, "아무 값")).toHaveProperty("error");
   }
@@ -214,7 +213,7 @@ test("클릭 한 번에 열리는 열은 enum과 긴 본문 열뿐이다", () =>
   // 나머지 열까지 클릭으로 열면 드래그로 범위를 잡을 수 없게 되어
   // 복사·붙여넣기·아래로 채우기가 통째로 죽는다.
   const opening = GRID_COLUMNS.filter(opensOnClick).map((c) => c.key);
-  expect(opening).toEqual(["status", "category", "definitionMd", "bodyMd"]);
+  expect(opening).toEqual(["category", "definitionMd", "bodyMd"]);
 });
 
 // 스크롤 상자가 0~800이고 한 행이 32px일 때의 좌표. 목록은 178px쯤 된다.
@@ -247,7 +246,7 @@ test("columnByKey: 모든 GRID_COLUMNS 키가 조회된다", () => {
 test("rowsToMatrix: 첫 줄은 열 라벨이고 그 뒤가 행이다", () => {
   const columns = [columnByKey("nameEn"), columnByKey("status")];
   expect(rowsToMatrix([row()], columns)).toEqual([
-    ["대표 영문 표기", "상태"],
+    ["대표 영문 표기", "정리 상태"],
     ["Interstitial Slide Point", "active"],
   ]);
 });
@@ -391,15 +390,18 @@ test("planPaste: 표준명이 없는 줄은 만들지 않고 줄 번호를 알�
   expect(plan.errors.join(" ")).toContain("1번째 줄");
 });
 
-test("planPaste: 새 행의 잘못된 enum 값은 기본값으로 밀지 않고 그 줄을 거른다", () => {
+test("planPaste: 새 행의 정리 상태 값은 읽기 전용이라 모두 버린다", () => {
   const columns = [columnByKey("nameEn"), columnByKey("status")];
   const { plan, creates } = planPaste([], columns, { r: 0, c: 0 }, [
     ["A", "존재하지않음"],
     ["B", "active"],
   ]);
 
-  expect(creates).toEqual([{ line: 2, values: { nameEn: "B", status: "active" } }]);
-  expect(plan.errors.join(" ")).toContain("1번째 줄");
+  expect(creates).toEqual([
+    { line: 1, values: { nameEn: "A" } },
+    { line: 2, values: { nameEn: "B" } },
+  ]);
+  expect(plan.errors).toEqual([]);
 });
 
 // 이 표에서 복사한 줄을 그대로 표 끝에 붙여넣는 것(줄 복제)이 가장 흔한
@@ -440,7 +442,7 @@ test("planPaste: 잘못된 값 한 칸이 나머지 칸까지 막지는 않는�
   const { plan } = planPaste(rows, columns, { r: 0, c: 0 }, [["A", "존재하지않음"]]);
   expect(plan.updates).toEqual([{ rowId: "a", patch: { nameEn: "A" } }]);
   expect(plan.errors).toHaveLength(1);
-  expect(plan.errors[0]).toContain("존재하지않음");
+  expect(plan.errors[0]).toContain("읽기 전용");
 });
 
 test("planPaste: 표준명을 둘 다 비우는 행은 통째로 빠진다", () => {
@@ -466,19 +468,19 @@ test("planClear: 표준명은 null로 비우고 종류·상태는 손대지 않�
   const columns = [columnByKey("nameEn"), columnByKey("status")];
   const plan = planClear(rows, columns, { r0: 0, r1: 0, c0: 0, c1: 1 });
   expect(plan.updates).toEqual([{ rowId: "a", patch: { nameEn: null } }]);
-  expect(plan.errors.join(" ")).toContain("비울 수 없어");
+  expect(plan.errors.join(" ")).toContain("읽기 전용");
 });
 
-test("planCell: 셀 하나도 붙여넣기와 같은 계획 모양을 낸다", () => {
+test("planCell: 정리 상태 셀은 수정 계획을 만들지 않는다", () => {
   const target = row({ id: "a" });
   const plan = planCell(target, columnByKey("status"), "deprecated");
-  expect(plan).toEqual({ updates: [{ rowId: "a", patch: { status: "deprecated" } }], errors: [], cells: 1 });
+  expect(plan).toEqual({ updates: [], errors: ["읽기 전용 열 1칸은 건너뛰었습니다."], cells: 0 });
 });
 
 test("inversePatch: 건드린 열만, 지금 값으로 되돌린다", () => {
   const target = row({ nameEn: "Alpha", status: "active", domain: ["ISP"] });
-  expect(inversePatch(target, { status: "deprecated" })).toEqual({ status: "active" });
-  expect(inversePatch(target, { nameEn: null, status: "deprecated" })).toEqual({
+  expect(inversePatch(target, { status: "draft" })).toEqual({ status: "active" });
+  expect(inversePatch(target, { nameEn: null, status: "draft" })).toEqual({
     nameEn: "Alpha",
     status: "active",
   });

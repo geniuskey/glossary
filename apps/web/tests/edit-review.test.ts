@@ -9,7 +9,6 @@ const BASE_TERM: TermWritePayload = {
   category: [],
   topic: null,
   ownerId: null,
-  status: "draft",
   surfaces: [],
 };
 

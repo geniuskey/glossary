@@ -45,17 +45,27 @@ test("표준 표기가 canonical surface로 함께 저장된다", async () => {
       fullNameEn: "Auto Exposure",
       nameKo: "자동노출",
       domain: ["ISP"],
-      status: "active",
+      status: "draft",
       surfaces: [],
     },
     null,
   );
   created.push(term.id);
+  expect(term.status).toBe("active");
 
   const surfaces = await db.select().from(termSurfaces).where(eq(termSurfaces.termId, term.id));
   const texts = surfaces.map((s) => s.text).sort();
   expect(texts).toEqual(["AE", "Auto Exposure", "자동노출"]);
   expect(surfaces.find((s) => s.text === "Auto Exposure")?.kind).toBe("full_name");
+});
+
+test("요청 상태와 무관하게 보완이 필요한 용어는 draft로 저장된다", async () => {
+  const { term } = await createTerm(
+    { nameEn: "Automatic Status Probe", domain: [], status: "active", surfaces: [] },
+    null,
+  );
+  created.push(term.id);
+  expect(term.status).toBe("draft");
 });
 
 test("같은 정규화 키를 가진 기존 용어가 있으면 경고를 반환하되 저장은 한다", async () => {

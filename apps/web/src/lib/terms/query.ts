@@ -190,7 +190,6 @@ export async function listRelatedTerms(
     .from(terms)
     .where(and(
       ne(terms.id, source.id),
-      ne(terms.status, "draft"),
       or(...relationshipFilters),
     ))
     .orderBy(desc(terms.updatedAt), terms.id)
@@ -242,7 +241,6 @@ function listFilters(params: ListParams) {
   const filters = [];
 
   if (params.status) filters.push(eq(terms.status, params.status));
-  else if (!params.includeDraft) filters.push(ne(terms.status, "draft"));
   if (params.domain) filters.push(arrayContains(terms.domain, [params.domain]));
   if (params.category) filters.push(arrayContains(terms.category, [params.category]));
   if (params.topic) filters.push(eq(terms.topic, params.topic));
@@ -368,10 +366,9 @@ export async function listTermRows(params: ListParams): Promise<{ items: TermRow
   return listTermRowData(params, true);
 }
 
-/** iframe 공유 화면은 편집 작업대와 달리 초안을 외부 문서에 노출하지 않는다. */
+/** iframe 공유 화면도 정리 상태와 무관하게 용어를 보여준다. 상태는 공개 제어가 아니다. */
 export async function listPublishedTermRows(params: ListParams): Promise<{ items: TermRow[]; total: number }> {
-  if (params.status === "draft") return { items: [], total: 0 };
-  return listTermRowData(params, false);
+  return listTermRowData(params, true);
 }
 
 export interface Facet<T extends string = string> {
@@ -403,14 +400,11 @@ function missingBody(settings: TermQualitySettings) {
 }
 const missingContext = sql`cardinality(${terms.domain}) = 0 and cardinality(${terms.category}) = 0`;
 const missingFullName = sql`btrim(coalesce(${terms.fullNameEn}, '')) = '' and btrim(coalesce(${terms.fullNameKo}, '')) = ''`;
-const needsReplacement = sql`${terms.status} in ('deprecated', 'forbidden')`;
-
 function qualityBranches() {
-  const mapping = sql`${terms.status} not in ('deprecated', 'forbidden')
-    and not (${missingFullName})
+  const mapping = sql`not (${missingFullName})
     and coalesce(${terms.nameEn}, ${terms.nameKo}, '') ~ '^[A-Z0-9][A-Z0-9+./-]{1,11}$'`;
-  const guidance = needsReplacement;
-  const context = sql`not (${mapping}) and not (${guidance})`;
+  const guidance = sql`false`;
+  const context = sql`not (${mapping})`;
   return { mapping, context, guidance };
 }
 

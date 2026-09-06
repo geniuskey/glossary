@@ -42,12 +42,10 @@ export const businessCategories = pgTable(
   }),
 );
 
-// draft는 협업 중인 초안이며 기본 검색·추천·AI 조회에는 노출하지 않는다.
-// active는 팀이 찾아보고 실제 문서에서 사용할 수 있는 공개 상태다. 완성도는
-// 별도 규칙(termCompletion)으로 계산하며, 필드가 다 찼다는 이유만으로 자동 공개하지
-// 않는다. deprecated/forbidden은 공개된 용어의 사용 정책을 표현한다.
+// draft/active는 사용자 워크플로가 아니라 용어 정리 기준의 자동 판정 캐시다.
+// 쓰기 서비스가 termCompletion 결과에 따라 값을 정하며 사용자가 직접 바꾸지 않는다.
 export const termStatusEnum = pgEnum("term_status", [
-  "draft", "active", "deprecated", "forbidden",
+  "draft", "active",
 ]);
 
 export const surfaceKindEnum = pgEnum("surface_kind", [

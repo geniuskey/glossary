@@ -16,7 +16,7 @@ export default function HelpPage() {
           <InfoCard title="용어 찾기" href="/">이름뿐 아니라 약어·별칭·비슷한 표기까지 검색합니다.</InfoCard>
           <InfoCard title="표에서 빠르게 편집" href="/sheet">여러 용어를 한 화면에서 필터링하고 셀을 직접 수정합니다.</InfoCard>
           <InfoCard title="새 용어 등록" href="/new">이름, 표기, 한줄 정의와 관리 정보를 한 번에 등록합니다.</InfoCard>
-          <InfoCard title="미완성 용어 정리" href="/contribute">비어 있는 항목과 공개 검토를 기다리는 초안을 확인합니다.</InfoCard>
+          <InfoCard title="미완성 용어 정리" href="/contribute">정리 기준을 아직 만족하지 못한 용어와 비어 있는 항목을 확인합니다.</InfoCard>
           <InfoCard title="관계 살펴보기" href="/graph">도메인·업무 분류·주제로 이어지는 용어를 관계도로 봅니다.</InfoCard>
           <InfoCard title="용어집에 질문·가르치기" href="/chat">공개 용어를 질문하고, 모르는 용어나 기존 용어집 목록을 대화로 초안에 추가합니다.</InfoCard>
           <InfoCard title="엑셀에서 가져오기" href="/import">템플릿과 미리 검증을 이용해 여러 용어를 안전하게 가져옵니다.</InfoCard>
@@ -31,7 +31,7 @@ export default function HelpPage() {
       <section className="mt-10" aria-labelledby="faq-heading">
         <h2 id="faq-heading" className="text-lg font-semibold text-ink">자주 묻는 질문</h2>
         <div className="mt-4 divide-y divide-line rounded-xl border border-line bg-panel px-5">
-          <Faq question="수정한 내용은 바로 공개되나요?">공개 상태가 ‘초안’이면 기본 검색과 AI 조회에서 제외됩니다. ‘공개’로 바꾸면 기본 검색과 API 조회에 포함됩니다.</Faq>
+          <Faq question="정리 상태는 어떻게 정해지나요?">시스템이 용어의 표기와 내용을 정리 기준에 맞춰 자동으로 판정합니다. 검색과 조회 가능 여부를 제어하지 않으며, ‘보완 필요’인 용어는 공동 정리함에서 계속 다듬을 수 있습니다.</Faq>
           <Faq question="잘못 수정하면 되돌릴 수 있나요?">용어 상세의 수정 이력에서 이전 리비전을 확인하고 되돌릴 수 있습니다. 되돌리기도 새 리비전으로 남습니다.</Faq>
           <Faq question="같은 뜻의 약어와 별칭은 어디에 넣나요?">용어 편집의 추가 표기에서 약어·풀네임·별칭·금지 표기로 나누어 등록합니다.</Faq>
           <Faq question="대량 변경은 어떻게 하나요?">시트에서 여러 셀을 직접 수정하거나, 가져오기 화면에서 Excel·CSV 파일을 먼저 검증한 뒤 반영할 수 있습니다.</Faq>

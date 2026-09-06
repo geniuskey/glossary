@@ -126,7 +126,7 @@ test("expectedRevision이 0이어도 키가 포함된다 (falsy 값 누락 방�
 
 test("status는 변환 없이 그대로 전달된다(pass-through)", () => {
   const payload = buildTermPayload({ ...BASE_FORM, status: "active" });
-  expect(payload.status).toBe("active");
+  expect(payload).not.toHaveProperty("status");
 });
 
 // --- interpretResponse ---------------------------------------------------

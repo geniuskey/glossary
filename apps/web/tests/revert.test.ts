@@ -57,7 +57,7 @@ test("되돌리면 이름·정의·상태가 그 리비전의 값으로 돌아�
   const term = await seed();
   await updateTerm(
     term.id,
-    { nameKo: "흑레벨", status: "deprecated", definitionMd: "쓰지 않는 설명" },
+    { nameKo: "흑레벨", status: "draft", definitionMd: "쓰지 않는 설명" },
     null,
   );
 
@@ -118,13 +118,13 @@ test("옛 approved 스냅샷은 active로 되돌린다", async () => {
     .set({ snapshot: { ...legacy, term: { ...legacy.term, status: "approved" } } })
     .where(eq(termRevisions.id, rev1!.id));
 
-  await updateTerm(term.id, { status: "forbidden" }, null);
+  await updateTerm(term.id, { status: "active" }, null);
   const reverted = expectSaved(await revertTerm(term.id, 1, null));
 
   expect(reverted.term.status).toBe("active");
 });
 
-test("draft가 다시 정식 상태가 된 뒤에는 draft 스냅샷도 그대로 되돌린다", async () => {
+test("되돌리기도 스냅샷 상태가 아니라 복원된 내용으로 상태를 다시 판정한다", async () => {
   const term = await seed();
   const [rev1] = await db
     .select({ id: termRevisions.id, snapshot: termRevisions.snapshot })
@@ -137,10 +137,10 @@ test("draft가 다시 정식 상태가 된 뒤에는 draft 스냅샷도 그대�
     .set({ snapshot: { ...snapshot, term: { ...snapshot.term, status: "draft" } } })
     .where(eq(termRevisions.id, rev1!.id));
 
-  await updateTerm(term.id, { status: "forbidden" }, null);
+  await updateTerm(term.id, { status: "active" }, null);
   const reverted = expectSaved(await revertTerm(term.id, 1, null));
 
-  expect(reverted.term.status).toBe("draft");
+  expect(reverted.term.status).toBe("active");
 });
 
 test("없는 리비전 번호로 되돌리면 revisionNotFound다", async () => {

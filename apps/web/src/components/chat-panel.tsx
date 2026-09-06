@@ -13,7 +13,7 @@ import {
 import { cx } from "@/lib/ui/format";
 import type { ChatConversationSummary, ChatHistoryResponse, StoredChatMessage } from "@/lib/ai/chat-history-values";
 
-interface Source { slug: string; title: string; definition: string | null; status: "active" | "deprecated" | "forbidden" }
+interface Source { slug: string; title: string; definition: string | null; status: "draft" | "active" }
 interface Teaching { draft: TermTeachingDraft; ready: boolean }
 type Message = StoredChatMessage;
 
@@ -186,7 +186,6 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
         bodyMd: draft.bodyMd || undefined,
         domain: [],
         category: [],
-        status: "draft",
         surfaces: [],
       }),
     });
@@ -197,7 +196,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
     if (!response.ok || !body?.term?.slug) {
       return {
         ok: false,
-        error: body?.error?.details?.formErrors?.join(" ") || body?.error?.message || `초안을 추가하지 못했습니다 (${response.status}).`,
+        error: body?.error?.details?.formErrors?.join(" ") || body?.error?.message || `용어를 추가하지 못했습니다 (${response.status}).`,
       };
     }
     return {
@@ -223,7 +222,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
         {
           id: nextId,
           role: "assistant",
-          content: `“${result.term.title}”를 비공개 초안으로 추가했습니다. 공개하기 전에 분류와 내용을 검토해 주세요.`,
+          content: `“${result.term.title}”를 추가했습니다. 정리 상태는 입력된 내용에 따라 자동으로 판정됩니다.`,
           created: [result.term],
         },
       ] satisfies Message[];
@@ -231,7 +230,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
       setMessages(nextMessages);
       void persistMessages(nextMessages);
     } catch {
-      setDraftError({ id: messageId, text: "네트워크 오류로 초안을 추가하지 못했습니다." });
+      setDraftError({ id: messageId, text: "네트워크 오류로 용어를 추가하지 못했습니다." });
     } finally {
       setCreatingDraftId(null);
     }
@@ -259,7 +258,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
         {
           id: nextId,
           role: "assistant",
-          content: `${created.length}개 용어를 비공개 초안으로 추가했습니다. 공개하기 전에 각 용어의 분류와 내용을 검토해 주세요.${failureNote}`,
+          content: `${created.length}개 용어를 추가했습니다. 각 용어의 정리 상태는 입력된 내용에 따라 자동으로 판정됩니다.${failureNote}`,
           created,
         },
       ] satisfies Message[];
@@ -267,7 +266,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
       setMessages(nextMessages);
       void persistMessages(nextMessages);
     } catch {
-      setDraftError({ id: messageId, text: "네트워크 오류로 용어 초안을 추가하지 못했습니다." });
+      setDraftError({ id: messageId, text: "네트워크 오류로 용어를 추가하지 못했습니다." });
     } finally {
       setCreatingDraftId(null);
     }
@@ -323,7 +322,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
     <section className="flex min-h-[calc(100svh-7rem)] min-w-0 flex-col" aria-labelledby="chat-heading">
       <div className="mb-3 flex items-center gap-2 border-b border-line pb-2">
         <h2 id="chat-heading" className="text-base font-semibold text-ink">용어 챗봇</h2>
-        <HelpTip text="공개 용어를 근거로 답합니다. 모르는 용어는 대화로 정보를 받은 뒤 확인한 초안만 용어집에 추가합니다." />
+        <HelpTip text="용어집의 용어를 근거로 답합니다. 모르는 용어는 대화로 정보를 받은 뒤 사용자가 확인한 등록안만 추가합니다." />
         {messages.length > 0 && <button type="button" className="btn-quiet btn-sm ml-auto" onClick={() => void clearConversation()} disabled={sending}>대화 지우기</button>}
       </div>
 
@@ -374,7 +373,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
                     </div>
                   )}
                   {message.teaching && (
-                    <div className="mt-3 rounded-xl border border-brand/25 bg-brand-soft/45 p-3 text-ink" aria-label="용어 등록 초안">
+                    <div className="mt-3 rounded-xl border border-brand/25 bg-brand-soft/45 p-3 text-ink" aria-label="용어 등록안">
                       <div className="flex items-center gap-2">
                         <p className="font-semibold">{teachingDraftName(message.teaching.draft)}</p>
                         <span className={cx("ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold", message.teaching.ready ? "bg-ok-soft text-ok" : "bg-warn-soft text-warn")}>{message.teaching.ready ? "등록 준비됨" : "정보 수집 중"}</span>
@@ -390,12 +389,12 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
                       {draftError?.id === message.id && <p className="mt-2 text-xs text-danger" role="alert">{draftError.text}</p>}
                       <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-brand/15 pt-2">
                         <button type="button" className="btn-quiet btn-sm" onClick={() => cancelTeaching(message.id)} disabled={creatingDraftId === message.id}>취소</button>
-                        {message.teaching.ready && <button type="button" className="btn-primary btn-sm" onClick={() => void createTermFromDraft(message.id, message.teaching!.draft)} disabled={creatingDraftId !== null}>{creatingDraftId === message.id ? "추가 중…" : "초안으로 추가"}</button>}
+                        {message.teaching.ready && <button type="button" className="btn-primary btn-sm" onClick={() => void createTermFromDraft(message.id, message.teaching!.draft)} disabled={creatingDraftId !== null}>{creatingDraftId === message.id ? "추가 중…" : "용어로 추가"}</button>}
                       </div>
                     </div>
                   )}
                   {message.teachingBatch && (
-                    <div className="mt-3 rounded-xl border border-brand/25 bg-brand-soft/45 p-3 text-ink" aria-label="붙여넣은 용어 초안">
+                    <div className="mt-3 rounded-xl border border-brand/25 bg-brand-soft/45 p-3 text-ink" aria-label="붙여넣은 용어 등록안">
                       <div className="flex items-center gap-2">
                         <p className="font-semibold">붙여넣은 용어 {message.teachingBatch.drafts.length}개</p>
                         <span className="ml-auto rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-semibold text-warn">확인 필요</span>
@@ -415,7 +414,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
                       {draftError?.id === message.id && <p className="mt-2 text-xs text-danger" role="alert">{draftError.text}</p>}
                       <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-brand/15 pt-2">
                         <button type="button" className="btn-quiet btn-sm" onClick={() => cancelTeaching(message.id)} disabled={creatingDraftId === message.id}>취소</button>
-                        <button type="button" className="btn-primary btn-sm" onClick={() => void createTermsFromBatch(message.id, message.teachingBatch!.drafts)} disabled={creatingDraftId !== null}>{creatingDraftId === message.id ? "추가 중…" : `${message.teachingBatch.drafts.length}개 모두 초안으로 추가`}</button>
+                        <button type="button" className="btn-primary btn-sm" onClick={() => void createTermsFromBatch(message.id, message.teachingBatch!.drafts)} disabled={creatingDraftId !== null}>{creatingDraftId === message.id ? "추가 중…" : `${message.teachingBatch.drafts.length}개 모두 용어로 추가`}</button>
                       </div>
                     </div>
                   )}

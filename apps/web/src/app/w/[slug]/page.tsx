@@ -165,24 +165,6 @@ export default async function TermDetailPage({
           </span>
         </div>
 
-        {term.status === "draft" && completion.complete && (
-          <section className="mt-5 rounded-xl border border-brand/35 bg-brand-soft p-4 sm:p-5" aria-labelledby="publish-heading">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-              <div className="min-w-0 flex-1">
-                <h2 id="publish-heading" className="text-sm font-semibold text-ink text-balance">
-                  공개 검토를 기다리는 초안입니다
-                </h2>
-                <p className="mt-1 text-xs leading-5 text-ink-2">
-                  핵심 정보가 채워졌습니다. 내용을 확인한 뒤 상태를 ‘공개 · 사용’으로 바꾸면 검색과 AI 조회에 나타납니다.
-                </p>
-              </div>
-              <Link href={`/edit/${term.slug}`} className="btn-primary shrink-0 self-start sm:self-auto">
-                검토하고 공개하기
-              </Link>
-            </div>
-          </section>
-        )}
-
         {!completion.complete && (
           <section className="mt-5 rounded-xl border border-warn/35 bg-warn-soft p-4 sm:p-5" aria-labelledby="completion-heading">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center">

@@ -39,7 +39,6 @@ export interface TermWritePayload {
   category: BusinessCategoryLiteral[];
   topic: string | null;
   ownerId: string | null;
-  status: TermStatusLiteral;
   definitionMd?: string;
   bodyMd?: string;
   surfaces: SurfaceDraft[];
@@ -110,7 +109,6 @@ export function buildTermPayload(form: TermFormState, expectedRevision?: number)
       .filter(Boolean) as BusinessCategoryLiteral[],
     topic: form.topic.trim() || null,
     ownerId: form.ownerId || null,
-    status: form.status,
     definitionMd: form.definitionMd.trim() || undefined,
     bodyMd: form.bodyMd.trim() || undefined,
     surfaces: form.surfaces

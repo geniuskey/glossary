@@ -534,20 +534,6 @@ export function TermsGrid(props: TermsGridProps) {
     }
   }
 
-  function bulkStatus(status: string) {
-    const targets = rows.filter((r) => picked.has(r.id));
-    const column = columns.find((c) => c.key === "status") ?? GRID_COLUMNS.find((c) => c.key === "status");
-    if (!column) return;
-    const merged: WritePlan = { updates: [], errors: [], cells: 0 };
-    for (const row of targets) {
-      const plan = planCell(row, column, status);
-      merged.updates.push(...plan.updates);
-      merged.errors.push(...plan.errors);
-      merged.cells += plan.cells;
-    }
-    void commit(merged, `${targets.length}개 상태 변경`);
-  }
-
   async function deletePicked() {
     const targets = rows.filter((r) => picked.has(r.id));
     const ids = targets.map((r) => r.id);
@@ -1450,7 +1436,6 @@ export function TermsGrid(props: TermsGridProps) {
         range={range}
         busyCount={busy.size}
         canDelete={props.canDelete}
-        onBulkStatus={bulkStatus}
         onCopyPicked={() => void copyText(toTsv(rows.filter((r) => picked.has(r.id)), columns))}
         onDelete={() => void deletePicked()}
         onClearPick={() => setPicked(new Set())}
@@ -2229,7 +2214,6 @@ function StatusBar(props: {
   range: CellRange | null;
   busyCount: number;
   canDelete: boolean;
-  onBulkStatus: (status: string) => void;
   onCopyPicked: () => void;
   onDelete: () => void;
   onClearPick: () => void;
@@ -2290,22 +2274,6 @@ function StatusBar(props: {
         {props.pickedCount > 0 && (
           <span className="flex shrink-0 flex-nowrap items-center gap-1.5">
           <span className="font-medium text-ink">{props.pickedCount}줄 선택</span>
-          <select
-            className="h-6 rounded-md border border-line bg-panel px-1.5 text-[11px] text-ink-2 focus:border-brand focus:outline-none"
-            defaultValue=""
-            onChange={(e) => {
-              const value = e.target.value;
-              e.target.value = "";
-              if (value) props.onBulkStatus(value);
-            }}
-          >
-            <option value="">상태 일괄 변경…</option>
-            {TERM_STATUSES.map((value) => (
-              <option key={value} value={value}>
-                {TERM_STATUS_LABEL[value]}
-              </option>
-            ))}
-          </select>
           <button type="button" className="btn-ghost btn-sm" onClick={props.onCopyPicked}>
             표로 복사
           </button>

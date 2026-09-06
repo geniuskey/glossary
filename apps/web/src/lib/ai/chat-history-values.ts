@@ -4,7 +4,7 @@ export interface StoredChatSource {
   slug: string;
   title: string;
   definition: string | null;
-  status: "active" | "deprecated" | "forbidden";
+  status: "draft" | "active";
 }
 
 export interface StoredChatMessage {

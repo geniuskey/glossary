@@ -89,7 +89,7 @@ export default async function ContributePage({ searchParams }: { searchParams: P
                   <div>
                     {term.status === "draft" && term.completion.complete ? (
                       <p className="text-xs leading-5 text-brand">
-                        핵심 정보가 채워졌습니다. 내용을 확인한 뒤 공개 상태로 바꿔 주세요.
+                        핵심 정보가 채워졌습니다. 저장하면 시스템이 기준 충족 상태로 판정합니다.
                       </p>
                     ) : (
                       <MissingFields completion={term.completion} />
@@ -108,7 +108,7 @@ export default async function ContributePage({ searchParams }: { searchParams: P
                   <div className="ml-auto flex items-start gap-2">
                     <ManualReviewButton termId={term.id} revision={term.revision} initialStatus={queueStatuses[term.id]} aiAvailable={Boolean(ai.enabled && ai.secretsReadable)} />
                     <Link href={`/edit/${term.slug}`} className="btn-primary btn-sm">
-                      {term.status === "draft" && term.completion.complete ? "검토하고 공개" : "내용 채우기"}
+                      {term.status === "draft" && term.completion.complete ? "검토하고 저장" : "내용 채우기"}
                     </Link>
                   </div>
                 </div>

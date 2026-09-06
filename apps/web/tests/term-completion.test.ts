@@ -44,33 +44,33 @@ test("공백뿐인 값은 채워진 정보로 세지 않는다", () => {
   expect(completion.missing).toEqual(["definition", "context"]);
 });
 
-test("폐기·금지 용어는 정의·맥락·본문에 관리자 최소 길이를 적용한다", () => {
+test("이전 상태값은 더 이상 정리 기준을 바꾸지 않는다", () => {
   const settings = { definitionMinChars: 5, bodyMinChars: 10 };
   const short = termCompletion({
-    status: "forbidden",
+    status: "draft",
     definitionMd: "1234",
     bodyMd: "123456789",
     domain: ["IT"],
   }, settings);
-  expect(short).toMatchObject({ complete: false, completed: 1, total: 3, missing: ["definition", "body"] });
+  expect(short).toMatchObject({ complete: false, completed: 1, total: 2, missing: ["definition"] });
 
   const complete = termCompletion({
-    status: "deprecated",
+    status: "active",
     definitionMd: "12345",
     bodyMd: "1234567890",
     domain: ["IT"],
   }, settings);
-  expect(complete).toMatchObject({ complete: true, completed: 3, total: 3, missing: [] });
+  expect(complete).toMatchObject({ complete: true, completed: 2, total: 2, missing: [] });
 });
 
 test("글자 수 0도 구조적 항목을 없애지 않고 내용 존재 여부를 검사한다", () => {
   const completion = termCompletion({
-    status: "forbidden",
+    status: "draft",
     definitionMd: "",
     bodyMd: "",
     domain: ["IT"],
   }, { definitionMinChars: 0, bodyMinChars: 0 });
-  expect(completion.missing).toEqual(["definition", "body"]);
+  expect(completion.missing).toEqual(["definition"]);
 });
 
 test("기존 명시 기준보다 플랫폼 자동 판단을 우선한다", () => {

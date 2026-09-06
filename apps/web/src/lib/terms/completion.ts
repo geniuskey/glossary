@@ -25,7 +25,7 @@ export interface CompletionSource {
   bodyMd?: string | null;
   domain: string[];
   categories?: string[];
-  status?: "draft" | "active" | "deprecated" | "forbidden";
+  status?: "draft" | "active";
 }
 
 export interface TermCompletion {
@@ -49,14 +49,20 @@ function looksLikeAbbreviation(value?: string | null): boolean {
 }
 
 export function resolveTermQualityProfile(term: CompletionSource): ResolvedTermQualityProfile {
-  if (term.status === "deprecated" || term.status === "forbidden") return "guidance";
-
   const hasFullName = hasText(term.fullNameEn) || hasText(term.fullNameKo);
   const abbreviation = looksLikeAbbreviation(term.nameEn) || looksLikeAbbreviation(term.nameKo);
   if (hasFullName && abbreviation) {
     return "mapping";
   }
   return "context";
+}
+
+/** 저장되는 상태는 사용자 선택이 아니라 현재 정리 기준의 판정 결과다. */
+export function completionStatus(
+  term: CompletionSource,
+  settings: TermQualitySettings = DEFAULT_TERM_QUALITY,
+): "draft" | "active" {
+  return termCompletion(term, settings).complete ? "active" : "draft";
 }
 
 /**

@@ -86,7 +86,7 @@ test("편집 페이지는 현재 리비전 번호를 expectedRevision으로 Term
   // 생성 후 두 번 더 patch해서 리비전을 3으로 만든다 — expectedRevision이
   // 하드코딩된 0이나 1이어도 우연히 맞아떨어지지 않도록 한다.
   await updateTerm(term.id, { nameKo: "편집 페이지 테스트" }, user.id);
-  await updateTerm(term.id, { status: "deprecated" }, user.id);
+  await updateTerm(term.id, { status: "draft" }, user.id);
 
   const element = await EditTermPage({ params: Promise.resolve({ slug: term.slug }) });
   const formElement = findElement(element, TermForm);

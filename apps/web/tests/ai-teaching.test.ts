@@ -64,7 +64,7 @@ test("사용자가 알려준 내용을 기존 초안에 누적하면 등록 준�
     fullNameEn: "Turn Over",
     definitionMd: "공정 단계가 전환되는 시점",
   });
-  expect(result.answer).toContain("초안으로 추가");
+  expect(result.answer).toContain("용어로 추가");
 });
 
 test("생략 의사를 반영하되 의미 정보가 전혀 없는 용어는 준비 완료로 보지 않는다", () => {

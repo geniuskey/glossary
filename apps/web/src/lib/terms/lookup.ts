@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { businessCategories, surfaceKeys, terms, termSurfaces, type Db } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import type { BusinessCategory, SurfaceKind, TermStatus, TermSummary } from "./query";
@@ -77,7 +77,6 @@ async function fetchSimilar(db: Db, missingKeys: string[]): Promise<Map<string, 
       FROM missing_keys mk
       JOIN ${termSurfaces} ts ON ts.norm_loose % mk.key
       JOIN ${terms} tm ON tm.id = ts.term_id
-      WHERE tm.status <> 'draft'
       GROUP BY mk.key, tm.id, tm.slug
     ),
     ranked AS (
@@ -145,7 +144,7 @@ export async function lookupTerms(texts: string[]): Promise<LookupResult[]> {
         })
         .from(termSurfaces)
         .innerJoin(terms, eq(terms.id, termSurfaces.termId))
-        .where(and(inArray(termSurfaces.normLoose, unique), ne(terms.status, "draft")))
+        .where(inArray(termSurfaces.normLoose, unique))
         .orderBy(terms.slug)
     : [];
 

@@ -35,8 +35,8 @@ test("parseListParams: 빈 문자열 status/domain/category/topic/q는 지정 �
 });
 
 test("parseListParams: status와 관리형 category key를 그대로 통과한다", () => {
-  const parsed = parseListParams({ status: "forbidden", domain: "ISP", category: "무선", q: "AE" });
-  expect(parsed.status).toBe("forbidden");
+  const parsed = parseListParams({ status: "active", domain: "ISP", category: "무선", q: "AE" });
+  expect(parsed.status).toBe("active");
   expect(parsed.domain).toBe("ISP");
   expect(parsed.category).toBe("무선");
   expect(parsed.topic).toBeUndefined();

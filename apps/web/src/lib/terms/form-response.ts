@@ -14,7 +14,7 @@ import type { TermWriteResponse } from "./wire";
 // "message만 있는 일반 오류"로 뭉개져 사용자가 정확히 어느 필드가 문제인지
 // 알 수 없다.
 export type FormOutcome =
-  | { kind: "success"; term: { slug: string }; surfaces: TermWriteResponse["surfaces"]; warnings: TermWriteResponse["warnings"] }
+  | { kind: "success"; term: { slug: string; status?: TermWriteResponse["term"]["status"] }; surfaces: TermWriteResponse["surfaces"]; warnings: TermWriteResponse["warnings"] }
   | { kind: "conflict"; message: string; currentRevision: number | null }
   | { kind: "issues"; message: string; issues: string[] }
   | { kind: "fieldErrors"; message: string; fieldErrors: Record<string, string[]>; formErrors: string[] }
@@ -39,7 +39,12 @@ export function interpretResponse(status: number, ok: boolean, body: unknown): F
   if (ok) {
     const b = body as Partial<TermWriteResponse> | null;
     if (b && typeof b === "object" && b.term && typeof b.term.slug === "string") {
-      return { kind: "success", term: { slug: b.term.slug }, surfaces: b.surfaces ?? [], warnings: b.warnings ?? [] };
+      return {
+        kind: "success",
+        term: { slug: b.term.slug, ...(b.term.status ? { status: b.term.status } : {}) },
+        surfaces: b.surfaces ?? [],
+        warnings: b.warnings ?? [],
+      };
     }
     return { kind: "error", message: "서버 응답을 이해할 수 없습니다." };
   }

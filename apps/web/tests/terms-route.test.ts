@@ -587,7 +587,7 @@ test("surfaces 없이 patch하면 라우트를 통해서도 기존 명시 표기
   );
   expect(withAlias.status).toBe(200);
 
-  const statusOnly = await termPatch(patchRequest({ status: "deprecated" }, token), {
+  const statusOnly = await termPatch(patchRequest({ definitionMd: "상태 자동 판정 확인" }, token), {
     params: Promise.resolve({ idOrSlug: term.slug }),
   });
   expect(statusOnly.status).toBe(200);

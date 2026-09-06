@@ -218,25 +218,22 @@ test("기존 명시 기준과 관계없이 Full name이 있는 약어는 자동 
   expect(queue.items.map((item) => item.id)).not.toContain(ids[0]);
 });
 
-test("완성된 초안도 공개 검토를 위해 공동 정리 대기열에 남는다", async () => {
+test("기준을 만족한 용어는 요청 상태와 무관하게 공동 정리 대기열에서 제외된다", async () => {
   const queue = await listContributionTerms(500);
-  const draft = queue.items.find((item) => item.id === completeDraftId);
-  expect(draft?.completion.complete).toBe(true);
-  expect(draft?.status).toBe("draft");
+  expect(queue.items.map((item) => item.id)).not.toContain(completeDraftId);
 });
 
 test("제안 검토에서 지정한 용어는 제한된 공동 정리 목록에 우선 포함한다", async () => {
-  const queue = await listContributionTerms(1, undefined, completeDraftId);
-  expect(queue.items[0]?.id).toBe(completeDraftId);
+  const queue = await listContributionTerms(1, undefined, nakedAbbreviationId);
+  expect(queue.items[0]?.id).toBe(nakedAbbreviationId);
 });
 
-test("기본 목록은 초안을 숨기고 명시 필터와 공동 편집 시트는 초안을 보여준다", async () => {
+test("정리 상태는 목록과 공유 화면의 노출을 제어하지 않는다", async () => {
   const baseParams = { q: "CompleteDraftQueryProbe", page: 1, pageSize: 20 };
-  expect((await listTerms(baseParams)).items.map((term) => term.id)).not.toContain(completeDraftId);
-  expect((await listTerms({ ...baseParams, status: "draft" })).items.map((term) => term.id)).toContain(completeDraftId);
+  expect((await listTerms(baseParams)).items.map((term) => term.id)).toContain(completeDraftId);
+  expect((await listTerms({ ...baseParams, status: "active" })).items.map((term) => term.id)).toContain(completeDraftId);
   expect((await listTermRows(baseParams)).items.map((term) => term.id)).toContain(completeDraftId);
-  expect((await listPublishedTermRows(baseParams)).items.map((term) => term.id)).not.toContain(completeDraftId);
-  await expect(listPublishedTermRows({ ...baseParams, status: "draft" })).resolves.toEqual({ items: [], total: 0 });
+  expect((await listPublishedTermRows(baseParams)).items.map((term) => term.id)).toContain(completeDraftId);
 });
 
 // "auto-exposure"는 구분자만 다를 뿐 normLoose가 "Auto Exposure"와 정확히

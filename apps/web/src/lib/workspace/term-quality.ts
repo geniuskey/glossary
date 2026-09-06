@@ -1,9 +1,9 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { terms, workspaceSettings } from "@glossary/db";
 import { getDb } from "@/lib/db";
-import { termCompletion } from "@/lib/terms/completion";
+import { completionStatus, termCompletion } from "@/lib/terms/completion";
 import { DEFAULT_HOME_CONTENT } from "./home-content-values";
 import { DEFAULT_TERM_QUALITY, type TermQualitySettings } from "./term-quality-values";
 
@@ -41,6 +41,19 @@ export async function saveTermQualitySettings(settings: TermQualitySettings, upd
       definitionMinChars: workspaceSettings.definitionMinChars,
       bodyMinChars: workspaceSettings.bodyMinChars,
     });
+
+  // 상태는 사용자 선택값이 아니라 기준 판정의 캐시다. 기준 자체가 바뀌면 기존
+  // 용어도 즉시 같은 규칙으로 다시 판정해야 목록·검색 노출이 서로 어긋나지 않는다.
+  const rows = await getDb().select().from(terms);
+  const idsByStatus = { draft: [] as string[], active: [] as string[] };
+  for (const row of rows) {
+    const status = completionStatus({ ...row, categories: row.category }, saved!);
+    if (row.status !== status) idsByStatus[status].push(row.id);
+  }
+  await Promise.all((['draft', 'active'] as const).map(async (status) => {
+    const ids = idsByStatus[status];
+    if (ids.length > 0) await getDb().update(terms).set({ status }).where(inArray(terms.id, ids));
+  }));
 
   return saved!;
 }

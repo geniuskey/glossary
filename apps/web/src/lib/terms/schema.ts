@@ -60,7 +60,9 @@ export const termInputBaseSchema = z.object({
   ).max(TERM_DOMAIN_MAX).default([]),
   topic: z.string().trim().min(1).max(DOMAIN_VALUE_MAX).nullable().optional(),
   ownerId: z.string().uuid().nullable().optional(),
-  status: z.enum(["draft", "active", "deprecated", "forbidden"]).default("draft"),
+  // 이전 클라이언트의 필드는 전환 기간 동안 파싱하되 쓰기 서비스가 값을
+  // 신뢰하지 않고 내용으로 다시 계산한다.
+  status: z.enum(["draft", "active"]).optional(),
   definitionMd: z.string().max(TERM_MARKDOWN_MAX).optional(),
   // R33: terms.body_md 컬럼은 Task 9의 상세 API가 읽어서 그대로 반환하지만, 이
   // 필드가 없으면 어떤 API/폼으로도 채울 방법이 없어 영원히 null로 남는다.

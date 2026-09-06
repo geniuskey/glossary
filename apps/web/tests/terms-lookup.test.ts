@@ -77,7 +77,7 @@ beforeAll(async () => {
   ids.push(goodTerm.term.id);
   forbiddenTerm = await createTerm(
     {
-      nameEn: "ProbeMatchKind Retired", domain: ["QA"], status: "forbidden",
+      nameEn: "ProbeMatchKind Retired", domain: ["QA"], status: "active",
       surfaces: [{ text: "ProbeMatchKind", lang: "en", kind: "forbidden" }],
     },
     null,
@@ -134,12 +134,13 @@ test("미등록 표기는 found=false로 반환한다", async () => {
   expect(missing!.terms).toEqual([]);
 });
 
-test("draft는 정확 조회와 유사어 후보에서 모두 제외된다", async () => {
+test("정리 상태는 정확 조회와 유사어 후보의 노출을 막지 않는다", async () => {
   const [exact] = await lookupTerms(["HiddenDraftLookupProbe"]);
-  expect(exact).toMatchObject({ found: false, terms: [] });
+  expect(exact).toMatchObject({ found: true });
+  expect(exact!.terms.map((term) => term.id)).toContain(draftTerm.term.id);
 
   const [similar] = await lookupTerms(["HiddenDraftLookupProbez"]);
-  expect(similar!.similar.map((item) => item.slug)).not.toContain(draftTerm.term.slug);
+  expect(similar!.similar.map((item) => item.slug)).toContain(draftTerm.term.slug);
 });
 
 test("요청 순서와 개수를 그대로 보존한다", async () => {

@@ -135,9 +135,9 @@ test("limit을 넘겨 돌려주지 않는다", async () => {
   expect(hits.length).toBeLessThanOrEqual(1);
 });
 
-test("draft는 기본 검색과 자동완성에 노출되지 않는다", async () => {
-  expect((await searchTerms("HiddenDraftXSRCH")).map((hit) => hit.id)).not.toContain(draftId);
-  expect((await suggestTerms("HiddenDraftXSRCH")).map((hit) => hit.id)).not.toContain(draftId);
+test("보완 필요 상태도 검색과 자동완성에 노출된다", async () => {
+  expect((await searchTerms("HiddenDraftXSRCH")).map((hit) => hit.id)).toContain(draftId);
+  expect((await suggestTerms("HiddenDraftXSRCH")).map((hit) => hit.id)).toContain(draftId);
 });
 
 // --- suggestTerms (R136, 자동완성) -------------------------------------------

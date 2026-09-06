@@ -57,8 +57,9 @@ const businessCategoriesSchema = {
 };
   const statusSchema = {
     type: "string",
-    enum: ["draft", "active", "deprecated", "forbidden"],
-    description: "draft는 공동 작성 중이며 기본 목록·검색·추천·lookup에서 제외됩니다. active는 팀 공개 및 사용 가능 상태입니다.",
+    enum: ["draft", "active"],
+    readOnly: true,
+    description: "시스템이 용어 정리 기준 충족 여부를 자동 판정합니다. draft는 보완 필요, active는 기준 충족입니다.",
   };
 
 export const openApiSpec = {

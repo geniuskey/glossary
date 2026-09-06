@@ -6,10 +6,8 @@ import { cx } from "@/lib/ui/format";
 // 통과시켜 화면만 어긋난다. 라벨은 enums.ts의 TERM_STATUS_LABEL 하나만 쓴다
 // (여기 두 번째 사본이 있으면 그게 곧 드리프트의 출처가 된다).
 export const STATUS_TONE: Record<TermStatusLiteral, string> = {
-  draft: "bg-brand-soft text-brand",
+  draft: "bg-warn-soft text-warn",
   active: "bg-ok-soft text-ok",
-  deprecated: "bg-warn-soft text-warn",
-  forbidden: "bg-danger-soft text-danger",
 };
 
 export function StatusBadge({ status, className }: { status: TermStatusLiteral; className?: string }) {

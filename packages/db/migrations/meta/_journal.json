@@ -204,6 +204,13 @@
       "when": 1788623349894,
       "tag": "0028_busy_valkyrie",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1788661234324,
+      "tag": "0029_loose_lockjaw",
+      "breakpoints": true
     }
   ]
 }

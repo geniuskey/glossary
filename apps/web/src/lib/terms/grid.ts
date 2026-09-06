@@ -1,8 +1,6 @@
 import {
   BUSINESS_CATEGORIES,
   BUSINESS_CATEGORY_LABEL,
-  TERM_STATUSES,
-  TERM_STATUS_LABEL,
   type TermStatusLiteral,
   type BusinessCategoryLiteral,
 } from "./enums";
@@ -84,14 +82,12 @@ export interface GridColumn {
 }
 
 const CATEGORY_OPTIONS = BUSINESS_CATEGORIES.map((v) => ({ value: v, label: BUSINESS_CATEGORY_LABEL[v] ?? v }));
-const STATUS_OPTIONS = TERM_STATUSES.map((v) => ({ value: v, label: TERM_STATUS_LABEL[v] }));
-
 export const GRID_COLUMNS: readonly GridColumn[] = [
   { key: "nameEn", label: "대표 영문 표기", kind: "text", width: 200, sortKey: "nameEn" },
   { key: "nameKo", label: "대표 국문 표기", kind: "text", width: 180, sortKey: "nameKo" },
   { key: "fullNameEn", label: "영문 확장명", kind: "text", width: 220 },
   { key: "fullNameKo", label: "국문 확장명", kind: "text", width: 200 },
-  { key: "status", label: "상태", kind: "enum", width: 100, options: STATUS_OPTIONS, sortKey: "status" },
+  { key: "status", label: "정리 상태", kind: "readonly", width: 110, sortKey: "status" },
   { key: "domain", label: "도메인", kind: "list", width: 160 },
   { key: "category", label: "업무 분류", kind: "enum", width: 140, options: CATEGORY_OPTIONS },
   { key: "topic", label: "주제", kind: "text", width: 180, hiddenByDefault: true },
@@ -334,12 +330,8 @@ export function patchForCell(
       return { patch: { domain: items } };
     }
 
-    case "status": {
-      const found = TERM_STATUSES.find((s) => s === value);
-      if (!found) return { error: `상태 값이 올바르지 않습니다: ${raw}` };
-      return { patch: { status: found } };
-    }
-
+    case "status":
+      return { error: "이 열은 시스템이 자동으로 판단하므로 수정할 수 없습니다." };
     case "slug":
     case "ownerName":
     case "updatedAt":
