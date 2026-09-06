@@ -9,7 +9,7 @@
 |---|---|---|
 | `id` | uuid | PK |
 | `slug` | text | 유니크. URL 식별자 |
-| `quality_profile` | enum | `auto` \| `mapping` \| `context` \| `guidance`. AI 활용에 필요한 정보 수준 |
+| `quality_profile` | enum | 기존 API·리비전 호환용. 새 판정은 용어의 상태와 내용에서 자동 계산 |
 | `name_en`, `name_ko` | text | 목록·제목에 쓸 대표 표기. 최소 하나는 있어야 한다 |
 | `full_name_en`, `full_name_ko` | text | 대표 풀네임 또는 확장명 |
 | `domain` | text[] | ISP, HW, SW, Optics, PM … 동음이의어 구분축 |
@@ -54,8 +54,8 @@
 - **ai_review_queue** — 용어별 최신 AI 검토 요청을 `queued`, `processing`, `ready`,
   `failed` 상태로 관리한다. 자동·수동 요청 여부, 요청자와 처리 시각을 함께 기록한다.
 
-용어별 `quality_profile`과 전역 최소 길이를 결합해 작성 수준을 계산한다. 자세한 판정은
-[AI 활용과 챗봇](/guide/ai#용어별-ai-활용-기준)을 참고한다.
+용어의 표기·상태·내용과 전역 최소 길이를 결합해 완성도를 자동 계산한다. 자세한 판정은
+[AI 활용과 챗봇](/guide/ai#콘텐츠-완성도-자동-판정)을 참고한다.
 
 ## term_surfaces — 그 개념을 가리키는 모든 실제 표기
 

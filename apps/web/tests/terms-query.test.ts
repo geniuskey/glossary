@@ -53,6 +53,7 @@ beforeAll(async () => {
       category: ["design", "process"],
       topic: "QueryRelationProbe",
       status: "active",
+      qualityProfile: "context",
       surfaces: [
         { text: "AE", lang: "en", kind: "abbreviation" },
         { text: "오토익스포저", lang: "ko", kind: "discouraged" },
@@ -212,7 +213,7 @@ test("정리 대기열은 비어 있는 핵심 정보를 함께 돌려준다", a
   expect(queue.total).toBeGreaterThanOrEqual(queue.items.length);
 });
 
-test("Full name이 있는 약어는 정의가 없어도 표기 매핑으로 완성되어 정리 대기열에서 제외된다", async () => {
+test("기존 명시 기준과 관계없이 Full name이 있는 약어는 자동 판정되어 정리 대기열에서 제외된다", async () => {
   const queue = await listContributionTerms(500);
   expect(queue.items.map((item) => item.id)).not.toContain(ids[0]);
 });

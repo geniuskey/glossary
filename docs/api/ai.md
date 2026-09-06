@@ -67,11 +67,11 @@ OpenAI-compatible은 `/models`의 ID를 반환한다. 성공 응답은 다음 �
 `{ "ok": true }`를 반환한다. 모델 폐기·인증·할당량 오류 등 공급자 실패는 502
 `ai_provider_error`이며, 이 관리자 전용 응답에는 진단 가능한 공급자 메시지가 포함된다.
 
-## AI 활용 기준
+## 콘텐츠 완성도
 
 ### `GET /admin/term-quality`
 
-현재 최소 글자 수와 프로필별 충족 현황을 반환한다.
+현재 최소 글자 수와 플랫폼이 자동 판정한 기준별 충족 현황을 반환한다.
 
 ### `POST /admin/term-quality`
 
@@ -80,8 +80,9 @@ OpenAI-compatible은 `/models`의 ID를 반환한다. 성공 응답은 다음 �
 
 ### `PATCH /admin/term-quality`
 
-같은 입력을 워크스페이스 설정에 저장한다. 실제 필수 항목은 용어의 `qualityProfile`과
-결합해 계산한다.
+같은 입력을 워크스페이스 설정에 저장한다. 기존 연동과 고급 운영 도구의 호환을 위해
+유지하는 API이며, 용어별 `qualityProfile` 값과 관계없이 표기·상태·내용으로 기준을
+자동 판정한다.
 
 ## 자동 검토 제안
 

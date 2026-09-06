@@ -352,7 +352,7 @@ export const openApiSpec = {
         },
       },
       post: {
-        summary: "저장하지 않고 AI 활용 기준 변경 영향을 미리 계산",
+        summary: "저장하지 않고 콘텐츠 완성도 최소 길이 변경 영향을 미리 계산",
         security: [{ sessionCookie: [] }],
         requestBody: {
           required: true,

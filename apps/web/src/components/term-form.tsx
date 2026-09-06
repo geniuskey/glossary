@@ -37,12 +37,6 @@ import type { BusinessCategoryOption } from "@/lib/terms/categories";
 import { slugify, slugValidationMessage } from "@/lib/terms/slug";
 import { inferSurfaceLang } from "@/lib/terms/surface-language";
 import { cx } from "@/lib/ui/format";
-import {
-  TERM_QUALITY_PROFILES,
-  TERM_QUALITY_PROFILE_DESCRIPTION,
-  TERM_QUALITY_PROFILE_LABEL,
-  type TermQualityProfile,
-} from "@/lib/workspace/term-quality-values";
 
 export interface TermFormInitial extends TermFormState {
   slug?: string;
@@ -66,13 +60,6 @@ const SURFACE_LANGUAGE_STYLE: Record<SurfaceLangLiteral, string> = {
   neutral: "border-warn/40 bg-warn-soft text-warn",
 };
 const SURFACE_LANGUAGE_ORDER = ["ko", "en", "neutral"] as const;
-
-const QUALITY_PROFILE_HINT: Record<TermQualityProfile, string> = {
-  auto: "약어에 Full name이 있으면 표기 매핑으로, 나머지는 맥락 설명으로 판단합니다. 폐기·금지 용어는 사용 지침을 적용합니다.",
-  mapping: TERM_QUALITY_PROFILE_DESCRIPTION.mapping,
-  context: TERM_QUALITY_PROFILE_DESCRIPTION.context,
-  guidance: TERM_QUALITY_PROFILE_DESCRIPTION.guidance,
-};
 
 function commaSeparatedValues(value: string): string[] {
   return [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
@@ -150,7 +137,6 @@ export function TermForm({
   const surfaceMenuRef = useRef<HTMLDivElement>(null);
   const surfaceDetailsRef = useRef<HTMLDetailsElement>(null);
   const managementDetailsRef = useRef<HTMLDetailsElement>(null);
-  const qualityDetailsRef = useRef<HTMLDetailsElement>(null);
   // dragover는 dragstart 직후 React 상태가 반영되기 전에도 발생할 수 있으므로
   // 드롭 허용 여부와 원본 인덱스는 동기적으로 갱신되는 ref를 기준으로 삼는다.
   const draggedSurfaceIndexRef = useRef<number | null>(null);
@@ -158,7 +144,6 @@ export function TermForm({
 
   const locked = saving || deleting || renamingSlug || savedSlug !== null;
   const fieldDisplayLabel: Record<string, string> = {
-    qualityProfile: "AI 활용 기준",
     nameEn: "대표 영문 용어",
     nameKo: "대표 국문 용어",
     fullNameEn: "영문 확장명",
@@ -222,10 +207,9 @@ export function TermForm({
     if (!fieldErrors) return;
     if (fieldErrors.fullNameEn || fieldErrors.fullNameKo) setShowFullNameFields(true);
     if (fieldErrors.surfaces) surfaceDetailsRef.current!.open = true;
-    if (["qualityProfile", "domain", "category", "topic", "ownerId"].some((field) => fieldErrors[field])) {
+    if (["domain", "category", "topic", "ownerId"].some((field) => fieldErrors[field])) {
       managementDetailsRef.current!.open = true;
     }
-    if (fieldErrors.qualityProfile) qualityDetailsRef.current!.open = true;
     const firstField = Object.keys(fieldErrors)[0];
     const control = firstField ? document.querySelector<HTMLElement>(`[name="${CSS.escape(firstField)}"]`) : null;
     (control ?? errorSummaryRef.current)?.focus();
@@ -1015,34 +999,6 @@ export function TermForm({
                 </div>
               </details>
             )}
-            <details ref={qualityDetailsRef} className="group/quality mt-3 rounded-lg border border-line bg-panel-2/35">
-              <summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-ink-2 focus-visible:ring-2 focus-visible:ring-brand/40 [&::-webkit-details-marker]:hidden">
-                <span>AI 활용 기준</span>
-                <span className="text-ink-3">{TERM_QUALITY_PROFILE_LABEL[form.qualityProfile]}</span>
-                <span className="ml-auto text-ink-3 transition-transform group-open/quality:rotate-180 motion-reduce:transition-none" aria-hidden="true">⌄</span>
-              </summary>
-              <div className="border-t border-line p-3">
-                <span className="label inline-flex items-center gap-1.5">
-                  <label htmlFor="term-quality-profile">기준</label>
-                  <HelpTip text={QUALITY_PROFILE_HINT[form.qualityProfile]} />
-                </span>
-                <select
-                  id="term-quality-profile"
-                  name="qualityProfile"
-                  value={form.qualityProfile}
-                  onChange={(event) => updateField("qualityProfile", event.target.value as TermQualityProfile)}
-                  disabled={locked}
-                  aria-invalid={errorsFor("qualityProfile") ? true : undefined}
-                  aria-describedby={errorsFor("qualityProfile") ? "qualityProfile-error" : undefined}
-                  className="field"
-                >
-                  {TERM_QUALITY_PROFILES.map((profile) => (
-                    <option key={profile} value={profile}>{TERM_QUALITY_PROFILE_LABEL[profile]}</option>
-                  ))}
-                </select>
-                <FormFieldError id="qualityProfile-error" errors={errorsFor("qualityProfile")} />
-              </div>
-            </details>
           </div>
           </div>
       </details>

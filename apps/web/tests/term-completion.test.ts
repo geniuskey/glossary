@@ -44,10 +44,10 @@ test("공백뿐인 값은 채워진 정보로 세지 않는다", () => {
   expect(completion.missing).toEqual(["definition", "context"]);
 });
 
-test("사용 지침 프로필은 정의·맥락·본문에 관리자 최소 길이를 적용한다", () => {
+test("폐기·금지 용어는 정의·맥락·본문에 관리자 최소 길이를 적용한다", () => {
   const settings = { definitionMinChars: 5, bodyMinChars: 10 };
   const short = termCompletion({
-    qualityProfile: "guidance",
+    status: "forbidden",
     definitionMd: "1234",
     bodyMd: "123456789",
     domain: ["IT"],
@@ -55,7 +55,7 @@ test("사용 지침 프로필은 정의·맥락·본문에 관리자 최소 길�
   expect(short).toMatchObject({ complete: false, completed: 1, total: 3, missing: ["definition", "body"] });
 
   const complete = termCompletion({
-    qualityProfile: "guidance",
+    status: "deprecated",
     definitionMd: "12345",
     bodyMd: "1234567890",
     domain: ["IT"],
@@ -65,7 +65,7 @@ test("사용 지침 프로필은 정의·맥락·본문에 관리자 최소 길�
 
 test("글자 수 0도 구조적 항목을 없애지 않고 내용 존재 여부를 검사한다", () => {
   const completion = termCompletion({
-    qualityProfile: "guidance",
+    status: "forbidden",
     definitionMd: "",
     bodyMd: "",
     domain: ["IT"],
@@ -73,12 +73,12 @@ test("글자 수 0도 구조적 항목을 없애지 않고 내용 존재 여부�
   expect(completion.missing).toEqual(["definition", "body"]);
 });
 
-test("용어별 명시 기준은 자동 판단보다 우선한다", () => {
+test("기존 명시 기준보다 플랫폼 자동 판단을 우선한다", () => {
   const completion = termCompletion({
     qualityProfile: "context",
     nameEn: "SW",
     fullNameEn: "Software",
     domain: [],
   });
-  expect(completion).toMatchObject({ resolvedProfile: "context", complete: false, missing: ["definition", "context"] });
+  expect(completion).toMatchObject({ resolvedProfile: "mapping", complete: true, missing: [] });
 });

@@ -35,9 +35,9 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | PATCH | [`/admin/ai-config`](/api/ai#ai-연결-설정) | 세션(admin) | AI 연결 설정 저장 |
 | POST | [`/admin/ai-config/models`](/api/ai#모델-목록) | 세션(admin) | 공급자가 제공하는 모델 목록 조회 |
 | POST | [`/admin/ai-config/test`](/api/ai#연결-시험) | 세션(admin) | 선택 모델로 실제 생성 요청 시험 |
-| GET | [`/admin/term-quality`](/api/ai#ai-활용-기준) | 세션(admin) | AI 활용 기준 조회 |
-| POST | [`/admin/term-quality`](/api/ai#ai-활용-기준) | 세션(admin) | 기준 변경 영향 미리보기 |
-| PATCH | [`/admin/term-quality`](/api/ai#ai-활용-기준) | 세션(admin) | AI 활용 기준 저장 |
+| GET | [`/admin/term-quality`](/api/ai#콘텐츠-완성도) | 세션(admin) | 콘텐츠 완성도 조회 |
+| POST | [`/admin/term-quality`](/api/ai#콘텐츠-완성도) | 세션(admin) | 최소 길이 변경 영향 미리보기 |
+| PATCH | [`/admin/term-quality`](/api/ai#콘텐츠-완성도) | 세션(admin) | 최소 길이 저장 |
 | POST | [`/chat`](/api/ai#용어집-챗봇) | `read` | 용어집에 근거한 AI 질문 |
 | GET | [`/terms`](/api/terms#목록-조회) | `read` | 용어 목록·검색 |
 | POST | [`/terms`](/api/terms#등록) | `write` | 용어 등록 |

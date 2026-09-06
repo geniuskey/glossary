@@ -121,11 +121,11 @@ test("관리자 화면은 사용자 목록을 읽기 전에 관리자 역할을 
   expect(userQuery).toBeGreaterThan(roleGuard);
 });
 
-test("관리자 화면은 홈·AI 활용 기준·AI 연결·SSO·사용자를 탭으로 분리한다", () => {
+test("관리자 화면은 홈·콘텐츠 완성도·AI 연결·SSO·사용자를 탭으로 분리한다", () => {
   const content = stripComments(readFileSync(path.join(appDir, "admin", "page.tsx"), "utf8"));
   expect(content).toContain('aria-label="관리자 하위 메뉴"');
   expect(content).toContain('{ key: "home", label: "홈 화면" }');
-  expect(content).toContain('{ key: "quality", label: "AI 활용 기준" }');
+  expect(content).toContain('{ key: "quality", label: "콘텐츠 완성도" }');
   expect(content).toContain('{ key: "ai", label: "AI 연결" }');
   expect(content).toContain('{ key: "sso", label: "로그인 · SSO" }');
   expect(content).toContain('{ key: "users", label: "사용자" }');
@@ -135,6 +135,12 @@ test("관리자 화면은 홈·AI 활용 기준·AI 연결·SSO·사용자를 �
   expect(content).not.toContain('href="/statistics"');
   expect(content).not.toContain('href="/classifications"');
   expect(content).not.toContain('href="/settings/sso"');
+});
+
+test("용어 편집은 완성도 기준을 플랫폼에 맡기고 용어별 선택을 노출하지 않는다", () => {
+  const content = stripComments(readFileSync(path.join(componentsDir, "term-form.tsx"), "utf8"));
+  expect(content).not.toContain('name="qualityProfile"');
+  expect(content).not.toContain("TERM_QUALITY_PROFILES.map");
 });
 
 test("기존 SSO 설정 주소는 관리자 SSO 탭으로 보낸다", () => {

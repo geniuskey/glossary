@@ -49,8 +49,6 @@ function looksLikeAbbreviation(value?: string | null): boolean {
 }
 
 export function resolveTermQualityProfile(term: CompletionSource): ResolvedTermQualityProfile {
-  const configured = term.qualityProfile ?? "auto";
-  if (configured !== "auto") return configured;
   if (term.status === "deprecated" || term.status === "forbidden") return "guidance";
 
   const hasFullName = hasText(term.fullNameEn) || hasText(term.fullNameKo);
@@ -66,6 +64,8 @@ export function resolveTermQualityProfile(term: CompletionSource): ResolvedTermQ
  * profile마다 AI가 뜻을 구분하는 데 필요한 구조만 요구한다.
  */
 export function termCompletion(term: CompletionSource, settings: TermQualitySettings = DEFAULT_TERM_QUALITY): TermCompletion {
+  // qualityProfile은 기존 API·리비전 호환성을 위해 보존하지만 완성도 판정은
+  // 플랫폼이 용어의 상태와 내용만 보고 결정한다.
   const configuredProfile = term.qualityProfile ?? "auto";
   const resolvedProfile = resolveTermQualityProfile(term);
   const hasDefinition = contentLength(term.definitionMd) >= Math.max(1, settings.definitionMinChars);

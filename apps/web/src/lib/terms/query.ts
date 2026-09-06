@@ -406,13 +406,10 @@ const missingFullName = sql`btrim(coalesce(${terms.fullNameEn}, '')) = '' and bt
 const needsReplacement = sql`${terms.status} in ('deprecated', 'forbidden')`;
 
 function qualityBranches() {
-  const autoMapping = sql`${terms.qualityProfile} = 'auto'
-    and ${terms.status} not in ('deprecated', 'forbidden')
+  const mapping = sql`${terms.status} not in ('deprecated', 'forbidden')
     and not (${missingFullName})
     and coalesce(${terms.nameEn}, ${terms.nameKo}, '') ~ '^[A-Z0-9][A-Z0-9+./-]{1,11}$'`;
-  const mapping = sql`${terms.qualityProfile} = 'mapping' or (${autoMapping})`;
-  const guidance = sql`${terms.qualityProfile} = 'guidance'
-    or (${terms.qualityProfile} = 'auto' and ${needsReplacement})`;
+  const guidance = needsReplacement;
   const context = sql`not (${mapping}) and not (${guidance})`;
   return { mapping, context, guidance };
 }

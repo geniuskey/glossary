@@ -21,7 +21,7 @@ export const metadata = { title: "관리자" };
 
 const ADMIN_TABS = [
   { key: "home", label: "홈 화면" },
-  { key: "quality", label: "AI 활용 기준" },
+  { key: "quality", label: "콘텐츠 완성도" },
   { key: "ai", label: "AI 연결" },
   { key: "sso", label: "로그인 · SSO" },
   { key: "users", label: "사용자" },
@@ -46,7 +46,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       listDefinitionReviewCandidates(),
     ]);
     panel = <div className="space-y-8">
-      <TermQualityPanel initialSettings={settings} initialOverview={overview} />
+      <TermQualityPanel overview={overview} />
       <DefinitionReviewPanel initialCandidates={candidates} />
     </div>;
   } else if (tab === "ai") panel = <AiSettingsPanel initialConfig={publicAiConfig(await loadAiConfig())} />;
