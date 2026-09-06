@@ -25,7 +25,7 @@ test("사이드바 탐색과 상단 검색·생성·계정 영역을 분리한�
   expect(html).toContain('aria-label="새 용어 추가"');
   expect(html).toContain('href="/help"');
   expect(html).toContain('aria-label="편집자 계정 메뉴"');
-  expect(html).toContain('aria-label="Glossary 앱 버전 v0.1.6"');
+  expect(html).toContain('aria-label="Glossary 앱 버전 v0.1.7"');
   expect(html).toContain('mt-auto hidden shrink-0');
   expect(html).toContain('aria-label="함께 정리 · 미완성"');
   expect(html).toContain('aria-label="분류 체계 · 도메인 · 업무"');
@@ -50,7 +50,7 @@ test("설정과 관리자, 도움말 링크는 개인 계정 하위 메뉴에 �
   expect(html).toContain('href="/help"');
   expect(html).toContain('>도움말</span>');
   expect(html).toContain('id="account-submenu"');
-  expect(html).not.toContain('앱 버전 v0.1.6');
+  expect(html).not.toContain('앱 버전 v0.1.7');
 });
 
 test("roomy 본문은 문서 여백을 유지하면서 편집 화면 폭을 넓힌다", () => {

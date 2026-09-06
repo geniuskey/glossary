@@ -40,7 +40,7 @@ body:
     id: version
     attributes:
       label: 버전 또는 이미지 태그
-      placeholder: 예: 0.1.6 또는 commit SHA
+      placeholder: 예: 0.1.7 또는 commit SHA
     validations:
       required: true
   - type: textarea
