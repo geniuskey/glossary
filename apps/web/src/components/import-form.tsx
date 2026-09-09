@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ChangeEvent, type DragEvent, type ReactNode } from "react";
+import Link from "next/link";
+import { useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from "react";
 import {
   forceEligibleRowNumbers,
   interpretImportResponse,
@@ -50,6 +51,7 @@ async function postImport(file: File, dryRun: boolean, forceRowNumbers: number[]
 }
 
 export function ImportForm() {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<ImportReportWire | null>(null);
@@ -116,7 +118,7 @@ export function ImportForm() {
   }
 
   async function runApply() {
-    if (!file || busy) return;
+    if (!file || busy || !report || report.fileErrors.length > 0 || report.ready + forced.size === 0) return;
     setBusy(true);
     setErrorMessage(null);
 
@@ -135,6 +137,11 @@ export function ImportForm() {
 
   const locked = busy || applied !== null;
   const eligible = report ? forceEligibleRowNumbers(report) : [];
+
+  function resetImport() {
+    acceptFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
 
   function onDrop(e: DragEvent<HTMLDivElement>) {
     e.preventDefault();
@@ -164,11 +171,12 @@ export function ImportForm() {
       >
         <label
           className={cx(
-            "flex flex-col items-center gap-2 px-6 py-10 text-center",
+            "flex flex-col items-center gap-2 rounded-lg px-6 py-10 text-center focus-within:ring-2 focus-within:ring-brand",
             locked ? "cursor-not-allowed" : "cursor-pointer",
           )}
         >
           <input
+            ref={fileInputRef}
             type="file"
             name="glossaryFile"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -196,15 +204,21 @@ export function ImportForm() {
       {errorMessage && <p role="alert" className="note-danger animate-fade-up">{errorMessage}</p>}
 
       {applied && (
-        <div role="status" aria-live="polite" className="note-ok animate-fade-up space-y-1">
-          <p className="font-medium">{applied.created}개 용어를 등록했습니다.</p>
-          {applied.skipped.length > 0 && <p>{applied.skipped.length}개 행은 충돌/중복으로 건너뛰었습니다.</p>}
+        <div className="space-y-3">
+          <div role="status" aria-live="polite" className="note-ok animate-fade-up space-y-1">
+            <p className="font-medium">{applied.created}개 용어를 등록했습니다.</p>
+            {applied.skipped.length > 0 && <p>{applied.skipped.length}개 행은 충돌/중복으로 건너뛰었습니다.</p>}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/sheet?sort=updatedAt&dir=desc" className="btn-primary">용어 시트 확인하기</Link>
+            <button type="button" onClick={resetImport} className="btn-ghost">다른 파일 가져오기</button>
+          </div>
         </div>
       )}
 
       {!applied && (
         <button type="button" onClick={runDryRun} disabled={!file || busy} className="btn-primary">
-          {busy ? "검사 중…" : "검사만 실행 (dry-run)"}
+          {busy ? "처리 중…" : "등록 전 검사하기"}
         </button>
       )}
 
@@ -266,7 +280,7 @@ export function ImportForm() {
                 title="충돌·중복"
                 hint={`${eligible.length}개 · 기본값은 건너뜀`}
                 action={
-                  <button type="button" onClick={selectAllEligible} className="btn-quiet btn-sm">
+                  <button type="button" onClick={selectAllEligible} disabled={busy} className="btn-quiet btn-sm">
                     모두 강제 등록으로 선택
                   </button>
                 }
@@ -286,6 +300,7 @@ export function ImportForm() {
                         <label className="-m-2 inline-flex cursor-pointer p-2">
                           <input
                             type="checkbox"
+                            disabled={busy}
                             checked={forced.has(r.rowNumber)}
                             onChange={() => toggleForce(r.rowNumber)}
                             className="accent-brand"
@@ -312,7 +327,7 @@ export function ImportForm() {
             <button
               type="button"
               onClick={runApply}
-              disabled={busy || (report.total === 0 && forced.size === 0)}
+              disabled={busy || report.fileErrors.length > 0 || report.ready + forced.size === 0}
               className="btn-primary"
             >
               {busy ? "등록 중…" : `${report.ready + forced.size}개 실제로 등록하기`}
@@ -321,6 +336,9 @@ export function ImportForm() {
               바로 등록 {report.ready}개 + 강제 등록 {forced.size}개
             </span>
           </div>
+          {report.ready + forced.size === 0 && report.fileErrors.length === 0 && (
+            <p className="text-sm text-ink-2">등록할 행이 없습니다. 위 검사 결과를 확인하고 파일을 수정해 다시 선택하세요. 충돌·중복 행은 필요한 경우에만 선택해 등록할 수 있습니다.</p>
+          )}
         </section>
       )}
     </div>

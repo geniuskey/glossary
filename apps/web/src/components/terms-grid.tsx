@@ -1378,10 +1378,15 @@ export function TermsGrid(props: TermsGridProps) {
             {rows.length === 0 && (
               <tr>
                 <td colSpan={columns.length + 2} className="border-b border-grid bg-panel px-4 py-16 text-center">
-                  <p className="text-sm text-ink-2">조건에 맞는 용어가 없습니다.</p>
+                  <p className="text-sm text-ink-2">{props.activeFilters.length > 0 ? "조건에 맞는 용어가 없습니다." : "이 페이지에 표시할 용어가 없습니다."}</p>
                   <p className="mt-1 text-xs text-ink-3">
-                    아래 줄에 이름을 적으면 바로 만들어집니다. 엑셀에서 복사해 붙여넣어도 됩니다.
+                    {props.activeFilters.length > 0
+                      ? "검색어나 열 필터를 해제해 기존 용어를 먼저 확인해 보세요."
+                      : "아래 줄에 이름을 적으면 바로 만들어집니다. 엑셀에서 복사해 붙여넣어도 됩니다."}
                   </p>
+                  {(props.activeFilters.length > 0 || props.pagination.page > 1) && (
+                    <Link href="/sheet" className="btn-ghost mt-4">전체 용어 보기</Link>
+                  )}
                 </td>
               </tr>
             )}
