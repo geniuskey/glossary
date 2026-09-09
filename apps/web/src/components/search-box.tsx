@@ -67,11 +67,14 @@ export function SearchBox({
   }, [compact]);
 
   useEffect(() => {
+    // 입력이 바뀌는 즉시 이전 요청을 무효화한다. 다음 debounce까지 기다리면
+    // 지운 검색어의 응답이 새 입력에 대한 후보처럼 나타날 수 있다.
+    const seq = ++seqRef.current;
+    abortRef.current?.abort();
+    setItems([]);
+    setActive(-1);
     const q = value.trim();
     if (!q) {
-      abortRef.current?.abort();
-      setItems([]);
-      setActive(-1);
       return;
     }
 
@@ -79,7 +82,6 @@ export function SearchBox({
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
-      const seq = (seqRef.current += 1);
 
       try {
         const res = await fetch(`/api/v1/terms/suggest?q=${encodeURIComponent(q)}`, {
@@ -97,7 +99,11 @@ export function SearchBox({
       }
     }, DEBOUNCE_MS);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      abortRef.current?.abort();
+      ++seqRef.current;
+    };
   }, [value]);
 
   const { completions, similar } = groupSuggestions(items);
@@ -168,10 +174,10 @@ export function SearchBox({
           enterKeyHint="search"
           role="combobox"
           aria-expanded={open}
-          aria-controls={listId}
+          aria-controls={open ? listId : undefined}
           aria-autocomplete="list"
           aria-keyshortcuts={compact ? "/" : undefined}
-          aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
+          aria-activedescendant={open && active >= 0 ? `${listId}-${active}` : undefined}
           placeholder="용어 · 약어 · 별칭 · 금지 표기…"
           className={cx(
             "field border-line-strong bg-panel hover:border-brand/35",
