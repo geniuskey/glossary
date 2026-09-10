@@ -6,6 +6,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { HelpTip } from "./help-tip";
 import { MarkdownContent } from "./markdown-content";
 import { ChatEditCard } from "./chat-edit-card";
+import { ChatGroundedAnswer } from "./chat-grounded-answer";
+import type { GroundedChatAnswer } from "@/lib/ai/grounding-values";
 import type { ChatEditProposal } from "@/lib/ai/chat-edit-values";
 import {
   teachingDraftHasMeaning,
@@ -35,6 +37,8 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [question, setQuestion] = useState("");
+  const [domains, setDomains] = useState<string[]>([]);
+  const [searchDomain, setSearchDomain] = useState("");
   const [sending, setSending] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -76,6 +80,8 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
         if (!response.ok || !body || !("sessions" in body)) throw new Error(body && "error" in body ? body.error?.message : undefined);
         if (routeSessionId && !body.conversation) throw new Error("대화를 찾을 수 없습니다. 다른 대화를 선택하거나 새 대화를 시작하세요.");
         setSessions(body.sessions);
+        setDomains(body.domains ?? []);
+        setSearchDomain([...(body.conversation?.messages ?? [])].reverse().find((message) => message.searchDomain !== undefined)?.searchDomain ?? "");
         setMessages(body.conversation?.messages ?? []);
         setCurrentSessionId(body.conversation?.id ?? null);
       })
@@ -148,16 +154,16 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
     const submittedSessionId = routeSessionId;
     const history = messages.slice(-8).map(({ role, content }) => ({ role, content: content.slice(-4_000) }));
     const userId = nextId++;
-    setMessages((current) => [...current, { id: userId, role: "user", content: text }]);
+    setMessages((current) => [...current, { id: userId, role: "user", content: text, searchDomain: searchDomain || null }]);
     setQuestion("");
     setSending(true);
     try {
       const response = await fetch("/api/v1/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question: text, history, teachingDraft: activeTeachingDraft(), ...(currentSessionId ? { sessionId: currentSessionId } : {}) }),
+        body: JSON.stringify({ question: text, history, domain: searchDomain || null, teachingDraft: activeTeachingDraft(), ...(currentSessionId ? { sessionId: currentSessionId } : {}) }),
       });
-      const body = await response.json().catch(() => null) as { sessionId?: string; answer?: string; messages?: Message[]; edit?: ChatEditProposal; sources?: Source[]; teaching?: Teaching; teachingBatch?: TermTeachingBatch; error?: { message?: string; details?: { sessionId?: string } } } | null;
+      const body = await response.json().catch(() => null) as { sessionId?: string; answer?: string; messages?: Message[]; grounded?: GroundedChatAnswer; edit?: ChatEditProposal; sources?: Source[]; teaching?: Teaching; teachingBatch?: TermTeachingBatch; error?: { message?: string; details?: { sessionId?: string } } } | null;
       if (routeSessionRef.current !== submittedSessionId) return;
       const returnedSessionId = body?.sessionId || body?.error?.details?.sessionId;
       if (!currentSessionId && returnedSessionId) {
@@ -181,6 +187,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
           teaching: body?.teaching,
           teachingBatch: body?.teachingBatch,
           edit: body?.edit,
+          grounded: body?.grounded,
           failed: !response.ok,
         },
       ]);
@@ -396,6 +403,15 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
       </div>
 
       {actionError && <p className="note-danger mb-3" role="alert">{actionError}</p>}
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+        <label htmlFor="chat-domain" className="text-ink-2">검색 도메인</label>
+        <select id="chat-domain" name="domain" value={searchDomain} onChange={(event) => setSearchDomain(event.target.value)} disabled={busy || historyLoading} className="min-h-9 max-w-full rounded-lg border border-line bg-panel px-2 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
+          <option value="">전체 도메인</option>
+          {searchDomain && !domains.includes(searchDomain) && <option value={searchDomain}>{searchDomain} (목록에서 제거됨)</option>}
+          {domains.map((domain) => <option key={domain} value={domain}>{domain}</option>)}
+        </select>
+        <span className="text-ink-3">답변의 번호를 누르면 근거 구절을 확인할 수 있습니다.</span>
+      </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-line bg-panel-2/35 p-3 sm:p-4" role="log" aria-live="polite" aria-label="용어 챗봇 대화">
         {historyLoading ? (
@@ -431,14 +447,14 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
                   message.role === "user" ? "rounded-br-md bg-brand text-brand-on" : message.failed ? "rounded-bl-md border border-danger/30 bg-danger-soft text-danger" : "rounded-bl-md border border-line bg-panel text-ink",
                 )}>
                   {message.role === "assistant"
-                    ? <MarkdownContent className="break-words text-sm leading-6">{message.content}</MarkdownContent>
+                    ? message.grounded ? <ChatGroundedAnswer answer={message.grounded} messageId={message.id} /> : <MarkdownContent className="break-words text-sm leading-6">{message.content}</MarkdownContent>
                     : isLargePastedMessage(message.content) ? (
                       <details>
                         <summary className="cursor-pointer text-sm font-medium">붙여넣은 내용 · {message.content.split(/\r?\n/).filter(Boolean).length}줄</summary>
                         <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words border-t border-white/25 pt-2 font-sans text-xs leading-5">{message.content}</pre>
                       </details>
                     ) : <p className="whitespace-pre-wrap break-words">{message.content}</p>}
-                  {message.sources && message.sources.length > 0 && (
+                  {!message.grounded && message.sources && message.sources.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line/70 pt-2" aria-label="답변에 참고한 용어">
                       {message.sources.map((source) => (
                         <Link key={source.slug} href={`/w/${source.slug}`} className="chip max-w-48 truncate hover:border-brand/40 hover:text-brand" title={source.definition || source.title}>

@@ -13,6 +13,7 @@ const identity = vi.hoisted(() => ({ user: null as { id: string; role: string } 
 vi.mock("../src/lib/auth/current-user", () => ({ getCurrentUser: async () => identity.user }));
 const { answerGlossaryQuestion } = await import("../src/lib/ai/chat.js");
 const { POST: chat } = await import("../src/app/api/v1/chat/route.js");
+const { GET: getChat, PATCH: patchChat } = await import("../src/app/api/v1/chat/route.js");
 const { POST: action } = await import("../src/app/api/v1/chat/actions/route.js");
 const db = createDb(process.env.DATABASE_URL_TEST!);
 const ids: string[] = [];
@@ -112,4 +113,28 @@ test("챗 API의 수정 요청부터 저장된 제안 적용까지 이어진다"
   expect(applied.status).toBe(200);
   const [saved] = await db.select().from(chatConversations).where(eq(chatConversations.id, body.sessionId));
   expect(saved!.messages).toMatchObject([{ role: "user" }, { edit: { status: "applied", appliedRevision: 2 } }]);
+});
+
+test("근거 답변은 대화 재조회 시 복원되며 클라이언트가 구절과 답변을 위조할 수 없다", async () => {
+  const term = await seed();
+  const [user] = await db.insert(users).values({ email: `${randomUUID()}@grounding.test`, name: "질문자", role: "editor" }).returning();
+  identity.user = user!;
+  userIds.push(user!.id);
+  complete.mockResolvedValueOnce(JSON.stringify({ intent: "ask", query: term.nameEn }))
+    .mockImplementationOnce(async (_config, messages) => {
+      const evidence = JSON.parse(messages[0].content.split("EVIDENCE=")[1]) as Array<{ id: string; slug: string; field: string }>;
+      const definition = evidence.find((item) => item.slug === term.slug && item.field === "definition")!;
+      return JSON.stringify({ claims: [{ text: "이 용어는 원래 정의를 뜻합니다.", evidenceIds: [definition.id] }], uncertainties: [], followUpQuery: null });
+    });
+  const response = await chat(new Request("https://glossary.example.com/api/v1/chat", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: `${term.nameEn} 뜻?`, domain: null }),
+  }));
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(body.grounded.evidence[0]).toMatchObject({ revision: 1, excerpt: "원래 정의" });
+  const tampered = body.messages.map((message: { role: string }) => message.role === "assistant" ? { ...message, content: "위조한 답변", grounded: { claims: [], evidence: [] }, sources: [] } : message);
+  expect((await patchChat(new Request("https://glossary.example.com/api/v1/chat", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: body.sessionId, messages: tampered }) }))).status).toBe(200);
+  const restored = await (await getChat(new Request(`https://glossary.example.com/api/v1/chat?session=${body.sessionId}`))).json();
+  expect(restored.conversation.messages[1].grounded).toEqual(body.grounded);
+  expect(restored.conversation.messages[1].content).toBe(body.answer);
 });

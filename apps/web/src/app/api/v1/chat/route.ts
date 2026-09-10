@@ -11,6 +11,7 @@ import type { TermTeachingDraft } from "@/lib/ai/teaching-values";
 import { getDb } from "@/lib/db";
 import { appendChatMessage } from "@/lib/ai/chat-messages";
 import { termInputBaseSchema } from "@/lib/terms/schema";
+import { domainsExist, listDomains } from "@/lib/terms/domains";
 
 const ALLOWED_METHODS = ["GET", "POST", "PATCH", "DELETE"];
 const { PUT, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -38,6 +39,7 @@ const requestSchema = z.object({
   history: z.array(messageSchema).max(8).default([]),
   teachingDraft: teachingDraftSchema.nullable().optional(),
   sessionId: z.string().uuid().optional(),
+  domain: z.string().trim().min(1).max(100).nullable().optional(),
 }).strict().refine((value) => value.question.length + value.history.reduce((sum, item) => sum + item.content.length, 0) <= 28_000, {
   message: "대화와 붙여넣기 내용은 합계 28,000자까지 보낼 수 있습니다.",
 });
@@ -103,6 +105,7 @@ export const GET = withApiErrors(async (request: Request) => {
   }
 
   const body: ChatHistoryResponse = {
+    domains: (await listDomains()).map((item) => item.label),
     sessions: rows.map((row) => ({
       ...row,
       createdAt: row.createdAt.toISOString(),
@@ -139,6 +142,7 @@ export const POST = withApiErrors(async (request: Request) => {
 
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "질문과 대화 내용을 확인해 주세요.", 400, parsed.error.flatten());
+  if (parsed.data.domain && !await domainsExist([parsed.data.domain])) return apiError("validation_failed", "검색할 도메인이 없습니다. 전체 도메인을 선택하거나 목록을 다시 불러오세요.", 400);
 
   let conversationId: string | undefined;
   let previousMessages: StoredChatMessage[] = [];
@@ -163,6 +167,7 @@ export const POST = withApiErrors(async (request: Request) => {
       id: nextMessageId(previousMessages),
       role: "user",
       content: parsed.data.question,
+      searchDomain: parsed.data.domain ?? null,
     };
     const appended = await appendChatMessage(conversationId!, auth.user.id, userMessage);
     if (!appended) return apiError("not_found", "대화가 삭제되었습니다.", 404);
@@ -174,7 +179,7 @@ export const POST = withApiErrors(async (request: Request) => {
       ? previousMessages.slice(0, -1).slice(-8).map(({ role, content }) => ({ role, content: content.slice(-4_000) }))
       : parsed.data.history;
     const previousEdit = [...previousMessages].reverse().find((message) => message.edit?.status === "pending")?.edit ?? null;
-    const result = await answerGlossaryQuestion(parsed.data.question, history, parsed.data.teachingDraft ?? null, previousEdit);
+    const result = await answerGlossaryQuestion(parsed.data.question, history, parsed.data.teachingDraft ?? null, previousEdit, parsed.data.domain ?? undefined);
     if (auth.kind === "user" && conversationId) {
       const assistantMessage: StoredChatMessage = {
         id: nextMessageId(previousMessages),
@@ -184,6 +189,8 @@ export const POST = withApiErrors(async (request: Request) => {
         teaching: result.teaching,
         teachingBatch: result.teachingBatch,
         edit: result.edit,
+        grounded: result.grounded,
+        searchDomain: parsed.data.domain ?? null,
       };
       const appended = await appendChatMessage(conversationId, auth.user.id, assistantMessage);
       if (!appended) return apiError("not_found", "대화가 삭제되어 응답을 저장하지 않았습니다.", 404);
@@ -223,8 +230,12 @@ export const PATCH = withApiErrors(async (request: Request) => {
     if (new Set(incoming.map((message) => message.id)).size !== incoming.length || existing.some((message) => !incoming.some((item) => item.id === message.id))) {
       return apiError("revision_conflict", "대화가 변경되었습니다. 새로고침 후 다시 시도해 주세요.", 409);
     }
-    // Action contents and receipts are server-owned, even for the owner of the chat.
-    const messages = incoming.map((message) => ({ ...message, edit: existing.find((item) => item.id === message.id)?.edit }));
+    // Proposals and cited answer snapshots are server-owned, including their text and sources.
+    const messages = incoming.map((message) => {
+      const stored = existing.find((item) => item.id === message.id);
+      return { ...message, edit: stored?.edit, grounded: stored?.grounded, searchDomain: stored?.searchDomain,
+        ...(stored?.grounded ? { role: stored.role, content: stored.content, sources: stored.sources } : {}) };
+    });
     await tx.update(chatConversations).set({ messages, updatedAt: new Date() }).where(owned);
     return Response.json({ ok: true });
   });

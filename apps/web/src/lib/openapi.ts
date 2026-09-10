@@ -894,7 +894,7 @@ export const openApiSpec = {
       },
       post: {
         summary: "용어집 근거 질문과 용어 생성·수정안 작성",
-        description: "질문·등록·수정 의도를 구분합니다. 명시적 등록 요청은 초안, 기존 용어 수정은 적용 전 edit 제안을 반환합니다. 로그인 세션 응답에는 저장된 messages도 포함됩니다. 검색 실패만으로 등록을 시작하지 않습니다.",
+        description: "질문·등록·수정 의도를 구분합니다. 근거 답변에는 주장별 인용과 구절·리비전 스냅샷인 grounded를 반환하며, 같은 도메인 안에서 최대 2회 검색합니다. 등록은 초안, 수정은 적용 전 edit 제안을 반환합니다. 로그인 세션 응답에는 저장된 messages도 포함됩니다.",
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",
           required: ["question"],
@@ -902,6 +902,7 @@ export const openApiSpec = {
           properties: {
             question: { type: "string", minLength: 1, maxLength: 20000 },
             sessionId: { type: "string", format: "uuid", description: "로그인 사용자가 이어갈 대화 세션" },
+            domain: { type: ["string", "null"], minLength: 1, maxLength: 100, description: "검색할 도메인 label. 생략하거나 null이면 전체 도메인" },
             history: { type: "array", maxItems: 8, items: { type: "object", required: ["role", "content"], properties: {
               role: { type: "string", enum: ["user", "assistant"] },
               content: { type: "string", minLength: 1, maxLength: 4000 },
@@ -925,7 +926,25 @@ export const openApiSpec = {
           },
         } } } },
         responses: {
-          "200": json("근거 답변 또는 teaching/teachingBatch/edit 제안. edit는 id, termId, slug, title, expectedRevision, before, patch, reason, status를 포함하며 로그인 세션에서만 적용 가능", { type: "object" }),
+          "200": json("근거 답변 또는 teaching/teachingBatch/edit 제안. edit는 로그인 세션에서만 적용 가능", {
+            type: "object", properties: {
+              answer: { type: "string" },
+              grounded: { type: "object", required: ["claims", "uncertainties", "evidence", "searchedQueries", "domain"], properties: {
+                claims: { type: "array", items: { type: "object", required: ["text", "evidenceIds"], properties: {
+                  text: { type: "string" }, evidenceIds: { type: "array", minItems: 1, items: { type: "string" } },
+                } } },
+                uncertainties: { type: "array", items: { type: "string" } },
+                searchedQueries: { type: "array", maxItems: 2, items: { type: "string" } },
+                domain: { type: ["string", "null"] },
+                evidence: { type: "array", items: { type: "object", required: ["id", "slug", "title", "revision", "updatedAt", "field", "excerpt"], properties: {
+                  id: { type: "string" }, termId: { type: "string", format: "uuid" }, slug: { type: "string" }, title: { type: "string" },
+                  revision: { type: "integer", minimum: 0 }, updatedAt: { type: "string", format: "date-time" },
+                  field: { type: "string", enum: ["metadata", "definition", "body", "relationship"] },
+                  excerpt: { type: "string" }, start: { type: "integer", minimum: 0, description: "원문의 UTF-16 오프셋" }, relatedTerm: { type: "object" },
+                } } },
+              } },
+            },
+          }),
           "400": errorResponse("validation_failed"),
           "401": errorResponse("unauthorized"),
           "429": errorResponse("rate_limited"),
@@ -935,7 +954,7 @@ export const openApiSpec = {
       },
       patch: {
         summary: "용어 초안 작업이 반영된 대화 메시지 저장",
-        description: "서버에 저장된 edit 수정안과 실행 상태는 변경할 수 없습니다. 기존 메시지가 누락되면 409를 반환합니다.",
+        description: "서버에 저장된 edit 수정안·실행 상태와 grounded 답변·구절·출처는 변경할 수 없습니다. 기존 메시지가 누락되면 409를 반환합니다.",
         security: [{ sessionCookie: [] }],
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",

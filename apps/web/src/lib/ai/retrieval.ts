@@ -1,20 +1,28 @@
 import "server-only";
 
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
-import { surfaceKeys, termRelations, terms, termSurfaces } from "@glossary/db";
+import { and, arrayContains, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { surfaceKeys, termRelations, termRevisions, terms, termSurfaces } from "@glossary/db";
 import { getDb } from "@/lib/db";
+import { relevantPassages } from "./passages";
+import type { ChatEvidence } from "./grounding-values";
 
 export interface ChatSource {
+  termId?: string;
   slug: string;
   title: string;
   definition: string | null;
   status: "draft" | "active";
+  revision?: number;
+  updatedAt?: string;
 }
 
 export interface ChatGrounding {
   context: string;
   sources: ChatSource[];
+  evidence?: ChatEvidence[];
 }
+
+export interface RetrievalOptions { domain?: string; passageQuery?: string }
 
 const STOP_WORDS = new Set([
   "대해", "대한", "무엇", "뭐야", "알려", "설명", "설명해", "어떤", "관련", "용어", "에서", "으로", "하는", "줘", "the", "what", "about", "explain",
@@ -39,14 +47,20 @@ function addRank(scores: Map<string, number>, ids: readonly string[], weight: nu
   ids.forEach((id, rank) => scores.set(id, (scores.get(id) ?? 0) + weight / (60 + rank + 1)));
 }
 
-export async function retrieveGlossaryContext(question: string, limit = 12): Promise<ChatGrounding> {
+export async function retrieveGlossaryContext(question: string, limit = 12, options: RetrievalOptions = {}): Promise<ChatGrounding> {
+  return getDb().transaction((db) => retrieveSnapshot(db, question, limit, options), { isolationLevel: "repeatable read", accessMode: "read only" });
+}
+
+async function retrieveSnapshot(db: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0], question: string, limit: number, options: RetrievalOptions): Promise<ChatGrounding> {
   const key = surfaceKeys(question).normLoose;
   const keywords = retrievalKeywords(question);
+  const passageKeywords = retrievalKeywords(options.passageQuery ?? question);
+  const domainFilter = options.domain ? arrayContains(terms.domain, [options.domain]) : undefined;
   if (!key && keywords.length === 0) return { context: "{\"terms\":[],\"relationships\":[]}", sources: [] };
 
   const content = sql<string>`concat_ws(' ', ${terms.nameEn}, ${terms.nameKo}, ${terms.fullNameEn}, ${terms.fullNameKo}, ${terms.definitionMd}, ${terms.bodyMd})`;
   const [surfaceCandidates, contentCandidates] = await Promise.all([
-    key ? getDb()
+    key ? db
       .select({
         id: terms.id,
         score: sql<number>`max(
@@ -59,6 +73,7 @@ export async function retrieveGlossaryContext(question: string, limit = 12): Pro
       .from(termSurfaces)
       .innerJoin(terms, eq(terms.id, termSurfaces.termId))
       .where(and(
+        domainFilter,
         sql`(
           (${termSurfaces.normLoose} = ${key})
           or (char_length(${termSurfaces.normLoose}) >= 2 and position(${termSurfaces.normLoose} in ${key}) > 0)
@@ -74,13 +89,14 @@ export async function retrieveGlossaryContext(question: string, limit = 12): Pro
              else similarity(${termSurfaces.normLoose}, ${key}) * 40 end
       )`))
       .limit(40) : Promise.resolve([]),
-    keywords.length ? getDb()
+    keywords.length ? db
       .select({
         id: terms.id,
         score: sql<number>`(${sql.join(keywords.map((word) => sql`case when ${content} ilike ${`%${word}%`} then 1 else 0 end`), sql` + `)})::int`,
       })
       .from(terms)
       .where(and(
+        domainFilter,
         or(...keywords.map((word) => sql`${content} ilike ${`%${word}%`}`)),
       ))
       .orderBy(desc(sql`(${sql.join(keywords.map((word) => sql`case when ${content} ilike ${`%${word}%`} then 1 else 0 end`), sql` + `)})`), desc(terms.updatedAt))
@@ -94,12 +110,15 @@ export async function retrieveGlossaryContext(question: string, limit = 12): Pro
   if (seedIds.length === 0) return { context: "{\"terms\":[],\"relationships\":[]}", sources: [] };
 
   const graphSeeds = seedIds.slice(0, 6);
-  const relationshipRows = await getDb().select({
+  const relationshipRows = await db.select({
+    id: termRelations.id,
     sourceTermId: termRelations.sourceTermId,
     targetTermId: termRelations.targetTermId,
     relationType: termRelations.relationType,
     confidence: termRelations.confidence,
     evidenceMd: termRelations.evidenceMd,
+    sourceRevision: termRelations.sourceRevision,
+    targetRevision: termRelations.targetRevision,
   }).from(termRelations).where(and(
     eq(termRelations.status, "approved"),
     or(inArray(termRelations.sourceTermId, graphSeeds), inArray(termRelations.targetTermId, graphSeeds)),
@@ -113,7 +132,7 @@ export async function retrieveGlossaryContext(question: string, limit = 12): Pro
   const ids = [...scores.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([id]) => id);
 
   const [termRows, surfaceRows] = await Promise.all([
-    getDb().select({
+    db.select({
       id: terms.id,
       slug: terms.slug,
       nameEn: terms.nameEn,
@@ -127,14 +146,27 @@ export async function retrieveGlossaryContext(question: string, limit = 12): Pro
       definitionMd: terms.definitionMd,
       bodyMd: terms.bodyMd,
       replacedById: terms.replacedById,
-    }).from(terms).where(inArray(terms.id, ids)),
-    getDb().select({ termId: termSurfaces.termId, text: termSurfaces.text, kind: termSurfaces.kind })
+      updatedAt: terms.updatedAt,
+      // Keep the outer id qualified: the revisions table also has an id column.
+      revision: sql<number>`(select coalesce(max(${termRevisions.revisionNumber}), 0)::int from ${termRevisions} where ${termRevisions.termId} = "terms"."id")`,
+    }).from(terms).where(and(inArray(terms.id, ids), domainFilter)),
+    db.select({ termId: termSurfaces.termId, text: termSurfaces.text, kind: termSurfaces.kind })
       .from(termSurfaces).where(inArray(termSurfaces.termId, ids)),
   ]);
   const order = new Map(ids.map((id, index) => [id, index]));
   termRows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
   const includedIds = new Set(termRows.map((term) => term.id));
   const names = new Map(termRows.map((term) => [term.id, displayName(term)]));
+  const byId = new Map(termRows.map((term) => [term.id, term]));
+  const evidence: ChatEvidence[] = termRows.flatMap((term) => {
+    const base = { termId: term.id, slug: term.slug, title: displayName(term), revision: term.revision, updatedAt: term.updatedAt.toISOString() };
+    const metadata = `표기: ${[term.nameKo, term.nameEn].filter(Boolean).join(" / ")}; 확장명: ${[term.fullNameKo, term.fullNameEn].filter(Boolean).join(" / ")}; 도메인: ${term.domain.join(", ")}; 업무 분류: ${term.categories.join(", ")}; 주제: ${term.topic ?? ""}; 추가 표기: ${surfaceRows.filter((surface) => surface.termId === term.id).map((surface) => `${surface.text} (${surface.kind})`).join(", ")}`;
+    return [
+      { ...base, id: `${term.id}:${term.revision}:metadata`, field: "metadata" as const, excerpt: metadata.slice(0, 1800) },
+      ...(["definition", "body"] as const).flatMap((field) => relevantPassages(field === "body" ? term.bodyMd : term.definitionMd, passageKeywords, field === "body" ? 3 : 1)
+        .map((passage) => ({ ...base, id: `${term.id}:${term.revision}:${field}:${passage.start}`, field, excerpt: passage.text, start: passage.start }))),
+    ];
+  });
 
   const entries = termRows.map((term) => ({
     id: term.id,
@@ -145,28 +177,43 @@ export async function retrieveGlossaryContext(question: string, limit = 12): Pro
     domains: term.domain,
     businessCategories: term.categories,
     topic: term.topic,
-    definition: term.definitionMd,
-    body: term.bodyMd?.slice(0, 3_000) ?? null,
+    definition: evidence.filter((item) => item.slug === term.slug && item.field === "definition").map((item) => item.excerpt).join("\n\n") || null,
+    body: evidence.filter((item) => item.slug === term.slug && item.field === "body").map((item) => item.excerpt).join("\n\n") || null,
+    revision: term.revision,
+    updatedAt: term.updatedAt.toISOString(),
     replacedById: term.replacedById,
     surfaces: surfaceRows.filter((surface) => surface.termId === term.id).map(({ text, kind }) => ({ text, kind })),
   }));
   const relationships = relationshipRows
     .filter((relation) => includedIds.has(relation.sourceTermId) && includedIds.has(relation.targetTermId))
-    .map((relation) => ({
-      source: { id: relation.sourceTermId, name: names.get(relation.sourceTermId) },
-      target: { id: relation.targetTermId, name: names.get(relation.targetTermId) },
-      type: relation.relationType,
-      confidence: relation.confidence,
-      evidence: relation.evidenceMd,
-    }));
+    .filter((relation) => (relation.sourceRevision === null || relation.sourceRevision === byId.get(relation.sourceTermId)?.revision)
+      && (relation.targetRevision === null || relation.targetRevision === byId.get(relation.targetTermId)?.revision))
+    .map((relation) => {
+      const source = byId.get(relation.sourceTermId)!;
+      const target = byId.get(relation.targetTermId)!;
+      evidence.push({ id: `relation:${relation.id}:${source.revision}:${target.revision}`, termId: source.id, slug: source.slug, title: displayName(source), revision: source.revision,
+        updatedAt: source.updatedAt.toISOString(), field: "relationship", excerpt: `${displayName(source)} → ${relation.relationType} → ${displayName(target)}\n${relation.evidenceMd ?? ""}`.slice(0, 1800),
+        relatedTerm: { termId: target.id, slug: target.slug, title: displayName(target), revision: target.revision } });
+      return {
+        source: { id: relation.sourceTermId, name: names.get(relation.sourceTermId) },
+        target: { id: relation.targetTermId, name: names.get(relation.targetTermId) },
+        type: relation.relationType,
+        confidence: relation.confidence,
+        evidence: relation.evidenceMd,
+      };
+    });
 
   return {
     context: JSON.stringify({ terms: entries, relationships }),
+    evidence,
     sources: termRows.map((term) => ({
+      termId: term.id,
       slug: term.slug,
       title: displayName(term),
       definition: term.definitionMd,
       status: term.status as ChatSource["status"],
+      revision: term.revision,
+      updatedAt: term.updatedAt.toISOString(),
     })),
   };
 }

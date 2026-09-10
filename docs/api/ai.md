@@ -150,6 +150,7 @@ AI 관계 제안을 승인하거나 거절한다.
 - `question`: 1~20,000자. 여러 줄 용어집 붙여넣기를 포함한다
 - `history`: 최근 8개까지, 역할은 `user` 또는 `assistant`
 - `teachingDraft`: 직전 응답의 `teaching.draft`. 새 용어 설명을 이어갈 때 그대로 전송
+- `domain`: 검색할 도메인 label. 생략하거나 `null`이면 전체 도메인. 카탈로그에 없는 값은 400
 - 질문과 이력 본문의 합계: 최대 28,000자
 - 사용자·API Key별 제한: 분당 20회
 
@@ -158,6 +159,23 @@ AI 관계 제안을 승인하거나 거절한다.
 `teachingBatch: { drafts }`에 최대 25개를 반환한다. 검색 실패만으로 등록을 시작하지 않는다.
 기존 용어 수정 요청에는 `edit` 제안이 포함된다. 로그인 사용자는 `sessionId`로 대화를
 이어가며 응답의 `messages`가 서버에 저장된 전체 대화다. 이 단계에서 용어 자체는 변경되지 않는다.
+
+근거 답변에는 `grounded`가 포함된다.
+
+- `claims`: `{ text, evidenceIds }` 목록. 각 주장에 연결한 근거 ID
+- `evidence`: 실제 인용한 `{ id, termId, slug, title, revision, updatedAt, field, excerpt, start? }` 목록
+- `uncertainties`: 부족하거나 추가 확인이 필요한 내용
+- `searchedQueries`: 실제 사용한 검색어, 최대 2개
+- `domain`: 해당 응답의 검색 범위 또는 `null`
+
+`field`는 `metadata`, `definition`, `body`, `relationship`이다. 관계 근거에는 대상 용어의
+`relatedTerm: { termId, slug, title, revision }`도 포함된다. `start`는 원문 문자열의 UTF-16
+오프셋이다. `answer`는 인용 번호를 포함한 텍스트이며 번호는 `grounded.evidence` 순서와 대응한다.
+`sources`는 근거 답변에서 실제 인용한 용어만 포함하고 리비전·수정 시점을 함께 반환한다.
+인용 ID 검사는 문장의 사실성이나 근거의 논리적 타당성 검증을 의미하지 않는다.
+
+`GET /chat`은 도메인 선택용 `domains` 목록을 함께 반환한다. 메시지의 `searchDomain`과
+`grounded`를 저장하므로 재조회해도 당시 범위와 구절이 유지된다.
 
 웹 화면의 확인 버튼은 각 draft를 기존 `POST /terms`에 다음 정책으로 전달한다.
 
@@ -184,7 +202,7 @@ AI 관계 제안을 승인하거나 거절한다.
 결과를 반환한다. 용어가 변경되어 기준 리비전이 다르면 409 `revision_conflict`를 반환한다.
 용어 변경·리비전·완료 기록은 함께 커밋되며, 일부 저장에 실패하면 함께 롤백된다.
 
-`PATCH /chat`으로는 서버가 작성한 `edit` 제안이나 실행 상태를 변경할 수 없다.
+`PATCH /chat`으로는 서버가 작성한 `edit` 제안·실행 상태나 `grounded` 답변·구절·출처를 변경할 수 없다.
 
 ### `POST /chat` 오류 응답
 

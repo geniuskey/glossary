@@ -1,11 +1,15 @@
 import type { TermTeachingBatch, TermTeachingDraft } from "./teaching-values";
 import type { ChatEditProposal } from "./chat-edit-values";
+import type { GroundedChatAnswer } from "./grounding-values";
 
 export interface StoredChatSource {
+  termId?: string;
   slug: string;
   title: string;
   definition: string | null;
   status: "draft" | "active";
+  revision?: number;
+  updatedAt?: string;
 }
 
 export interface StoredChatMessage {
@@ -18,6 +22,8 @@ export interface StoredChatMessage {
   created?: Array<{ slug: string; title: string }>;
   failed?: boolean;
   edit?: ChatEditProposal;
+  grounded?: GroundedChatAnswer;
+  searchDomain?: string | null;
 }
 
 export interface ChatConversationSummary {
@@ -29,6 +35,7 @@ export interface ChatConversationSummary {
 }
 
 export interface ChatHistoryResponse {
+  domains?: string[];
   sessions: ChatConversationSummary[];
   conversation: ({ id: string; title: string; messages: StoredChatMessage[] } & Pick<ChatConversationSummary, "createdAt" | "updatedAt">) | null;
 }
