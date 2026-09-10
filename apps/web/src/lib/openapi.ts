@@ -893,8 +893,8 @@ export const openApiSpec = {
         },
       },
       post: {
-        summary: "용어집에 근거한 AI 질문",
-        description: "관련 용어를 근거로 답하고, 모르는 용어는 대화로 초안을 수집합니다. 여러 줄 용어집을 붙여넣으면 최대 25개 초안으로 구조화합니다.",
+        summary: "용어집 근거 질문과 용어 생성·수정안 작성",
+        description: "질문·등록·수정 의도를 구분합니다. 명시적 등록 요청은 초안, 기존 용어 수정은 적용 전 edit 제안을 반환합니다. 로그인 세션 응답에는 저장된 messages도 포함됩니다. 검색 실패만으로 등록을 시작하지 않습니다.",
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",
           required: ["question"],
@@ -916,13 +916,16 @@ export const openApiSpec = {
                 fullNameKo: { type: ["string", "null"] },
                 definitionMd: { type: ["string", "null"] },
                 bodyMd: { type: ["string", "null"] },
+                domain: { type: "array", items: { type: "string" } },
+                category: { type: "array", items: { type: "string" } },
+                surfaces: { type: "array", items: { type: "object" } },
                 skipped: { type: "object" },
               },
             },
           },
         } } } },
         responses: {
-          "200": json("용어집 근거 답변과 출처, 또는 확인 전 teaching/teachingBatch 초안", { type: "object" }),
+          "200": json("근거 답변 또는 teaching/teachingBatch/edit 제안. edit는 id, termId, slug, title, expectedRevision, before, patch, reason, status를 포함하며 로그인 세션에서만 적용 가능", { type: "object" }),
           "400": errorResponse("validation_failed"),
           "401": errorResponse("unauthorized"),
           "429": errorResponse("rate_limited"),
@@ -932,6 +935,7 @@ export const openApiSpec = {
       },
       patch: {
         summary: "용어 초안 작업이 반영된 대화 메시지 저장",
+        description: "서버에 저장된 edit 수정안과 실행 상태는 변경할 수 없습니다. 기존 메시지가 누락되면 409를 반환합니다.",
         security: [{ sessionCookie: [] }],
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",
@@ -957,6 +961,26 @@ export const openApiSpec = {
           "204": { description: "삭제됨" },
           "401": errorResponse("unauthorized"),
           "404": errorResponse("not_found"),
+        },
+      },
+    },
+    "/chat/actions": {
+      post: {
+        summary: "내 대화에 저장된 용어 수정안 적용 또는 취소",
+        description: "클라이언트는 변경 내용을 보내지 않고 서버의 수정안 ID만 지정합니다. 적용은 리비전 검사 후 용어·이력·완료 기록을 함께 저장합니다. 이미 처리된 요청은 저장된 결과를 반환하며 중복 실행하지 않습니다.",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object", additionalProperties: false, required: ["sessionId", "actionId", "action"],
+          properties: {
+            sessionId: { type: "string", format: "uuid" }, actionId: { type: "string", format: "uuid" },
+            action: { type: "string", enum: ["apply", "cancel"] },
+          },
+        } } } },
+        responses: {
+          "200": json("처리된 edit 수정안. appliedRevision은 적용된 리비전 번호", { type: "object" }),
+          "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden"), "404": errorResponse("not_found 또는 term_not_found"),
+          "409": errorResponse("revision_conflict"),
         },
       },
     },

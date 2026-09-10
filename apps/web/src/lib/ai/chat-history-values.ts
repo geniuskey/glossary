@@ -1,4 +1,5 @@
 import type { TermTeachingBatch, TermTeachingDraft } from "./teaching-values";
+import type { ChatEditProposal } from "./chat-edit-values";
 
 export interface StoredChatSource {
   slug: string;
@@ -16,6 +17,7 @@ export interface StoredChatMessage {
   teachingBatch?: TermTeachingBatch;
   created?: Array<{ slug: string; title: string }>;
   failed?: boolean;
+  edit?: ChatEditProposal;
 }
 
 export interface ChatConversationSummary {

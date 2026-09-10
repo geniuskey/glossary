@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { HelpTip } from "./help-tip";
 import { MarkdownContent } from "./markdown-content";
+import { ChatEditCard } from "./chat-edit-card";
+import type { ChatEditProposal } from "@/lib/ai/chat-edit-values";
 import {
   teachingDraftHasMeaning,
   teachingDraftName,
@@ -18,7 +20,7 @@ interface Source { slug: string; title: string; definition: string | null; statu
 interface Teaching { draft: TermTeachingDraft; ready: boolean }
 type Message = StoredChatMessage;
 
-const EXAMPLES = ["IT와 SW는 무엇을 뜻해?", "이 용어의 권장 표기는 뭐야?", "T/O라는 새 용어를 등록하고 싶어"];
+const EXAMPLES = ["IT와 SW는 무엇을 뜻해?", "T/O라는 새 용어를 등록하고 싶어", "AE의 정의를 수정하고 싶어", "AE에 자동노출이라는 별칭을 추가해줘"];
 
 function isLargePastedMessage(content: string): boolean {
   return content.length > 500 || content.split(/\r?\n/).length > 5;
@@ -39,11 +41,13 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
   const [historyRetry, setHistoryRetry] = useState(0);
   const [creatingDraftId, setCreatingDraftId] = useState<number | null>(null);
   const [draftError, setDraftError] = useState<{ id: number; text: string } | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editError, setEditError] = useState<{ id: string; text: string } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<Message[]>([]);
   const routeSessionRef = useRef(routeSessionId);
   routeSessionRef.current = routeSessionId;
-  const busy = sending || deleting || creatingDraftId !== null;
+  const busy = sending || deleting || creatingDraftId !== null || editingId !== null;
   let nextId = messages.reduce((max, message) => Math.max(max, message.id), 0) + 1;
 
   useEffect(() => {
@@ -124,8 +128,9 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
           ? { ...session, updatedAt: now, messageCount: nextMessages.length }
           : session).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
       }
+      if (!response.ok) throw new Error("대화 저장 실패");
     } catch {
-      // 용어 생성 자체는 완료됐으므로 화면 상태는 유지하고 다음 조회 때 서버 기록을 사용한다.
+      setActionError("용어 작업은 완료했지만 대화 기록을 저장하지 못했습니다. 재등록 전에 용어 목록을 확인해 주세요.");
     }
   }
 
@@ -152,7 +157,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ question: text, history, teachingDraft: activeTeachingDraft(), ...(currentSessionId ? { sessionId: currentSessionId } : {}) }),
       });
-      const body = await response.json().catch(() => null) as { sessionId?: string; answer?: string; sources?: Source[]; teaching?: Teaching; teachingBatch?: TermTeachingBatch; error?: { message?: string; details?: { sessionId?: string } } } | null;
+      const body = await response.json().catch(() => null) as { sessionId?: string; answer?: string; messages?: Message[]; edit?: ChatEditProposal; sources?: Source[]; teaching?: Teaching; teachingBatch?: TermTeachingBatch; error?: { message?: string; details?: { sessionId?: string } } } | null;
       if (routeSessionRef.current !== submittedSessionId) return;
       const returnedSessionId = body?.sessionId || body?.error?.details?.sessionId;
       if (!currentSessionId && returnedSessionId) {
@@ -166,7 +171,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
           ? { ...session, updatedAt: now, messageCount: session.messageCount + (response.ok ? 2 : 1) }
           : session).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
       }
-      setMessages((current) => [
+      setMessages((current) => response.ok && body?.messages ? body.messages : [
         ...current.map((message) => message.teaching || message.teachingBatch ? { ...message, teaching: undefined, teachingBatch: undefined } : message),
         {
           id: userId + 1,
@@ -175,6 +180,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
           sources: body?.sources,
           teaching: body?.teaching,
           teachingBatch: body?.teachingBatch,
+          edit: body?.edit,
           failed: !response.ok,
         },
       ]);
@@ -202,9 +208,9 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
         fullNameKo: draft.fullNameKo,
         definitionMd: draft.definitionMd || undefined,
         bodyMd: draft.bodyMd || undefined,
-        domain: [],
-        category: [],
-        surfaces: [],
+        domain: draft.domain ?? [],
+        category: draft.category ?? [],
+        surfaces: draft.surfaces ?? [],
       }),
     });
     const body = await response.json().catch(() => null) as {
@@ -221,6 +227,24 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
       ok: true,
       term: { slug: body.term.slug, title: body.term.nameKo || body.term.nameEn || teachingDraftName(draft) },
     };
+  }
+
+  async function runEdit(edit: ChatEditProposal, action: "apply" | "cancel") {
+    if (busy || historyLoading || !currentSessionId) return;
+    const submittedSession = routeSessionId;
+    setEditingId(edit.id);
+    setEditError(null);
+    try {
+      const response = await fetch("/api/v1/chat/actions", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: currentSessionId, actionId: edit.id, action }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.edit) throw new Error(body.error?.message || "작업 결과를 확인하지 못했습니다.");
+      if (routeSessionRef.current === submittedSession) setMessages((current) => current.map((message) => message.edit?.id === edit.id ? { ...message, edit: body.edit } : message));
+    } catch (error) {
+      if (routeSessionRef.current === submittedSession) setEditError({ id: edit.id, text: error instanceof Error && !(error instanceof TypeError) ? error.message : "연결을 확인하고 다시 시도해 주세요. 이미 적용된 수정은 중복 실행되지 않습니다." });
+    } finally { setEditingId(null); }
   }
 
   async function createTermFromDraft(messageId: number, draft: TermTeachingDraft) {
@@ -265,7 +289,10 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
     setCreatingDraftId(messageId);
     setDraftError(null);
     try {
-      const results = await Promise.all(drafts.map((draft) => postTermDraft(draft)));
+      const results = await Promise.all(drafts.map(async (draft) => {
+        try { return await postTermDraft(draft); }
+        catch { return { ok: false as const, error: "네트워크 오류: 등록 여부를 용어 목록에서 확인해 주세요." }; }
+      }));
       const created = results.flatMap((result) => result.ok ? [result.term] : []);
       const failed = results.flatMap((result, index) => result.ok ? [] : [`${teachingDraftName(drafts[index]!)}: ${result.error}`]);
       if (created.length === 0) {
@@ -332,34 +359,39 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
   }
 
   return (
-    <div className="mx-auto grid min-h-[calc(100svh-7rem)] w-full max-w-6xl gap-3 md:grid-cols-[15rem_minmax(0,1fr)]">
+    <div className="mx-auto grid h-[calc(100svh-7rem)] min-h-[28rem] w-full max-w-6xl grid-rows-[auto_minmax(0,1fr)] gap-3 md:grid-cols-[15rem_minmax(0,1fr)] md:grid-rows-1">
       <aside className="rounded-xl border border-line bg-panel p-2 md:min-h-0" aria-label="챗봇 대화 기록">
         <button type="button" className="btn-primary w-full" onClick={newConversation} disabled={busy}>새 대화</button>
         <div className="mt-2 flex gap-2 overflow-x-auto pb-1 md:block md:max-h-[calc(100svh-11rem)] md:space-y-1 md:overflow-y-auto md:pb-0">
           {sessions.map((session) => (
-            <button
+            <Link
               key={session.id}
-              type="button"
+              href={`/c/${session.id}`}
+              prefetch={false}
               className={cx(
                 "min-w-48 rounded-lg px-3 py-2 text-left text-xs transition md:block md:w-full md:min-w-0",
                 session.id === currentSessionId ? "bg-brand-soft text-brand" : "text-ink-2 hover:bg-panel-2 hover:text-ink",
               )}
-              onClick={() => void openSession(session.id)}
-              disabled={busy}
+              onClick={(event) => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                openSession(session.id);
+              }}
+              aria-disabled={busy}
               aria-current={session.id === currentSessionId ? "page" : undefined}
             >
               <span className="block truncate font-medium">{session.title}</span>
               <span className="mt-0.5 block text-[10px] text-ink-3">{new Date(session.updatedAt).toLocaleDateString("ko-KR")} · {session.messageCount}개 메시지</span>
-            </button>
+            </Link>
           ))}
           {!historyLoading && sessions.length === 0 && <p className="px-2 py-3 text-center text-xs text-ink-3">저장된 대화가 없습니다.</p>}
         </div>
       </aside>
 
-    <section className="flex min-h-[calc(100svh-7rem)] min-w-0 flex-col" aria-labelledby="chat-heading">
+    <section className="flex min-h-0 min-w-0 flex-col" aria-labelledby="chat-heading">
       <div className="mb-3 flex items-center gap-2 border-b border-line pb-2">
         <h2 id="chat-heading" className="text-base font-semibold text-ink">용어 챗봇</h2>
-        <HelpTip text="용어집의 용어를 근거로 답합니다. 모르는 용어는 대화로 정보를 받은 뒤 사용자가 확인한 등록안만 추가합니다." />
+        <HelpTip text="용어집 근거로 답하고, 새 용어 등록과 기존 용어의 정의·별칭·분류 수정을 돕습니다. 변경안을 확인하고 적용하면 이력에 남습니다." />
         {messages.length > 0 && <button type="button" className="btn-quiet btn-sm ml-auto" onClick={() => void clearConversation()} disabled={busy || historyLoading}>{deleting ? "삭제 중…" : "대화 지우기"}</button>}
       </div>
 
@@ -383,7 +415,8 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
         ) : messages.length === 0 ? (
           <div className="grid min-h-64 place-items-center text-center">
             <div className="max-w-lg">
-              <p className="text-sm font-medium text-ink">용어를 질문하거나, 모르는 용어를 대화로 가르쳐 주세요.</p>
+              <p className="text-sm font-medium text-ink">도메인 지식을 찾고, 용어를 함께 정리하세요.</p>
+              <p className="mt-2 text-xs text-ink-3">용어 질문 · 새 용어 등록 · 정의와 별칭 수정 · 도메인과 업무 분류 정리</p>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 {EXAMPLES.map((example) => <button key={example} type="button" className="chip hover:border-brand/40 hover:text-brand" onClick={() => setQuestion(example)}>{example}</button>)}
               </div>
@@ -426,7 +459,10 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
                         <dt className="text-ink-3">한줄 정의</dt>
                         <dd className="whitespace-pre-wrap">{message.teaching.draft.definitionMd || (message.teaching.draft.skipped.definition ? "생략" : "—")}</dd>
                         <dt className="text-ink-3">설명</dt>
-                        <dd className="line-clamp-4 whitespace-pre-wrap">{message.teaching.draft.bodyMd || (message.teaching.draft.skipped.body ? "생략" : "—")}</dd>
+                        <dd className="max-h-64 overflow-auto whitespace-pre-wrap">{message.teaching.draft.bodyMd || (message.teaching.draft.skipped.body ? "생략" : "—")}</dd>
+                        <dt className="text-ink-3">도메인</dt><dd>{message.teaching.draft.domain?.join(", ") || "—"}</dd>
+                        <dt className="text-ink-3">업무 분류</dt><dd>{message.teaching.draft.category?.join(", ") || "—"}</dd>
+                        <dt className="text-ink-3">추가 표기</dt><dd>{message.teaching.draft.surfaces?.map((surface) => surface.text).join(", ") || "—"}</dd>
                       </dl>
                       {draftError?.id === message.id && <p className="mt-2 text-xs text-danger" role="alert">{draftError.text}</p>}
                       <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-brand/15 pt-2">
@@ -469,24 +505,25 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
                       ))}
                     </div>
                   )}
+                  {message.edit && <ChatEditCard edit={message.edit} busy={busy || historyLoading} processing={editingId === message.edit.id} error={editError?.id === message.edit.id ? editError.text : undefined} onAction={(action) => void runEdit(message.edit!, action)} />}
                 </article>
               </li>
             ))}
-            {sending && <li className="flex justify-start"><p className="rounded-2xl rounded-bl-md border border-line bg-panel px-3.5 py-2.5 text-sm text-ink-3">용어를 찾고 답변하는 중…</p></li>}
+            {sending && <li className="flex justify-start"><p className="rounded-2xl rounded-bl-md border border-line bg-panel px-3.5 py-2.5 text-sm text-ink-3">요청을 해석하고 용어와 변경 내용을 확인하는 중…</p></li>}
           </ol>
         )}
         <div ref={endRef} aria-hidden="true" />
       </div>
 
       <form onSubmit={(event) => void submit(event)} className="mt-3 flex items-end gap-2 rounded-xl border border-line bg-panel p-2 shadow-sm focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15">
-        <label htmlFor="chat-question" className="sr-only">용어집에 질문</label>
+        <label htmlFor="chat-question" className="sr-only">용어 질문 또는 생성·수정 요청</label>
         <textarea id="chat-question" name="question" autoComplete="off" rows={2} maxLength={20_000} value={question} onChange={(event) => setQuestion(event.target.value)} disabled={!enabled || busy || historyLoading || Boolean(historyError)} placeholder={activeTeachingDraft() ? "빠진 정보나 수정할 내용을 알려주세요…" : "용어를 질문하거나 기존 용어집 내용을 붙여넣으세요…"} className="min-h-11 min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 text-base sm:text-sm leading-5 text-ink outline-none placeholder:text-ink-3" onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
           }
         }} />
-        <button type="submit" className="btn-primary h-10 shrink-0" disabled={!enabled || busy || historyLoading || Boolean(historyError) || !question.trim()}>{sending ? "답변 중…" : "질문"}</button>
+        <button type="submit" className="btn-primary h-10 shrink-0" disabled={!enabled || busy || historyLoading || Boolean(historyError) || !question.trim()}>{sending ? "처리 중…" : "보내기"}</button>
       </form>
     </section>
     </div>

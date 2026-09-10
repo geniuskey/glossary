@@ -119,6 +119,7 @@ export async function updateTerm(
   // R130: 되돌리기(revert.ts)가 같은 트랜잭션 규약을 그대로 쓰면서 리비전에만
   // 다른 메시지를 남길 수 있어야 한다. 이력 화면이 이 문자열을 그대로 보여준다.
   message = "updated",
+  afterWrite?: (tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0], revision: number) => Promise<void>,
 ): Promise<UpdateTermResult> {
   const db = getDb();
 
@@ -287,6 +288,9 @@ export async function updateTerm(
         // 지금 기록해야만 나중에 누가 썼는지 복원할 수 있다(R47과 같은 이유).
         authorKeyId,
       });
+
+      // Chat action receipts must commit or roll back with the term revision.
+      await afterWrite?.(tx, currentRevision + 1);
 
       return { term: updated, surfaces: savedSurfaces, warnings };
     });

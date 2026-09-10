@@ -9,6 +9,8 @@ import { AiProviderError } from "@/lib/ai/provider";
 import type { ChatHistoryResponse, StoredChatMessage } from "@/lib/ai/chat-history-values";
 import type { TermTeachingDraft } from "@/lib/ai/teaching-values";
 import { getDb } from "@/lib/db";
+import { appendChatMessage } from "@/lib/ai/chat-messages";
+import { termInputBaseSchema } from "@/lib/terms/schema";
 
 const ALLOWED_METHODS = ["GET", "POST", "PATCH", "DELETE"];
 const { PUT, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -19,7 +21,10 @@ const messageSchema = z.object({
   content: z.string().trim().min(1).max(4_000),
 });
 const nullableDraftText = (max: number) => z.string().trim().min(1).max(max).nullable();
-const teachingDraftSchema: z.ZodType<TermTeachingDraft> = z.object({
+const teachingDraftSchema: z.ZodType<TermTeachingDraft, z.ZodTypeDef, unknown> = z.object({
+  domain: termInputBaseSchema.shape.domain.optional(),
+  category: termInputBaseSchema.shape.category.optional(),
+  surfaces: termInputBaseSchema.shape.surfaces.optional(),
   nameEn: nullableDraftText(160),
   nameKo: nullableDraftText(160),
   fullNameEn: nullableDraftText(160),
@@ -159,18 +164,17 @@ export const POST = withApiErrors(async (request: Request) => {
       role: "user",
       content: parsed.data.question,
     };
-    previousMessages = [...previousMessages, userMessage];
-    await getDb().update(chatConversations).set({ messages: previousMessages, updatedAt: new Date() }).where(and(
-      eq(chatConversations.id, conversationId),
-      eq(chatConversations.userId, auth.user.id),
-    ));
+    const appended = await appendChatMessage(conversationId!, auth.user.id, userMessage);
+    if (!appended) return apiError("not_found", "대화가 삭제되었습니다.", 404);
+    previousMessages = appended;
   }
 
   try {
     const history = auth.kind === "user"
       ? previousMessages.slice(0, -1).slice(-8).map(({ role, content }) => ({ role, content: content.slice(-4_000) }))
       : parsed.data.history;
-    const result = await answerGlossaryQuestion(parsed.data.question, history, parsed.data.teachingDraft ?? null);
+    const previousEdit = [...previousMessages].reverse().find((message) => message.edit?.status === "pending")?.edit ?? null;
+    const result = await answerGlossaryQuestion(parsed.data.question, history, parsed.data.teachingDraft ?? null, previousEdit);
     if (auth.kind === "user" && conversationId) {
       const assistantMessage: StoredChatMessage = {
         id: nextMessageId(previousMessages),
@@ -179,12 +183,11 @@ export const POST = withApiErrors(async (request: Request) => {
         sources: result.sources,
         teaching: result.teaching,
         teachingBatch: result.teachingBatch,
+        edit: result.edit,
       };
-      previousMessages = [...previousMessages, assistantMessage];
-      await getDb().update(chatConversations).set({ messages: previousMessages, updatedAt: new Date() }).where(and(
-        eq(chatConversations.id, conversationId),
-        eq(chatConversations.userId, auth.user.id),
-      ));
+      const appended = await appendChatMessage(conversationId, auth.user.id, assistantMessage);
+      if (!appended) return apiError("not_found", "대화가 삭제되어 응답을 저장하지 않았습니다.", 404);
+      return Response.json({ ...result, sessionId: conversationId, messages: appended });
     }
     return Response.json({ ...result, ...(conversationId ? { sessionId: conversationId } : {}) });
   } catch (error) {
@@ -211,15 +214,20 @@ export const PATCH = withApiErrors(async (request: Request) => {
   const parsed = replaceMessagesSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "저장할 대화 기록을 확인해 주세요.", 400, parsed.error.flatten());
 
-  const [updated] = await getDb().update(chatConversations).set({
-    messages: parsed.data.messages as StoredChatMessage[],
-    updatedAt: new Date(),
-  }).where(and(
-    eq(chatConversations.id, parsed.data.sessionId),
-    eq(chatConversations.userId, user.id),
-  )).returning({ id: chatConversations.id });
-  if (!updated) return apiError("not_found", "대화 세션을 찾을 수 없습니다.", 404);
-  return Response.json({ ok: true });
+  return getDb().transaction(async (tx) => {
+    const owned = and(eq(chatConversations.id, parsed.data.sessionId), eq(chatConversations.userId, user.id));
+    const [row] = await tx.select().from(chatConversations).where(owned).for("update");
+    if (!row) return apiError("not_found", "대화 세션을 찾을 수 없습니다.", 404);
+    const existing = storedMessages(row.messages);
+    const incoming = parsed.data.messages as StoredChatMessage[];
+    if (new Set(incoming.map((message) => message.id)).size !== incoming.length || existing.some((message) => !incoming.some((item) => item.id === message.id))) {
+      return apiError("revision_conflict", "대화가 변경되었습니다. 새로고침 후 다시 시도해 주세요.", 409);
+    }
+    // Action contents and receipts are server-owned, even for the owner of the chat.
+    const messages = incoming.map((message) => ({ ...message, edit: existing.find((item) => item.id === message.id)?.edit }));
+    await tx.update(chatConversations).set({ messages, updatedAt: new Date() }).where(owned);
+    return Response.json({ ok: true });
+  });
 });
 
 export const DELETE = withApiErrors(async (request: Request) => {
