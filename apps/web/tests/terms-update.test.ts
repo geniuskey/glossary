@@ -341,7 +341,7 @@ test("리비전 스냅샷에 실제 term/surfaces 내용이 담긴다 (R73)", as
   expect(snapshot.surfaces?.map((s) => s.text).sort()).toEqual(["BLC", "Black Level", "블랙레벨"]);
 });
 
-test("대표 이름을 다른 term의 표기와 같게 바꾸면 저장하지 않는다", async () => {
+test("대표 이름을 다른 term의 표기와 같게 바꿔도 경고와 함께 저장한다", async () => {
   const term = await seed();
   const other = await createTerm(
     { nameEn: "Rename Dup Probe", domain: [], status: "active", surfaces: [] },
@@ -350,15 +350,11 @@ test("대표 이름을 다른 term의 표기와 같게 바꾸면 저장하지 �
   created.push(other.term.id);
 
   const result = await updateTerm(term.id, { nameEn: "Rename Dup Probe" }, null);
-  expect("representativeConflict" in result).toBe(true);
-  if ("representativeConflict" in result) {
-    expect(result.duplicates[0]).toMatchObject({ field: "nameEn", text: "Rename Dup Probe" });
-    expect(result.duplicates[0]!.matches[0]!.conflictingTermId).toBe(other.term.id);
-  }
-
-  const [unchanged] = await db.select({ nameEn: terms.nameEn }).from(terms).where(eq(terms.id, term.id));
-  expect(unchanged?.nameEn).toBe("Black Level");
-  expect(await listRevisions(term.id)).toHaveLength(1);
+  expect("warnings" in result).toBe(true);
+  if ("warnings" in result) expect(result.warnings.some((warning) => warning.conflictingTermId === other.term.id)).toBe(true);
+  const [saved] = await db.select({ nameEn: terms.nameEn }).from(terms).where(eq(terms.id, term.id));
+  expect(saved?.nameEn).toBe("Rename Dup Probe");
+  expect(await listRevisions(term.id)).toHaveLength(2);
 });
 
 // R75(F7): 존재하지 않는 termId로 호출되는 건 레이스와 무관하게 도달 가능한

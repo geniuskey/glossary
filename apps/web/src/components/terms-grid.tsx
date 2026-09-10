@@ -39,6 +39,8 @@ import {
   planClear,
   planFill,
   planPaste,
+  planHeaderImport,
+  pasteCheckBatches,
   rangeCells,
   rangeToTsv,
   rowLabel,
@@ -248,6 +250,8 @@ export function TermsGrid(props: TermsGridProps) {
   const [now, setNow] = useState<Date | null>(null);
   const [draft, setDraft] = useState({ nameEn: "", nameKo: "" });
   const [creating, setCreating] = useState(false);
+  const [pasteProgress, setPasteProgress] = useState("");
+  const pasteBusy = useRef(false);
   const [checkingPaste, setCheckingPaste] = useState(false);
   const [pasteIssues, setPasteIssues] = useState<string[] | null>(null);
 
@@ -926,6 +930,7 @@ export function TermsGrid(props: TermsGridProps) {
    */
   function onPaste(event: React.ClipboardEvent) {
     if (editing) return;
+    if (pasteBusy.current || creating) { event.preventDefault(); return; }
     const text = event.clipboardData.getData("text/plain");
     if (!text) return;
     const matrix = parseClipboardMatrix(text);
@@ -944,12 +949,13 @@ export function TermsGrid(props: TermsGridProps) {
     if (!anchor) return;
 
     event.preventDefault();
-    const { plan, creates } = planPaste(rows, columns, anchor, matrix);
+    const imported = planHeaderImport(matrix, allColumns);
+    const { plan, creates } = imported ?? planPaste(rows, columns, anchor, matrix);
     if (plan.errors.length > 0) {
       setPasteIssues(plan.errors);
       return;
     }
-    void pasteInto(plan, creates, anchor, matrix);
+    void pasteInto(plan, creates, imported ? { r: rows.length, c: 0 } : anchor, imported ? matrix.slice(1) : matrix);
   }
 
   async function pasteInto(
@@ -958,41 +964,57 @@ export function TermsGrid(props: TermsGridProps) {
     anchor: CellRef,
     matrix: readonly string[][],
   ) {
+    pasteBusy.current = true;
     setCheckingPaste(true);
     try {
       const updateLines = new Map(rows.map((row, index) => [row.id, index - anchor.r + 1]));
-      const response = await fetch("/api/v1/terms/paste-check", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          updates: plan.updates.map((update) => ({
-            rowId: update.rowId,
-            line: Math.max(1, updateLines.get(update.rowId) ?? 1),
-            expectedRevision: rowsRef.current.find((row) => row.id === update.rowId)?.revision ?? 1,
-            values: update.patch,
-          })),
-          creates,
-        }),
-      });
-      const checked = await response.json().catch(() => null) as {
-        ok?: boolean;
-        errors?: string[];
-        error?: { message?: string };
-      } | null;
-      if (!response.ok || !checked?.ok) {
-        setPasteIssues(checked?.errors?.length
-          ? checked.errors
-          : [checked?.error?.message ?? `붙여넣을 내용을 검사하지 못했습니다 (${response.status}).`]);
-        return;
+      const operations = [
+        ...plan.updates.map((update) => ({ kind: "update" as const, value: {
+          rowId: update.rowId,
+          line: Math.max(1, updateLines.get(update.rowId) ?? 1),
+          expectedRevision: rowsRef.current.find((row) => row.id === update.rowId)?.revision ?? 1,
+          values: update.patch,
+        } })),
+        ...creates.map((value) => ({ kind: "create" as const, value })),
+      ];
+      const issues: string[] = [];
+      let checkedCount = 0;
+      for (const batch of pasteCheckBatches(operations)) {
+        setPasteProgress(`검사 중 ${checkedCount} / ${operations.length}행`);
+        const response = await fetch("/api/v1/terms/paste-check", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            updates: batch.filter((op) => op.kind === "update").map((op) => op.value),
+            creates: batch.filter((op) => op.kind === "create").map((op) => op.value),
+          }),
+        });
+        const checked = await response.json().catch(() => null) as {
+          ok?: boolean;
+          errors?: string[];
+          error?: { message?: string };
+        } | null;
+        if (!response.ok || !checked?.ok) {
+          issues.push(...(checked?.errors?.length
+            ? checked.errors
+            : [checked?.error?.message ?? `붙여넣을 내용을 검사하지 못했습니다 (${response.status}).`]));
+        }
+        checkedCount += batch.length;
       }
+      if (issues.length) { setPasteIssues(issues); pasteBusy.current = false; return; }
     } catch {
+      pasteBusy.current = false;
       setPasteIssues(["네트워크 오류로 붙여넣을 내용을 검사하지 못했습니다. 다시 시도해 주세요."]);
       return;
     } finally {
       setCheckingPaste(false);
     }
 
-    const [, added] = await Promise.all([commit(plan, `${plan.cells}칸 붙여넣기`), createRows(creates)]);
+    let added = 0;
+    try {
+      const results = await Promise.all([commit(plan, `${plan.cells}칸 붙여넣기`), createRows(creates)]);
+      added = results[1];
+    } finally { pasteBusy.current = false; setPasteProgress(""); }
 
     // 선택 영역은 실제로 존재하게 된 만큼만 잡는다 — 만들지 못한 줄까지 잡으면
     // 포커스가 없는 좌표를 가리킨다. 방금 만든 행은 rowsRef에 아직 안 보일 수
@@ -1020,7 +1042,8 @@ export function TermsGrid(props: TermsGridProps) {
 
     setCreating(true);
     try {
-      for (const draft of creates) {
+      for (const [index, draft] of creates.entries()) {
+        setPasteProgress(`저장 중 ${index + 1} / ${creates.length}행`);
         try {
           const res = await fetch("/api/v1/terms", {
             method: "POST",
@@ -1053,6 +1076,7 @@ export function TermsGrid(props: TermsGridProps) {
       pushToast({ tone: "conflict", text: `그중 ${flagged}개는 기존 용어와 표기가 겹칩니다.` });
     }
     if (failures.length > 0) {
+      setPasteIssues(failures);
       // 줄마다 토스트를 띄우면 화면이 오류로 덮인다 — 첫 줄만 보여주고 수를 센다.
       pushToast({
         tone: "error",
@@ -1426,7 +1450,7 @@ export function TermsGrid(props: TermsGridProps) {
                   >
                     추가
                   </button>
-                  <span className="text-[11px] text-ink-3">Enter로 계속 추가 · 엑셀에서 여러 줄을 붙여넣으면 그만큼 행이 생깁니다</span>
+                  <span className="text-[11px] text-ink-3">Enter로 계속 추가 · 엑셀 헤더까지 복사하면 열 순서와 관계없이 새 용어로 가져옵니다</span>
                 </span>
               </td>
             </tr>
@@ -1486,9 +1510,9 @@ export function TermsGrid(props: TermsGridProps) {
 
       <p className="sr-only" aria-live="polite">{layoutAnnouncement}</p>
 
-      {checkingPaste && (
+      {(checkingPaste || (creating && pasteProgress)) && (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-black/20 px-4 backdrop-blur-[1px]" role="status" aria-live="polite">
-          <div className="card px-5 py-4 text-sm text-ink shadow-pop">붙여넣을 수 있는지 검사 중…</div>
+          <div className="card px-5 py-4 text-sm text-ink shadow-pop">{pasteProgress || "붙여넣을 수 있는지 검사 중…"}</div>
         </div>
       )}
 
@@ -1506,8 +1530,8 @@ export function TermsGrid(props: TermsGridProps) {
             <header className="flex items-center gap-3 border-b border-line px-4 py-3">
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-danger-soft font-semibold text-danger" aria-hidden="true">!</span>
               <div className="min-w-0">
-                <h2 id="paste-errors-title" className="font-semibold text-ink">붙여넣을 수 없습니다</h2>
-                <p className="text-xs text-ink-3">발견된 오류 {pasteIssues.length.toLocaleString("ko-KR")}개를 모두 수정한 뒤 다시 붙여넣어 주세요.</p>
+                <h2 id="paste-errors-title" className="font-semibold text-ink">붙여넣기 오류</h2>
+                <p className="text-xs text-ink-3">발견된 오류 {pasteIssues.length.toLocaleString("ko-KR")}개입니다. 저장 중 오류라면 실패한 줄만 다시 붙여넣어 주세요.</p>
               </div>
             </header>
             <ol className="min-h-0 flex-1 list-decimal space-y-2 overflow-y-auto px-8 py-4 text-sm leading-6 text-ink-2 marker:font-mono marker:text-danger">
@@ -1755,7 +1779,7 @@ function GridToolbar(props: {
 
       <span className="mx-1 h-4 w-px bg-line" />
 
-      <HelpTip text="엑셀에서 복사한 범위를 Ctrl+V로 그대로 붙여넣을 수 있습니다." />
+      <HelpTip text="헤더를 포함해 복사하면 열 이름으로 자동 연결해 새 용어로 가져옵니다. 헤더가 없으면 선택한 셀부터 붙여넣습니다." />
 
       {props.activeFilters.length > 0 && (
         <div className="flex min-w-0 flex-wrap items-center gap-1" aria-label="현재 적용된 필터">

@@ -9,7 +9,6 @@ import { getTermQualitySettings } from "@/lib/workspace/term-quality";
 import { checkSurfaceConflicts } from "./schema";
 import {
   findDuplicates,
-  findRepresentativeDuplicates,
   isSlugConflict,
   type DuplicateWarning,
   type RepresentativeDuplicate,
@@ -170,15 +169,7 @@ export async function updateTerm(
     return { invalid: true, issues: ["nameEn 또는 nameKo 중 최소 하나는 남아 있어야 합니다."] };
   }
 
-  // 추가 표기는 동음이의어가 있을 수 있어 아래 warnings로만 알리지만, 목록과
-  // 제목의 기준이 되는 대표 영문·국문 이름은 다른 용어의 어떤 검색 표기와도
-  // 겹치면 안 된다. 생성과 같은 규칙을 최종 병합 이름에 적용하되, 수정 대상
-  // 자신이 이미 가진 표기는 충돌에서 제외한다.
-  const representativeDuplicates = await findRepresentativeDuplicates(mergedNames, termId);
-  if (representativeDuplicates.length > 0) {
-    return { representativeConflict: true, duplicates: representativeDuplicates };
-  }
-
+  // 같은 표기도 의미가 다르면 별개 용어다. 충돌은 아래 warnings로 알린다.
   const nextSurfaces = deriveSurfaces(mergedNames, explicitSurfaces);
 
   // R52: termInputSchema의 superRefine은 생성 시점 표기 집합에만 적용된다. patch의
