@@ -65,6 +65,7 @@ import {
 // 타입만 가져온다(빌드에서 지워진다) — 새 행 응답의 모양을 여기 다시 적으면
 // 서버가 필드를 바꿔도 이 파일은 조용히 옛 모양을 믿는다.
 import type { TermWriteResponse } from "@/lib/terms/wire";
+import { createSaveQueue, savedGridRow } from "@/lib/terms/save-queue";
 import { cx, isoDate, relativeTime } from "@/lib/ui/format";
 import { domainColorStyle } from "@/lib/terms/domain-colors";
 import { rowDragOffset, type RowDragPreview } from "@/lib/ui/table-row-drag";
@@ -212,6 +213,13 @@ export function TermsGrid(props: TermsGridProps) {
   // 리비전(낙관적 동시성의 기준값)을 낡은 값으로 보내면 멀쩡한 편집이 409가 된다.
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
+  const saveQueue = useRef(createSaveQueue());
+
+  // 다음 저장은 React 렌더를 기다리지 않고 확정된 리비전을 읽어야 한다.
+  function updateRows(update: (current: TermRow[]) => TermRow[]) {
+    rowsRef.current = update(rowsRef.current);
+    setRows(rowsRef.current);
+  }
 
   const [hidden, setHidden] = useStoredPref<ColumnKey[]>(HIDDEN_KEY, defaultHiddenColumns(), readHidden);
   const [widths, setWidths] = useStoredPref<Partial<Record<ColumnKey, number>>>(WIDTH_KEY, {}, readWidths);
@@ -402,7 +410,13 @@ export function TermsGrid(props: TermsGridProps) {
    * expectedRevision을 항상 함께 보낸다. 여럿이 같이 쓰는 사전이라 같은 행을
    * 동시에 고치는 일이 실제로 일어나고, 그때 조용히 덮어쓰는 대신 409를 받는다.
    */
-  async function commit(plan: WritePlan, label: string, mode: CommitMode = "edit") {
+  function commit(plan: WritePlan, label: string, mode: CommitMode = "edit") {
+    // 배치 사이도 직렬화한다. 한 배치 안의 서로 다른 행은 CONCURRENCY만큼
+    // 병렬 저장하되, 다음 편집은 이전 응답의 리비전/상태가 반영된 뒤 시작한다.
+    return saveQueue.current(() => commitQueued(plan, label, mode));
+  }
+
+  async function commitQueued(plan: WritePlan, label: string, mode: CommitMode) {
     for (const message of plan.errors) pushToast({ tone: "error", text: message });
     if (plan.updates.length === 0) return;
 
@@ -416,12 +430,13 @@ export function TermsGrid(props: TermsGridProps) {
 
     const patches = new Map(plan.updates.map((u) => [u.rowId, u.patch]));
     const ids = plan.updates.map((u) => u.rowId);
-    setRows((prev) => prev.map((r) => (patches.has(r.id) ? applyPatch(r, patches.get(r.id) ?? {}) : r)));
+    updateRows((prev) => prev.map((r) => (patches.has(r.id) ? applyPatch(r, patches.get(r.id) ?? {}) : r)));
     setFailedRows((prev) => new Set([...prev].filter((id) => !patches.has(id))));
     markBusy(ids, true);
 
     const failed = new Set<string>();
     const saved = new Set<string>();
+    const responses = new Map<string, TermWriteResponse["term"]>();
 
     async function send(update: RowPatch) {
       const row = before.get(update.rowId);
@@ -433,6 +448,8 @@ export function TermsGrid(props: TermsGridProps) {
           body: JSON.stringify({ ...update.patch, expectedRevision: row.revision }),
         });
         if (res.ok) {
+          const body = await res.json() as TermWriteResponse;
+          responses.set(row.id, body.term);
           saved.add(row.id);
           return;
         }
@@ -460,14 +477,13 @@ export function TermsGrid(props: TermsGridProps) {
       await Promise.all(plan.updates.slice(i, i + CONCURRENCY).map(send));
     }
 
-    const at = new Date().toISOString();
-    setRows((prev) =>
+    updateRows((prev) =>
       prev.map((r) => {
         if (failed.has(r.id)) return before.get(r.id) ?? r;
         if (!saved.has(r.id)) return r;
         // 성공했다는 건 방금 보낸 expectedRevision이 서버의 현재 값이었다는
         // 뜻이므로, 새 리비전 번호는 그 다음 값이다(응답에는 리비전이 없다).
-        return { ...r, revision: r.revision + 1, updatedAt: at, editorName: props.viewerName };
+        return savedGridRow(before.get(r.id)!, responses.get(r.id)!, props.viewerName);
       }),
     );
     setFailedRows((prev) => new Set([...prev, ...failed]));
@@ -808,7 +824,7 @@ export function TermsGrid(props: TermsGridProps) {
     saveCell(cur.r, cur.c, cur.value);
   }
 
-  function commitEdit(r: number, c: number, value: string, next: "down" | "right" | null) {
+  function commitEdit(r: number, c: number, value: string, next: "down" | "right" | "left" | null) {
     // 이미 다른 셀로 넘어간 뒤 도착한 blur는 무시한다 — 그대로 처리하면 방금
     // 연 편집기를 닫고 선택까지 옛 셀로 되돌린다.
     if (!isEditingCell(r, c)) return;
@@ -816,6 +832,7 @@ export function TermsGrid(props: TermsGridProps) {
     saveCell(r, c, value);
     if (next === "down") selectCell(r + 1, c, false);
     else if (next === "right") selectCell(r, c + 1, false);
+    else if (next === "left") selectCell(r, c - 1, false);
     else selectCell(r, c, false);
   }
 
@@ -827,6 +844,24 @@ export function TermsGrid(props: TermsGridProps) {
   function fillDown() {
     if (!range || range.r0 === range.r1) return;
     void commit(planFill(rows, columns, range), "아래로 채우기");
+  }
+
+  function tabFromCell(event: React.KeyboardEvent, r: number, c: number) {
+    event.preventDefault();
+    event.stopPropagation();
+    const boundary = event.shiftKey ? c === 0 : c === columns.length - 1;
+    const cur = editingRef.current;
+    if (cur) commitEdit(r, c, cur.value, boundary ? null : event.shiftKey ? "left" : "right");
+    else if (!boundary) selectCell(r, c + (event.shiftKey ? -1 : 1), false);
+    if (boundary) {
+      const backwards = event.shiftKey;
+      requestAnimationFrame(() => {
+        if (backwards) {
+          const headers = scrollRef.current?.querySelectorAll<HTMLElement>('thead th[tabindex="0"]');
+          headers?.[headers.length - 1]?.focus();
+        } else draftRef.current?.focus();
+      });
+    }
   }
 
   function onKeyDown(event: React.KeyboardEvent, r: number, c: number) {
@@ -879,8 +914,7 @@ export function TermsGrid(props: TermsGridProps) {
       return;
     }
     if (key === "Tab") {
-      event.preventDefault();
-      selectCell(r, c + (event.shiftKey ? -1 : 1), false);
+      tabFromCell(event, r, c);
       return;
     }
     if (key === "Escape") {
@@ -1287,7 +1321,10 @@ export function TermsGrid(props: TermsGridProps) {
                       <td
                         key={col.key}
                         data-cell={`${r}:${c}`}
-                        tabIndex={-1}
+                        tabIndex={isActive || (!sel && r === 0 && c === 0) ? 0 : -1}
+                        onFocus={(event) => {
+                          if (event.target === event.currentTarget && !isActive) selectCell(r, c, false);
+                        }}
                         onMouseDown={(e) => {
                           if (e.button !== 0) return;
                           // 이 셀의 편집기 안에서 시작한 클릭(도메인 후보 칩)은
@@ -1319,6 +1356,9 @@ export function TermsGrid(props: TermsGridProps) {
                           if (!isEditingCell(r, c)) beginEdit(r, c);
                         }}
                         onKeyDown={(e) => onKeyDown(e, r, c)}
+                        onKeyDownCapture={(e) => {
+                          if (e.key === "Tab" && isEditingCell(r, c)) tabFromCell(e, r, c);
+                        }}
                         className={cx(
                           "group/cell relative border-b border-r border-grid px-2 align-middle outline-none transition-[background-color] motion-reduce:transition-none",
                           frozen && "sticky z-10",
