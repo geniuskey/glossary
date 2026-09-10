@@ -442,10 +442,21 @@ export interface ContributionTerm extends TermSummary {
 }
 
 /** 초안과 미완성 용어를 가장 비어 있고 오래 기다린 순으로 보여주는 공동 정리 대기열. */
-export async function listContributionTerms(limit = 60, currentUserId?: string, preferredTermId?: string): Promise<{ items: ContributionTerm[]; total: number }> {
+export async function listContributionTerms(limit = 60, currentUserId?: string, preferredTermId?: string, filters: { q?: string; category?: string; missing?: string; page?: number } = {}): Promise<{ items: ContributionTerm[]; total: number }> {
   const db = getDb();
   const settings = await getTermQualitySettings();
-  const needsContribution = needsContributionFilter(settings);
+  const conditions = [needsContributionFilter(settings)];
+  if (filters.q?.trim()) {
+    const needle = filters.q.trim().toLocaleLowerCase();
+    conditions.push(sql`strpos(lower(concat_ws(' ', ${terms.nameKo}, ${terms.nameEn}, ${terms.fullNameKo}, ${terms.fullNameEn}, ${terms.slug})), ${needle}) > 0`);
+  }
+  if (filters.category) conditions.push(arrayContains(terms.category, [filters.category]));
+  const profile = qualityBranches();
+  if (filters.missing === "meaning") conditions.push(sql`${profile.mapping} and ${missingFullName} and ${missingDefinition(settings)}`);
+  if (filters.missing === "definition") conditions.push(sql`(${profile.context} or ${profile.guidance}) and ${missingDefinition(settings)}`);
+  if (filters.missing === "context") conditions.push(sql`(${profile.context} or ${profile.guidance}) and ${missingContext}`);
+  if (filters.missing === "body") conditions.push(sql`${profile.guidance} and ${missingBody(settings)}`);
+  const needsContribution = and(...conditions)!;
   const ownerRank = currentUserId ? sql`case when ${terms.ownerId} = ${currentUserId} then 0 else 1 end` : sql`1`;
   const preferredRank = preferredTermId ? sql`case when ${terms.id} = ${preferredTermId} then 0 else 1 end` : sql`1`;
   const [rows, [counted]] = await Promise.all([
@@ -461,7 +472,8 @@ export async function listContributionTerms(limit = 60, currentUserId?: string, 
       .from(terms)
       .where(needsContribution)
       .orderBy(preferredRank, ownerRank, desc(missingCount(settings)), terms.updatedAt, terms.id)
-      .limit(limit),
+      .limit(limit)
+      .offset((Math.max(1, filters.page ?? 1) - 1) * limit),
     db.select({ total: sql<number>`count(*)::int` }).from(terms).where(needsContribution),
   ]);
 

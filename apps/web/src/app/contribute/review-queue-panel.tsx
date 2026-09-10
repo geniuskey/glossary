@@ -30,9 +30,9 @@ export function ReviewQueuePanel({ queue }: { queue: ReviewQueueSnapshot }) {
       <header className="flex items-center gap-3 border-b border-line px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold text-ink">큐에 등록된 용어</h2>
-          <p className="mt-0.5 text-xs text-ink-3">현재 리비전 기준 총 {queue.counts.total.toLocaleString("ko-KR")}개</p>
+          <p className="mt-0.5 text-xs text-ink-3">최신 내용 기준 총 {queue.counts.total.toLocaleString("ko-KR")}개</p>
         </div>
-        <Link href="/contribute?tab=queue" className="btn-quiet btn-sm ml-auto">새로고침</Link>
+        <a href="/contribute?tab=queue" className="btn-quiet btn-sm ml-auto">새로고침</a>
       </header>
       {queue.items.length > 0 ? <ul className="divide-y divide-line">
         {queue.items.map((item) => {
@@ -42,11 +42,12 @@ export function ReviewQueuePanel({ queue }: { queue: ReviewQueueSnapshot }) {
               <Link href={`/edit/${item.termSlug}`} className="truncate text-sm font-semibold text-ink hover:text-brand">{item.termName}</Link>
               <p className="mt-0.5 text-xs text-ink-3">
                 {item.requestMode === "manual" ? `${item.requestedByName ?? "API 사용자"}의 수동 요청` : "자동 요청"}
-                {" · "}리비전 {item.revision}{" · "}{relativeTime(new Date(item.requestedAt))}
+                {" · "}수정 {item.revision}회{" · "}{relativeTime(new Date(item.requestedAt))}
               </p>
               {item.errorMessage && <p className="mt-1 text-xs text-danger">{item.errorMessage}</p>}
             </div>
             <span className={cx("rounded-full px-2 py-1 text-[11px] font-semibold", status.className)}>{status.label}</span>
+            {item.status === "failed" && <Link href={`/edit/${item.termSlug}`} className="btn-quiet btn-sm">내용 확인 및 재검토</Link>}
             {item.status === "ready" && <Link href={`/contribute?tab=agent&termId=${encodeURIComponent(item.termId)}`} className="btn-quiet btn-sm">제안 보기</Link>}
           </li>;
         })}
