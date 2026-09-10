@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { HelpTip } from "./help-tip";
 import { MarkdownContent } from "./markdown-content";
@@ -24,6 +25,8 @@ function isLargePastedMessage(content: string): boolean {
 }
 
 export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; initialSessionId?: string }) {
+  const pathname = usePathname();
+  const routeSessionId = pathname?.startsWith("/c/") ? pathname.slice(3) : pathname ? null : initialSessionId ?? null;
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessions, setSessions] = useState<ChatConversationSummary[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(initialSessionId ?? null);
@@ -31,10 +34,16 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [question, setQuestion] = useState("");
   const [sending, setSending] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [historyRetry, setHistoryRetry] = useState(0);
   const [creatingDraftId, setCreatingDraftId] = useState<number | null>(null);
   const [draftError, setDraftError] = useState<{ id: number; text: string } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<Message[]>([]);
+  const routeSessionRef = useRef(routeSessionId);
+  routeSessionRef.current = routeSessionId;
+  const busy = sending || deleting || creatingDraftId !== null;
   let nextId = messages.reduce((max, message) => Math.max(max, message.id), 0) + 1;
 
   useEffect(() => {
@@ -43,57 +52,62 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
   }, [messages, sending]);
 
   useEffect(() => {
+    // 새 답변의 URL 반영과 빈 새 대화는 이미 화면에 반영되어 있다.
+    // 뒤로가기/앞으로가기는 URL이 바뀌므로 같은 조회 경로로 복원한다.
+    if (!historyLoading && routeSessionId === currentSessionId) {
+      setHistoryError(null);
+      setActionError(null);
+      return;
+    }
     const controller = new AbortController();
     setHistoryLoading(true);
     setHistoryError(null);
-    const query = initialSessionId ? `?session=${encodeURIComponent(initialSessionId)}` : "";
+    setActionError(null);
+    setDraftError(null);
+    const query = routeSessionId ? `?session=${encodeURIComponent(routeSessionId)}` : "";
     void fetch(`/api/v1/chat${query}`, { signal: controller.signal })
       .then(async (response) => {
         const body = await response.json().catch(() => null) as ChatHistoryResponse | { error?: { message?: string } } | null;
+        if (controller.signal.aborted) return;
         if (!response.ok || !body || !("sessions" in body)) throw new Error(body && "error" in body ? body.error?.message : undefined);
+        if (routeSessionId && !body.conversation) throw new Error("대화를 찾을 수 없습니다. 다른 대화를 선택하거나 새 대화를 시작하세요.");
         setSessions(body.sessions);
         setMessages(body.conversation?.messages ?? []);
         setCurrentSessionId(body.conversation?.id ?? null);
       })
       .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (controller.signal.aborted) return;
         setHistoryError(error instanceof Error && error.message ? error.message : "대화 기록을 불러오지 못했습니다.");
       })
       .finally(() => {
         if (!controller.signal.aborted) setHistoryLoading(false);
       });
     return () => controller.abort();
-  }, [initialSessionId]);
+  }, [routeSessionId, historyRetry]);
 
-  async function openSession(sessionId: string) {
-    if (sending || sessionId === currentSessionId) return;
+  function openSession(sessionId: string) {
+    if (busy || sessionId === routeSessionId) return;
+    if (question.trim() && !window.confirm("작성 중인 질문이 있습니다. 질문을 버리고 다른 대화로 이동할까요?")) return;
+    setQuestion("");
     window.history.pushState(null, "", `/c/${encodeURIComponent(sessionId)}`);
-    setHistoryLoading(true);
-    setHistoryError(null);
-    try {
-      const response = await fetch(`/api/v1/chat?session=${encodeURIComponent(sessionId)}`);
-      const body = await response.json().catch(() => null) as ChatHistoryResponse | { error?: { message?: string } } | null;
-      if (!response.ok || !body || !("sessions" in body) || !body.conversation) {
-        throw new Error(body && "error" in body ? body.error?.message : undefined);
-      }
-      setSessions(body.sessions);
-      setMessages(body.conversation.messages);
-      setCurrentSessionId(body.conversation.id);
-    } catch (error) {
-      setHistoryError(error instanceof Error && error.message ? error.message : "대화 기록을 불러오지 못했습니다.");
-    } finally {
-      setHistoryLoading(false);
-    }
   }
 
   function newConversation() {
-    if (sending) return;
-    window.history.pushState(null, "", "/chat");
+    if (busy) return;
+    if (question.trim() && !window.confirm("작성 중인 질문이 있습니다. 질문을 버리고 새 대화를 시작할까요?")) return;
+    resetConversation();
+  }
+
+  function resetConversation(replace = false) {
+    if (replace) window.history.replaceState(null, "", "/chat");
+    else window.history.pushState(null, "", "/chat");
     setCurrentSessionId(null);
     setMessages([]);
     setQuestion("");
     setDraftError(null);
     setHistoryError(null);
+    setHistoryLoading(false);
+    setActionError(null);
   }
 
   async function persistMessages(nextMessages: Message[]) {
@@ -125,7 +139,8 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
   async function submit(event: FormEvent) {
     event.preventDefault();
     const text = question.trim();
-    if (!text || sending || !enabled) return;
+    if (!text || busy || historyLoading || historyError || !enabled) return;
+    const submittedSessionId = routeSessionId;
     const history = messages.slice(-8).map(({ role, content }) => ({ role, content: content.slice(-4_000) }));
     const userId = nextId++;
     setMessages((current) => [...current, { id: userId, role: "user", content: text }]);
@@ -138,6 +153,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
         body: JSON.stringify({ question: text, history, teachingDraft: activeTeachingDraft(), ...(currentSessionId ? { sessionId: currentSessionId } : {}) }),
       });
       const body = await response.json().catch(() => null) as { sessionId?: string; answer?: string; sources?: Source[]; teaching?: Teaching; teachingBatch?: TermTeachingBatch; error?: { message?: string; details?: { sessionId?: string } } } | null;
+      if (routeSessionRef.current !== submittedSessionId) return;
       const returnedSessionId = body?.sessionId || body?.error?.details?.sessionId;
       if (!currentSessionId && returnedSessionId) {
         const now = new Date().toISOString();
@@ -164,7 +180,9 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
       ]);
       setDraftError(null);
     } catch {
-      setMessages((current) => [...current, { id: userId + 1, role: "assistant", content: "네트워크 오류로 답변을 받지 못했습니다.", failed: true }]);
+      if (routeSessionRef.current === submittedSessionId) {
+        setMessages((current) => [...current, { id: userId + 1, role: "assistant", content: "네트워크 오류로 답변을 받지 못했습니다.", failed: true }]);
+      }
     } finally {
       setSending(false);
     }
@@ -206,16 +224,18 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
   }
 
   async function createTermFromDraft(messageId: number, draft: TermTeachingDraft) {
-    if (creatingDraftId !== null) return;
+    if (busy || historyLoading) return;
+    const sourceMessages = messagesRef.current;
+    const sourceSessionId = routeSessionId;
     setCreatingDraftId(messageId);
     setDraftError(null);
     try {
       const result = await postTermDraft(draft);
       if (!result.ok) {
-        setDraftError({ id: messageId, text: result.error });
+        if (routeSessionRef.current === sourceSessionId) setDraftError({ id: messageId, text: result.error });
         return;
       }
-      const current = messagesRef.current;
+      const current = sourceMessages;
       const nextId = current.reduce((max, message) => Math.max(max, message.id), 0) + 1;
       const nextMessages = [
         ...current.map((message) => message.id === messageId ? { ...message, teaching: undefined } : message),
@@ -226,18 +246,22 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
           created: [result.term],
         },
       ] satisfies Message[];
-      messagesRef.current = nextMessages;
-      setMessages(nextMessages);
+      if (routeSessionRef.current === sourceSessionId) {
+        messagesRef.current = nextMessages;
+        setMessages(nextMessages);
+      }
       void persistMessages(nextMessages);
     } catch {
-      setDraftError({ id: messageId, text: "네트워크 오류로 용어를 추가하지 못했습니다." });
+      if (routeSessionRef.current === sourceSessionId) setDraftError({ id: messageId, text: "네트워크 오류로 용어를 추가하지 못했습니다." });
     } finally {
       setCreatingDraftId(null);
     }
   }
 
   async function createTermsFromBatch(messageId: number, drafts: TermTeachingDraft[]) {
-    if (creatingDraftId !== null) return;
+    if (busy || historyLoading) return;
+    const sourceMessages = messagesRef.current;
+    const sourceSessionId = routeSessionId;
     setCreatingDraftId(messageId);
     setDraftError(null);
     try {
@@ -245,10 +269,10 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
       const created = results.flatMap((result) => result.ok ? [result.term] : []);
       const failed = results.flatMap((result, index) => result.ok ? [] : [`${teachingDraftName(drafts[index]!)}: ${result.error}`]);
       if (created.length === 0) {
-        setDraftError({ id: messageId, text: failed.join(" ") || "추가할 수 있는 용어가 없습니다." });
+        if (routeSessionRef.current === sourceSessionId) setDraftError({ id: messageId, text: failed.join(" ") || "추가할 수 있는 용어가 없습니다." });
         return;
       }
-      const current = messagesRef.current;
+      const current = sourceMessages;
       const nextId = current.reduce((max, message) => Math.max(max, message.id), 0) + 1;
       const failureNote = failed.length > 0
         ? `\n\n추가하지 못한 ${failed.length}개 항목:\n${failed.slice(0, 8).map((item) => `- ${item}`).join("\n")}${failed.length > 8 ? `\n- 그 외 ${failed.length - 8}개` : ""}`
@@ -262,17 +286,20 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
           created,
         },
       ] satisfies Message[];
-      messagesRef.current = nextMessages;
-      setMessages(nextMessages);
+      if (routeSessionRef.current === sourceSessionId) {
+        messagesRef.current = nextMessages;
+        setMessages(nextMessages);
+      }
       void persistMessages(nextMessages);
     } catch {
-      setDraftError({ id: messageId, text: "네트워크 오류로 용어를 추가하지 못했습니다." });
+      if (routeSessionRef.current === sourceSessionId) setDraftError({ id: messageId, text: "네트워크 오류로 용어를 추가하지 못했습니다." });
     } finally {
       setCreatingDraftId(null);
     }
   }
 
   function cancelTeaching(messageId: number) {
+    if (busy || historyLoading) return;
     const nextMessages = messagesRef.current.map((message) => message.id === messageId ? { ...message, teaching: undefined, teachingBatch: undefined } : message);
     messagesRef.current = nextMessages;
     setMessages(nextMessages);
@@ -281,23 +308,33 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
   }
 
   async function clearConversation() {
-    if (sending) return;
-    if (currentSessionId) {
-      const response = await fetch(`/api/v1/chat?session=${encodeURIComponent(currentSessionId)}`, { method: "DELETE" });
-      if (!response.ok) {
-        const body = await response.json().catch(() => null) as { error?: { message?: string } } | null;
-        setHistoryError(body?.error?.message || "대화를 지우지 못했습니다.");
-        return;
+    if (busy || historyLoading) return;
+    if (!window.confirm("이 대화를 삭제할까요? 삭제한 대화는 복구할 수 없습니다.")) return;
+    const deletedSessionId = routeSessionId;
+    setDeleting(true);
+    setActionError(null);
+    try {
+      if (currentSessionId) {
+        const response = await fetch(`/api/v1/chat?session=${encodeURIComponent(currentSessionId)}`, { method: "DELETE" });
+        if (!response.ok) {
+          const body = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+          throw new Error(body?.error?.message || "대화를 지우지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        }
+        setSessions((current) => current.filter((session) => session.id !== currentSessionId));
       }
-      setSessions((current) => current.filter((session) => session.id !== currentSessionId));
+      if (routeSessionRef.current === deletedSessionId) resetConversation(true);
+    } catch (error) {
+      if (routeSessionRef.current === deletedSessionId) setActionError(error instanceof Error && error.message && !(error instanceof TypeError)
+        ? error.message : "네트워크 오류로 대화를 지우지 못했습니다. 연결을 확인하고 다시 시도해 주세요.");
+    } finally {
+      setDeleting(false);
     }
-    newConversation();
   }
 
   return (
     <div className="mx-auto grid min-h-[calc(100svh-7rem)] w-full max-w-6xl gap-3 md:grid-cols-[15rem_minmax(0,1fr)]">
       <aside className="rounded-xl border border-line bg-panel p-2 md:min-h-0" aria-label="챗봇 대화 기록">
-        <button type="button" className="btn-primary w-full" onClick={newConversation} disabled={sending}>새 대화</button>
+        <button type="button" className="btn-primary w-full" onClick={newConversation} disabled={busy}>새 대화</button>
         <div className="mt-2 flex gap-2 overflow-x-auto pb-1 md:block md:max-h-[calc(100svh-11rem)] md:space-y-1 md:overflow-y-auto md:pb-0">
           {sessions.map((session) => (
             <button
@@ -308,7 +345,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
                 session.id === currentSessionId ? "bg-brand-soft text-brand" : "text-ink-2 hover:bg-panel-2 hover:text-ink",
               )}
               onClick={() => void openSession(session.id)}
-              disabled={sending}
+              disabled={busy}
               aria-current={session.id === currentSessionId ? "page" : undefined}
             >
               <span className="block truncate font-medium">{session.title}</span>
@@ -323,14 +360,19 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
       <div className="mb-3 flex items-center gap-2 border-b border-line pb-2">
         <h2 id="chat-heading" className="text-base font-semibold text-ink">용어 챗봇</h2>
         <HelpTip text="용어집의 용어를 근거로 답합니다. 모르는 용어는 대화로 정보를 받은 뒤 사용자가 확인한 등록안만 추가합니다." />
-        {messages.length > 0 && <button type="button" className="btn-quiet btn-sm ml-auto" onClick={() => void clearConversation()} disabled={sending}>대화 지우기</button>}
+        {messages.length > 0 && <button type="button" className="btn-quiet btn-sm ml-auto" onClick={() => void clearConversation()} disabled={busy || historyLoading}>{deleting ? "삭제 중…" : "대화 지우기"}</button>}
       </div>
+
+      {actionError && <p className="note-danger mb-3" role="alert">{actionError}</p>}
 
       <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-line bg-panel-2/35 p-3 sm:p-4" role="log" aria-live="polite" aria-label="용어 챗봇 대화">
         {historyLoading ? (
           <div className="grid min-h-64 place-items-center text-center"><p className="text-sm text-ink-3">대화 기록을 불러오는 중…</p></div>
         ) : historyError ? (
-          <div className="grid min-h-64 place-items-center text-center"><p className="text-sm text-danger" role="alert">{historyError}</p></div>
+          <div className="grid min-h-64 place-items-center text-center"><div>
+            <p className="text-sm text-danger" role="alert">{historyError}</p>
+            <button type="button" className="btn-ghost mt-3" onClick={() => { setHistoryLoading(true); setHistoryRetry((value) => value + 1); }}>다시 불러오기</button>
+          </div></div>
         ) : !enabled ? (
           <div className="grid min-h-64 place-items-center text-center">
             <div>
@@ -388,8 +430,8 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
                       </dl>
                       {draftError?.id === message.id && <p className="mt-2 text-xs text-danger" role="alert">{draftError.text}</p>}
                       <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-brand/15 pt-2">
-                        <button type="button" className="btn-quiet btn-sm" onClick={() => cancelTeaching(message.id)} disabled={creatingDraftId === message.id}>취소</button>
-                        {message.teaching.ready && <button type="button" className="btn-primary btn-sm" onClick={() => void createTermFromDraft(message.id, message.teaching!.draft)} disabled={creatingDraftId !== null}>{creatingDraftId === message.id ? "추가 중…" : "용어로 추가"}</button>}
+                        <button type="button" className="btn-quiet btn-sm" onClick={() => cancelTeaching(message.id)} disabled={busy || historyLoading}>취소</button>
+                        {message.teaching.ready && <button type="button" className="btn-primary btn-sm" onClick={() => void createTermFromDraft(message.id, message.teaching!.draft)} disabled={busy || historyLoading}>{creatingDraftId === message.id ? "추가 중…" : "용어로 추가"}</button>}
                       </div>
                     </div>
                   )}
@@ -413,8 +455,8 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
                       </div>
                       {draftError?.id === message.id && <p className="mt-2 text-xs text-danger" role="alert">{draftError.text}</p>}
                       <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-brand/15 pt-2">
-                        <button type="button" className="btn-quiet btn-sm" onClick={() => cancelTeaching(message.id)} disabled={creatingDraftId === message.id}>취소</button>
-                        <button type="button" className="btn-primary btn-sm" onClick={() => void createTermsFromBatch(message.id, message.teachingBatch!.drafts)} disabled={creatingDraftId !== null}>{creatingDraftId === message.id ? "추가 중…" : `${message.teachingBatch.drafts.length}개 모두 용어로 추가`}</button>
+                        <button type="button" className="btn-quiet btn-sm" onClick={() => cancelTeaching(message.id)} disabled={busy || historyLoading}>취소</button>
+                        <button type="button" className="btn-primary btn-sm" onClick={() => void createTermsFromBatch(message.id, message.teachingBatch!.drafts)} disabled={busy || historyLoading}>{creatingDraftId === message.id ? "추가 중…" : `${message.teachingBatch.drafts.length}개 모두 용어로 추가`}</button>
                       </div>
                     </div>
                   )}
@@ -438,13 +480,13 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
 
       <form onSubmit={(event) => void submit(event)} className="mt-3 flex items-end gap-2 rounded-xl border border-line bg-panel p-2 shadow-sm focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15">
         <label htmlFor="chat-question" className="sr-only">용어집에 질문</label>
-        <textarea id="chat-question" name="question" autoComplete="off" rows={2} maxLength={20_000} value={question} onChange={(event) => setQuestion(event.target.value)} disabled={!enabled || sending} placeholder={activeTeachingDraft() ? "빠진 정보나 수정할 내용을 알려주세요…" : "용어를 질문하거나 기존 용어집 내용을 붙여넣으세요…"} className="min-h-11 min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm leading-5 text-ink outline-none placeholder:text-ink-3" onKeyDown={(event) => {
+        <textarea id="chat-question" name="question" autoComplete="off" rows={2} maxLength={20_000} value={question} onChange={(event) => setQuestion(event.target.value)} disabled={!enabled || busy || historyLoading || Boolean(historyError)} placeholder={activeTeachingDraft() ? "빠진 정보나 수정할 내용을 알려주세요…" : "용어를 질문하거나 기존 용어집 내용을 붙여넣으세요…"} className="min-h-11 min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 text-base sm:text-sm leading-5 text-ink outline-none placeholder:text-ink-3" onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
           }
         }} />
-        <button type="submit" className="btn-primary h-10 shrink-0" disabled={!enabled || sending || !question.trim()}>{sending ? "답변 중…" : "질문"}</button>
+        <button type="submit" className="btn-primary h-10 shrink-0" disabled={!enabled || busy || historyLoading || Boolean(historyError) || !question.trim()}>{sending ? "답변 중…" : "질문"}</button>
       </form>
     </section>
     </div>

@@ -36,13 +36,13 @@ export function CollapsibleSidebar({
     <aside
       data-sidebar-collapsed={collapsed}
       className={cx(
-        "sticky top-0 z-30 shrink-0 border-b border-line bg-panel/85 backdrop-blur",
+        "sticky top-0 z-30 h-14 shrink-0 border-b border-line bg-panel/85 backdrop-blur",
         "lg:h-screen lg:border-b-0 lg:border-r",
         ready && "lg:transition-[width] lg:duration-200",
         collapsed ? "lg:w-[4.5rem]" : "lg:w-60",
       )}
     >
-      <div className="flex h-14 min-w-0 items-center gap-2 px-3 lg:h-full lg:flex-col lg:items-stretch lg:gap-0 lg:px-0 lg:py-5">
+      <div className="flex h-full min-w-0 items-center gap-2 px-3 lg:flex-col lg:items-stretch lg:gap-0 lg:px-0 lg:py-5">
         <div className="sidebar-header flex shrink-0 items-center lg:w-full lg:px-2 lg:pb-5">
           {brand}
           <button

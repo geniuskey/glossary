@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { StatusBadge } from "@/components/term-badges";
 import { SURFACE_KIND_LABEL } from "@/lib/terms/enums";
@@ -32,10 +32,10 @@ export function SearchBox({
   compact?: boolean;
   autoFocus?: boolean;
 }) {
-  const router = useRouter();
   const inputId = useId();
   const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   const [value, setValue] = useState(defaultValue);
   const [items, setItems] = useState<Suggestion[]>([]);
@@ -112,10 +112,11 @@ export function SearchBox({
   const ordered = [...completions, ...similar];
   const open = focused && !dismissed && ordered.length > 0;
 
-  function go(item: Suggestion) {
-    setDismissed(true);
-    router.push(termHref(item));
-  }
+  useEffect(() => {
+    if (!open || active < 0) return;
+    listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')
+      ?.scrollIntoView({ block: "nearest" });
+  }, [active, open]);
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     // 한글 조합 중의 Enter는 글자를 확정하는 키다. 이걸 후보 선택으로 받으면
@@ -141,7 +142,8 @@ export function SearchBox({
     }
     if (e.key === "Enter" && active >= 0) {
       e.preventDefault();
-      go(ordered[active]!);
+      // 마우스와 같은 링크 경로를 사용해야 편집 화면의 이탈 경고도 실행된다.
+      listRef.current?.querySelector<HTMLAnchorElement>('[aria-selected="true"] a')?.click();
     }
   }
 
@@ -182,18 +184,20 @@ export function SearchBox({
           className={cx(
             "field border-line-strong bg-panel hover:border-brand/35",
             compact
-              ? "h-10 rounded-xl pl-10 pr-11 text-sm shadow-sm"
+              ? "h-10 rounded-xl pl-10 pr-12 text-base sm:text-sm shadow-sm"
               : "h-16 rounded-full pl-12 pr-5 text-base shadow-[0_10px_32px_-18px_rgb(38_32_99_/_0.42)]",
           )}
         />
         {compact && (
-          <span className="kbd pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 sm:inline-flex" aria-hidden>
-            /
-          </span>
+          <button type="submit" aria-label="용어 검색 실행" title="검색 (입력창 이동: /)"
+            className="btn-quiet absolute right-1 top-1/2 h-9 w-10 -translate-y-1/2 p-0">
+            <span className="text-xs font-medium">검색</span>
+          </button>
         )}
 
         {open && (
           <ul
+            ref={listRef}
             id={listId}
             role="listbox"
             aria-label="검색어 후보"
@@ -202,7 +206,7 @@ export function SearchBox({
             // 지운 뒤에야 click이 도착해서 **아무 일도 일어나지 않는다**(R133과
             // 같은 계열의 조용한 실패). 눌러도 포커스가 입력창에 남게 막는다.
             onMouseDown={(e) => e.preventDefault()}
-            className="card absolute left-0 right-0 top-full z-50 mt-2 max-h-[60vh] overflow-y-auto py-1.5 shadow-lg"
+            className="card absolute left-0 right-0 top-full z-50 mt-2 max-h-[60vh] overflow-y-auto overscroll-contain py-1.5 shadow-lg"
           >
             {completions.length > 0 && <GroupLabel>자동완성</GroupLabel>}
             {completions.map((item, i) => (
@@ -213,7 +217,7 @@ export function SearchBox({
                 typed={value}
                 selected={active === i}
                 onHover={() => setActive(i)}
-                onPick={() => go(item)}
+                onPick={() => setDismissed(true)}
               />
             ))}
             {similar.length > 0 && <GroupLabel>비슷한 표기</GroupLabel>}
@@ -225,7 +229,7 @@ export function SearchBox({
                 typed={value}
                 selected={active === completions.length + i}
                 onHover={() => setActive(completions.length + i)}
-                onPick={() => go(item)}
+                onPick={() => setDismissed(true)}
               />
             ))}
           </ul>
@@ -233,7 +237,7 @@ export function SearchBox({
       </div>
 
       {!compact && <div className="mt-4 flex items-center justify-center gap-2 px-1">
-        <button type="submit" className="btn-ghost px-4 py-2 text-xs">
+        <button type="submit" className="btn-primary min-h-11 rounded-full px-6">
           검색
         </button>
         {/* 같은 입력을 시트의 q 필터로 그대로 넘긴다. formAction은 이 버튼으로
@@ -280,23 +284,32 @@ function Option({
       role="option"
       aria-selected={selected}
       onMouseEnter={onHover}
-      onClick={onPick}
-      className={cx(
-        "flex cursor-pointer items-center gap-2 px-3.5 py-2 text-sm",
-        selected && "bg-panel-2",
-      )}
     >
-      <span className="shrink-0 truncate text-ink">
-        <span className="font-semibold">{item.matchedText.slice(0, cut)}</span>
-        {item.matchedText.slice(cut)}
-      </span>
-      {/* canonical은 표준명 자체라 배지가 동어반복이 된다. */}
-      {item.matchedKind !== "canonical" && (
-        <span className="chip shrink-0 px-1.5 py-0 text-[10px]">{SURFACE_KIND_LABEL[item.matchedKind]}</span>
-      )}
-      {concept !== item.matchedText && <span className="truncate text-xs text-ink-3">{concept}</span>}
-      {/* 보완 필요 용어는 숨기지 않고 상태 배지로 현재 정리 수준을 알린다. */}
-      {item.status !== "active" && <StatusBadge status={item.status} className="ml-auto shrink-0 text-[10px]" />}
+      <Link
+        href={termHref(item)}
+        tabIndex={-1}
+        prefetch={false}
+        onClick={(event) => {
+          // 새 탭 열기의 기본 동작 전에 링크를 제거하지 않는다.
+          if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) onPick();
+        }}
+        className={cx(
+          "flex cursor-pointer items-center gap-2 px-3.5 py-2 text-sm",
+          selected && "bg-panel-2",
+        )}
+      >
+        <span className="min-w-0 truncate text-ink" title={item.matchedText}>
+          <span className="font-semibold">{item.matchedText.slice(0, cut)}</span>
+          {item.matchedText.slice(cut)}
+        </span>
+        {/* canonical은 표준명 자체라 배지가 동어반복이 된다. */}
+        {item.matchedKind !== "canonical" && (
+          <span className="chip shrink-0 px-1.5 py-0 text-[10px]">{SURFACE_KIND_LABEL[item.matchedKind]}</span>
+        )}
+        {concept !== item.matchedText && <span className="truncate text-xs text-ink-3">{concept}</span>}
+        {/* 보완 필요 용어는 숨기지 않고 상태 배지로 현재 정리 수준을 알린다. */}
+        {item.status !== "active" && <StatusBadge status={item.status} className="ml-auto shrink-0 text-[10px]" />}
+      </Link>
     </li>
   );
 }
