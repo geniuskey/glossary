@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
 
 export function ProfileForm({
   initialName,
@@ -19,6 +20,7 @@ export function ProfileForm({
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [refreshingSso, setRefreshingSso] = useState(false);
   const [ssoMessage, setSsoMessage] = useState(initialSsoMessage ?? null);
+  useUnsavedChanges(name.trim() !== savedName);
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -85,6 +87,7 @@ export function ProfileForm({
       <div className="flex gap-2">
         <input
           id="profile-name"
+          name="name"
           value={name}
           onChange={(event) => { setName(event.target.value); setMessage(null); }}
           required

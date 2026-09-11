@@ -79,8 +79,8 @@ export function AppShell({
                   aria-label={`${item.label} · ${item.hint}`}
                   title={`${item.label} · ${item.hint}`}
                   className={cx(
-                    "sidebar-nav-link group flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm transition",
-                    "lg:h-auto lg:w-auto lg:justify-start lg:gap-2.5 lg:px-2.5 lg:py-2",
+                    "sidebar-nav-link group flex h-11 min-w-14 shrink-0 flex-col gap-0.5 items-center justify-center rounded-lg px-2 text-sm transition-colors",
+                    "lg:h-auto lg:w-auto lg:flex-row lg:justify-start lg:gap-2.5 lg:px-2.5 lg:py-2",
                     active
                       ? "bg-brand-soft font-medium text-brand"
                       : "text-ink-2 hover:bg-panel-2 hover:text-ink",
@@ -90,6 +90,7 @@ export function AppShell({
                     {item.icon}
                   </span>
                   <span className="sidebar-expanded-only hidden whitespace-nowrap lg:inline">{item.label}</span>
+                  <span className="whitespace-nowrap text-[10px] font-medium lg:hidden">{item.label}</span>
                   <span className="sidebar-expanded-only ml-auto hidden text-[10px] text-ink-3 lg:block">{item.hint}</span>
                 </Link>
               );
@@ -100,7 +101,7 @@ export function AppShell({
 
       <div className={cx(
         "min-w-0 flex-1",
-        wide && "flex min-h-[calc(100svh-3.5rem)] flex-col lg:h-screen lg:min-h-0 lg:overflow-hidden",
+        wide && "flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col lg:h-dvh",
       )}>
         {/* 시트의 필터 바와 고정 표 머리글보다 높은 쌓임 맥락을 만든다. 자식인
             계정 팝오버의 z-index가 아무리 높아도 이 부모가 낮으면 표 아래로

@@ -1,3 +1,5 @@
+import type { SurfaceInput } from "@/lib/terms/schema";
+
 export interface TermTeachingDraft {
   nameEn: string | null;
   nameKo: string | null;
@@ -5,6 +7,9 @@ export interface TermTeachingDraft {
   fullNameKo: string | null;
   definitionMd: string | null;
   bodyMd: string | null;
+  domain?: string[];
+  category?: string[];
+  surfaces?: SurfaceInput[];
   skipped: {
     fullName: boolean;
     definition: boolean;

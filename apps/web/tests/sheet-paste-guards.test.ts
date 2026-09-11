@@ -9,7 +9,7 @@ const sheet = readFileSync(path.join(testDir, "..", "src", "app", "sheet", "page
 
 test("시트 붙여넣기는 쓰기 전에 서버 사전 검사를 거치고 모든 오류를 모달에 표시한다", () => {
   const checkIndex = grid.indexOf('fetch("/api/v1/terms/paste-check"');
-  const commitIndex = grid.indexOf("const [, added] = await Promise.all", checkIndex);
+  const commitIndex = grid.indexOf("const results = await Promise.all", checkIndex);
   expect(checkIndex).toBeGreaterThan(-1);
   expect(commitIndex).toBeGreaterThan(checkIndex);
   expect(grid).toContain("setPasteIssues(plan.errors)");

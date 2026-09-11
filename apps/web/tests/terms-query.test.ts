@@ -5,6 +5,7 @@ import { createTerm } from "../src/lib/terms/create.js";
 import {
   getTermByIdOrSlug,
   listContributionTerms,
+  listGraphTermsWithTotal,
   listPublishedTermRows,
   listRelatedTerms,
   listTermRows,
@@ -14,6 +15,22 @@ import {
 
 const db = createDb(process.env.DATABASE_URL_TEST!);
 const ids: string[] = [];
+
+test("관계도 총계는 표시 제한과 무관하며 도메인·분류·주제 필터를 따른다", async () => {
+  const domain = `graph-count-${Date.now()}`;
+  for (const [index, category, topic] of [[0, "design", "노출"], [1, "design", "노출"], [2, "process", "다른 주제"]] as const) {
+    const fixture = await createTerm({ nameEn: `${domain}-${index}`, domain: [domain], category: [category], topic, status: "active", surfaces: [] }, null);
+    ids.push(fixture.term.id);
+  }
+  const all = await listGraphTermsWithTotal({ domain, limit: 1 });
+  expect(all.items).toHaveLength(1);
+  expect(all.total).toBe(3);
+  const filtered = await listGraphTermsWithTotal({ domain, category: "design", topic: "노출", limit: 1 });
+  expect(filtered.items).toHaveLength(1);
+  expect(filtered.total).toBe(2);
+  const empty = await listGraphTermsWithTotal({ domain, category: "design", topic: "다른 주제" });
+  expect(empty).toEqual({ items: [], total: 0 });
+});
 
 // R43: terms-create.test.ts도 nameEn "AE" -> slug "ae"로 같은 fixture를 만든다.
 // 파일은 순차 실행되지만(fileParallelism: false), 그 파일이 afterEach/afterAll을
@@ -383,4 +400,29 @@ test("termFacets: total은 상태 합과 같은 기준(사전 전체)이다", as
   expect(sum(facets.statuses)).toBe(facets.total);
   expect(facets.needsContribution).toBeGreaterThan(0);
   expect(facets.needsContribution).toBeLessThanOrEqual(facets.total);
+});
+
+
+test("기여 목록 검색과 분야·누락 필터는 총계에도 적용된다", async () => {
+  const fixture = await createTerm({ nameEn: "ContributionFilterProbe", domain: [], status: "draft", category: ["process"], qualityProfile: "context", surfaces: [] }, null);
+  ids.push(fixture.term.id);
+  const result = await listContributionTerms(60, undefined, undefined, { q: "ContributionFilterProbe", category: "process", missing: "definition" });
+  expect(result.items.map((term) => term.id)).toEqual([fixture.term.id]);
+  expect(result.total).toBe(1);
+  const absent = await listContributionTerms(60, undefined, undefined, { q: "ContributionFilterProbe", category: "process", missing: "context" });
+  expect(absent.items).toEqual([]);
+  expect(absent.total).toBe(0);
+});
+
+test("기여 목록 다음 페이지는 중복 없이 나머지 항목을 반환한다", async () => {
+  for (const nameEn of ["ContributionPageProbeOne", "ContributionPageProbeTwo"]) {
+    const fixture = await createTerm({ nameEn, domain: [], status: "draft", surfaces: [] }, null);
+    ids.push(fixture.term.id);
+  }
+  const first = await listContributionTerms(1, undefined, undefined, { q: "ContributionPageProbe", page: 1 });
+  const second = await listContributionTerms(1, undefined, undefined, { q: "ContributionPageProbe", page: 2 });
+  expect(first.items).toHaveLength(1);
+  expect(second.items).toHaveLength(1);
+  expect(second.items[0]!.id).not.toBe(first.items[0]!.id);
+  expect(first.total).toBe(second.total);
 });

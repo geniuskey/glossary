@@ -5,8 +5,6 @@ import { requireAuth, isResponse } from "@/lib/auth/require";
 import { termInputSchema } from "@/lib/terms/schema";
 import {
   createTerm,
-  findRepresentativeDuplicates,
-  representativeDuplicateFieldErrors,
 } from "@/lib/terms/create";
 import { DOMAIN_VALUE_MAX, TERM_QUERY_MAX } from "@/lib/terms/limits";
 import { isAssignableUserId } from "@/lib/terms/owners";
@@ -149,16 +147,6 @@ export const POST = withApiErrors(async (request: Request) => {
   }
   if (!(await businessCategoriesExist(parsed.data.category))) {
     return apiError("validation_failed", "업무 분류를 찾을 수 없습니다.", 400, { field: "category" });
-  }
-
-  const representativeDuplicates = await findRepresentativeDuplicates(parsed.data);
-  if (representativeDuplicates.length > 0) {
-    return apiError(
-      "validation_failed",
-      "같은 대표 표기가 이미 있어 등록할 수 없습니다.",
-      400,
-      { fieldErrors: representativeDuplicateFieldErrors(representativeDuplicates), formErrors: [] },
-    );
   }
 
   const authorId = auth.kind === "user" ? auth.user.id : null;

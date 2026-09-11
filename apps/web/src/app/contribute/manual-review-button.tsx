@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { ReviewQueueStatus } from "@/lib/ai/auto-review";
@@ -41,7 +42,7 @@ export function ManualReviewButton({ termId, revision, initialStatus, aiAvailabl
       });
       if (!response.ok) throw new Error(await responseMessage(response));
       setStatus("queued");
-      window.setTimeout(() => router.refresh(), 1_500);
+      router.refresh();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "AI 검토를 요청하지 못했습니다.");
     } finally {
@@ -53,6 +54,7 @@ export function ManualReviewButton({ termId, revision, initialStatus, aiAvailabl
   const label = busy ? "요청 중…" : status ? LABEL[status] : "AI 검토 요청";
 
   return <div className="flex flex-col items-end gap-1">
+    {status === "ready" && <Link href={`/contribute?tab=agent&termId=${encodeURIComponent(termId)}`} className="btn-quiet btn-sm">제안 보기</Link>}
     <button
       type="button"
       className="btn-quiet btn-sm"
@@ -62,6 +64,7 @@ export function ManualReviewButton({ termId, revision, initialStatus, aiAvailabl
     >
       {label}
     </button>
+    {!aiAvailable && <span className="max-w-52 text-right text-[11px] text-ink-3">AI 연결이 꺼져 있습니다. 직접 내용을 채울 수 있습니다.</span>}
     {error && <span className="max-w-52 text-right text-[11px] leading-4 text-danger" role="alert">{error}</span>}
   </div>;
 }

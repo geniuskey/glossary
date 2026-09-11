@@ -1,4 +1,5 @@
-export const CONTRIBUTION_RELATION_TYPES = ["related_to", "is_a", "part_of", "used_in", "prerequisite_of", "replaces"] as const;
+import { RELATION_TYPES } from "@/lib/terms/relation-values";
+export const CONTRIBUTION_RELATION_TYPES = RELATION_TYPES;
 export type ContributionRelationType = typeof CONTRIBUTION_RELATION_TYPES[number];
 export type ContributionSuggestionField = "definitionMd" | "domain" | "category" | "relation";
 export type ContributionSuggestionSource = "rule" | "agent";

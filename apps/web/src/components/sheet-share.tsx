@@ -101,7 +101,11 @@ export function SheetShare({ baseQuery, filters, domains, categories, topics }: 
 
   return (
     <>
-      <button ref={triggerRef} type="button" className="btn-primary btn-sm" onClick={() => setOpen(true)}>
+      <button ref={triggerRef} type="button" className="btn-primary btn-sm" onClick={() => {
+        setShareFilters({ ...filters });
+        setAnnouncement("");
+        setOpen(true);
+      }}>
         <IconShare /> 공유하기
       </button>
 

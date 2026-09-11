@@ -62,8 +62,11 @@ export function AgentReviewPanel({ initialTerms, initialTermId, autoReviewEnable
   const [lastRejected, setLastRejected] = useState<ContributionSuggestion | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
   const [message, setMessage] = useState<Message>(null);
+  const [pollError, setPollError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
   const current = terms[index];
-  const prepared = current ? reviews[current.id] : undefined;
+  const storedReview = current ? reviews[current.id] : undefined;
+  const prepared = storedReview?.revision === current?.revision ? storedReview : undefined;
   const agentSuggestions = prepared && prepared.revision === current?.revision ? prepared.suggestions : [];
   const readyCount = terms.filter((term) => reviews[term.id]?.revision === term.revision).length;
   const suggestions = useMemo(() => {
@@ -74,23 +77,29 @@ export function AgentReviewPanel({ initialTerms, initialTermId, autoReviewEnable
   }, [agentSuggestions, current, rejectedIds]);
 
   useEffect(() => {
-    if (!autoReviewEnabled || !current || prepared?.revision === current.revision) return;
-    let stopped = false;
+    setPollError(null);
+    if (!autoReviewEnabled || !current || prepared) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
     let attempts = 0;
     const poll = async () => {
-      attempts += 1;
-      const response = await fetch(`/api/v1/contributions/suggestions?termId=${encodeURIComponent(current.id)}&revision=${current.revision}`, { cache: "no-store" }).catch(() => null);
-      if (stopped || !response) return;
-      if (response.status === 200) {
-        const body = await response.json() as { review: PreparedReview };
-        setReviews((items) => ({ ...items, [current.id]: body.review }));
-        return;
+      try {
+        const response = await fetch(`/api/v1/contributions/suggestions?termId=${encodeURIComponent(current.id)}&revision=${current.revision}`, { cache: "no-store", signal: controller.signal });
+        if (response.status === 200) {
+          const body = await response.json() as { review: PreparedReview };
+          if (!controller.signal.aborted) setReviews((items) => ({ ...items, [current.id]: body.review }));
+          return;
+        }
+        if (response.status !== 202) throw new Error(await responseMessage(response, "검토 결과를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요"));
+        if (++attempts >= 20) throw new Error("검토가 예상보다 오래 걸리고 있습니다. 다시 확인하거나 AI 검토 큐에서 진행 상태를 확인해 주세요.");
+        if (!controller.signal.aborted) timer = setTimeout(() => void poll(), 1_500);
+      } catch (error) {
+        if (!controller.signal.aborted) setPollError(error instanceof Error ? error.message : "연결을 확인하고 다시 시도해 주세요.");
       }
-      if (response.status === 202 && attempts < 20) window.setTimeout(() => void poll(), 1_500);
     };
     void poll();
-    return () => { stopped = true; };
-  }, [autoReviewEnabled, current, prepared]);
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [autoReviewEnabled, current, prepared, retry]);
 
   function move(offset: number) {
     if (terms.length === 0) return;
@@ -114,7 +123,7 @@ export function AgentReviewPanel({ initialTerms, initialTermId, autoReviewEnable
         });
         if (!response.ok) throw new Error(await responseMessage(response, "관계 제안을 승인하지 못했습니다"));
         setReviews((items) => ({ ...items, [current.id]: { ...prepared, suggestions: prepared.suggestions.filter((item) => item.id !== suggestion.id) } }));
-        setMessage({ kind: "ok", text: "용어 관계를 승인해 RAG 관계 근거에 반영했습니다." });
+        setMessage({ kind: "ok", text: "용어 관계를 저장했습니다. 챗봇이 관련 용어를 찾을 때 참고합니다." });
         return;
       }
       const response = await fetch(`/api/v1/terms/${current.id}`, {
@@ -231,13 +240,21 @@ export function AgentReviewPanel({ initialTerms, initialTermId, autoReviewEnable
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-semibold text-ink">검토할 제안</h2>
               <span className="text-xs tabular-nums text-ink-3">{suggestions.length}개</span>
-              {!prepared && autoReviewEnabled && <span className="ml-auto text-xs text-brand" role="status">자동 검토 준비 중…</span>}
+              {!prepared && autoReviewEnabled && !pollError && <span className="ml-auto text-xs text-brand" role="status">자동 검토 준비 중…</span>}
               {prepared && <span className="ml-auto text-xs text-ok" role="status">AI 검토 완료</span>}
             </div>
+            {pollError && <div role="alert" className="mb-3 rounded-lg bg-warn-soft p-3 text-xs text-ink">
+              <p>{pollError}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button type="button" className="btn-quiet btn-sm" onClick={() => setRetry((value) => value + 1)}>다시 확인</button>
+                <Link href="/contribute?tab=queue" className="btn-quiet btn-sm">진행 상태 보기</Link>
+                <a href={`/contribute?tab=agent&termId=${encodeURIComponent(current.id)}`} className="btn-quiet btn-sm">최신 내용 불러오기</a>
+              </div>
+            </div>}
             {message && <p role={message.kind === "bad" ? "alert" : "status"} className={cx("mb-3 rounded-lg px-3 py-2 text-xs", message.kind === "bad" ? "bg-danger-soft text-danger" : "bg-ok-soft text-ok")}>{message.text}</p>}
             {lastRejected && (
               <p role="status" className="mb-3 flex items-center gap-2 rounded-lg bg-panel-2 px-3 py-2 text-xs text-ink-2">
-                {FIELD_LABEL[lastRejected.field]} 제안을 거절했습니다.
+                {FIELD_LABEL[lastRejected.field]} 제안을 이번에 건너뛰었습니다.
                 <button type="button" className="link ml-auto" onClick={undoReject}>실행 취소</button>
               </p>
             )}
@@ -260,11 +277,11 @@ export function AgentReviewPanel({ initialTerms, initialTermId, autoReviewEnable
                   </div>
                   <p className="mt-1 text-xs leading-5 text-ink-3">{suggestion.reason}</p>
                   <div className="mt-3 flex justify-end gap-2">
-                    <button type="button" className="btn-quiet btn-sm" disabled={busy !== null} onClick={() => void reject(suggestion)}>{busy?.kind === "reject" && busy.id === suggestion.id ? "처리 중…" : "거절"}</button>
-                    <button type="button" className="btn-primary btn-sm" disabled={busy !== null} onClick={() => void approve(suggestion)}>{busy?.kind === "approve" && busy.id === suggestion.id ? "저장 중…" : "승인"}</button>
+                    <button type="button" className="btn-quiet btn-sm" disabled={busy !== null} onClick={() => void reject(suggestion)}>{busy?.kind === "reject" && busy.id === suggestion.id ? "처리 중…" : suggestion.source === "rule" ? "이번에 건너뛰기" : "거절"}</button>
+                    <button type="button" className="btn-primary btn-sm" disabled={busy !== null} onClick={() => void approve(suggestion)}>{busy?.kind === "approve" && busy.id === suggestion.id ? "저장 중…" : "승인하고 저장"}</button>
                   </div>
                 </article>
-              )) : <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-ink-3">{!autoReviewEnabled ? "관리자가 자동 검토를 켜면 AI 제안이 여기에 준비됩니다." : prepared ? "AI 검토를 마쳤으며, 현재 리비전에는 제안할 변경이 없습니다." : "AI가 이 용어를 검토하고 있습니다…"}</p>}
+              )) : <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-ink-3">{prepared ? "AI 검토를 마쳤으며, 현재 내용에는 제안할 변경이 없습니다." : pollError ? "검토 결과를 아직 확인하지 못했습니다." : !autoReviewEnabled ? "현재 검토할 제안이 없습니다. 직접 편집하거나 정리 대기에서 AI 검토를 요청할 수 있습니다." : "AI가 이 용어를 검토하고 있습니다…"}</p>}
             </div>
           </div>
         </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -169,30 +171,7 @@ export function TermForm({
   const slugDraftIssue = slugValidationMessage(normalizedSlug);
   const menuSurface = surfaceMenu ? form.surfaces[surfaceMenu.index] : undefined;
 
-  useEffect(() => {
-    if (!dirty || savedSlug !== null) return;
-
-    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    const warnBeforeLinkNavigation = (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const anchor = target.closest<HTMLAnchorElement>("a[href]");
-      if (!anchor || anchor.target === "_blank" || anchor.hasAttribute("download")) return;
-      if (window.confirm("저장하지 않은 변경사항이 있습니다. 이 페이지를 나갈까요?")) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    };
-
-    window.addEventListener("beforeunload", warnBeforeUnload);
-    document.addEventListener("click", warnBeforeLinkNavigation, true);
-    return () => {
-      window.removeEventListener("beforeunload", warnBeforeUnload);
-      document.removeEventListener("click", warnBeforeLinkNavigation, true);
-    };
-  }, [dirty, savedSlug]);
+  useUnsavedChanges(dirty && savedSlug === null);
 
   useEffect(() => {
     if (!saveToast) return;

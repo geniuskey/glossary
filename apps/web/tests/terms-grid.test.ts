@@ -25,6 +25,8 @@ import {
   planClear,
   planFill,
   planPaste,
+  planHeaderImport,
+  pasteCheckBatches,
   rangeCells,
   rangeToTsv,
   rowLabel,
@@ -583,4 +585,31 @@ test("clampMenuPosition: 메뉴가 화면보다 커도 왼쪽 위 여백에 붙�
     x: MENU_EDGE_GAP,
     y: MENU_EDGE_GAP,
   });
+});
+
+ test("Excel quoted multiline cells preserve tabs and escaped quotes", () => {
+   expect(parseClipboardMatrix('ABC\t"first\r\nsecond\t""quoted"""\r\nDEF\tlast\r\n')).toEqual([
+     ["ABC", 'first\nsecond\t"quoted"'], ["DEF", "last"],
+   ]);
+ });
+ test("header import maps reordered and hidden fields for 1201 rows", () => {
+   const matrix = [["한줄정의", "약어", "본문"], ...Array.from({ length: 1201 }, (_, i) => [`definition ${i}\nsecond`, "ABC", "body"])];
+   const result = planHeaderImport(matrix, GRID_COLUMNS)!;
+   expect(result.plan.errors).toEqual([]);
+   expect(result.plan.updates).toEqual([]);
+   expect(result.creates).toHaveLength(1201);
+   expect(result.creates[0]).toEqual({ line: 2, values: { nameEn: "ABC", definitionMd: "definition 0\nsecond", bodyMd: "body" } });
+ });
+ test("header import rejects unknown and repeated headers without losing columns", () => {
+   expect(planHeaderImport([["약어", "unknown"], ["ABC", "value"]], GRID_COLUMNS)?.plan.errors).toHaveLength(1);
+   expect(planHeaderImport([["약어", "대표 영문 표기"]], GRID_COLUMNS)?.plan.errors).toHaveLength(1);
+   expect(planHeaderImport([["ABC", "value"]], GRID_COLUMNS)).toBeNull();
+ });
+
+test("1201 operations are checked in bounded batches without omission", () => {
+  const operations = Array.from({ length: 1201 }, (_, i) => i);
+  const batches = pasteCheckBatches(operations);
+  expect(batches.map((batch) => batch.length)).toEqual([200, 200, 200, 200, 200, 200, 1]);
+  expect(batches.flat()).toEqual(operations);
+  expect(pasteCheckBatches([])).toEqual([]);
 });

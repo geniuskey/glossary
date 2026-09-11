@@ -17,6 +17,16 @@ export default function AboutPage() {
         <InfoCard title="사람과 도구가 함께 사용">웹 검색과 표 편집뿐 아니라 OpenAPI와 조회 API로 외부 도구도 같은 사전을 사용합니다.</InfoCard>
       </section>
 
+      <section className="mt-8 card p-6" aria-labelledby="use-heading">
+        <h2 id="use-heading" className="text-base font-semibold text-ink">언제 도움이 되나요?</h2>
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-ink-2">
+          <li>새 팀원이 낯선 약어를 만났을 때, 다른 이름으로도 같은 개념과 업무 맥락을 찾습니다.</li>
+          <li>문서를 작성할 때, 대표 표기와 비권장·금지 표기를 확인해 표현의 혼선을 줄입니다.</li>
+          <li>용어 담당자가 정의와 사용 예시를 보완하고, 동료가 변경 이력을 확인합니다.</li>
+        </ul>
+        <p className="mt-4 text-sm leading-7 text-ink-2">용어의 ‘기준 충족’ 상태는 설정된 작성 요건을 채웠다는 뜻이며 공식 승인을 의미하지 않습니다. 중요한 문서에 사용하기 전에는 정의·도메인·담당자와 사용 지침을 함께 확인하세요.</p>
+      </section>
+
       <section className="mt-10 card p-6" aria-labelledby="project-heading">
         <div className="flex items-center gap-2">
           <h2 id="project-heading" className="text-base font-semibold text-ink">오픈 프로젝트</h2>

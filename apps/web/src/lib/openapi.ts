@@ -12,6 +12,8 @@
 // 틀렸을 때의 비용: yaml을 기대하는 외부 도구가 있으면 GET /api/v1/openapi의
 // JSON을 변환해야 한다(docs/operations.md에 명령을 적어뒀다).
 
+import { relationPaths } from "./terms/relation-openapi";
+
 const errorEnvelope = {
   type: "object",
   required: ["error"],
@@ -145,6 +147,7 @@ export const openApiSpec = {
     },
   },
   paths: {
+    ...relationPaths,
     "/account": {
       patch: {
         summary: "현재 사용자의 표시 이름 변경",
@@ -893,8 +896,8 @@ export const openApiSpec = {
         },
       },
       post: {
-        summary: "용어집에 근거한 AI 질문",
-        description: "관련 용어를 근거로 답하고, 모르는 용어는 대화로 초안을 수집합니다. 여러 줄 용어집을 붙여넣으면 최대 25개 초안으로 구조화합니다.",
+        summary: "용어집 근거 질문과 용어 생성·수정안 작성",
+        description: "질문·등록·수정 의도를 구분합니다. 근거 답변에는 주장별 인용과 구절·리비전 스냅샷인 grounded를 반환하며, 같은 도메인 안에서 최대 2회 검색합니다. 등록은 초안, 수정은 적용 전 edit 제안을 반환합니다. 로그인 세션 응답에는 저장된 messages도 포함됩니다.",
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",
           required: ["question"],
@@ -902,6 +905,7 @@ export const openApiSpec = {
           properties: {
             question: { type: "string", minLength: 1, maxLength: 20000 },
             sessionId: { type: "string", format: "uuid", description: "로그인 사용자가 이어갈 대화 세션" },
+            domain: { type: ["string", "null"], minLength: 1, maxLength: 100, description: "검색할 도메인 label. 생략하거나 null이면 전체 도메인" },
             history: { type: "array", maxItems: 8, items: { type: "object", required: ["role", "content"], properties: {
               role: { type: "string", enum: ["user", "assistant"] },
               content: { type: "string", minLength: 1, maxLength: 4000 },
@@ -916,13 +920,34 @@ export const openApiSpec = {
                 fullNameKo: { type: ["string", "null"] },
                 definitionMd: { type: ["string", "null"] },
                 bodyMd: { type: ["string", "null"] },
+                domain: { type: "array", items: { type: "string" } },
+                category: { type: "array", items: { type: "string" } },
+                surfaces: { type: "array", items: { type: "object" } },
                 skipped: { type: "object" },
               },
             },
           },
         } } } },
         responses: {
-          "200": json("용어집 근거 답변과 출처, 또는 확인 전 teaching/teachingBatch 초안", { type: "object" }),
+          "200": json("근거 답변 또는 teaching/teachingBatch/edit 제안. edit는 로그인 세션에서만 적용 가능", {
+            type: "object", properties: {
+              answer: { type: "string" },
+              grounded: { type: "object", required: ["claims", "uncertainties", "evidence", "searchedQueries", "domain"], properties: {
+                claims: { type: "array", items: { type: "object", required: ["text", "evidenceIds"], properties: {
+                  text: { type: "string" }, evidenceIds: { type: "array", minItems: 1, items: { type: "string" } },
+                } } },
+                uncertainties: { type: "array", items: { type: "string" } },
+                searchedQueries: { type: "array", maxItems: 2, items: { type: "string" } },
+                domain: { type: ["string", "null"] },
+                evidence: { type: "array", items: { type: "object", required: ["id", "slug", "title", "revision", "updatedAt", "field", "excerpt"], properties: {
+                  id: { type: "string" }, termId: { type: "string", format: "uuid" }, slug: { type: "string" }, title: { type: "string" },
+                  revision: { type: "integer", minimum: 0 }, updatedAt: { type: "string", format: "date-time" },
+                  field: { type: "string", enum: ["metadata", "definition", "body", "relationship"] },
+                  excerpt: { type: "string" }, start: { type: "integer", minimum: 0, description: "원문의 UTF-16 오프셋" }, relatedTerm: { type: "object" },
+                } } },
+              } },
+            },
+          }),
           "400": errorResponse("validation_failed"),
           "401": errorResponse("unauthorized"),
           "429": errorResponse("rate_limited"),
@@ -932,6 +957,7 @@ export const openApiSpec = {
       },
       patch: {
         summary: "용어 초안 작업이 반영된 대화 메시지 저장",
+        description: "서버에 저장된 edit 수정안·실행 상태와 grounded 답변·구절·출처는 변경할 수 없습니다. 기존 메시지가 누락되면 409를 반환합니다.",
         security: [{ sessionCookie: [] }],
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",
@@ -957,6 +983,26 @@ export const openApiSpec = {
           "204": { description: "삭제됨" },
           "401": errorResponse("unauthorized"),
           "404": errorResponse("not_found"),
+        },
+      },
+    },
+    "/chat/actions": {
+      post: {
+        summary: "내 대화에 저장된 용어 수정안 적용 또는 취소",
+        description: "클라이언트는 변경 내용을 보내지 않고 서버의 수정안 ID만 지정합니다. 적용은 리비전 검사 후 용어·이력·완료 기록을 함께 저장합니다. 이미 처리된 요청은 저장된 결과를 반환하며 중복 실행하지 않습니다.",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object", additionalProperties: false, required: ["sessionId", "actionId", "action"],
+          properties: {
+            sessionId: { type: "string", format: "uuid" }, actionId: { type: "string", format: "uuid" },
+            action: { type: "string", enum: ["apply", "cancel"] },
+          },
+        } } } },
+        responses: {
+          "200": json("처리된 edit 수정안. appliedRevision은 적용된 리비전 번호", { type: "object" }),
+          "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden"), "404": errorResponse("not_found 또는 term_not_found"),
+          "409": errorResponse("revision_conflict"),
         },
       },
     },

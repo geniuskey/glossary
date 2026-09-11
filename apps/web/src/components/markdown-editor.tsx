@@ -97,6 +97,8 @@ export function MarkdownEditor({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [mode, setMode] = useState<"edit" | "preview">("edit");
   const [fullscreen, setFullscreen] = useState(false);
+  const fullscreenRootRef = useRef<HTMLDivElement>(null);
+  const fullscreenButtonRef = useRef<HTMLButtonElement>(null);
 
   onChangeRef.current = onChange;
 
@@ -113,7 +115,23 @@ export function MarkdownEditor({
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    fullscreenButtonRef.current?.focus({ preventScroll: true });
     const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Tab") {
+        const controls = Array.from(fullscreenRootRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex="0"], [contenteditable="true"]',
+        ) ?? []).filter((element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden");
+        const first = controls[0];
+        const last = controls.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+        return;
+      }
       if (event.key !== "Escape") return;
       event.preventDefault();
       setFullscreen(false);
@@ -122,6 +140,7 @@ export function MarkdownEditor({
     return () => {
       window.removeEventListener("keydown", closeOnEscape);
       document.body.style.overflow = previousOverflow;
+      fullscreenButtonRef.current?.focus({ preventScroll: true });
     };
   }, [fullscreen]);
 
@@ -250,6 +269,7 @@ export function MarkdownEditor({
 
   return (
     <div
+      ref={fullscreenRootRef}
       data-markdown-fullscreen={fullscreen}
       role={fullscreen ? "dialog" : undefined}
       aria-modal={fullscreen || undefined}
@@ -273,6 +293,7 @@ export function MarkdownEditor({
               <button type="button" aria-pressed={mode === "preview"} className={`btn-sm ${mode === "preview" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("preview")}>미리보기</button>
             </div>
             <button
+              ref={fullscreenButtonRef}
               type="button"
               className="btn-ghost btn-sm"
               aria-pressed={fullscreen}

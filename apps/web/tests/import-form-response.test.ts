@@ -41,6 +41,22 @@ test("dry-run인데 report 모양이 아니면 성공 바디라도 error로 떨�
   expect(outcome.kind).toBe("error");
 });
 
+test.each([
+  { fileErrors: undefined },
+  { ignoredHeaders: null },
+  { ready: -1 },
+  { total: Infinity },
+  { ready: 2 },
+])("검사 응답에 표시 필드가 없거나 행 수가 잘못되면 등록 화면을 열지 않는다: %j", (invalid) => {
+  const report = {
+    total: 1, ready: 1, conflicts: [], duplicatesInFile: [], errors: [],
+    fileErrors: [], ignoredHeaders: [], ...invalid,
+  };
+  expect(interpretImportResponse(true, { report }, true)).toEqual({
+    kind: "error", message: "서버 응답 형식이 올바르지 않습니다.",
+  });
+});
+
 test("반영 성공 응답은 created/skipped를 담아 applySuccess로 판정한다", () => {
   const outcome = interpretImportResponse(
     true,

@@ -7,6 +7,7 @@ import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
 let currentCookieValue: string | undefined;
 
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
   cookies: async () => ({
     get: (name: string) => name === SESSION_COOKIE && currentCookieValue
       ? { name, value: currentCookieValue }
@@ -52,15 +53,28 @@ test("붙여넣기 사전 검사는 모든 행의 오류를 한 응답에 모은
     ],
   }));
   expect(response.status).toBe(200);
-  const body = await response.json() as { ok: boolean; errors: string[] };
+  const body = await response.json() as { ok: boolean; errors: string[]; warnings: string[] };
   expect(body.ok).toBe(false);
   expect(body.errors.some((error) => error.includes("1번째 줄 · 도메인"))).toBe(true);
   expect(body.errors.some((error) => error.includes("2번째 줄 · 업무 분류"))).toBe(true);
   expect(body.errors.some((error) => error.includes("3번째 줄 · 상태"))).toBe(true);
-  expect(body.errors.some((error) => error.includes("1, 2번째 줄") && error.includes("서로 중복"))).toBe(true);
+  expect(body.warnings.some((error) => error.includes("1, 2번째 줄") && error.includes("서로 중복"))).toBe(true);
 });
 
 test("붙여넣기 사전 검사는 인증된 편집자만 사용할 수 있다", async () => {
   currentCookieValue = undefined;
   expect((await POST(request({ updates: [], creates: [] }))).status).toBe(401);
+});
+
+test("같은 약어는 서로 다른 의미로 등록할 수 있다", async () => {
+  await loginAsEditor();
+  const response = await POST(request({ updates: [], creates: [
+    { line: 2, values: { nameEn: "ABC", definitionMd: "첫 번째 의미" } },
+    { line: 3, values: { nameEn: "ABC", definitionMd: "두 번째 의미" } },
+  ] }));
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(body.ok).toBe(true);
+  expect(body.errors).toEqual([]);
+  expect(body.warnings.length).toBeGreaterThan(0);
 });
