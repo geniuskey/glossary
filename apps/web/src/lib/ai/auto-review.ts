@@ -4,6 +4,7 @@ import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { aiReviewQueue, aiReviewSuggestions, termRelations, terms, users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { currentRevisionNumber } from "@/lib/terms/update";
+import { changeRelation, relationForDecision } from "@/lib/terms/relations";
 import { getTermByIdOrSlug, termNeedsContribution } from "@/lib/terms/query";
 import { loadAiConfig, publicAiConfig } from "./config";
 import { generateContributionSuggestions } from "./contribution-agent";
@@ -81,7 +82,7 @@ async function materializeRelationSuggestions(
   for (const suggestion of relationSuggestions) {
     const key = `${suggestion.value.targetTermId}:${suggestion.value.relationType}`;
     const found = byKey.get(key);
-    if (found?.status === "approved" || found?.status === "rejected") continue;
+    if (found?.status === "approved" || found?.status === "rejected" || found?.createdBy || found?.reviewedBy) continue;
     const targetRevision = await currentRevisionNumber(suggestion.value.targetTermId);
     if (targetRevision < 1) continue;
     let relationId: string | undefined;
@@ -92,7 +93,7 @@ async function materializeRelationSuggestions(
         evidenceMd: suggestion.reason,
         sourceRevision: revision,
         targetRevision,
-      }).where(and(eq(termRelations.id, found.id), eq(termRelations.status, "proposed")));
+      }).where(and(eq(termRelations.id, found.id), eq(termRelations.status, "proposed"), sql`${termRelations.createdBy} is null`, sql`${termRelations.reviewedBy} is null`));
     } else {
       const [created] = await getDb().insert(termRelations).values({
         sourceTermId: termId,
@@ -106,19 +107,19 @@ async function materializeRelationSuggestions(
       }).onConflictDoNothing().returning({ id: termRelations.id });
       relationId = created?.id;
       if (!relationId) {
-        const [raced] = await getDb().select({ id: termRelations.id, status: termRelations.status }).from(termRelations).where(and(
+        const [raced] = await getDb().select({ id: termRelations.id, status: termRelations.status, createdBy: termRelations.createdBy, reviewedBy: termRelations.reviewedBy }).from(termRelations).where(and(
           eq(termRelations.sourceTermId, termId),
           eq(termRelations.targetTermId, suggestion.value.targetTermId),
           eq(termRelations.relationType, suggestion.value.relationType),
         )).limit(1);
-        if (raced?.status === "proposed") {
+        if (raced?.status === "proposed" && !raced.createdBy && !raced.reviewedBy) {
           relationId = raced.id;
           await getDb().update(termRelations).set({
             confidence: suggestion.value.confidence,
             evidenceMd: suggestion.reason,
             sourceRevision: revision,
             targetRevision,
-          }).where(and(eq(termRelations.id, raced.id), eq(termRelations.status, "proposed")));
+          }).where(and(eq(termRelations.id, raced.id), eq(termRelations.status, "proposed"), sql`${termRelations.createdBy} is null`, sql`${termRelations.reviewedBy} is null`));
         }
       }
     }
@@ -370,23 +371,14 @@ export async function decidePreparedRelationSuggestion(input: {
     item.id === input.suggestionId && item.field === "relation"
   ));
   if (!review || !suggestion?.value.relationId) return false;
-  const [relation] = await getDb().select().from(termRelations).where(eq(termRelations.id, suggestion.value.relationId)).limit(1);
+  const snapshot = await relationForDecision(suggestion.value.relationId);
+  const relation = snapshot?.relation;
   if (!relation || relation.status !== "proposed" || relation.sourceTermId !== input.termId) return false;
+  if (relation.targetTermId !== suggestion.value.targetTermId || relation.relationType !== suggestion.value.relationType
+    || relation.evidenceMd !== suggestion.reason || relation.confidence !== suggestion.value.confidence) return false;
   if (relation.sourceRevision && await currentRevisionNumber(relation.sourceTermId) !== relation.sourceRevision) return false;
   if (relation.targetRevision && await currentRevisionNumber(relation.targetTermId) !== relation.targetRevision) return false;
 
-  const remaining = review.suggestions.filter((item) => item.id !== input.suggestionId);
-  return getDb().transaction(async (tx) => {
-    const [updated] = await tx.update(termRelations).set({
-      status: input.decision,
-      reviewedBy: input.reviewedBy,
-      reviewedAt: new Date(),
-    }).where(and(eq(termRelations.id, relation.id), eq(termRelations.status, "proposed"))).returning({ id: termRelations.id });
-    if (!updated) return false;
-    await tx.update(aiReviewSuggestions).set({ suggestions: remaining }).where(and(
-      eq(aiReviewSuggestions.termId, input.termId),
-      eq(aiReviewSuggestions.revision, input.revision),
-    ));
-    return true;
-  });
+  const result = await changeRelation(relation.id, { action: input.decision, version: snapshot!.version }, input.reviewedBy);
+  return "ok" in result;
 }

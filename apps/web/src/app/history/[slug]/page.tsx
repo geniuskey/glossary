@@ -52,7 +52,7 @@ export default async function TermHistoryPage({ params }: { params: Promise<{ sl
           시각이 먼저 읽히도록 배치한다. */}
       <ol className="relative ml-2 border-l border-line pl-5">
         {revisions.map((r, i) => (
-          <li key={r.id} className="relative pb-5 last:pb-0">
+          <li key={r.id} id={`revision-${r.revisionNumber}`} className="relative scroll-mt-24 pb-5 last:pb-0">
             <span
               aria-hidden
               className={`absolute -left-[27px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-paper ${

@@ -8,6 +8,7 @@ import { createTerm } from "../src/lib/terms/create.js";
 let currentCookieValue: string | undefined;
 
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
   cookies: async () => ({
     get: (name: string) => name === SESSION_COOKIE && currentCookieValue
       ? { name, value: currentCookieValue }
@@ -26,7 +27,7 @@ afterEach(async () => {
   currentCookieValue = undefined;
 });
 
-test("새 대표 표기가 기존 추가 표기와 겹치면 등록하지 않는다", async () => {
+test("새 대표 표기가 기존 추가 표기와 겹쳐도 경고와 함께 등록한다", async () => {
   const [user] = await db.insert(users).values({
     email: `create-route-${Date.now()}@example.com`,
     name: "생성 라우트 테스트",
@@ -53,15 +54,8 @@ test("새 대표 표기가 기존 추가 표기와 겹치면 등록하지 않는
       surfaces: [],
     }),
   }));
-  const body = await response.json() as {
-    error: { code: string; message: string; details: { fieldErrors: Record<string, string[]> } };
-  };
-
-  expect(response.status).toBe(400);
-  expect(body.error.code).toBe("validation_failed");
-  expect(body.error.message).toContain("등록할 수 없습니다");
-  expect(body.error.details.fieldErrors.nameEn?.join(" ")).toContain(existing.term.slug);
-
-  const rejected = await db.select({ id: terms.id }).from(terms).where(eq(terms.nameEn, "collision-alias"));
-  expect(rejected).toHaveLength(0);
+  const body = await response.json();
+  expect(response.status).toBe(201);
+  createdTermIds.push(body.term.id);
+  expect(body.warnings.length).toBeGreaterThan(0);
 });

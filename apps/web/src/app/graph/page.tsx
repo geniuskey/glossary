@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { GraphFilterBar } from "@/components/graph-filter-bar";
 import { TermGraph } from "@/components/term-graph";
+import { SemanticGraphWorkspace } from "@/components/semantic-graph-workspace";
+import { semanticGraphRelations } from "@/lib/terms/relations";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { listDomains } from "@/lib/terms/domains";
 import { DOMAIN_VALUE_MAX } from "@/lib/terms/limits";
-import { listGraphTerms, termFacets } from "@/lib/terms/query";
+import { listGraphTermsWithTotal, termFacets } from "@/lib/terms/query";
 
 export const metadata = { title: "용어 관계도" };
 
@@ -22,7 +25,17 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
   const [facets, domainOptions] = await Promise.all([termFacets(), listDomains()]);
   const category = facets.categories.some((facet) => facet.value === rawCategory) ? rawCategory : undefined;
   const topic = first(params.topic) ?? (rawCategory && !category ? rawCategory : undefined);
-  const terms = await listGraphTerms({ domain, category, topic, limit: 100 });
+  const { items: terms, total } = await listGraphTermsWithTotal({ domain, category, topic, limit: 100 });
+  const semantic = first(params.view) === "semantic";
+  const relations = semantic ? await semanticGraphRelations(terms.map((term) => term.id)) : { items: [], omitted: 0 };
+  const filters = new URLSearchParams();
+  if (domain) filters.set("domain", domain);
+  if (category) filters.set("category", category);
+  if (topic) filters.set("topic", topic);
+  const classificationHref = filters.size ? `/graph?${filters}` : "/graph";
+  filters.set("view", "semantic");
+  const semanticHref = `/graph?${filters}`;
+  const number = new Intl.NumberFormat("ko-KR");
 
   return (
     <AppShell user={user} title="용어 관계도" current="graph" wide>
@@ -32,7 +45,8 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
             <p className="text-xs font-semibold tracking-[0.14em] text-brand lg:hidden">TERM MAP</p>
             <p className="mt-1 text-xl font-semibold lg:hidden">용어 관계도</p>
             <p className="mt-1 text-xs text-ink-3 lg:mt-0">
-              {terms.length}개 용어 · 연결 기준을 선택하고 노드를 눌러 주변 용어를 살펴보세요.
+              전체 {number.format(total)}개 중 {number.format(terms.length)}개 표시
+              {total > terms.length ? " · 필터를 좁히면 나머지 용어를 확인할 수 있습니다." : " · 노드를 눌러 연결을 살펴보세요."}
             </p>
           </div>
           <GraphFilterBar
@@ -40,11 +54,17 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
             domains={facets.domains.map((f) => ({ value: f.value, label: f.value }))}
             categories={facets.categories.map((f) => ({ value: f.value, label: f.label }))}
             topics={facets.topics.map((f) => ({ value: f.value, label: f.value }))}
+            view={semantic ? "semantic" : undefined}
           />
         </div>
+        <nav className="mt-3 flex gap-2" aria-label="관계도 보기">
+          <Link href={classificationHref} aria-current={!semantic ? "page" : undefined} className={!semantic ? "btn-primary text-xs" : "btn-ghost text-xs"}>분류 관계</Link>
+          <Link href={semanticHref} aria-current={semantic ? "page" : undefined} className={semantic ? "btn-primary text-xs" : "btn-ghost text-xs"}>의미 관계</Link>
+        </nav>
       </header>
       <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4 lg:p-6">
-        <TermGraph terms={terms} domainColors={domainOptions.map(({ label, color }) => ({ label, color }))} />
+        {semantic ? <SemanticGraphWorkspace terms={terms} relations={relations.items} omitted={relations.omitted} domainColors={domainOptions.map(({ label, color }) => ({ label, color }))} />
+          : <TermGraph terms={terms} domainColors={domainOptions.map(({ label, color }) => ({ label, color }))} />}
       </div>
     </AppShell>
   );

@@ -6,6 +6,7 @@ import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
 
 let currentCookieValue: string | undefined;
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
   cookies: async () => ({
     get: (name: string) => name === SESSION_COOKIE && currentCookieValue ? { name, value: currentCookieValue } : undefined,
   }),

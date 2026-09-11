@@ -12,6 +12,17 @@ const config = {
 
 afterEach(() => vi.unstubAllGlobals());
 
+test("사용자가 알려준 도메인과 별칭은 등록안과 후속 대화에 보존한다", async () => {
+  const fields = { nameEn: "AE", nameKo: null, fullNameEn: null, fullNameKo: null, definitionMd: "노출 제어", bodyMd: null, skipped: { fullName: true, definition: false, body: true } };
+  aiJson({ ...fields, domain: ["ISP"], surfaces: [{ text: "자동노출", kind: "alias" }] });
+  const first = await collectTermTeaching(config, "ISP 도메인의 AE를 등록해줘. 별칭은 자동노출", [], null);
+  expect(first.draft).toMatchObject({ domain: ["ISP"], surfaces: [{ text: "자동노출", kind: "alias", lang: "ko" }] });
+  aiJson({ ...fields, definitionMd: "노출을 자동으로 제어" });
+  const next = await collectTermTeaching(config, "정의를 노출을 자동으로 제어로 바꿔줘", [], first.draft);
+  expect(next.draft?.domain).toEqual(["ISP"]);
+  expect(next.draft?.surfaces).toEqual(first.draft?.surfaces);
+});
+
 function aiJson(value: unknown) {
   vi.stubGlobal("fetch", vi.fn(async () => Response.json({
     choices: [{ message: { content: JSON.stringify(value) } }],

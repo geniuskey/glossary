@@ -20,16 +20,22 @@ export function AccountMenu({
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const label = user.name || user.email;
 
   useEffect(() => {
     if (!open) return;
+    menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
 
     function closeOutside(event: PointerEvent) {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     }
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
     }
 
     document.addEventListener("pointerdown", closeOutside);
@@ -41,10 +47,19 @@ export function AccountMenu({
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative" onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+    }}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((value) => !value)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
         aria-haspopup="menu"
         aria-controls="account-submenu"
         aria-expanded={open}
@@ -61,7 +76,7 @@ export function AccountMenu({
           {label.slice(0, 1).toUpperCase()}
         </span>
         <span className={cx(
-          "hidden min-w-0 flex-1 flex-col leading-tight lg:flex",
+          "hidden min-w-0 max-w-40 flex-1 flex-col leading-tight lg:flex",
           placement === "sidebar" && "sidebar-expanded-only",
         )}>
           <span className="truncate text-xs font-medium">{label}</span>
@@ -73,9 +88,19 @@ export function AccountMenu({
       </button>
 
       <div
+        ref={menuRef}
         id="account-submenu"
         role="menu"
         hidden={!open}
+        onKeyDown={(event) => {
+          if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+          event.preventDefault();
+          const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+          const index = items.indexOf(document.activeElement as HTMLElement);
+          const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
+            : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+          items[next]?.focus();
+        }}
         className={cx(
           "account-popover absolute z-50 w-56 rounded-xl border border-line bg-panel p-1.5 shadow-xl shadow-ink/10",
           placement === "sidebar"

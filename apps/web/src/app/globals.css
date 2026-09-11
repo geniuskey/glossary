@@ -19,7 +19,7 @@
   --line-strong: 214 209 200;
   --ink: 27 29 34;
   --ink-2: 88 93 102;
-  --ink-3: 138 143 152;
+  --ink-3: 105 110 120;
   --brand: 67 56 202;
   --brand-2: 99 87 226;
   --brand-soft: 238 236 253;
@@ -28,9 +28,9 @@
   --accent-soft: 255 235 227;
   --info: 37 99 235;
   --info-soft: 232 240 254;
-  --ok: 21 128 61;
+  --ok: 21 120 57;
   --ok-soft: 226 244 232;
-  --warn: 180 111 8;
+  --warn: 151 87 8;
   --warn-soft: 252 242 219;
   --danger: 190 40 40;
   --danger-soft: 253 232 232;
@@ -63,7 +63,7 @@
     --line-strong: 62 68 78;
     --ink: 232 230 226;
     --ink-2: 165 170 179;
-    --ink-3: 122 128 138;
+    --ink-3: 151 157 168;
     --brand: 141 133 246;
     --brand-2: 165 158 250;
     --brand-soft: 39 38 66;
@@ -106,7 +106,7 @@
   --line-strong: 62 68 78;
   --ink: 232 230 226;
   --ink-2: 165 170 179;
-  --ink-3: 122 128 138;
+  --ink-3: 151 157 168;
   --brand: 141 133 246;
   --brand-2: 165 158 250;
   --brand-soft: 39 38 66;
@@ -215,6 +215,16 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    scroll-padding-top: 8rem;
+  }
+
+  h1, h2, h3 {
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+  }
+
+  button, a, input, select, textarea {
+    touch-action: manipulation;
   }
 
   :root[data-theme="dark"] {
@@ -323,7 +333,7 @@
   }
 
   .field {
-    @apply w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink
+    @apply w-full rounded-lg border border-line bg-panel px-3 py-2 text-base sm:text-sm text-ink
       placeholder:text-ink-3 focus:border-brand focus:outline-none
       focus:ring-2 focus:ring-brand/25 disabled:opacity-55;
   }

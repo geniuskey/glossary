@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { buildGraphModel, buildTermColorHues, TermGraph } from "../src/components/term-graph.js";
+import { buildGraphModel, buildTermColorHues, fitGraphView, termRelations, TermGraph } from "../src/components/term-graph.js";
 import type { GraphTerm } from "../src/lib/terms/query.js";
 
 function term(index: number, overrides: Partial<GraphTerm> = {}): GraphTerm {
@@ -103,12 +103,55 @@ test("용어 노드는 선택만 담당하고 상세 이동은 별도 링크로 
   expect(source).toContain("선택한 용어는 아래 상세 보기로 이동합니다.");
 });
 
-test("첫 클릭의 focus와 click이 연달아 발생해도 노드 선택을 토글 해제하지 않는다", () => {
+test("포커스 이동은 선택을 바꾸지 않고 활성화할 때만 선택한다", () => {
   const testDir = path.dirname(fileURLToPath(import.meta.url));
   const source = readFileSync(path.join(testDir, "../src/components/term-graph.tsx"), "utf8");
 
   expect(source).not.toContain("current === node.key ? null : node.key");
-  expect((source.match(/setSelected\(node\.key\)/g) ?? [])).toHaveLength(6);
+  expect(source).not.toContain("onFocus={() => setSelected(node.key)}");
+  expect(source).toContain("detailsRef.current?.focus()");
+});
+
+test("허브 제한으로 누락된 연결을 집계하고 전체 연결은 유지한다", () => {
+  const terms = Array.from({ length: 20 }, (_, index) => term(index));
+  terms[19] = term(19, { domain: ["Domain 19", "Domain 19"], category: "design", topic: "노출" });
+  const model = buildGraphModel(terms);
+  expect(model.omittedHubCount).toBe(4);
+  expect(model.omittedEdgeCount).toBe(4);
+  expect(model.edges.filter((edge) => edge.source === `n:${terms[19]!.id}`)).toHaveLength(0);
+  expect(termRelations(terms[19]!)).toEqual([
+    { key: "d:Domain 19", label: "Domain 19", kind: "domain" },
+    { key: "c:design", label: "설계", kind: "category" },
+    { key: "t:노출", label: "노출", kind: "topic" },
+  ]);
+  const html = renderToStaticMarkup(createElement(TermGraph, { terms }));
+  expect(html).toContain("생략했습니다");
+  expect(html).toContain("전체 연결 3개, 그래프에 0개 표시");
+});
+
+test.each([1, 0.3, 1.8])("전체 맞춤은 화면 밖 노드와 반응형 크기를 포함한다 (배율 %s)", (canvasScale) => {
+  const nodes = buildGraphModel([term(1), term(2)]).nodes;
+  nodes[0]!.x = -3000;
+  nodes[1]!.y = 4000;
+  const view = fitGraphView(nodes, canvasScale);
+  expect(view.scale).toBeLessThan(0.55);
+  for (const node of nodes) {
+    const halfWidth = (node.kind === "term" ? 74 : node.radius) / canvasScale;
+    const halfHeight = (node.kind === "term" ? 14 : node.radius) / canvasScale;
+    expect((node.x - halfWidth) * view.scale + view.x).toBeGreaterThanOrEqual(0);
+    expect((node.x + halfWidth) * view.scale + view.x).toBeLessThanOrEqual(1000);
+    expect((node.y - halfHeight) * view.scale + view.y).toBeGreaterThanOrEqual(0);
+    expect((node.y + halfHeight) * view.scale + view.y).toBeLessThanOrEqual(700);
+  }
+});
+
+test("빈 그래프와 한 노드의 전체 맞춤도 유한한 배율을 반환한다", () => {
+  expect(fitGraphView([])).toEqual({ x: 0, y: 0, scale: 1 });
+  const node = buildGraphModel([term(1, { domain: [] })]).nodes[0]!;
+  const view = fitGraphView([node]);
+  expect(view.scale).toBeLessThanOrEqual(2.5);
+  expect(node.x * view.scale + view.x).toBeCloseTo(500);
+  expect(node.y * view.scale + view.y).toBeCloseTo(350);
 });
 
 test("용어가 많아도 모든 용어 이름을 채운 배지로 표시한다", () => {

@@ -163,9 +163,11 @@ test("대표 표기 도움말은 대표 영문 용어 필드 라벨 바로 옆�
 });
 
 test("수정 중인 폼은 저장하지 않은 변경사항의 이탈을 경고한다", () => {
-  expect(code).toContain('window.addEventListener("beforeunload", warnBeforeUnload)');
-  expect(code).toContain('document.addEventListener("click", warnBeforeLinkNavigation, true)');
-  expect(code).toContain("저장하지 않은 변경사항이 있습니다");
+  const guard = readFileSync(path.join(testDir, "..", "src/lib/ui/use-unsaved-changes.ts"), "utf8");
+  expect(code).toContain('useUnsavedChanges(dirty && savedSlug === null)');
+  expect(guard).toContain('window.addEventListener("beforeunload", warnBeforeUnload)');
+  expect(guard).toContain('document.addEventListener("click", warnBeforeLinkNavigation, true)');
+  expect(guard).toContain("저장하지 않은 변경사항이 있습니다");
 });
 
 test("추가 표기는 값이 있을 때 등록된 종류만 공통 보드에 표시한다", () => {
@@ -192,9 +194,9 @@ test("상시 설명은 물음표 도움말로 대체하고 hover와 keyboard foc
   expect(helpTipSource).toContain("function HelpTip");
   expect(helpTipSource).toContain('aria-label={`도움말: ${text}`}');
   expect(helpTipSource).toContain('role="tooltip"');
-  expect(helpTipSource).toContain("group/help-tip");
-  expect(helpTipSource).toContain("group-hover/help-tip:opacity-100");
-  expect(helpTipSource).toContain("group-focus-within/help-tip:opacity-100");
+  expect(helpTipSource).toContain("onMouseEnter={show}");
+  expect(helpTipSource).toContain("onFocus={show}");
+  expect(helpTipSource).toContain("onClick={show}");
   expect(helpTipSource).not.toContain('className="group relative');
   expect(code).not.toContain('<p className={compact ? "text-[11px] text-ink-3"');
 });

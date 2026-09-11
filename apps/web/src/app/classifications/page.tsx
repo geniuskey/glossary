@@ -30,7 +30,7 @@ export default async function ClassificationsPage({ searchParams }: { searchPara
   return (
     <AppShell user={user} title="분류 체계" current="classifications" roomy>
       <header className="mb-6">
-        <h1 className="text-xl font-semibold tracking-tight lg:hidden">분류 체계</h1>
+        <p className="text-xl font-semibold tracking-tight lg:hidden">분류 체계</p>
         <nav className="mt-3 flex border-b border-line" aria-label="분류 체계 메뉴">
           {VIEWS.map((item) => (
             <Link

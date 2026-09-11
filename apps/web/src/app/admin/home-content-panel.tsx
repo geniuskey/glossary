@@ -7,12 +7,16 @@ import {
   type HomeContent,
 } from "@/lib/workspace/home-content-values";
 import { cx } from "@/lib/ui/format";
+import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
 
 export function HomeContentPanel({ initialContent }: { initialContent: HomeContent }) {
   const [content, setContent] = useState(initialContent);
+  const [savedContent, setSavedContent] = useState(initialContent);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
   const valid = content.eyebrow.trim().length > 0 && content.title.trim().length > 0 && content.description.trim().length > 0;
+  const dirty = JSON.stringify(content) !== JSON.stringify(savedContent);
+  useUnsavedChanges(dirty);
 
   function update<K extends keyof HomeContent>(key: K, value: HomeContent[K]) {
     setContent((current) => ({ ...current, [key]: value }));
@@ -20,6 +24,7 @@ export function HomeContentPanel({ initialContent }: { initialContent: HomeConte
   }
 
   function loadDefaults() {
+    if (dirty && !window.confirm("작성 중인 문구를 기본 문구로 바꿀까요? 저장하기 전까지 실제 홈 화면은 바뀌지 않습니다.")) return;
     setContent(DEFAULT_HOME_CONTENT);
     setMessage(null);
   }
@@ -42,6 +47,7 @@ export function HomeContentPanel({ initialContent }: { initialContent: HomeConte
         return;
       }
       setContent(body.settings);
+      setSavedContent(body.settings);
       setMessage({ kind: "ok", text: "홈 소개 문구를 저장했습니다." });
     } catch {
       setMessage({ kind: "bad", text: "네트워크 오류로 저장하지 못했습니다." });
@@ -94,11 +100,12 @@ export function HomeContentPanel({ initialContent }: { initialContent: HomeConte
             </p>
           )}
 
-          <div className="flex flex-wrap justify-end gap-2 border-t border-line pt-4">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">
+            <span className="mr-auto text-xs text-ink-3" role="status">{dirty ? "저장하지 않은 변경사항" : "저장된 문구와 같습니다"}</span>
             <button type="button" disabled={saving} onClick={loadDefaults} className="btn-quiet btn-sm">
               기본 문구 불러오기
             </button>
-            <button type="button" disabled={saving || !valid} onClick={() => void save()} className="btn-primary btn-sm">
+            <button type="button" disabled={saving || !valid || !dirty} onClick={() => void save()} className="btn-primary btn-sm">
               {saving ? "저장 중…" : "홈 문구 저장"}
             </button>
           </div>

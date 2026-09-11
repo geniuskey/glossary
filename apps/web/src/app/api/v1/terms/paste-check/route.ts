@@ -82,6 +82,7 @@ export const POST = withApiErrors(async (request: Request) => {
   const knownDomains = new Set(domains.map((domain) => domain.label));
   const knownCategories = new Set(categories.map((category) => category.key));
   const errors: string[] = [];
+  const warnings: string[] = [];
   const representatives: Array<{ operation: string; line: number; text: string; key: string }> = [];
 
   for (const operation of requestBody.data.updates) {
@@ -113,7 +114,7 @@ export const POST = withApiErrors(async (request: Request) => {
       nameEn: parsed.data.nameEn !== undefined ? parsed.data.nameEn : existing.nameEn,
       nameKo: parsed.data.nameKo !== undefined ? parsed.data.nameKo : existing.nameKo,
     };
-    errors.push(...duplicateMessages(
+    warnings.push(...duplicateMessages(
       operation.line,
       await findRepresentativeDuplicates(desired, existing.id),
     ));
@@ -135,7 +136,7 @@ export const POST = withApiErrors(async (request: Request) => {
     for (const category of parsed.data.category ?? []) if (!knownCategories.has(category)) {
       errors.push(`${operation.line}번째 줄 · 업무 분류: “${category}”을(를) 찾을 수 없습니다.`);
     }
-    errors.push(...duplicateMessages(operation.line, await findRepresentativeDuplicates(parsed.data)));
+    warnings.push(...duplicateMessages(operation.line, await findRepresentativeDuplicates(parsed.data)));
     for (const text of [parsed.data.nameEn, parsed.data.nameKo]) {
       const key = surfaceKeys(text ?? "").normLoose;
       if (key) representatives.push({ operation: `create:${operation.line}`, line: operation.line, text: text!, key });
@@ -152,8 +153,8 @@ export const POST = withApiErrors(async (request: Request) => {
     const operations = [...new Set(entries.map((entry) => entry.operation))];
     if (operations.length < 2) continue;
     const lines = [...new Set(entries.map((entry) => entry.line))].sort((a, b) => a - b);
-    errors.push(`${lines.join(", ")}번째 줄: 붙여넣을 대표 표기 “${entries[0]!.text}”가 서로 중복됩니다.`);
+    warnings.push(`${lines.join(", ")}번째 줄: 붙여넣을 대표 표기 “${entries[0]!.text}”가 서로 중복됩니다.`);
   }
 
-  return Response.json({ ok: errors.length === 0, errors: [...new Set(errors)] });
+  return Response.json({ ok: errors.length === 0, errors: [...new Set(errors)], warnings: [...new Set(warnings)] });
 });

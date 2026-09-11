@@ -449,9 +449,25 @@ export function inRange(range: CellRange, r: number, c: number): boolean {
  * 경우가 많다 — 그대로 두면 표 맨 끝에 빈 행을 덮어쓰게 된다.
  */
 export function parseClipboardMatrix(text: string): string[][] {
-  const body = text.replace(/\r\n?/g, "\n").replace(/\n+$/, "");
-  if (body === "") return [];
-  return body.split("\n").map((line) => line.split("\t"));
+  const body = text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+  if (!body) return [];
+  const rows: string[][] = [];
+  let row: string[] = [], cell = "", quoted = false;
+  for (let i = 0; i < body.length; i += 1) {
+    const char = body[i]!;
+    if (quoted) {
+      if (char === '"' && body[i + 1] === '"') { cell += '"'; i += 1; }
+      else if (char === '"') quoted = false;
+      else cell += char;
+    } else if (char === '"' && cell === "") quoted = true;
+    else if (char === "\t") { row.push(cell); cell = ""; }
+    else if (char === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; }
+    else cell += char;
+  }
+  row.push(cell);
+  rows.push(row);
+  while (rows.length && rows[rows.length - 1]!.every((value) => value === "")) rows.pop();
+  return rows;
 }
 
 /** 선택한 직사각형만 클립보드용 TSV로 만든다(머리글 없이 값만). */
@@ -617,6 +633,7 @@ export function planPaste(
   columns: readonly GridColumn[],
   anchor: CellRef,
   matrix: readonly string[][],
+  lineOffset = 0,
 ): PastePlan {
   const entries: PlanEntry[] = [];
   const creates: PastedRow[] = [];
@@ -628,7 +645,7 @@ export function planPaste(
 
     const row = rows[anchor.r + i];
     if (!row) {
-      const draft = draftFromLine(columns, anchor.c, line, i + 1);
+      const draft = draftFromLine(columns, anchor.c, line, i + 1 + lineOffset);
       if (draft.row) creates.push(draft.row);
       createErrors.push(...draft.errors);
       continue;
@@ -714,4 +731,34 @@ export function inversePatch(row: TermRow, patch: CellPatch): CellPatch {
     else Object.assign(out, { [key]: row[key] });
   }
   return out;
+}
+
+/** 헤더가 있는 표는 화면 배치와 무관하게 새 용어로 가져온다. */
+export function planHeaderImport(matrix: readonly string[][], columns: readonly GridColumn[]): PastePlan | null {
+  const normalize = (text: string) => text.trim().toLowerCase().replace(/[\s_-]/g, "");
+  const aliases: Record<string, ColumnKey> = {
+    "영문명": "nameEn", "영문": "nameEn", "약어": "nameEn", "국문명": "nameKo", "한글명": "nameKo",
+    "정의": "definitionMd", "설명": "definitionMd", "영문풀네임": "fullNameEn", "국문풀네임": "fullNameKo",
+  };
+  const mapped = (matrix[0] ?? []).map((label) => columns.find((column) =>
+    normalize(column.label) === normalize(label) || normalize(column.key) === normalize(label)
+    || column.key === aliases[normalize(label)]));
+  if (!mapped.some((column) => column?.key === "nameEn" || column?.key === "nameKo")) return null;
+  const errors: string[] = [];
+  const seen = new Set<ColumnKey>();
+  mapped.forEach((column, index) => {
+    if (!column) errors.push(`${index + 1}번째 열: 헤더 “${matrix[0]![index]}”을 인식할 수 없습니다. 대표 영문 표기, 한줄 정의 등의 열 이름을 사용해 주세요.`);
+    else if (seen.has(column.key)) errors.push(`헤더 “${column.label}”가 두 번 있습니다.`);
+    else seen.add(column.key);
+  });
+  if (errors.length) return { plan: { updates: [], cells: 0, errors }, creates: [] };
+  const result = planPaste([], mapped as GridColumn[], { r: 0, c: 0 }, matrix.slice(1), 1);
+  return result;
+}
+
+/** 서버 검사 한도를 지키면서 전체 입력을 빠짐없이 검사한다. */
+export function pasteCheckBatches<T>(operations: readonly T[]): T[][] {
+  const batches: T[][] = [];
+  for (let offset = 0; offset < operations.length; offset += 200) batches.push(operations.slice(offset, offset + 200));
+  return batches;
 }

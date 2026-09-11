@@ -12,7 +12,7 @@ import { needsSetup } from "@/lib/auth/setup";
 import { initialAdminEmail, isInitialAdminEmail, ssoLoginUrl } from "@/lib/auth/policy";
 import { loadSsoConfig, resolveLoginSsoMode, resolvePasswordLoginEnabled } from "@/lib/auth/sso/config";
 import { inspectProxyHeaders } from "@/lib/auth/sso/proxy-headers";
-import { SURFACE_KIND_LABEL } from "@/lib/terms/enums";
+import { SURFACE_KIND_LABEL, TERM_STATUS_LABEL } from "@/lib/terms/enums";
 import { termFacets, type TermFacets } from "@/lib/terms/query";
 import { searchTerms, type SearchHit } from "@/lib/terms/search";
 import { newTermHref, termHref } from "@/lib/terms/search-ui";
@@ -82,7 +82,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
             </h1>
             <p className="mt-3 text-sm text-ink-2">약어와 별칭, 비슷한 표기까지 함께 확인합니다.</p>
             <div className="mt-7 rounded-[1.4rem] border border-line/80 bg-panel/80 p-2 shadow-sm backdrop-blur">
-              <SearchBox defaultValue={q} />
+              <SearchBox key={q} defaultValue={q} />
             </div>
           </div>
           <Results q={q} hits={hits} />
@@ -128,8 +128,8 @@ function HomeLanding({ facets, homeContent }: { facets: TermFacets; homeContent:
   const domains = facets.domains.slice(0, 6);
   return (
     <main id="main-content" tabIndex={-1} className="relative z-10 mx-auto w-full max-w-7xl px-5 pb-16 sm:px-8 sm:pb-24">
-      <section className="flex min-h-[calc(100svh-3.5rem)] items-center justify-center pb-16">
-        <div className="w-full max-w-3xl -translate-y-4 animate-fade-up text-center sm:-translate-y-8">
+      <section className="flex items-center justify-center py-12 sm:py-16">
+        <div className="w-full max-w-3xl animate-fade-up text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">{homeContent.eyebrow}</p>
           <h1 className="mt-5 text-[clamp(2.35rem,5vw,4rem)] font-semibold leading-[1.12] tracking-[-0.05em] text-ink">
             <HomeTitle title={homeContent.title} />
@@ -140,10 +140,33 @@ function HomeLanding({ facets, homeContent }: { facets: TermFacets; homeContent:
           <div className="mx-auto mt-9 max-w-2xl">
             <SearchBox defaultValue="" />
           </div>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm text-ink-2">
-            <Stat value={facets.total} label="개의 개념" /><Stat value={active} label="개의 표준 용어" /><Stat value={facets.domains.length} label="개 분야" /><Stat value={facets.needsContribution} label="개 정리 대기" href="/contribute" />
-          </div>
+          {facets.total > 0 ? (
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm text-ink-2">
+              <Stat value={facets.total} label="개 등록 용어" href="/sheet" />
+              <Stat value={active} label={`개 ${TERM_STATUS_LABEL.active}`} href="/sheet?status=active" />
+              <Stat value={facets.needsContribution} label="개 정리 대기" href="/contribute" />
+            </div>
+          ) : (
+            <div className="mt-8 rounded-2xl border border-line bg-panel p-5 text-left">
+              <h2 className="font-semibold text-ink">아직 등록된 용어가 없습니다</h2>
+              <p className="mt-2 text-sm leading-6 text-ink-2">팀에서 자주 묻는 약어 하나부터 시작해 보세요. 기존 목록이 있다면 엑셀 파일을 가져와 등록 전에 미리 확인할 수 있습니다.</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link href="/new" className="btn-primary">첫 용어 등록하기</Link>
+                <Link href="/import" className="btn-ghost">엑셀 가져오기</Link>
+              </div>
+            </div>
+          )}
         </div>
+      </section>
+
+      <section className="mb-8" aria-labelledby="home-tasks">
+        <h2 id="home-tasks" className="text-lg font-semibold text-ink">지금 필요한 작업</h2>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <TaskLink href="/sheet" title="용어 찾아 쓰기" body="전체 목록에서 뜻과 표기를 확인하고, 필요한 범위의 시트를 공유하세요." />
+          <TaskLink href="/contribute" title="부족한 설명 보완하기" body="정리 대기 용어에 정의와 사용 맥락을 보태세요. 수정 이력을 함께 확인할 수 있습니다." />
+          <TaskLink href="/import" title="기존 용어 모으기" body="엑셀 목록을 미리 검사하고 가져와 팀의 용어집을 시작하세요." />
+        </div>
+        <p className="mt-3 text-xs leading-6 text-ink-3">기준 충족은 설정된 작성 요건을 채웠다는 뜻입니다. 내용의 정확성이나 조직의 공식 승인을 보증하지 않습니다.</p>
       </section>
 
       <section className="grid items-center gap-10 rounded-[1.75rem] border border-line bg-panel/75 p-6 shadow-[0_24px_80px_-55px_rgb(38_32_99_/_0.28)] backdrop-blur sm:p-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
@@ -170,7 +193,7 @@ function HomeLanding({ facets, homeContent }: { facets: TermFacets; homeContent:
           <div><p className="text-xs font-semibold tracking-[0.16em] text-brand">함께 만드는 용어집</p><h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-ink sm:text-3xl">알고 있는 한 단어가, 모두의 기준이 됩니다.</h2></div>
           <div className="flex flex-wrap gap-2 self-start md:self-auto">
             {facets.needsContribution > 0 && <Link href="/contribute" className="btn-ghost rounded-full px-5 py-2.5">정리 이어가기 <IconArrow /></Link>}
-            <Link href="/new" className="btn-primary rounded-full px-5 py-2.5">첫 용어 제안하기 <IconArrow /></Link>
+            <Link href="/new" className="btn-primary rounded-full px-5 py-2.5">{facets.total === 0 ? "첫 용어 등록하기" : "새 용어 등록하기"} <IconArrow /></Link>
           </div>
         </div>
         <div className="mt-8 grid gap-3 md:grid-cols-3">
@@ -180,6 +203,15 @@ function HomeLanding({ facets, homeContent }: { facets: TermFacets; homeContent:
         </div>
       </section>
     </main>
+  );
+}
+
+function TaskLink({ href, title, body }: { href: string; title: string; body: string }) {
+  return (
+    <Link href={href} className="card block p-5 transition-colors hover:border-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand">
+      <h3 className="flex items-center justify-between gap-2 font-semibold text-ink">{title}<IconArrow /></h3>
+      <p className="mt-2 text-sm leading-6 text-ink-2">{body}</p>
+    </Link>
   );
 }
 
@@ -209,7 +241,7 @@ function ConceptMap() {
     <div className="relative mx-auto w-full max-w-[27rem]" aria-label="하나의 개념과 여러 표기가 연결되는 모습">
       <div className="home-concept-glow absolute inset-[16%] rounded-full blur-3xl" />
       <div className="relative rounded-2xl border border-line bg-panel p-5 shadow-[0_20px_60px_-38px_rgb(38_32_99_/_0.4)] sm:p-7">
-        <div className="flex items-center justify-between"><span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-3"><span className="h-2 w-2 rounded-full bg-ok" />하나의 개념</span><span className="rounded-full bg-ok-soft px-2.5 py-1 text-[10px] font-semibold text-ok">사용 중</span></div>
+        <div className="flex items-center justify-between"><span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-3"><span className="h-2 w-2 rounded-full bg-ok" />하나의 개념</span><span className="rounded-full bg-panel-2 px-2.5 py-1 text-[10px] font-semibold text-ink-2">설명용 예시</span></div>
         <div className="mt-7"><p className="text-2xl font-semibold tracking-[-0.035em] text-ink sm:text-3xl">System on Chip</p><p className="mt-2 text-sm font-medium text-ink-2">시스템 온 칩</p><p className="mt-5 border-l-2 border-brand/60 pl-4 text-sm leading-6 text-ink-2">여러 기능을 하나의 집적 회로에 구현한 반도체 시스템</p></div>
         <div className="mt-7 flex flex-wrap gap-2 border-t border-line pt-5"><span className="rounded-full bg-brand-soft px-3 py-1.5 text-xs font-medium text-brand">SoC · 약어</span><span className="rounded-full bg-panel-2 px-3 py-1.5 text-xs text-ink-2">시스템온칩 · 별칭</span><span className="rounded-full bg-panel-2 px-3 py-1.5 text-xs text-ink-2">반도체 · 분야</span></div>
       </div>
@@ -223,11 +255,12 @@ function JourneyCard({ number, title, body, icon }: { number: string; title: str
 
 function Results({ q, hits }: { q: string; hits: SearchHit[] }) {
   if (hits.length === 0) return (
-    <section className="mt-8 pb-16"><div className="card px-6 py-10 text-center shadow-sm"><span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-brand-soft text-brand"><IconPen /></span><p className="mt-4 text-sm text-ink-2"><span className="font-semibold text-ink">{q}</span>와(과) 맞는 표기가 아직 없습니다.</p><p className="mt-1.5 text-xs text-ink-3">비슷한 표기까지 찾아봤어요. 첫 번째 작성자가 되어 주세요.</p><Link href={newTermHref(q)} className="btn-primary mt-5 rounded-full px-5 py-2.5">새 용어로 제안하기</Link></div></section>
+    <section className="mt-8 pb-16"><div className="card px-6 py-10 text-center shadow-sm"><span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-brand-soft text-brand"><IconPen /></span><p className="mt-4 text-sm text-ink-2"><span className="font-semibold text-ink">{q}</span>와(과) 맞는 표기가 아직 없습니다.</p><p className="mt-1.5 text-xs text-ink-3">다른 약어나 한국어·영어 이름으로 다시 검색하거나, 전체 목록에서 같은 개념이 있는지 확인해 보세요.</p><div className="mt-5 flex flex-wrap justify-center gap-2"><Link href="/sheet" className="btn-ghost rounded-full px-5 py-2.5">전체 용어 확인하기</Link><Link href={newTermHref(q)} className="btn-primary rounded-full px-5 py-2.5">새 용어 등록하기</Link></div></div></section>
   );
   return (
     <section className="mt-8 rounded-2xl border border-line bg-panel/70 p-3 pb-5 shadow-sm backdrop-blur sm:p-5">
       <p className="mb-2 px-3 text-xs text-ink-3">결과 <span className="font-medium text-ink-2">{hits.length}</span>개{hits.length === RESULT_LIMIT && " 이상"}<span className="mx-1.5">·</span><Link href={`/sheet?q=${encodeURIComponent(q)}`} className="link">시트에서 보기</Link></p>
+      <p className="mb-3 px-3 text-xs leading-6 text-ink-2">금지·비권장 표기로 찾았다면 용어 상세에서 대표 표기와 사용 지침을 확인하세요.</p>
       <ol>{hits.map((hit) => <li key={hit.id}><Link href={termHref(hit)} className="flex gap-3 rounded-xl px-3 py-3 transition hover:bg-panel-2"><span aria-hidden className="mt-1 h-8 w-1 shrink-0 rounded-full" style={{ backgroundColor: `hsl(${spineHue(hit.slug)} 62% 55%)` }} /><span className="min-w-0 flex-1"><span className="flex flex-wrap items-baseline gap-x-2 gap-y-1"><span className="text-[15px] font-medium text-ink">{displayName(hit)}</span>{hit.nameEn && hit.nameKo && <span className="text-sm text-ink-2">{hit.nameKo}</span>}{hit.matchedKind !== "canonical" && <span className="chip chip-on px-2 py-0.5 text-[11px]">{hit.matchedText}<span className="opacity-70">{SURFACE_KIND_LABEL[hit.matchedKind]}</span></span>}{!hit.exact && <span className="text-[11px] text-ink-3">비슷한 표기</span>}</span>{hit.definitionMd && <span className="mt-0.5 line-clamp-2 block text-sm text-ink-2">{hit.definitionMd}</span>}<span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-3"><DomainBadges domain={hit.domain} />{hit.status !== "active" && <StatusBadge status={hit.status} />}</span></span></Link></li>)}</ol>
     </section>
   );

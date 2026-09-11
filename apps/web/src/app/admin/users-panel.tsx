@@ -76,7 +76,7 @@ export function UsersPanel({ initialUsers, viewerId }: { initialUsers: ManagedUs
 
   return (
     <>
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="사용자 현황">
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="사용자 현황">
         <StatCard label="전체 사용자" value={users.length} />
         <StatCard label="관리자" value={admins} />
         <StatCard label="SSO 계정" value={ssoUsers} />
@@ -110,7 +110,7 @@ export function UsersPanel({ initialUsers, viewerId }: { initialUsers: ManagedUs
           </p>
         )}
 
-        <div className="card overflow-x-auto">
+        <div className="card relative overflow-x-auto">
           <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-line bg-panel-2 text-xs text-ink-3">

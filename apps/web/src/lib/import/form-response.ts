@@ -69,7 +69,11 @@ const DEFAULT_ERROR_MESSAGE = "임포트 요청을 처리하지 못했습니다.
 function isReport(value: unknown): value is ImportReportWire {
   if (!value || typeof value !== "object") return false;
   const r = value as Partial<ImportReportWire>;
-  return typeof r.total === "number" && typeof r.ready === "number" && Array.isArray(r.conflicts) && Array.isArray(r.duplicatesInFile) && Array.isArray(r.errors);
+  return typeof r.total === "number" && Number.isSafeInteger(r.total) && r.total >= 0
+    && typeof r.ready === "number" && Number.isSafeInteger(r.ready) && r.ready >= 0
+    && r.ready <= r.total
+    && Array.isArray(r.conflicts) && Array.isArray(r.duplicatesInFile) && Array.isArray(r.errors)
+    && Array.isArray(r.fileErrors) && Array.isArray(r.ignoredHeaders);
 }
 
 /**
