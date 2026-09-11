@@ -5,6 +5,7 @@ import { createTerm } from "../src/lib/terms/create.js";
 import {
   getTermByIdOrSlug,
   listContributionTerms,
+  listGraphTermsWithTotal,
   listPublishedTermRows,
   listRelatedTerms,
   listTermRows,
@@ -14,6 +15,22 @@ import {
 
 const db = createDb(process.env.DATABASE_URL_TEST!);
 const ids: string[] = [];
+
+test("관계도 총계는 표시 제한과 무관하며 도메인·분류·주제 필터를 따른다", async () => {
+  const domain = `graph-count-${Date.now()}`;
+  for (const [index, category, topic] of [[0, "design", "노출"], [1, "design", "노출"], [2, "process", "다른 주제"]] as const) {
+    const fixture = await createTerm({ nameEn: `${domain}-${index}`, domain: [domain], category: [category], topic, status: "active", surfaces: [] }, null);
+    ids.push(fixture.term.id);
+  }
+  const all = await listGraphTermsWithTotal({ domain, limit: 1 });
+  expect(all.items).toHaveLength(1);
+  expect(all.total).toBe(3);
+  const filtered = await listGraphTermsWithTotal({ domain, category: "design", topic: "노출", limit: 1 });
+  expect(filtered.items).toHaveLength(1);
+  expect(filtered.total).toBe(2);
+  const empty = await listGraphTermsWithTotal({ domain, category: "design", topic: "다른 주제" });
+  expect(empty).toEqual({ items: [], total: 0 });
+});
 
 // R43: terms-create.test.ts도 nameEn "AE" -> slug "ae"로 같은 fixture를 만든다.
 // 파일은 순차 실행되지만(fileParallelism: false), 그 파일이 afterEach/afterAll을

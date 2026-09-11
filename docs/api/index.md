@@ -48,6 +48,10 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | POST | [`/terms/{idOrSlug}/revisions/{number}/revert`](/api/terms#되돌리기) | `write` | 그 리비전으로 되돌리기 (새 리비전이 쌓인다) |
 | POST | [`/terms/lookup`](/api/terms#배치-조회-lookup) | `read` | 배치 표기 조회 (AI-Lint 통합 지점) |
 | GET | [`/terms/suggest`](/api/terms#자동완성-suggest) | `read` | 검색창 자동완성 후보 (최대 8개) |
+| GET | [`/relations`](/api/relations) | `read` | 의미 관계 목록·근거·재검토 상태 |
+| GET | [`/relations/terms`](/api/relations) | `read` | 관계 편집용 용어 검색·정의·리비전 |
+| POST | [`/relations`](/api/relations) | 로그인 사용자 | 의미 관계 제안 |
+| PATCH | [`/relations/{id}`](/api/relations) | 로그인 사용자 | 관계 수정·승인·거절 |
 | POST | [`/import`](/api/import) | `write` | 엑셀 임포트 (dry-run 기본) |
 | POST | [`/attachments`](/api/attachments#업로드) | `write` | 본문 이미지 업로드·WebP 변환 |
 | GET | [`/attachments/{sha256}`](/api/attachments#조회) | `read` | 내용 해시로 첨부 이미지 조회 |

@@ -12,6 +12,8 @@
 // 틀렸을 때의 비용: yaml을 기대하는 외부 도구가 있으면 GET /api/v1/openapi의
 // JSON을 변환해야 한다(docs/operations.md에 명령을 적어뒀다).
 
+import { relationPaths } from "./terms/relation-openapi";
+
 const errorEnvelope = {
   type: "object",
   required: ["error"],
@@ -145,6 +147,7 @@ export const openApiSpec = {
     },
   },
   paths: {
+    ...relationPaths,
     "/account": {
       patch: {
         summary: "현재 사용자의 표시 이름 변경",

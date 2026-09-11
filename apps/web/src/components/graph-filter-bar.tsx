@@ -7,8 +7,9 @@ type FilterName = "domain" | "category" | "topic";
 type FilterValues = Record<FilterName, string>;
 type FilterOption = { value: string; label: string };
 
-export function graphFilterHref(pathname: string, values: FilterValues): string {
+export function graphFilterHref(pathname: string, values: FilterValues, view?: "semantic"): string {
   const params = new URLSearchParams();
+  if (view) params.set("view", view);
   for (const [name, value] of Object.entries(values)) {
     if (value) params.set(name, value);
   }
@@ -20,11 +21,13 @@ export function GraphFilterBar({
   domains,
   categories,
   topics,
+  view,
 }: {
   values: FilterValues;
   domains: FilterOption[];
   categories: FilterOption[];
   topics: FilterOption[];
+  view?: "semantic";
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -34,7 +37,7 @@ export function GraphFilterBar({
   useEffect(() => setSelected(values), [values]);
 
   function navigate(next: FilterValues) {
-    startTransition(() => router.push(graphFilterHref(pathname, next)));
+    startTransition(() => router.push(graphFilterHref(pathname, next, view)));
   }
 
   function change(name: FilterName, value: string) {

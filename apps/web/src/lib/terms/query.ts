@@ -571,8 +571,10 @@ export interface GraphTerm extends TermSummary {
 }
 
 /** 도메인·카테고리를 허브로 그릴 읽기 전용 용어 집합. */
-export async function listGraphTerms(filters: { domain?: string; category?: BusinessCategory; topic?: string; limit?: number; includeDraft?: boolean } = {}): Promise<GraphTerm[]> {
-  const where = listFilters({
+type GraphFilters = { domain?: string; category?: BusinessCategory; topic?: string; limit?: number; includeDraft?: boolean };
+
+function graphWhere(filters: GraphFilters) {
+  return listFilters({
     domain: filters.domain,
     category: filters.category,
     topic: filters.topic,
@@ -580,6 +582,18 @@ export async function listGraphTerms(filters: { domain?: string; category?: Busi
     pageSize: filters.limit ?? 120,
     includeDraft: filters.includeDraft ?? true,
   });
+}
+
+export async function listGraphTermsWithTotal(filters: GraphFilters = {}): Promise<{ items: GraphTerm[]; total: number }> {
+  const [items, [counted]] = await Promise.all([
+    listGraphTerms(filters),
+    getDb().select({ total: sql<number>`count(*)::int` }).from(terms).where(graphWhere(filters)),
+  ]);
+  return { items, total: counted?.total ?? 0 };
+}
+
+export async function listGraphTerms(filters: GraphFilters = {}): Promise<GraphTerm[]> {
+  const where = graphWhere(filters);
   return getDb()
     .select({ ...summaryColumns, definitionMd: terms.definitionMd })
     .from(terms)

@@ -1,7 +1,8 @@
 import "server-only";
 
 import { and, arrayContains, desc, eq, inArray, or, sql } from "drizzle-orm";
-import { surfaceKeys, termRelations, termRevisions, terms, termSurfaces } from "@glossary/db";
+import { surfaceKeys, termRevisions, terms, termSurfaces } from "@glossary/db";
+import { approvedRelations } from "@/lib/terms/relations";
 import { getDb } from "@/lib/db";
 import { relevantPassages } from "./passages";
 import type { ChatEvidence } from "./grounding-values";
@@ -110,19 +111,7 @@ async function retrieveSnapshot(db: Parameters<Parameters<ReturnType<typeof getD
   if (seedIds.length === 0) return { context: "{\"terms\":[],\"relationships\":[]}", sources: [] };
 
   const graphSeeds = seedIds.slice(0, 6);
-  const relationshipRows = await db.select({
-    id: termRelations.id,
-    sourceTermId: termRelations.sourceTermId,
-    targetTermId: termRelations.targetTermId,
-    relationType: termRelations.relationType,
-    confidence: termRelations.confidence,
-    evidenceMd: termRelations.evidenceMd,
-    sourceRevision: termRelations.sourceRevision,
-    targetRevision: termRelations.targetRevision,
-  }).from(termRelations).where(and(
-    eq(termRelations.status, "approved"),
-    or(inArray(termRelations.sourceTermId, graphSeeds), inArray(termRelations.targetTermId, graphSeeds)),
-  )).limit(40);
+  const relationshipRows = await approvedRelations(db, graphSeeds);
 
   const seedSet = new Set(seedIds);
   for (const relation of relationshipRows) {

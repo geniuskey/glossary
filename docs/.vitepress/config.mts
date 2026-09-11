@@ -49,6 +49,7 @@ export default defineConfig({
           { text: "개요", link: "/api/" },
           { text: "인증", link: "/api/auth" },
           { text: "용어", link: "/api/terms" },
+          { text: "의미 관계", link: "/api/relations" },
           { text: "임포트", link: "/api/import" },
           { text: "첨부 이미지", link: "/api/attachments" },
           { text: "AI 연결과 챗봇", link: "/api/ai" },
