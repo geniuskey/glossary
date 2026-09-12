@@ -186,6 +186,7 @@ export async function applyImport(
         topic: row.topic,
         status: row.status,
         definitionMd: row.definitionMd,
+        bodyMd: row.bodyMd,
         surfaces: [
           ...row.canonicalNames.map((text) => ({ text, lang: "neutral" as const, kind: "canonical" as const })),
           ...row.abbreviations.map((text) => ({ text, lang: "neutral" as const, kind: "abbreviation" as const })),

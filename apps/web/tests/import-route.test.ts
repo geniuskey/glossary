@@ -10,12 +10,14 @@ import { SESSION_COOKIE } from "../src/lib/auth/session.js";
 // getCurrentUser가 던지고 withApiErrors가 그걸 500으로 바꿔 "인증 없으면 401"
 // 이라는 의도와 다른 경로를 테스트하게 된다.
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
   cookies: async () => ({
     get: (name: string) => (name === SESSION_COOKIE ? undefined : undefined),
   }),
 }));
 
 const { POST: importPost } = await import("../src/app/api/v1/import/route.js");
+const { POST: reviewPost } = await import("../src/app/api/v1/import/review/route.js");
 
 const db = createDb(process.env.DATABASE_URL_TEST!);
 const createdKeyIds: string[] = [];
@@ -51,6 +53,33 @@ async function buildXlsx(nameEn: string): Promise<ArrayBuffer> {
 afterAll(async () => {
   for (const id of createdTermIds) await db.delete(terms).where(eq(terms.id, id));
   for (const id of createdKeyIds) await db.delete(apiKeys).where(eq(apiKeys.id, id));
+});
+
+test("검토한 두 열 입력은 대표명·다른 표기를 실제 DB에 저장하고 매핑으로 완성된다", async () => {
+  const token = await makeWriteKey();
+  const { termSurfaces } = await import("@glossary/db");
+  const source = '영문\t한글\t도메인\t본문\nIDReview Database; IDReview DB\t검토 테스트 데이터베이스\tSW, IT\t"## 상세 설명\n본문; 원문 유지"';
+  const makeForm = (apply = false, decisions: unknown[] = []) => {
+    const form = new FormData();
+    form.set("text", source);
+    form.set("apply", String(apply));
+    form.set("review", JSON.stringify({ options: { comma: true, semicolon: true, newline: true }, columns: ["domain", "bodyMd"], decisions }));
+    return new Request("http://x/api/v1/import/review", { method: "POST", headers: { authorization: `Bearer ${token}` }, body: form });
+  };
+  const preview = await reviewPost(makeForm());
+  expect(preview.status).toBe(200);
+  const { report } = await preview.json();
+  expect(report.rows[0].en).toEqual(["IDReview Database", "IDReview DB"]);
+  const applied = await reviewPost(makeForm(true, report.rows));
+  const saved = await db.select().from(terms).where(eq(terms.nameEn, "IDReview Database"));
+  createdTermIds.push(...saved.map((row) => row.id));
+  expect(applied.status).toBe(200);
+  expect((await applied.json()).created).toBe(1);
+  expect(saved[0]?.status).toBe("active");
+  expect(saved[0]?.bodyMd).toBe("## 상세 설명\n본문; 원문 유지");
+  expect(saved[0]?.domain).toEqual(["SW", "IT"]);
+  const surfaces = await db.select().from(termSurfaces).where(eq(termSurfaces.termId, saved[0]!.id));
+  expect(surfaces).toEqual(expect.arrayContaining([expect.objectContaining({ text: "IDReview DB", kind: "alias" })]));
 });
 
 test("인증 없이 호출하면 401 규약을 반환한다", async () => {

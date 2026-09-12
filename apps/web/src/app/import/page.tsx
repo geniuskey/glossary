@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { ImportForm } from "@/components/import-form";
+import { ImportReview } from "@/components/import-review";
 import { ImportGuide, TemplateDownloadLink } from "@/components/import-guide";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { listBusinessCategories } from "@/lib/terms/categories";
@@ -20,15 +21,22 @@ export default async function ImportPage() {
         <div>
           <p className="text-xl font-semibold tracking-tight lg:hidden">엑셀 가져오기</p>
           <p className="mt-1.5 max-w-xl text-sm text-ink-2">
-            xlsx 파일 하나로 용어를 한꺼번에 올립니다. 먼저 검사만 실행해 충돌과 중복을 확인한 뒤 반영하세요.
-            어떤 열을 읽는지는 아래 <span className="text-ink">파일은 이렇게 만듭니다</span>에 적어 두었습니다.
+            기존 영문·한글 엑셀을 그대로 올리거나 복사해 붙여넣으세요.
+            분리 결과를 확인하고, 애매한 행은 하나씩 수정·승인한 뒤 등록합니다.
           </p>
         </div>
         <TemplateDownloadLink className="ml-auto shrink-0" />
       </header>
       <div className="space-y-8">
-        <ImportForm />
-        <ImportGuide categoryOptions={categoryOptions} />
+        <ImportReview />
+        <details className="card p-4">
+          <summary className="cursor-pointer text-sm font-medium">상세 열로 가져오기 · 기존 형식 및 템플릿 안내</summary>
+          <div className="mt-5 space-y-8">
+            <p className="text-sm text-ink-2">약어·확장명·비권장 표기 등을 이미 별도 열로 정리한 파일에 사용합니다. 이 방식은 대표명 셀을 나누지 않습니다.</p>
+            <ImportForm />
+            <ImportGuide categoryOptions={categoryOptions} />
+          </div>
+        </details>
       </div>
     </AppShell>
   );

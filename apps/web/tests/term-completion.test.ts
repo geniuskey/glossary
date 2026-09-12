@@ -1,6 +1,12 @@
 import { expect, test } from "vitest";
 import { termCompletion } from "../src/lib/terms/completion.js";
 
+test("영문·한글 대응표는 약어 분류나 정의 없이도 사용 가능한 매핑이다", () => {
+  expect(termCompletion({ nameEn: "Database", nameKo: "데이터베이스", domain: [] }))
+    .toMatchObject({ complete: true, resolvedProfile: "mapping", missing: [] });
+  expect(termCompletion({ nameEn: "Database", nameKo: "  ", domain: [] }).complete).toBe(false);
+});
+
 test("일반 용어의 자동 기준은 정의와 도메인 또는 업무 분류를 요구한다", () => {
   expect(termCompletion({ domain: [] })).toEqual({
     complete: false,

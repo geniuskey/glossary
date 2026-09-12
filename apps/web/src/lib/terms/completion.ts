@@ -9,7 +9,7 @@ import {
 export type MissingTermField = "meaning" | "definition" | "body" | "context";
 
 export const MISSING_TERM_FIELD_LABEL: Record<MissingTermField, string> = {
-  meaning: "Full name 또는 한줄 정의",
+  meaning: "영문·한글 대응, 확장명 또는 한줄 정의",
   definition: "한줄 정의",
   body: "본문",
   context: "도메인 또는 업무 분류",
@@ -49,6 +49,7 @@ function looksLikeAbbreviation(value?: string | null): boolean {
 }
 
 export function resolveTermQualityProfile(term: CompletionSource): ResolvedTermQualityProfile {
+  if (hasText(term.nameEn) && hasText(term.nameKo)) return "mapping";
   const hasFullName = hasText(term.fullNameEn) || hasText(term.fullNameKo);
   const abbreviation = looksLikeAbbreviation(term.nameEn) || looksLikeAbbreviation(term.nameKo);
   if (hasFullName && abbreviation) {
@@ -85,7 +86,7 @@ export function termCompletion(term: CompletionSource, settings: TermQualitySett
       : ["definition", "context", "body"];
 
   const missing = required.filter((field) => {
-    if (field === "meaning") return !(hasFullName || hasDefinition);
+    if (field === "meaning") return !(hasFullName || hasDefinition || (hasText(term.nameEn) && hasText(term.nameKo)));
     if (field === "definition") return !hasDefinition;
     if (field === "body") return !hasBody;
     if (field === "context") return !hasContext;

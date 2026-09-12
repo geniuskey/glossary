@@ -174,9 +174,8 @@ test("cellText(domain)와 patchForCell(domain)은 왕복해도 값이 그대로�
 });
 
 test("기본 숨김 열은 실제로 hiddenByDefault가 붙은 열들이다", () => {
-  // 풀네임은 더 이상 숨기지 않는다 — 안 보이는 열은 표에서 고칠 방법이 없다.
-  // 주제와 본문은 기본 표를 간결하게 유지하도록 접어 둔다.
-  expect(defaultHiddenColumns()).toEqual(["topic", "bodyMd"]);
+  // 두 언어 표기로 시작하고 상세 확장명은 열 설정에서 필요할 때 펼친다.
+  expect(defaultHiddenColumns()).toEqual(["fullNameEn", "fullNameKo", "topic", "bodyMd"]);
   // 전부 숨겨지면 표가 빈 화면이 된다.
   expect(defaultHiddenColumns().length).toBeLessThan(GRID_COLUMNS.length);
 });

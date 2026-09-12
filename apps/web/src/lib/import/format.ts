@@ -20,6 +20,7 @@ export type ImportField =
   | "topic"
   | "status"
   | "definitionMd"
+  | "bodyMd"
   | "canonicalNames"
   | "abbreviations"
   | "aliases"
@@ -70,7 +71,7 @@ export const IMPORT_COLUMNS: readonly ImportColumn[] = [
   {
     field: "nameEn",
     header: "영문",
-    otherHeaders: ["name_en", "영문명", "english"],
+    otherHeaders: ["name_en", "nameen", "영문명", "english", "영문_표기", "영문표기", "대표_영문_표기", "대표영문표기"],
     requirement: "either-name",
     hint: "목록과 제목에 쓸 대표 영문 표기. 한글과 둘 중 하나는 반드시 있어야 합니다.",
     width: 16,
@@ -78,7 +79,7 @@ export const IMPORT_COLUMNS: readonly ImportColumn[] = [
   {
     field: "nameKo",
     header: "한글",
-    otherHeaders: ["name_ko", "한글명", "korean"],
+    otherHeaders: ["name_ko", "nameko", "한글명", "korean", "국문", "국문명", "한글_표기", "한글표기", "국문_표기", "국문표기", "대표_국문_표기", "대표국문표기"],
     requirement: "either-name",
     hint: "목록과 제목에 쓸 대표 한글 표기. 영문과 둘 중 하나는 반드시 있어야 합니다.",
     width: 16,
@@ -138,6 +139,14 @@ export const IMPORT_COLUMNS: readonly ImportColumn[] = [
     requirement: "optional",
     hint: "설명 본문. 마크다운을 그대로 씁니다.",
     width: 40,
+  },
+  {
+    field: "bodyMd",
+    header: "본문",
+    otherHeaders: ["body", "body_md", "bodymd"],
+    requirement: "optional",
+    hint: "상세 설명. 셀 안 줄바꿈과 마크다운을 그대로 가져옵니다.",
+    width: 60,
   },
   {
     field: "canonicalNames",
@@ -216,6 +225,7 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     topic: "노출 제어",
     status: "active",
     definitionMd: "장면 밝기에 맞춰 노출을 자동으로 맞추는 기능.",
+    bodyMd: "",
     canonicalNames: "Automatic Exposure",
     abbreviations: "AE",
     aliases: "오토익스포저, 자동노출제어",
@@ -232,6 +242,7 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     topic: "신호 처리",
     status: "active",
     definitionMd: "센서가 받은 신호를 증폭하는 배율.",
+    bodyMd: "",
     canonicalNames: "",
     abbreviations: "",
     aliases: "이득",
@@ -248,6 +259,7 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     topic: "",
     status: "active",
     definitionMd: "차기 카메라 모듈 과제.",
+    bodyMd: "",
     canonicalNames: "",
     abbreviations: "",
     aliases: "",
@@ -264,6 +276,7 @@ export const SAMPLE_ROWS: readonly Record<ImportField, string>[] = [
     topic: "포용적 표현",
     status: "active",
     definitionMd: "접근을 차단할 대상을 모은 목록.",
+    bodyMd: "",
     canonicalNames: "",
     abbreviations: "",
     aliases: "",

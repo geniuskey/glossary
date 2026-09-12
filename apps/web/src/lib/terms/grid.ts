@@ -85,8 +85,8 @@ const CATEGORY_OPTIONS = BUSINESS_CATEGORIES.map((v) => ({ value: v, label: BUSI
 export const GRID_COLUMNS: readonly GridColumn[] = [
   { key: "nameEn", label: "대표 영문 표기", kind: "text", width: 200, sortKey: "nameEn" },
   { key: "nameKo", label: "대표 국문 표기", kind: "text", width: 180, sortKey: "nameKo" },
-  { key: "fullNameEn", label: "영문 확장명", kind: "text", width: 220 },
-  { key: "fullNameKo", label: "국문 확장명", kind: "text", width: 200 },
+  { key: "fullNameEn", label: "영문 확장명", kind: "text", width: 220, hiddenByDefault: true },
+  { key: "fullNameKo", label: "국문 확장명", kind: "text", width: 200, hiddenByDefault: true },
   { key: "status", label: "정리 상태", kind: "readonly", width: 110, sortKey: "status" },
   { key: "domain", label: "도메인", kind: "list", width: 160 },
   { key: "category", label: "업무 분류", kind: "enum", width: 140, options: CATEGORY_OPTIONS },

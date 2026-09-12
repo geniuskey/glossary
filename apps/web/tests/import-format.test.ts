@@ -32,6 +32,7 @@ const FIELDS: ImportField[] = [
   "topic",
   "status",
   "definitionMd",
+  "bodyMd",
   "canonicalNames",
   "aliases",
   "abbreviations",

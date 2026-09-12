@@ -62,7 +62,7 @@ export function TermQualityPanel({ overview }: { overview: TermQualityOverview }
         </div>
 
         <div className="border-t border-line px-4 py-3 text-[11px] leading-5 text-ink-3">
-          Full name이 있는 약어·식별자는 표기 매핑, 폐기·금지 용어는 사용 지침, 나머지는 맥락 설명으로 자동 판정합니다.
+          영문·한글 대응이 있거나 확장명이 있는 약어는 표기 매핑, 나머지는 맥락 설명으로 자동 판정합니다. 비권장·금지 표기는 필요한 경우에만 관리합니다.
         </div>
       </div>
     </section>

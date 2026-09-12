@@ -13,6 +13,7 @@ export interface ImportRow {
   topic?: string;
   status: TermStatusLiteral;
   definitionMd?: string;
+  bodyMd?: string;
   canonicalNames: string[];
   abbreviations: string[];
   aliases: string[];
@@ -65,6 +66,7 @@ function splitList(value: string): string[] {
 
 function cellText(value: ExcelJS.CellValue): string {
   if (value === null || value === undefined) return "";
+  if (typeof value === "object" && "richText" in value) return value.richText.map((part) => part.text).join("").trim();
   if (typeof value === "object" && "text" in value) return String(value.text).trim();
   if (typeof value === "object" && "result" in value) return String(value.result ?? "").trim();
   return String(value).trim();
@@ -73,29 +75,52 @@ function cellText(value: ExcelJS.CellValue): string {
 export async function parseGlossaryWorkbook(
   buffer: ArrayBuffer,
   categoryKeys: readonly string[] = BUSINESS_CATEGORIES,
+  selectedFields?: readonly ImportField[],
 ): Promise<ParseResult> {
   const categorySet = new Set<string>(categoryKeys);
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer);
 
-  const ws = wb.worksheets[0];
+  return parseWorksheet(wb.worksheets[0], categorySet, selectedFields);
+}
+
+export function parseGlossaryMatrix(matrix: readonly string[][], categoryKeys: readonly string[] = BUSINESS_CATEGORIES, selectedFields?: readonly ImportField[]): ParseResult {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("glossary");
+  for (const line of matrix) ws.addRow(line);
+  return parseWorksheet(ws, new Set(categoryKeys), selectedFields);
+}
+
+function parseWorksheet(ws: ExcelJS.Worksheet | undefined, categorySet: Set<string>, selectedFields?: readonly ImportField[]): ParseResult {
   if (!ws) {
     return { rows: [], errors: [], fileErrors: [{ message: "시트를 찾을 수 없습니다." }], ignoredHeaders: [] };
   }
 
   const columnMap = new Map<number, ImportField>();
   const ignoredHeaders: string[] = [];
+  const duplicateHeaders: string[] = [];
   ws.getRow(1).eachCell((cell, col) => {
     const raw = cellText(cell.value);
     if (!raw) return;
     const mapped = HEADER_TO_FIELD[normalizeHeader(raw)];
-    if (mapped) columnMap.set(col, mapped);
+    if (mapped && (!selectedFields || selectedFields.includes(mapped))) {
+      if ([...columnMap.values()].includes(mapped)) duplicateHeaders.push(raw);
+      columnMap.set(col, mapped);
+    }
     // R124: 관대한 매핑 자체는 유지하되(기존 엑셀이 어떤 헤더를 쓰는지 미리
     // 알 수 없다는 근거가 타당하다), 못 알아본 헤더는 조용히 사라지지 않고
     // 리포트에 남는다 — dry-run의 존재 이유가 "무엇이 유실되는지 미리
     // 보여주는 것"이다.
     else if (!ignoredHeaders.includes(raw)) ignoredHeaders.push(raw);
   });
+
+  if (duplicateHeaders.length) {
+    return { rows: [], errors: [], ignoredHeaders, fileErrors: [{ message: `같은 항목에 연결되는 열이 여러 개입니다: ${duplicateHeaders.join(", ")}` }] };
+  }
+
+  if (selectedFields && (!Array.from(columnMap.values()).includes("nameEn") || !Array.from(columnMap.values()).includes("nameKo"))) {
+    return { rows: [], errors: [], ignoredHeaders, fileErrors: [{ message: "영문·한글 두 열이 모두 필요합니다. 열 이름을 확인해 주세요." }] };
+  }
 
   if (columnMap.size === 0) {
     return {
@@ -148,6 +173,7 @@ export async function parseGlossaryWorkbook(
       topic: raw.topic || (raw.category && !categorySet.has(raw.category) ? raw.category : undefined),
       status,
       definitionMd: raw.definitionMd || undefined,
+      bodyMd: raw.bodyMd || undefined,
       canonicalNames: splitList(raw.canonicalNames ?? ""),
       abbreviations: splitList(raw.abbreviations ?? ""),
       aliases: splitList(raw.aliases ?? ""),

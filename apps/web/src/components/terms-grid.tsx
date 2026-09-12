@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { HelpTip } from "@/components/help-tip";
+import { ImportReview } from "@/components/import-review";
+import { isSimpleGlossaryHeader } from "@/lib/import/review";
 import type { SheetFilter } from "@/components/sheet-filter-bar";
 import { STATUS_TONE } from "@/components/term-badges";
 import {
@@ -259,6 +261,13 @@ export function TermsGrid(props: TermsGridProps) {
   const [draft, setDraft] = useState({ nameEn: "", nameKo: "" });
   const [creating, setCreating] = useState(false);
   const [pasteProgress, setPasteProgress] = useState("");
+  const [reviewPaste, setReviewPaste] = useState<string | null>(null);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const importDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (reviewPaste !== null) importDialog.current?.showModal();
+    else importDialog.current?.close();
+  }, [reviewPaste]);
   const pasteBusy = useRef(false);
   const [checkingPaste, setCheckingPaste] = useState(false);
   const [pasteIssues, setPasteIssues] = useState<string[] | null>(null);
@@ -976,6 +985,12 @@ export function TermsGrid(props: TermsGridProps) {
     if (intoDraft && !spansCells) return;
     if (!intoDraft && target?.closest("input, textarea") != null) return;
 
+    if (isSimpleGlossaryHeader(matrix[0] ?? []) || (intoDraft && matrix.every((line) => line.length >= 2 && line.length <= 5))) {
+      event.preventDefault();
+      setReviewPaste(text);
+      return;
+    }
+
     // "+" 줄에서 온 붙여넣기는 덮어쓸 행이 없다 — 표 맨 끝에 이어 붙인다.
     const anchor = intoDraft
       ? { r: rows.length, c: 0 }
@@ -1146,6 +1161,17 @@ export function TermsGrid(props: TermsGridProps) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex flex-wrap items-center gap-3 border-b border-line px-3 py-2">
+        <button type="button" className="btn-quiet btn-sm" disabled={creating || checkingPaste} onClick={() => setReviewPaste("")}>영문·한글 엑셀 가져오기</button>
+        <span className="text-xs text-ink-3">영문·한글 뒤에 도메인·한줄 정의·본문을 선택해 가져옵니다.</span>
+      </div>
+      <dialog ref={importDialog} onCancel={(event) => { if (reviewBusy) event.preventDefault(); else setReviewPaste(null); }} onClose={() => setReviewPaste(null)} className="m-auto max-h-[90vh] w-[min(56rem,95vw)] overflow-auto rounded-xl border border-line bg-panel p-5 text-ink shadow-pop backdrop:bg-black/40" aria-labelledby="sheet-import-title">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 id="sheet-import-title" className="font-semibold">새 용어 가져오기</h2>
+          <button type="button" className="btn-quiet btn-sm" disabled={reviewBusy} onClick={() => setReviewPaste(null)}>닫기</button>
+        </div>
+        {reviewPaste !== null && <ImportReview initialText={reviewPaste} onApplied={() => router.refresh()} onBusyChange={setReviewBusy} />}
+      </dialog>
       <GridToolbar
         columns={columns}
         allColumns={allColumns}
