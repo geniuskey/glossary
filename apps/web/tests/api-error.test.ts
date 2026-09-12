@@ -34,6 +34,10 @@ import * as adminAiConfigRoute from "../src/app/api/v1/admin/ai-config/route.js"
 import * as adminAiConfigTestRoute from "../src/app/api/v1/admin/ai-config/test/route.js";
 import * as adminAiConfigModelsRoute from "../src/app/api/v1/admin/ai-config/models/route.js";
 import * as chatRoute from "../src/app/api/v1/chat/route.js";
+import * as chatActionsRoute from "../src/app/api/v1/chat/actions/route.js";
+import * as relationsRoute from "../src/app/api/v1/relations/route.js";
+import * as relationRoute from "../src/app/api/v1/relations/[id]/route.js";
+import * as relationTermsRoute from "../src/app/api/v1/relations/terms/route.js";
 import * as contributionSuggestionsRoute from "../src/app/api/v1/contributions/suggestions/route.js";
 import * as contributionReviewQueueRoute from "../src/app/api/v1/contributions/review-queue/route.js";
 import * as adminCategoriesRoute from "../src/app/api/v1/admin/categories/route.js";
@@ -60,6 +64,10 @@ const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 // 헤더 없는 기본 405가 나오는데 vitest도 tsc도 잡지 못했다). 그래서 라우트마다
 // "허용되지 않은 모든 메서드"를 순회한다.
 const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]; allow: string }> = [
+  { name: "chat/actions", mod: chatActionsRoute, allowed: ["POST"], allow: "POST" },
+  { name: "relations", mod: relationsRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
+  { name: "relations/[id]", mod: relationRoute, allowed: ["PATCH"], allow: "PATCH" },
+  { name: "relations/terms", mod: relationTermsRoute, allowed: ["GET"], allow: "GET, HEAD" },
   { name: "auth/login", mod: loginRoute, allowed: ["POST"], allow: "POST" },
   { name: "auth/logout", mod: logoutRoute, allowed: ["POST"], allow: "POST" },
   { name: "auth/register", mod: registerRoute, allowed: ["POST"], allow: "POST" },

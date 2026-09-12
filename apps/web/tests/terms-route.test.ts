@@ -11,6 +11,7 @@ import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
 let currentCookieValue: string | undefined;
 
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
   cookies: async () => ({
     get: (name: string) =>
       name === SESSION_COOKIE && currentCookieValue !== undefined ? { name, value: currentCookieValue } : undefined,
@@ -378,7 +379,7 @@ test("write scope 키로 patch하면 200과 함께 갱신된 term을 반환한�
   expect(body.term.bodyMd).toBe("본문");
 });
 
-test("대표 이름을 기존 용어의 표기와 같게 수정하면 patch를 거부하고 원래 이름을 유지한다", async () => {
+test("대표 이름이 겹쳐도 별개 용어로 저장하고 중복 경고를 반환한다", async () => {
   const { token } = await makeKeyRow(["write"]);
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const existingResponse = await termsPost(
@@ -397,13 +398,11 @@ test("대표 이름을 기존 용어의 표기와 같게 수정하면 patch를 �
     patchRequest({ nameEn: `Existing Rename ${suffix}` }, token),
     { params: Promise.resolve({ idOrSlug: target.term.slug }) },
   );
-  expect(res.status).toBe(400);
+  expect(res.status).toBe(200);
   const body = await res.json();
-  expect(body.error.code).toBe("validation_failed");
-  expect(body.error.details.fieldErrors.nameEn.join(" ")).toContain(existing.term.slug);
-
-  const [unchanged] = await db.select({ nameEn: terms.nameEn }).from(terms).where(eq(terms.id, target.term.id));
-  expect(unchanged?.nameEn).toBe(`Rename Target ${suffix}`);
+  expect(body.warnings).toEqual(expect.arrayContaining([expect.objectContaining({ conflictingSlug: existing.term.slug })]));
+  const [updated] = await db.select({ nameEn: terms.nameEn }).from(terms).where(eq(terms.id, target.term.id));
+  expect(updated?.nameEn).toBe(`Existing Rename ${suffix}`);
 });
 
 // R52: 라우트는 updateTerm의 invalid 결과를 400 validation_failed로 변환해야 한다.

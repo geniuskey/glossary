@@ -17,6 +17,7 @@ import { legacyRedirects } from "../next.config.js";
 // 그걸 500으로 바꿔버린다 — 이러면 "인증 없이 호출하면 401"이라는 의도와 다른
 // 경로를 테스트하게 된다. terms-route.test.ts와 같은 방식으로 모킹한다.
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
   cookies: async () => ({
     get: (name: string) => (name === SESSION_COOKIE ? undefined : undefined),
   }),

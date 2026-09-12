@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";
 import { loadSsoConfig, publicSsoConfig, saveSsoConfig, SSO_MODES, SSO_PROTOCOLS } from "@/lib/auth/sso/config";

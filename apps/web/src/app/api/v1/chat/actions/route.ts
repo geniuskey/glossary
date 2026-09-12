@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { and, eq } from "drizzle-orm";
 import { chatConversations } from "@glossary/db";
 import { getDb } from "@/lib/db";

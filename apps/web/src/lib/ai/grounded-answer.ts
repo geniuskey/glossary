@@ -1,5 +1,5 @@
 import "server-only";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { completeAi, type AiRuntimeConfig } from "./provider";
 import { readAiJson } from "./chat-edit";
 import { retrieveGlossaryContext, type ChatGrounding, type ChatSource, type RetrievalOptions } from "./retrieval";

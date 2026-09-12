@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { normalizeEmail } from "@/lib/auth/register";
 import { createFirstAdmin, needsSetup } from "@/lib/auth/setup";

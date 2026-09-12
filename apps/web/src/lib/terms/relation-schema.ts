@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { RELATION_TYPES } from "./relation-values";
 
 const revision = z.number().int().positive();

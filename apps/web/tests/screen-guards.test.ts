@@ -195,7 +195,7 @@ test("용어 챗봇은 세션 목록을 제공하고 현재 대화를 URL에 남
 test("시트 도구 막대는 가로 스크롤 밖에서 현재 필터와 붙여넣기 도움말을 보여준다", () => {
   const content = stripComments(readFileSync(path.join(componentsDir, "terms-grid.tsx"), "utf8"));
   expect(content).toContain('aria-label="현재 적용된 필터"');
-  expect(content).toContain('엑셀에서 복사한 범위를 Ctrl+V로 그대로 붙여넣을 수 있습니다.');
+  expect(content).toContain('헤더를 포함해 복사하면 열 이름으로 자동 연결해 새 용어로 가져옵니다.');
   expect(content).not.toContain('엑셀에서 복사한 범위를 <span');
   expect(content.indexOf("<GridToolbar")).toBeLessThan(content.indexOf('className="min-h-0 flex-1 overflow-auto"'));
 });

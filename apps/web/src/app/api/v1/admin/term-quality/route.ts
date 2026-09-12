@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";
 import { getTermQualityOverview, getTermQualitySettings, saveTermQualitySettings } from "@/lib/workspace/term-quality";
