@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { surfaceKeys } from "@glossary/db";
 import {
   DOMAIN_VALUE_MAX,

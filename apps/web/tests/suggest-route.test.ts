@@ -9,6 +9,7 @@ import { createTerm } from "../src/lib/terms/create.js";
 // 밖이다. 모킹하지 않으면 던져진 예외를 withApiErrors가 500으로 바꿔, "인증 없이
 // 부르면 401"이 아니라 엉뚱한 경로를 테스트하게 된다(terms-lookup.test.ts와 동일).
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
   cookies: async () => ({ get: () => undefined }),
 }));
 

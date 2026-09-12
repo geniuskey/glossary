@@ -1,4 +1,5 @@
 import { and, eq, inArray, like, ne } from "drizzle-orm";
+import { isUniqueViolation } from "@/lib/postgres-error";
 import {
   attachmentRefs, attachments, surfaceKeys, terms, termRevisions, termSurfaces,
 } from "@glossary/db";
@@ -150,9 +151,7 @@ export function representativeDuplicateFieldErrors(
 // 충돌(23505 on terms_slug_unique)만 재시도 대상이다 — term_surfaces_unique
 // 같은 다른 23505는 실제 데이터 무결성 문제이므로 그대로 던져야 한다.
 export function isSlugConflict(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
-  const e = err as { code?: unknown; constraint_name?: unknown };
-  return e.code === "23505" && e.constraint_name === "terms_slug_unique";
+  return isUniqueViolation(err, ["terms_slug_unique"]);
 }
 
 const MAX_SLUG_RETRIES = 3;

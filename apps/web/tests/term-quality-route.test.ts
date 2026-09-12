@@ -8,6 +8,7 @@ import { DEFAULT_TERM_QUALITY } from "../src/lib/workspace/term-quality-values.j
 let currentCookieValue: string | undefined;
 
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
   cookies: async () => ({
     get: (name: string) => name === SESSION_COOKIE && currentCookieValue
       ? { name, value: currentCookieValue }

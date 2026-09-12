@@ -5,6 +5,7 @@ import { apiKeys, attachments, createDb } from "@glossary/db";
 import { generateApiKey } from "../src/lib/auth/api-key.js";
 
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
   cookies: async () => ({ get: () => undefined }),
 }));
 

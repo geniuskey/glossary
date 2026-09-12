@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { completeAi, type AiRuntimeConfig } from "./provider";
 import type { ChatEditPatch, ChatEditProposal } from "./chat-edit-values";
 import { chatEditPatchSchema } from "./chat-edit-schema";

@@ -8,6 +8,7 @@ let currentCookieValue: string | undefined;
 const originalEncryptionKey = process.env.GLOSSARY_ENCRYPTION_KEY;
 
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
   cookies: async () => ({
     get: (name: string) => name === SESSION_COOKIE && currentCookieValue
       ? { name, value: currentCookieValue }
