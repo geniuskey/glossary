@@ -9,7 +9,8 @@ import { isSimpleGlossaryHeader, needsReview, reviewColumns } from "@/lib/import
 import { createTerm } from "@/lib/terms/create";
 import { termInputSchema } from "@/lib/terms/schema";
 
-const { GET, PUT, PATCH, DELETE, OPTIONS } = methodStubs(["POST"]);
+const ALLOWED_METHODS = ["POST"];
+const { GET, PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
 export { GET, PUT, PATCH, DELETE, OPTIONS };
 
 export const POST = withApiErrors(async (request: Request) => {

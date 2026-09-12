@@ -21,6 +21,7 @@ import * as termAiReviewRoute from "../src/app/api/v1/terms/[idOrSlug]/ai-review
 import * as termRevisionsRoute from "../src/app/api/v1/terms/[idOrSlug]/revisions/route.js";
 import * as openapiRoute from "../src/app/api/v1/openapi/route.js";
 import * as importRoute from "../src/app/api/v1/import/route.js";
+import * as importReviewRoute from "../src/app/api/v1/import/review/route.js";
 import * as setupRoute from "../src/app/api/v1/setup/route.js";
 import * as termRevertRoute from "../src/app/api/v1/terms/[idOrSlug]/revisions/[number]/revert/route.js";
 import * as ssoRoute from "../src/app/api/v1/sso/route.js";
@@ -95,6 +96,7 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   // 저장소에서 다섯 번째로 반복된 405 스텁 누락(R83이 네 번째)이 아무 테스트도
   // 못 잡는 채로 남는다.
   { name: "import", mod: importRoute, allowed: ["POST"], allow: "POST" },
+  { name: "import/review", mod: importReviewRoute, allowed: ["POST"], allow: "POST" },
   // R130: 아래 파일시스템 대조 테스트가 처음 돌자마자 잡아낸 누락 — setup 라우트는
   // 만들어진 이래 405 스위프를 한 번도 받지 않았다. 표를 손으로만 유지하면 이렇게 된다.
   { name: "setup", mod: setupRoute, allowed: ["POST"], allow: "POST" },
