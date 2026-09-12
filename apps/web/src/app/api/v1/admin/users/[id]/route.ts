@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { apiError, methodStubs, requireUuid, withApiErrors } from "@/lib/api-error";
 import { changeManagedUserRole } from "@/lib/admin/users";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";

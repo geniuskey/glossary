@@ -8,6 +8,7 @@ import { DEFAULT_HOME_CONTENT } from "../src/lib/workspace/home-content-values.j
 let currentCookieValue: string | undefined;
 
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
   cookies: async () => ({
     get: (name: string) =>
       name === SESSION_COOKIE && currentCookieValue !== undefined ? { name, value: currentCookieValue } : undefined,

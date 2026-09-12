@@ -1,4 +1,5 @@
 import { desc, eq, inArray, sql } from "drizzle-orm";
+import { isUniqueViolation } from "@/lib/postgres-error";
 import {
   apiKeys, attachmentRefs, attachments, surfaceKeys, terms, termRevisions, termSurfaces, users,
 } from "@glossary/db";
@@ -97,9 +98,7 @@ export async function deleteTerm(termId: string): Promise<boolean> {
 // R48과 같은 판별 패턴: SQLSTATE 23505 중 term_revisions_unique 위반만 리비전
 // 번호 경합으로 취급한다. 다른 23505를 여기서 삼키면 진짜 무결성 문제를 숨긴다.
 export function isRevisionConflict(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
-  const e = err as { code?: unknown; constraint_name?: unknown };
-  return e.code === "23505" && e.constraint_name === "term_revisions_unique";
+  return isUniqueViolation(err, ["term_revisions_unique"]);
 }
 
 export async function currentRevisionNumber(termId: string): Promise<number> {

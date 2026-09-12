@@ -1,4 +1,5 @@
 import { users } from "@glossary/db";
+import { isUniqueViolation } from "@/lib/postgres-error";
 import { getDb } from "@/lib/db";
 import { hashPassword } from "./password";
 
@@ -26,9 +27,7 @@ export function normalizeEmail(email: string): string {
 const EMAIL_CONSTRAINTS = new Set(["users_email_unique", "users_email_lower_unique"]);
 
 function isEmailTaken(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
-  const e = err as { code?: unknown; constraint_name?: unknown };
-  return e.code === "23505" && typeof e.constraint_name === "string" && EMAIL_CONSTRAINTS.has(e.constraint_name);
+  return isUniqueViolation(err, [...EMAIL_CONSTRAINTS]);
 }
 
 /**

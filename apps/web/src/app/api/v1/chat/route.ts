@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { chatConversations } from "@glossary/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";

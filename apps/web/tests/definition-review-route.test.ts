@@ -8,6 +8,7 @@ import { createTerm } from "../src/lib/terms/create.js";
 let currentCookieValue: string | undefined;
 
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
   cookies: async () => ({
     get: (name: string) => name === SESSION_COOKIE && currentCookieValue
       ? { name, value: currentCookieValue }
