@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { termRevisions } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { EXPLICIT_SURFACE_KINDS, SURFACE_LANGS, TERM_STATUSES } from "./enums";

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";

@@ -18,6 +18,7 @@ import { updateTerm } from "../src/lib/terms/update.js";
 let currentCookieValue: string | undefined;
 
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
   cookies: async () => ({
     get: (name: string) =>
       name === SESSION_COOKIE && currentCookieValue !== undefined ? { name, value: currentCookieValue } : undefined,

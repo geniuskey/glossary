@@ -1,5 +1,5 @@
 import { desc } from "drizzle-orm";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { apiKeys } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";

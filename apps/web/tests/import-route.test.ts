@@ -10,6 +10,7 @@ import { SESSION_COOKIE } from "../src/lib/auth/session.js";
 // getCurrentUser가 던지고 withApiErrors가 그걸 500으로 바꿔 "인증 없으면 401"
 // 이라는 의도와 다른 경로를 테스트하게 된다.
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
   cookies: async () => ({
     get: (name: string) => (name === SESSION_COOKIE ? undefined : undefined),
   }),

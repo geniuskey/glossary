@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { generateOneLineDefinition, listDefinitionReviewCandidates } from "@/lib/ai/definition-review";
 import { AiProviderError } from "@/lib/ai/provider";
