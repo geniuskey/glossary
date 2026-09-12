@@ -1212,6 +1212,34 @@ export const openApiSpec = {
         },
       },
     },
+    "/import/review": {
+      post: {
+        summary: "영문·한글 용어집의 표기 분리를 검토하고 승인된 행을 가져온다",
+        description: "영문·한글 두 열은 필수이며 도메인, 한줄 정의, 본문은 선택합니다. 최대 5000행, 파일·텍스트·검토 데이터 각각 10MB입니다. apply=true일 때만 저장하며 원본으로 재검사하여 변경된 승인과 미검토 행이 있으면 저장하지 않습니다.",
+        requestBody: {
+          required: true,
+          content: { "multipart/form-data": { schema: {
+            type: "object",
+            required: ["review"],
+            anyOf: [{ required: ["file"] }, { required: ["text"] }],
+            properties: {
+              file: { type: "string", format: "binary", description: "xlsx 파일. text와 함께 보내면 파일을 사용합니다." },
+              text: { type: "string", description: "엑셀에서 복사한 탭 구분 표" },
+              hasHeaders: { type: "string", enum: ["true", "false"], description: "헤더 없는 텍스트의 열 순서는 영문, 한글, 선택한 도메인·한줄 정의·본문 순입니다." },
+              review: { type: "string", description: "JSON 문자열: columns는 domain/definitionMd/bodyMd 배열(기본 []), options는 comma/semicolon/newline 불리언, decisions는 rowNumber/en 배열/ko 배열/skip/선택적 approval을 가진 행 배열입니다. approval에는 미리보기의 fingerprint를 전달합니다." },
+              apply: { type: "string", enum: ["true", "false"], default: "false" },
+            },
+          } } },
+        },
+        responses: {
+          "200": json("미리보기는 { report }, 미검토는 { report, needsReview: true }, 저장은 { report, completed, failures, created }. 일부 저장 후 실패할 수 있으므로 재시도 시 completed 행은 제외해야 합니다.", { type: "object" }),
+          "400": errorResponse("validation_failed — 입력 형식 또는 검토 데이터 오류"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 쓰기 권한 필요"),
+          "413": errorResponse("payload_too_large"),
+        },
+      },
+    },
     "/terms/paste-check": {
       post: {
         summary: "시트 붙여넣기 전체 사전 검사",
