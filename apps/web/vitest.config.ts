@@ -15,7 +15,7 @@ export default defineConfig({
   // 검사하는 테스트를 가능하게 한다 — JSX가 기본 classic 변환으로
   // React.createElement(...)를 참조 오류 없이 내보내려면 automatic 런타임이
   // 필요하다(react 17+ jsx-runtime, 이미 의존성에 존재).
-  esbuild: { jsx: "automatic" },
+  oxc: { jsx: { runtime: "automatic" } },
   test: {
     include: ["tests/**/*.test.ts"],
     setupFiles: ["./tests/setup.ts"],
