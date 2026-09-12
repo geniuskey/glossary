@@ -3,6 +3,7 @@
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "preserve",
+    "types": ["node", "react", "react-dom"],
     "noEmit": true,
     "plugins": [{ "name": "next" }],
     "paths": { "@/*": ["./src/*"] }

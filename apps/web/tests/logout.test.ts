@@ -1,8 +1,8 @@
 import { expect, test, vi } from "vitest";
 import { performLogout, type LogoutRouter } from "../src/lib/auth/logout.js";
 
-function mockRouter(): LogoutRouter & { replace: ReturnType<typeof vi.fn>; refresh: ReturnType<typeof vi.fn> } {
-  return { replace: vi.fn(), refresh: vi.fn() };
+function mockRouter() {
+  return { replace: vi.fn<LogoutRouter["replace"]>(), refresh: vi.fn<LogoutRouter["refresh"]>() };
 }
 
 // F7/Q4: app/login/page.tsx:18과 같은 패턴 — 응답이 ok일 때만 이동한다.
