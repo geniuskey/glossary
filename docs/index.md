@@ -4,17 +4,17 @@ layout: home
 hero:
   name: Glossary
   text: 조직 특화형 용어집 관리 플랫폼
-  tagline: 한국어와 영어로 쓰이는 팀의 용어를 단일 사전으로 모으고, 도구가 API 한 번으로 문서를 검증할 수 있게 만든다.
+  tagline: 한국어와 영어로 쓰이는 팀의 용어를 함께 정리하고, 검색과 API로 권장 표기를 확인한다.
   actions:
     - theme: brand
-      text: 시작하기
-      link: /guide/getting-started
+      text: 사용 방법
+      link: /help
     - theme: alt
       text: API 레퍼런스
       link: /api/
     - theme: alt
-      text: GitHub
-      link: https://github.com/geniuskey/glossary
+      text: 설치와 운영
+      link: /operations
 
 features:
   - title: 단일 사전 + 동음이의어
@@ -24,7 +24,7 @@ features:
   - title: 기계 판독 가능
     details: OpenAPI 3.1 스펙을 GET /api/v1/openapi로 서빙한다. AI-Lint 같은 도구가 POST /terms/lookup 한 번으로 문서에 쓰인 표기 전체를 확인한다.
   - title: 용어집 근거 챗봇
-    details: 관련 공개 용어만 찾아 Gemini 또는 OpenAI-compatible API에 전달하고, 답변에 사용한 근거 용어를 다시 연결한다.
+    details: 관련 용어를 찾아 Gemini 또는 OpenAI-compatible API에 전달하고, 답변에 사용한 근거 용어를 다시 연결한다.
   - title: 온프레미스
-    details: 사내망 Docker Compose 배포. 첨부 이미지까지 Postgres에 들어 있어 pg_dump 결과 파일 하나가 전체 백업이다.
+    details: 사내망 Docker Compose 배포. 첨부 이미지를 포함한 데이터는 Postgres에 저장한다. DB 백업과 환경 설정·암호화 키를 함께 보관한다.
 ---

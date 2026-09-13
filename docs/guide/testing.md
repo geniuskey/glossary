@@ -49,8 +49,8 @@ DB에 붙는 패키지는 `fileParallelism: false`다 — 테스트가 같은 �
 ## jsdom은 쓰지 않는다
 
 렌더/이벤트 테스트는 하지 않는다. Server Component는 평범한 async 함수라 직접 호출해서
-반환된 React 엘리먼트 트리(순수 객체)를 검사한다. 그래서 `esbuild: { jsx: "automatic" }`이
-필요하다 — classic 변환이면 JSX가 `React.createElement` 참조 오류를 낸다.
+반환된 React 엘리먼트 트리(순수 객체)를 검사한다. JSX 변환은 `apps/web/vitest.config.ts`의 automatic 런타임 설정을 따른다.
+classic 변환이면 JSX가 `React.createElement` 참조 오류를 낼 수 있다.
 
 E2E(Playwright)는 M2 이후 핵심 흐름 넷을 대상으로 붙인다:
 용어 등록 → 별칭으로 검색 → 문서 검증 → 이력 롤백.

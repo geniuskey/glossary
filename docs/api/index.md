@@ -10,7 +10,8 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 ```
 
 `apps/web/tests/openapi.test.ts`가 `app/api/v1/` 밑의 모든 라우트가 스펙에 있고
-메서드까지 일치하는지 검사하므로, 문서와 실제 응답이 갈라질 수 없다.
+메서드까지 일치하는지 검사한다. 이 검사는 Markdown 예시나 모든 응답 필드의 정확성까지
+보장하지 않으므로, 연동할 때는 배포한 서버의 스펙도 확인한다.
 
 ## 엔드포인트 목록
 
@@ -27,7 +28,7 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | GET | [`/keys`](/api/auth#키-목록) | 세션 | API 키 목록 |
 | POST | [`/keys`](/api/auth#키-발급) | 세션 | API 키 발급 |
 | DELETE | [`/keys/{id}`](/api/auth#키-폐기) | 세션 | API 키 폐기 |
-| GET | [`/sso`](/api/auth#sso-openid-connect) | 세션(admin) | SSO 설정 조회 (시크릿 제외) |
+| GET | [`/sso`](/api/auth#sso-설정) | 세션(admin) | SSO 설정 조회 (시크릿 제외) |
 | PUT | [`/sso`](/api/auth#sso-설정) | 세션(admin) | SSO 설정 저장 |
 | POST | [`/sso/discover`](/api/auth#sso-설정) | 세션(admin) | issuer의 발견 문서로 엔드포인트 채우기 |
 | GET | [`/sso/proxy-check`](/api/auth#oauth2-proxy-헤더-확인) | 세션(admin) | 현재 요청에 실제 도착한 프록시 헤더 진단 |
@@ -141,7 +142,8 @@ CSRF 방어가 현재 `SameSite=Lax` 쿠키 하나뿐이라, 상태 변경은 �
 
 ## HTTPS
 
-온프레미스 기본 구성은 **평문 HTTP**다. 세션 쿠키에 `Secure`가 붙지 않는다 — 평문
-HTTP에서 `Secure`를 붙이면 브라우저가 쿠키를 버리기 때문이다. 리버스 프록시로 TLS를
-씌운다면 `apps/web/src/app/api/v1/auth/login/route.ts`에서 `Secure`를 직접 추가해야 한다.
-자동으로 붙지 않는다. 자세한 것은 [운영 안내서](/operations#네트워크와-인증-—-알고-넘어가야-할-것)에 있다.
+기본 Compose 구성은 평문 HTTP다. 세션 쿠키는 HTTPS 요청에서 `Secure`가 자동으로 붙는다.
+판정은 `apps/web/src/lib/auth/session.ts`의 `isSecureRequest`가 담당하며,
+`X-Forwarded-Proto`의 첫 값을 우선하고 헤더가 없으면 요청 URL의 프로토콜을 사용한다.
+리버스 프록시는 이 헤더를 실제 외부 프로토콜로 덮어써야 한다.
+구성 전제는 [운영 안내서](/operations#네트워크와-인증-—-알고-넘어가야-할-것)를 참고한다.

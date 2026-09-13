@@ -1,14 +1,14 @@
 # Glossary on Docker Hub
 
-> **Development preview — `0.1.7`**
+> **Development preview — `0.1.8`**
 >
 > Glossary is under active development. Use this release for evaluation and internal pilots,
-> pin both container tags to `0.1.7`, and keep tested database backups before upgrading.
+> use the matching `0.1.8` and `0.1.8-migrator` tags, and keep tested database backups before upgrading.
 >
-> **개발 미리보기 — `0.1.7`**
+> **개발 미리보기 — `0.1.8`**
 >
 > 현재 활발히 개발 중인 초기 버전입니다. 기능 검토와 사내 파일럿 용도로 사용하고,
-> 앱과 마이그레이터 이미지를 모두 `0.1.7`로 고정한 뒤 업그레이드 전 백업을 보관하세요.
+> 앱은 `0.1.8`, 마이그레이터는 `0.1.8-migrator`로 고정한 뒤 업그레이드 전 백업을 보관하세요.
 
 ## Short description
 
@@ -24,7 +24,7 @@
 
 Glossary is a self-hosted collaborative glossary for a specific team, product group, or organizational unit. It brings abbreviations, canonical names, aliases, definitions, and domain knowledge into one searchable source of truth.
 
-Glossary는 전사 공통 플랫폼보다 **특정 조직·팀·제품군이 실제로 사용하는 언어**를 정리하는 데 초점을 둡니다. 누군가 약어만 초안으로 남겨도 다른 구성원이 풀네임·정의·분야를 보태고, 검토가 끝난 용어만 검색과 API에 공개할 수 있습니다.
+Glossary는 전사 공통 플랫폼보다 **특정 조직·팀·제품군이 실제로 사용하는 언어**를 정리하는 데 초점을 둡니다. 누군가 약어만 초안으로 남겨도 다른 구성원이 풀네임·정의·분야를 보태고, 작성 내용을 바탕으로 `보완 필요` / `기준 충족` 상태를 자동 판정합니다. 이 상태는 공개 권한이나 공식 승인을 뜻하지 않으며, 보완이 필요한 용어도 검색·API·챗봇에서 사용될 수 있습니다.
 
 ### Language scope / 언어 지원 범위
 
@@ -40,26 +40,33 @@ A future release may allow another native language to be selected alongside Engl
 
 - Organization-specific glossary rather than a global public dictionary
 - Korean and English names, abbreviations, aliases, and domain tags
-- Collaborative draft completion and explicit publish status
+- Collaborative completion with automatically calculated content-quality status; no per-term private/public approval workflow
 - Spreadsheet-style editing and Excel import for all alternate notation kinds, with dry-run validation
 - Column-selectable read-only sheet URLs and iframe code for Confluence
 - Search across canonical names and alternate surfaces
-- Revision history and revert support
-- Admin panel for OIDC/OAuth 2.0 SSO, users, API keys, AI providers, and home-page messaging
-- Glossary-grounded Gemini or OpenAI-compatible chat that can learn a term through conversation
-- Paste CSV, TSV, Markdown tables, lists, or JSON to review and create multiple private term drafts
-- 72-color soft domain palette shared by classifications and the interactive relationship graph
+- Markdown editing, attached images, Mermaid diagrams, math rendering, revision history, and revert support
+- Admin panel for OIDC/OAuth 2.0 SSO, users, AI providers, and home-page messaging; API keys are managed under user settings
+- Glossary-grounded Gemini or OpenAI-compatible chat with passage citations, domain-scoped retrieval, and reviewable term creation/editing proposals
+- Paste CSV, TSV, Markdown tables, lists, or JSON into chat to review up to 25 term proposals before creating entries
+- Domain colors, term owners, classifications, and an interactive relationship graph with proposed/approved semantic relations
 - OpenAPI 3.1 API and batch terminology lookup for internal tools
 - Self-hosted Docker Compose deployment with PostgreSQL 16
 
+The `read`-scope lookup API accepts 1–500 notation strings (1–500 characters each).
+Clients must extract those strings themselves. Full-document validation (`/validate`), lexicon
+snapshots (`/lexicon`), and automatic unregistered-term collection are planned features.
+
+`draft` means “needs completion,” not private data. “Meets criteria” is a content check,
+not an approval or guarantee of correctness.
+
 ## Images and tags
 
-Glossary publishes two tags from the same Docker Hub repository:
+The web application and migrator are published separately in the same repository:
 
 | Tag | Purpose |
 |---|---|
-| `0.1.7` | Version-pinned web application (recommended) |
-| `0.1.7-migrator` | Matching database migrations (recommended) |
+| `0.1.8` | Version-pinned web application (recommended) |
+| `0.1.8-migrator` | Matching database migrations (recommended) |
 | `latest` | Most recently published web application |
 | `latest-migrator` | Migrations matching `latest` |
 
@@ -68,31 +75,47 @@ For production, pin both images to the same version instead of using `latest`.
 사내 서버에서 명시적으로 받으려면 두 태그를 함께 pull합니다.
 
 ```bash
-docker pull euiyun/glossary:0.1.7
-docker pull euiyun/glossary:0.1.7-migrator
+docker pull euiyun/glossary:0.1.8
+docker pull euiyun/glossary:0.1.8-migrator
 ```
 
 ## Quick start with Docker Compose
+
+Requires Docker Engine with the Compose plugin. The published `0.1.8` app image is
+`linux/amd64`; native ARM64 support is not advertised for this tag. Node.js and pnpm
+are not needed on the host. Commands below use Bash (Git Bash or WSL on Windows).
 
 Download the pull-based Compose file and its environment template:
 
 ```bash
 mkdir glossary && cd glossary
-curl -LO https://raw.githubusercontent.com/geniuskey/glossary/main/docker-compose.hub.yml
-curl -L https://raw.githubusercontent.com/geniuskey/glossary/main/.env.dockerhub.example -o .env
+curl -LO https://raw.githubusercontent.com/geniuskey/glossary/v0.1.8/docker-compose.hub.yml
+curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.1.8/.env.dockerhub.example -o .env
 ```
 
-The environment template pins both images to the `0.1.7` development release. Set a long, URL-safe database password, then pull and start the stack:
+Edit `.env` before starting: use the `0.1.8` / `0.1.8-migrator` pair, replace
+`POSTGRES_PASSWORD` with a long URL-safe value, and replace `GLOSSARY_ENCRYPTION_KEY`
+with a separate fixed random secret of at least 32 characters if using AI.
+The examples download templates from `v0.1.8` so they match the documented release.
+For example, generate a password with `openssl rand -hex 32` and an encryption key with
+`openssl rand -base64 48`, then copy the respective outputs into `.env`.
+
+환경 파일의 예시 비밀번호·암호화 키를 그대로 사용하지 마세요. 암호화 키는 DB 백업에
+포함되지 않으며, 분실하거나 변경하면 저장된 AI API 키와 custom header를 읽을 수 없습니다.
+
+Then pull and start the stack:
 
 ```bash
-# 비공개 저장소라면 먼저 실행합니다.
-docker login
+# Private repositories only: docker login
 
 docker compose --env-file .env -f docker-compose.hub.yml pull
 docker compose --env-file .env -f docker-compose.hub.yml up -d
 ```
 
-Open `http://localhost:3000`. The first visitor is redirected to `/setup` to create the initial administrator account. Complete this immediately after deployment.
+Open `http://<server-address>:3000` (`http://localhost:3000` on the Docker host). With default password login, the first visitor is redirected to `/setup` to create the initial administrator account. Complete this immediately after deployment.
+
+`database-init` prepares `pg_trgm`; `migrator` must finish successfully before `app` starts.
+One-time services exiting with code 0 is expected.
 
 데이터는 `glossary_hub_pgdata` Docker 볼륨에 보존됩니다. 새 버전으로 올릴 때는 두 이미지 태그를 같은 버전으로 바꾼 뒤 `pull`과 `up -d`를 다시 실행합니다.
 
@@ -106,10 +129,13 @@ docker compose --env-file .env -f docker-compose.hub.yml ps
 
 | Variable | Description |
 |---|---|
-| `GLOSSARY_IMAGE` | Web image, for example `euiyun/glossary:0.1.7` |
-| `GLOSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/glossary:0.1.7-migrator` |
+| `GLOSSARY_IMAGE` | Web image, for example `euiyun/glossary:0.1.8` |
+| `GLOSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/glossary:0.1.8-migrator` |
 | `GLOSSARY_PORT` | Host port; defaults to `3000` |
 | `POSTGRES_PASSWORD` | Internal PostgreSQL password; use URL-safe characters |
+| `GLOSSARY_ENCRYPTION_KEY` | Fixed secret of at least 32 characters for AI API keys and custom headers; back up separately |
+| `INITIAL_ADMIN_EMAIL` | Initial administrator email for SSO bootstrap; required for a fresh proxy-only setup |
+| `SSO_LOGIN_URL` | Proxy login entry override; defaults to `/oauth2/start?rd=%2F` |
 | `GLOSSARY_EMBED_ANCESTORS` | Optional comma-separated Confluence origins allowed to frame `/embed` |
 | `OAUTH2_PROXY_ENABLED` | Allows the UI to select oauth2-proxy when a trusted proxy safely overwrites authentication headers; default `false` |
 | `PASSWORD_LOGIN_ENABLED` | Initial password-login policy before the first admin save; later managed under **Admin → Login · SSO** |
@@ -119,14 +145,59 @@ docker compose --env-file .env -f docker-compose.hub.yml ps
 | `OAUTH2_SUBJECT_FIELD` | Optional direct-OAuth2 subject override; set `email` when proxy and OAuth2 code flows coexist |
 
 Workspace-specific wording can be configured after login from the administrator panel, allowing each installation to state which organization and specialty the glossary serves.
-The active login mode (`disabled`, OIDC, OAuth 2.0, or oauth2-proxy) is selected under **Settings → SSO**.
+The active login mode (`disabled`, OIDC, OAuth 2.0, or oauth2-proxy) is selected under **Admin → Login · SSO** (`관리자 패널 → 로그인 · SSO`).
+For proxy-only bootstrap and trusted-header configuration, follow the [SSO guide](https://geniuskey.github.io/glossary/guide/sso).
+
+## AI and sharing
+
+Configure Gemini or an OpenAI-compatible endpoint under **Admin → AI connection** after setting
+the encryption key. `Connected` means a generation request succeeded with the selected model.
+Questions and relevant glossary content, including entries that need completion, may be sent
+to that provider. AI is optional; glossary editing and lookup do not require it.
+
+Confluence embeds require both `GLOSSARY_EMBED_ANCESTORS` and a Glossary login session.
+Use matching site boundaries where possible, such as `glossary.example.com` and
+`confluence.example.com`. A shared sheet displays at most 200 entries and is read-only.
+
+## Backup and restore
+
+Keep logical database dumps, Compose/environment configuration, and the encryption key.
+The dump includes attachment images but does not include the environment's encryption key.
+Run the repository scripts from the installation directory in Bash:
+
+```bash
+mkdir -p scripts
+curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.1.8/scripts/backup.sh -o scripts/backup.sh
+curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.1.8/scripts/restore.sh -o scripts/restore.sh
+export COMPOSE_FILE=docker-compose.hub.yml
+BACKUP_DIR=./backups bash scripts/backup.sh
+# Replace the filename with the backup produced above.
+bash scripts/restore.sh --rehearse ./backups/glossary-YYYYMMDD-HHMMSS.dump
+```
+
+The rehearsal recreates `glossary_rehearsal` and leaves the application's `glossary` database
+unchanged. Actual replacement uses `--force` and requires typing `replace glossary`.
+Read the [operations guide](https://geniuskey.github.io/glossary/operations) before restoring.
+Upgrades run database migrations; changing only the image tag back is not a database rollback.
 
 ## Operational notes
 
 - Put a TLS reverse proxy in front of Glossary before using it beyond a protected internal network.
-- Back up the PostgreSQL volume regularly and rehearse restoration before production use.
+- The supplied Compose file exposes plain HTTP on all host interfaces. For TLS termination, overwrite `X-Forwarded-Proto` with the actual external protocol; HTTPS requests get `Secure` session cookies automatically. Restrict direct access to the app port when using trusted proxy headers.
+- Back up with `pg_dump` or the supplied backup script and rehearse restoration before production use.
 - Keep the application and migrator tags on exactly the same version.
 - The `/setup` endpoint is open only while there are no users; the first person to complete it becomes the administrator.
+
+For startup problems, inspect:
+
+```bash
+docker compose --env-file .env -f docker-compose.hub.yml ps -a
+docker compose --env-file .env -f docker-compose.hub.yml logs --tail=100 database-init migrator app
+curl -fsS http://localhost:3000/api/v1/health
+```
+
+Use the configured port for the health check. Share sanitized logs through the
+[support channels](https://geniuskey.github.io/glossary/support).
 
 Project documentation: [https://geniuskey.github.io/glossary/](https://geniuskey.github.io/glossary/)
 

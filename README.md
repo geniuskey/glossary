@@ -6,7 +6,7 @@
 
 특정 조직·팀·제품군이 실제로 사용하는 용어를 함께 정리하는 **셀프호스팅 용어집 관리
 플랫폼**. 엑셀과 컨플루언스에 흩어진 용어를 단일 사전으로 모으고, AI-Lint 같은 도구가
-API 한 번으로 문서의 표기를 검증할 수 있게 만든다.
+표기 목록을 API로 조회할 수 있게 만든다. 문서 본문을 분석하는 검증 엔진은 후속 계획이다.
 
 **문서: https://geniuskey.github.io/glossary/**
 
@@ -31,9 +31,10 @@ API 한 번으로 문서의 표기를 검증할 수 있게 만든다.
 
 1. **단일 사전** — 모든 용어를 한곳에 모으고 등록 시점에 중복을 잡는다.
    제품별 네임스페이스로 나누지 않고, 동음이의어는 `domain` 태그로 구분한다.
-2. **기계 판독 가능** — OpenAPI 3.1 스펙을 서빙하고, `POST /terms/lookup` 한 번으로
-   문서에 등장한 표기 전체를 확인한다.
-3. **위키 수준의 문서성** — 각 용어를 마크다운과 이미지로 설명한다.
+2. **기계 판독 가능** — OpenAPI 3.1 스펙을 서빙하고, `POST /api/v1/terms/lookup`으로
+   호출자가 추출한 표기를 최대 500개씩 조회한다. 문장 내 용어 추출이나 위치별 교정은 수행하지 않는다.
+3. **위키 수준의 문서성** — 마크다운·첨부 이미지·Mermaid 다이어그램·수식으로 설명하고
+   수정 이력을 조회하거나 되돌린다.
 4. **역할 분담과 맥락 탐색** — 용어별 담당자와 Type·업무 분류·주제를 두고, 관계도와
    Confluence용 읽기 전용 임베드 화면으로 정리 범위를 공유한다.
 5. **사내 계정 로그인** — 관리 화면에서 OIDC 또는 OAuth 2.0을 고르고 엔드포인트와
@@ -64,12 +65,17 @@ API 한 번으로 문서의 표기를 검증할 수 있게 만든다.
 ## 요구사항
 
 - Node.js 22 이상
-- pnpm 9.12.0 (`packageManager`로 고정)
+- pnpm: 루트 `package.json`의 `packageManager`에 지정된 버전
 - Docker (Postgres 16 + `pg_trgm`)
 
-## 빠른 시작
+## 빠른 시작 (로컬 개발)
+
+아래는 Bash 기준이다. Windows에서는 Git Bash 또는 WSL을 사용한다. 이미지로 설치할
+운영자는 [Docker Hub 설치 안내](./DOCKERHUB.md)를 따른다. 이미지 실행에는 Node.js·pnpm이 필요 없다.
 
 ```bash
+git clone https://github.com/geniuskey/glossary.git
+cd glossary
 corepack enable
 pnpm install
 
@@ -102,7 +108,7 @@ API Key를 입력하면 모델 목록을 불러오며, `Connected`는 선택 모
 
 ## 시트 공유와 Confluence 임베드
 
-`/sheet`의 **공유하기**에서 검색어·Type·공개 상태·도메인·업무 분류·주제를 공유용으로
+`/sheet`의 **공유하기**에서 검색어·완성도 상태·도메인·업무 분류·주제를 공유용으로
 따로 정하고 표시할 열과 촘촘한 행·상세 링크·테두리를 체크하면 공유 URL과 iframe 코드를
 각각 복사할 수 있다. Confluence iframe
 매크로에는 다음처럼 열 정의까지 포함된 읽기 전용 주소를 넣는다.
@@ -114,6 +120,7 @@ https://glossary.example.com/embed?domain=ISP&category=design&topic=노출%20제
 `GLOSSARY_EMBED_ANCESTORS=https://confluence.example.com`을 설정해야 해당 Confluence 출처에서만
 iframe이 열린다. 여러 출처는 쉼표로 구분한다. 임베드도 로그인 세션을 요구하므로 두 서비스는
 가급적 같은 사이트 범위(예: `glossary.example.com`과 `confluence.example.com`)에서 운영한다.
+공유 표는 최대 200개를 표시한다. `draft`는 보완 필요 상태이며 비공개 권한을 뜻하지 않는다.
 
 ## 저장소 구조
 
@@ -157,17 +164,24 @@ curl -s -H "Authorization: Bearer glk_..." \
 ```
 
 인증은 두 갈래다 — 사람은 세션 쿠키, 도구는 `Authorization: Bearer glk_<prefix>_<secret>`.
-모든 에러는 `{ error: { code, message, details? } }` 봉투를 쓴다. 예외 없음.
+`/api/v1` 애플리케이션 에러는 `{ error: { code, message, details? } }` 봉투를 쓴다.
+API 키는 로그인 후 **설정 → API 키**에서 발급하고 위 조회에는 `read` scope를 부여한다.
+각 입력 표기는 1~500자이며 공백뿐인 문자열은 허용하지 않는다.
 
 자세한 것은 [API 레퍼런스](https://geniuskey.github.io/glossary/api/)를 본다.
 
 ## Docker Hub 이미지 배포
 
 Docker Hub에는 웹 앱과 마이그레이터를 같은 저장소의 서로 다른 태그로 올린다.
+설치 절차는 [Docker Hub 안내](./DOCKERHUB.md)에 있고, 아래 빌드·push는 이미지 배포자용이다.
+`VERSION`은 실제로 배포할 새 버전으로 바꾼다.
+
+이미지 배포 전 `package.json`의 `packageManager`와 Dockerfile의 pnpm 준비 버전을
+맞추고 `--frozen-lockfile` 설치·이미지 빌드를 검증한다.
 
 ```bash
 IMAGE=euiyun/glossary
-VERSION=0.1.7
+VERSION=0.1.8
 
 docker build --build-arg APP_VERSION="$VERSION" --target app -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
 docker build --build-arg APP_VERSION="$VERSION" --target migrator -t "$IMAGE:$VERSION-migrator" -t "$IMAGE:latest-migrator" .
@@ -182,8 +196,8 @@ docker push "$IMAGE:latest-migrator"
 `latest`보다 앱·마이그레이터 양쪽을 같은 버전으로 고정하는 편이 안전하다.
 
 ```bash
-docker pull euiyun/glossary:0.1.7
-docker pull euiyun/glossary:0.1.7-migrator
+docker pull euiyun/glossary:0.1.8
+docker pull euiyun/glossary:0.1.8-migrator
 ```
 
 ```bash
@@ -196,8 +210,8 @@ docker compose --env-file .env -f docker-compose.hub.yml up -d
 
 ## 소스에서 직접 배포
 
-사내망 온프레미스 Docker Compose다. 첨부 이미지까지 Postgres에 들어 있어
-**`scripts/backup.sh`가 만드는 dump 파일 하나가 회사 용어집 전부다.**
+사내망 온프레미스 Docker Compose다. 용어와 첨부 이미지는 DB dump로 백업한다.
+서버 복원에는 Compose 파일·환경 설정과 `GLOSSARY_ENCRYPTION_KEY`도 별도로 보관해야 한다.
 
 ```bash
 cp .env.example .env   # POSTGRES_PASSWORD를 실제 값으로
@@ -211,9 +225,9 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 - **M1 사전 코어** — 구현됨. DB 스키마, 정규화, 인증·API Key, 용어 CRUD, 검색,
   중복 경고, 엑셀 임포트(dry-run), 프로덕션 Docker, 백업·복구.
-- **M2 검증 엔진** — `packages/engine` 전체, `/validate`, `/lexicon`, 미등록 후보 수집.
+- **M2 검증 엔진 — 계획**: 문서 본문 검증, `/validate`, `/lexicon`, 미등록 후보 수집은 아직 제공하지 않는다.
 - **M3 위키 완성도** — CodeMirror Markdown 편집·GFM 미리보기, 이미지 붙여넣기·WebP 첨부,
-  리비전 조회/revert는 구현됨. mermaid, diff 화면, 위키 링크·역참조, 병합 UI는 남음.
+  Mermaid·수식 렌더링, 리비전 조회/revert는 구현됨. diff 화면, 위키 링크·역참조, 병합 UI는 남음.
 
 [로드맵](https://geniuskey.github.io/glossary/guide/roadmap)에 자세한 범위가 있다.
 

@@ -5,16 +5,20 @@
 ## 요구사항
 
 - Node.js **22 이상**
-- pnpm **9.12.0** (`packageManager` 필드로 고정되어 있다)
+- pnpm: 저장소 루트 `package.json`의 `packageManager`에 지정된 버전
 - Docker (Postgres 16 컨테이너용)
 
 ```bash
 corepack enable
 ```
 
-## 1. 의존성 설치
+예제 명령은 Bash 기준이다. Windows에서는 Git Bash 또는 WSL을 사용한다.
+
+## 1. 저장소와 의존성 준비
 
 ```bash
+git clone https://github.com/geniuskey/glossary.git
+cd glossary
 pnpm install
 ```
 
@@ -27,7 +31,7 @@ cp .env.example .env
 | 변수 | 용도 |
 |---|---|
 | `DATABASE_URL` | 앱이 붙는 개발 DB |
-| `DATABASE_URL_TEST` | `packages/db` 통합 테스트 전용 DB |
+| `DATABASE_URL_TEST` | `packages/db`와 `apps/web` 테스트 전용 DB |
 | `POSTGRES_PASSWORD` | 프로덕션 Compose에서만 쓴다 |
 | `OAUTH2_PROXY_ENABLED` | 이 배포가 oauth2-proxy의 검증된 헤더를 받을 수 있는지. 기본 `false`; 실제 방식은 설정 화면에서 선택 |
 | `PASSWORD_LOGIN_ENABLED` | 최초 부팅의 ID/비밀번호 로그인 초기값. 기본 `true`; 첫 관리자 로그인 후에는 관리자 패널 → 로그인 · SSO에서 관리 |

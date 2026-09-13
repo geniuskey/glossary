@@ -1,5 +1,17 @@
 import { defineConfig } from "vitepress";
 
+// 기본 slug 규칙을 유지하되 한글을 NFC로 합쳐 본문의 수동 앵커 링크와 맞춘다.
+const slugify = (text: string) => text
+  .normalize("NFKD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .replace(/[\u0000-\u001f]/g, "")
+  .replace(/[\s~`!@#$%^&*()\-_+=[\]{}|\\;:"'“”‘’<>,.?/]+/g, "-")
+  .replace(/-{2,}/g, "-")
+  .replace(/^-+|-+$/g, "")
+  .replace(/^(\d)/, "_$1")
+  .toLowerCase()
+  .normalize("NFC");
+
 // GitHub Pages는 https://geniuskey.github.io/glossary/ 아래에 올라간다.
 // base를 빼면 모든 자산 경로가 루트 기준이 되어 404가 난다.
 export default defineConfig({
@@ -8,10 +20,10 @@ export default defineConfig({
   title: "Glossary",
   description: "한국어와 영어를 함께 쓰는 조직을 위한 셀프호스팅 용어집 관리 플랫폼",
   lastUpdated: true,
+  markdown: { anchor: { slugify }, toc: { slugify } },
 
-  // docs/superpowers/ 는 설계 스펙과 구현 계획 원본이다. 사이트에 싣지 않고
-  // 저장소에만 둔다 — 링크는 guide/roadmap.md에서 GitHub로 건다.
-  srcExclude: ["superpowers/**"],
+  // 설계·검토·인계 기록은 저장소에서 관리하고 공개 사이트와 검색에서는 제외한다.
+  srcExclude: ["README.md", "superpowers/**", "reviews/**", "CODEX_HANDOFF.md", "product-review-*.md"],
 
   // 본문에 적힌 개발 서버 주소까지 데드링크로 잡히면 빌드가 막힌다.
   ignoreDeadLinks: [/^https?:\/\/localhost/],
@@ -30,15 +42,20 @@ export default defineConfig({
 
     sidebar: [
       {
-        text: "가이드",
+        text: "사용 가이드",
         items: [
           { text: "소개", link: "/guide/" },
-          { text: "시작하기", link: "/guide/getting-started" },
-          { text: "아키텍처", link: "/guide/architecture" },
+          { text: "제품 도움말", link: "/help" },
           { text: "데이터 모델", link: "/guide/data-model" },
           { text: "협업과 관계도", link: "/guide/collaboration" },
           { text: "AI 활용과 챗봇", link: "/guide/ai" },
-          { text: "SSO 연결", link: "/guide/sso" },
+        ],
+      },
+      {
+        text: "개발 가이드",
+        items: [
+          { text: "개발 환경 시작하기", link: "/guide/getting-started" },
+          { text: "아키텍처", link: "/guide/architecture" },
           { text: "테스트", link: "/guide/testing" },
           { text: "로드맵", link: "/guide/roadmap" },
         ],
@@ -57,12 +74,14 @@ export default defineConfig({
       },
       {
         text: "운영",
-        items: [{ text: "운영 안내서", link: "/operations" }],
+        items: [
+          { text: "설치·백업·복구", link: "/operations" },
+          { text: "SSO 연결", link: "/guide/sso" },
+        ],
       },
       {
         text: "프로젝트",
         items: [
-          { text: "제품 도움말", link: "/help" },
           { text: "지원", link: "/support" },
           { text: "기여 안내", link: "https://github.com/geniuskey/glossary/blob/main/CONTRIBUTING.md" },
           { text: "보안 정책", link: "https://github.com/geniuskey/glossary/blob/main/SECURITY.md" },

@@ -113,9 +113,9 @@ Content-Type: application/json
 다만 **레이트 리밋과 계정 잠금은 아직 없다**(M2). 그때까지는 사내망 접근 통제에 의존한다.
 :::
 
-쿠키 속성은 `HttpOnly; SameSite=Lax; Path=/`다. `Secure`는 붙지 않는다 — 온프레미스
-기본 구성이 평문 HTTP라서 붙이면 브라우저가 쿠키를 버린다. TLS를 씌운다면
-`apps/web/src/app/api/v1/auth/login/route.ts`에서 직접 추가한다.
+쿠키 속성은 `HttpOnly; SameSite=Lax; Path=/`이며 유효 기간은 14일이다.
+HTTPS로 판정된 요청에는 `Secure`가 자동으로 추가된다. 프록시 헤더 설정은
+[운영 안내서](/operations#네트워크와-인증-—-알고-넘어가야-할-것)를 참고한다.
 
 ## SSO 정보 다시 가져오기
 

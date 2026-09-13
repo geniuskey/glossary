@@ -1,7 +1,8 @@
 # 운영 안내서
 
 사내망 온프레미스 Docker 배포 기준이다. 첨부 이미지까지 Postgres에 들어 있으므로
-**`scripts/backup.sh`가 만드는 dump 파일 하나가 회사 용어집 전부다.**
+용어·첨부 데이터는 `scripts/backup.sh`의 dump에 포함된다. 서버 복원에는 Compose 파일과
+환경 설정, `GLOSSARY_ENCRYPTION_KEY`도 별도로 보관해야 한다.
 
 ## Docker Hub 이미지로 기동
 
@@ -9,14 +10,14 @@
 DB 마이그레이터를 한 저장소의 별도 태그로 배포한다. 서버에는 소스 코드가 필요 없고
 `docker-compose.hub.yml`과 환경 파일만 있으면 된다.
 
-> 현재 배포판은 **`0.1.7` 개발 미리보기**다. 기능 검토와 사내 파일럿에 사용하고,
+> 현재 배포판은 **`0.1.8` 개발 미리보기**다. 기능 검토와 사내 파일럿에 사용하고,
 > 업그레이드 전에는 반드시 DB 백업과 복구를 검증한다. 앱과 마이그레이터는 항상 같은
 > 버전 조합으로 고정한다.
 
 | 이미지 | 고정 태그 | 용도 |
 |---|---|---|
-| `euiyun/glossary` | `0.1.7` | Glossary 웹 애플리케이션 |
-| `euiyun/glossary` | `0.1.7-migrator` | 앱 기동 전에 실행하는 DB 마이그레이션 |
+| `euiyun/glossary` | `0.1.8` | Glossary 웹 애플리케이션 |
+| `euiyun/glossary` | `0.1.8-migrator` | 앱 기동 전에 실행하는 DB 마이그레이션 |
 
 `latest`와 `latest-migrator`도 제공하지만, 예고 없이 다음 개발 버전을 가리킬 수 있으므로
 재현 가능한 배포에는 버전 태그를 사용한다.
@@ -33,8 +34,8 @@ docker compose --env-file .env -f docker-compose.hub.yml up -d
 운영에서는 `latest` 대신 아래처럼 앱과 마이그레이터를 같은 버전으로 고정한다.
 
 ```dotenv
-GLOSSARY_IMAGE=euiyun/glossary:0.1.7
-GLOSSARY_MIGRATOR_IMAGE=euiyun/glossary:0.1.7-migrator
+GLOSSARY_IMAGE=euiyun/glossary:0.1.8
+GLOSSARY_MIGRATOR_IMAGE=euiyun/glossary:0.1.8-migrator
 ```
 
 `database-init`이 `pg_trgm` 확장을 준비하고, `migrator`가 성공한 뒤에만 `app`이
@@ -109,10 +110,10 @@ unset ADMIN_PASSWORD
 귀결이지 버그는 아니지만, 모르고 넘어가면 안 된다.
 
 - **리버스 프록시(nginx 등)로 TLS를 씌우는 것을 권장한다.**
-- 세션 쿠키는 현재 `HttpOnly; SameSite=Lax; Path=/`로 설정되고
-  **`Secure` 속성은 붙지 않는다**(`apps/web/src/app/api/v1/auth/login/route.ts`).
-  평문 HTTP에서 `Secure`를 붙이면 브라우저가 쿠키를 버리므로 지금은 맞는 선택이다.
-  TLS를 씌운다면 그 파일에서 `Secure`를 추가해라 — 자동으로 붙지 않는다.
+- 세션 쿠키는 `HttpOnly; SameSite=Lax; Path=/`이며 HTTPS 요청에는 `Secure`가 자동으로 붙는다.
+  `apps/web/src/lib/auth/session.ts`는 `X-Forwarded-Proto`의 첫 값을 우선하고,
+  헤더가 없으면 요청 URL을 확인한다. TLS 종료 프록시는 이 헤더를 외부 요청의 실제
+  프로토콜로 덮어쓰고 앱 포트 직접 접근을 제한해야 한다.
 - **CSRF 방어는 `SameSite=Lax` 쿠키 하나뿐이다(R24).** 알려진 미결이고 M2 대상이다.
   그래서 상태를 바꾸는 GET 핸들러를 만들지 않는 규칙이 코드 전체에 걸려 있고,
   `apps/web/tests/screen-guards.test.ts`가 이를 강제한다.
@@ -124,6 +125,18 @@ unset ADMIN_PASSWORD
 
 ## 백업
 
+아래 스크립트는 Bash 환경에서 설치 디렉터리를 기준으로 실행한다. Docker Hub 배포에서
+Compose와 `.env`만 내려받았다면 저장소의 `scripts/backup.sh`와 `scripts/restore.sh`도
+같은 디렉터리의 `scripts/`에 준비한다. 스크립트 기본 대상은 `docker-compose.prod.yml`이다.
+**Docker Hub 배포에서는 백업과 복구 모두 다음 값을 먼저 지정한다.**
+
+```bash
+export COMPOSE_FILE=docker-compose.hub.yml
+```
+
+소스 빌드 배포는 `export COMPOSE_FILE=docker-compose.prod.yml`을 사용한다.
+cron은 대화형 셸의 환경을 상속하지 않으므로 아래 예시의 Compose 파일도 배포에 맞춘다.
+
 ```bash
 BACKUP_DIR=/srv/glossary-backups ./scripts/backup.sh
 ```
@@ -131,7 +144,7 @@ BACKUP_DIR=/srv/glossary-backups ./scripts/backup.sh
 cron 예시 (매일 새벽 3시):
 
 ```
-0 3 * * * cd /srv/glossary && BACKUP_DIR=/srv/glossary-backups ./scripts/backup.sh >> /var/log/glossary-backup.log 2>&1
+0 3 * * * cd /srv/glossary && COMPOSE_FILE=docker-compose.hub.yml BACKUP_DIR=/srv/glossary-backups ./scripts/backup.sh >> /var/log/glossary-backup.log 2>&1
 ```
 
 이 스크립트는 dump를 **검증한 뒤에만** 최종 파일 이름으로 옮긴다. 실패하면 파일을
@@ -162,8 +175,8 @@ cron 예시 (매일 새벽 3시):
 `--force`는 순서가 이렇게 되어 있다:
 
 1. dump를 먼저 검증한다 (`pg_restore --list`)
-2. **현재 DB의 안전 덤프를 뜬다** — 복구가 잘못됐을 때 유일한 되돌리기 수단이다
-3. 사람에게 확인 문구를 받는다
+2. 사람에게 확인 문구를 받는다
+3. **현재 DB의 안전 덤프를 뜬다** — 복구가 잘못됐을 때 되돌리는 데 사용한다
 4. `app` 컨테이너를 멈추고 DB를 교체한 뒤 다시 띄운다
 
 > 스케치는 dump를 한 번도 보지 않고 `DROP DATABASE`부터 했다. dump가 손상됐다는
@@ -187,7 +200,7 @@ AI-Lint가 쓰는 지점은 `POST /api/v1/terms/lookup`이다 — 문서에 등�
 
 용어 챗봇은 로그인한 사용자가 `POST /api/v1/chat`으로 사용한다. 공급자 주소·모델·API
 키·custom header의 조회와 변경, 연결 시험은 관리자 세션만 허용한다. 질문에 매칭된
-초안 이외의 용어 내용은 설정한 외부 공급자에 전송될 수 있으므로 조직의 데이터 처리
+보완 필요 상태를 포함한 용어 내용은 설정한 외부 공급자에 전송될 수 있으므로 조직의 데이터 처리
 정책에 맞는 공급자를 연결해야 한다.
 
 ## 로그
@@ -212,8 +225,8 @@ GLOSSARY_EMBED_ANCESTORS=https://confluence.example.com
 사용자는 `/sheet`의 **공유하기**에서 검색어·Type·공개 상태·도메인·업무 분류·주제를
 공유용으로 따로 고르고 표시할 열을 정한 뒤 공유 URL 또는 iframe 코드를 복사한다.
 `columns`는 쉼표로 구분한 표준 열 키이며, `compact`, `links`,
-`border`는 각각 `1` 또는 `0`이다. 공유 표는 공개 상태 용어를 최대 200개 표시하고 초안은
-제외하지만, 접근 자체에는 Glossary 로그인 세션이 필요하다.
+`border`는 각각 `1` 또는 `0`이다. 공유 표는 최대 200개를 표시한다. 상태 필터는 완성도 구분이며
+비공개 권한이 아니다. 접근에는 Glossary 로그인 세션이 필요하다.
 
 애플리케이션 예외는 `{ error: { code: "internal_error", ... } }`로만 응답하고
 스택은 응답에 노출하지 않는다. 스택은 컨테이너 로그에만 남는다.

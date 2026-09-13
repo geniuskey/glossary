@@ -111,7 +111,9 @@ API 파서를 화면에서 재사용하지 마라.
 
 ## 인프라
 
-컨테이너는 둘뿐이다. PostgreSQL 16 + `pg_trgm`, 그리고 Next.js standalone 빌드.
+상시 실행 서비스는 PostgreSQL 16 + `pg_trgm`과 Next.js standalone 앱이다.
+앱 시작 전 일회성 `migrator`가 실행되며, Docker Hub 구성에는 확장을 준비하는
+`database-init`도 있다.
 
 ```yaml
 volumes:
@@ -123,5 +125,5 @@ volumes:
 파생되므로, 디렉터리를 옮기거나 이름을 고치면 빈 볼륨이 새로 생성되고 앱은 멀쩡히 뜬 채
 데이터만 사라진다.
 
-첨부 이미지까지 Postgres에 들어 있어서 **`pg_dump -Fc` 결과 파일 하나가 전체 백업**이고
-서버 이동은 `pg_restore` 하나다. 절차는 [운영 안내서](/operations)에 있다.
+첨부 이미지까지 Postgres에 들어 있어 `pg_dump -Fc`로 데이터 전체를 백업한다.
+서버 이동 시에는 DB 복원과 함께 Compose 파일·환경 설정·암호화 키도 복원해야 한다. 절차는 [운영 안내서](/operations)에 있다.
