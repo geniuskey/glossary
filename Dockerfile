@@ -56,13 +56,27 @@ ENV PORT=3000 HOSTNAME=0.0.0.0
 CMD ["node", "apps/web/server.js"]
 
 # ---- 마이그레이션 / 시딩 ----
-# drizzle-kit도 tsx도 devDependency라 runner에는 없다. 이 스테이지가 그 둘을 갖는다.
-FROM builder AS migrator
+# migrator는 웹 앱을 실행하지 않으므로 builder 전체를 상속하지 않는다.
+# DB 패키지와 그 workspace 의존성만 설치해 Next.js/Turbo/웹 소스와 빌드 캐시가
+# 이미지에 들어오지 않게 한다. drizzle-kit은 @glossary/db의 devDependency지만
+# 이 선택된 workspace install에는 포함되어 마이그레이션 명령을 실행할 수 있다.
+FROM base AS migrator
 ENV NODE_ENV=production
 LABEL org.opencontainers.image.title="Glossary Database Migrator" \
       org.opencontainers.image.description="Database migration companion for the matching Glossary application image." \
       org.opencontainers.image.source="https://github.com/geniuskey/glossary" \
       org.opencontainers.image.licenses="Apache-2.0"
+
+# 필터 대상의 manifest만 먼저 복사해 의존성 레이어를 캐시한다. @glossary/db...
+# 는 db 자체와 workspace 의존성(@glossary/engine)만 선택한다.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY packages/db/package.json packages/db/
+COPY packages/engine/package.json packages/engine/
+RUN pnpm install --frozen-lockfile --prod=false --filter "@glossary/db..."
+
+# drizzle.config.ts가 읽는 schema와 migration 파일만 런타임에 넣는다.
+COPY packages/db packages/db
+COPY packages/engine packages/engine
 CMD ["pnpm", "--filter", "@glossary/db", "db:migrate"]
 
 # Docker Hub에 `docker build -t ... .`로 올릴 기본 산출물은 반드시 웹 앱이어야
