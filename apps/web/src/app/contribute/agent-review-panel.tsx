@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PreparedReview } from "@/lib/ai/auto-review";
 import type { ContributionSuggestion } from "@/lib/ai/contribution-suggestions";
 import { buildRuleSuggestions, suggestionPatch } from "@/lib/ai/contribution-suggestions";
@@ -61,6 +61,7 @@ export function AgentReviewPanel({ initialTerms, initialTermId, autoReviewEnable
   const [rejectedIds, setRejectedIds] = useState<string[]>([]);
   const [lastRejected, setLastRejected] = useState<ContributionSuggestion | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
+  const busyRef = useRef(false);
   const [message, setMessage] = useState<Message>(null);
   const [pollError, setPollError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
@@ -110,7 +111,8 @@ export function AgentReviewPanel({ initialTerms, initialTermId, autoReviewEnable
   }
 
   async function approve(suggestion: ContributionSuggestion) {
-    if (!current || busy) return;
+    if (!current || busyRef.current) return;
+    busyRef.current = true;
     setBusy({ kind: "approve", id: suggestion.id });
     setMessage(null);
     try {
@@ -146,7 +148,7 @@ export function AgentReviewPanel({ initialTerms, initialTermId, autoReviewEnable
       setReviews((items) => {
         const review = items[current.id];
         if (!review) return items;
-        return { ...items, [current.id]: { ...review, suggestions: review.suggestions.filter((item) => item.field !== suggestion.field) } };
+        return { ...items, [current.id]: { ...review, revision: current.revision + 1, suggestions: review.suggestions.filter((item) => item.id !== suggestion.id) } };
       });
       setRejectedIds((items) => [...items, suggestion.id]);
       setLastRejected(null);
@@ -154,12 +156,14 @@ export function AgentReviewPanel({ initialTerms, initialTermId, autoReviewEnable
     } catch (error) {
       setMessage({ kind: "bad", text: error instanceof Error ? error.message : "제안을 승인하지 못했습니다." });
     } finally {
+      busyRef.current = false;
       setBusy(null);
     }
   }
 
   async function reject(suggestion: ContributionSuggestion) {
-    if (!current || busy) return;
+    if (!current || busyRef.current) return;
+    busyRef.current = true;
     setBusy({ kind: "reject", id: suggestion.id });
     setMessage(null);
     try {
@@ -186,6 +190,7 @@ export function AgentReviewPanel({ initialTerms, initialTermId, autoReviewEnable
     } catch (error) {
       setMessage({ kind: "bad", text: error instanceof Error ? error.message : "제안을 거절하지 못했습니다." });
     } finally {
+      busyRef.current = false;
       setBusy(null);
     }
   }
@@ -212,7 +217,8 @@ export function AgentReviewPanel({ initialTerms, initialTermId, autoReviewEnable
               <p className="truncate font-semibold text-ink">{displayName(current)}</p>
               <p className="truncate font-mono text-[11px] text-ink-3">/{current.slug}</p>
             </div>
-            <Link href={`/edit/${current.slug}`} className="btn-quiet btn-sm ml-auto">직접 편집</Link>
+            <Link href={`/contribute?tab=duplicates&term=${encodeURIComponent(current.slug)}`} className="btn-quiet btn-sm ml-auto">중복 검토</Link>
+            <Link href={`/edit/${current.slug}`} className="btn-quiet btn-sm">직접 편집</Link>
           </div>
           <div className="mt-2 flex items-center justify-end gap-2 border-t border-line/70 pt-2 sm:mt-0 sm:border-0 sm:pt-0">
             <span className="mr-auto font-mono text-xs tabular-nums text-ink-3 sm:mr-1">{index + 1} / {terms.length}</span>

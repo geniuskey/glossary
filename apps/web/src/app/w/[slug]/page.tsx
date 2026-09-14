@@ -13,6 +13,7 @@ import { termCompletion } from "@/lib/terms/completion";
 import { getTermByIdOrSlug, listRelatedTerms, type SurfaceKind } from "@/lib/terms/query";
 import { displayName, relativeTime, spineHue } from "@/lib/ui/format";
 import { getTermQualitySettings } from "@/lib/workspace/term-quality";
+import { mergedDestination } from "@/lib/terms/merge";
 
 // F6/P1: `Record<유니온, T>` + 폴백 없음. SurfaceKind에 값이 추가되면 tsc가 여기서 막는다.
 const KIND_LABEL: Record<SurfaceKind, string> = {
@@ -56,6 +57,8 @@ export default async function TermDetailPage({
   const { slug } = await params;
   const term = await getTermByIdOrSlug(slug);
   if (!term) notFound();
+  const destination = await mergedDestination(term.id);
+  if (destination) redirect(`/w/${destination}`);
 
   // R98: getTermByIdOrSlug는 UUID도 slug도 받으므로 같은 문서에 URL이 두 개
   // 생긴다. 위키에서 "용어 하나에 페이지 하나"는 링크와 중복 판단의 기반이라,

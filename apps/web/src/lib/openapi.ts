@@ -825,6 +825,32 @@ export const openApiSpec = {
         },
       },
     },
+    "/contributions/duplicates": {
+      get: {
+        summary: "중복 표기 및 숫자 접미사 URL 후보 조회",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        parameters: [{ name: "page", in: "query", schema: { type: "integer", minimum: 1 }, description: "페이지당 50개" }],
+        responses: { "200": json("{ items, page }", { type: "object" }), "401": errorResponse("unauthorized") },
+      },
+      post: {
+        summary: "기존 용어 또는 가져오기 행의 동일 개념 AI 검토",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", oneOf: [
+          { required: ["termId"], properties: { termId: { type: "string", format: "uuid" } } },
+          { required: ["source"], properties: { source: { type: "object", required: ["id"], description: "id, nameEn, nameKo, fullNameEn, fullNameKo, definitionMd, bodyMd, domain" }, candidates: { type: "array", maxItems: 30, items: { type: "object" } } } },
+        ] } } } },
+        responses: { "200": json("{ source, revision, candidates }: 각 후보는 verdict(same/different/uncertain), reason, revision을 포함", { type: "object" }), "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "404": errorResponse("term_not_found"), "409": errorResponse("AI 검토 실패"), "413": errorResponse("payload_too_large") },
+      },
+      patch: {
+        summary: "두 용어를 대표 용어로 병합",
+        description: "표기·분류·설명을 보존하고 원본은 이력과 함께 보관합니다. 원본 URL은 대표 용어로 연결됩니다. 양쪽 리비전 확인과 쓰기는 한 트랜잭션에서 처리합니다.",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", additionalProperties: false, required: ["sourceId", "targetId", "sourceRevision", "targetRevision"], properties: {
+          sourceId: { type: "string", format: "uuid" }, targetId: { type: "string", format: "uuid" }, sourceRevision: { type: "integer", minimum: 1 }, targetRevision: { type: "integer", minimum: 1 },
+        } } } } },
+        responses: { "200": json("대표 용어 slug", { type: "object" }), "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "409": errorResponse("operation_conflict") },
+      },
+    },
     "/contributions/suggestions": {
       get: {
         summary: "현재 용어 리비전에 미리 생성된 AI 검토 조회",
@@ -1226,7 +1252,7 @@ export const openApiSpec = {
               file: { type: "string", format: "binary", description: "xlsx 파일. text와 함께 보내면 파일을 사용합니다." },
               text: { type: "string", description: "엑셀에서 복사한 탭 구분 표" },
               hasHeaders: { type: "string", enum: ["true", "false"], description: "헤더 없는 텍스트의 열 순서는 영문, 한글, 선택한 도메인·한줄 정의·본문 순입니다." },
-              review: { type: "string", description: "JSON 문자열: columns는 domain/definitionMd/bodyMd 배열(기본 []), options는 comma/semicolon/newline 불리언, decisions는 rowNumber/en 배열/ko 배열/skip/선택적 approval을 가진 행 배열입니다. approval에는 미리보기의 fingerprint를 전달합니다." },
+              review: { type: "string", description: "JSON 문자열: columns는 domain/definitionMd/bodyMd 배열(기본 []), options는 comma/semicolon/newline 불리언, decisions는 rowNumber/en 배열/ko 배열/skip/선택적 approval을 가진 행 배열입니다. approval에는 미리보기의 fingerprint를 전달합니다. mergeIntoRow는 파일 내 대표 행 번호, mergeIntoTerm은 기존 대표 용어의 {id, revision}입니다. 동시에 지정하거나 병합 체인을 만들 수 없으며 선택 후 재검사·승인이 필요합니다." },
               apply: { type: "string", enum: ["true", "false"], default: "false" },
             },
           } } },

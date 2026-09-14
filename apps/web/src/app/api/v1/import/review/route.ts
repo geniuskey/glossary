@@ -8,6 +8,7 @@ import { prepareReview, reviewedInput, reviewRequestSchema } from "@/lib/import/
 import { isSimpleGlossaryHeader, needsReview, reviewColumns } from "@/lib/import/review";
 import { createTerm } from "@/lib/terms/create";
 import { termInputSchema } from "@/lib/terms/schema";
+import { updateTerm } from "@/lib/terms/update";
 
 const ALLOWED_METHODS = ["POST"];
 const { GET, PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -70,15 +71,28 @@ export const POST = withApiErrors(async (request: Request) => {
   if (report.fileErrors.length || report.rows.some(needsReview)) return Response.json({ report, needsReview: true });
   const completed: number[] = [];
   const failures: { rowNumber: number; message: string }[] = [];
+  let created = 0;
+  let merged = 0;
   for (const row of mapped) {
     try {
-      await createTerm(termInputSchema.parse(reviewedInput(row)), auth.kind === "user" ? auth.user.id : null, auth.kind === "key" ? auth.keyId : null);
+      const input = prepared.inputs.get(row.rowNumber) ?? termInputSchema.parse(reviewedInput(row));
+      const decision = report.rows.find((r) => r.rowNumber === row.rowNumber);
+      if (decision?.mergeIntoTerm) {
+        const result = await updateTerm(decision.mergeIntoTerm.id, input, auth.kind === "user" ? auth.user.id : null,
+          decision.mergeIntoTerm.revision, auth.kind === "key" ? auth.keyId : null, `merged import row ${row.rowNumber}`);
+        if (!("term" in result)) throw new Error("IMPORT_MERGE_CONFLICT");
+        merged += 1;
+      } else {
+        await createTerm(input, auth.kind === "user" ? auth.user.id : null, auth.kind === "key" ? auth.keyId : null);
+        created += 1;
+      }
       completed.push(row.rowNumber);
+      completed.push(...report.rows.filter((r) => !r.skip && r.mergeIntoRow === row.rowNumber).map((r) => r.rowNumber));
     } catch {
       // Report committed rows so retrying never silently resubmits the successful prefix.
       failures.push({ rowNumber: row.rowNumber, message: "저장하지 못했습니다. 실패한 행만 다시 시도해 주세요." });
       break;
     }
   }
-  return Response.json({ report, completed, failures, created: completed.length });
+  return Response.json({ report, completed, failures, created, merged });
 });

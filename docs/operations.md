@@ -211,12 +211,30 @@ docker compose -f docker-compose.prod.yml logs -f app
 
 ## Confluence 임베드 허용
 
-`/embed`는 기본적으로 다른 사이트의 iframe 안에서 열리지 않는다. Confluence origin을
-환경변수에 넣은 뒤 앱 컨테이너를 다시 시작한다.
+`GLOSSARY_EMBED_ANCESTORS`가 미설정이거나 비어 있으면 `/embed`를 모든 출처의 iframe에서 열 수 있다.
+허용 출처를 제한하려면 아래처럼 Confluence origin을 지정한다. 동일 출처와 지정한 출처만 허용된다.
+환경변수를 변경한 뒤에는 앱 컨테이너를 다시 생성한다. `docker compose restart`만으로는 변경한 환경변수가 반영되지 않는다.
 
 ```dotenv
 GLOSSARY_EMBED_ANCESTORS=https://confluence.example.com
 ```
+
+```bash
+docker compose -f docker-compose.hub.yml up -d --force-recreate app
+```
+
+소스 빌드 배포라면 사용 중인 `docker-compose.prod.yml`을 지정한다.
+Confluence에는 일반 `/sheet` URL 대신 **시트 → 공유하기 → iframe 복사**의 `/embed` URL을 넣는다.
+일반 화면은 `frame-ancestors 'none'`으로 iframe을 차단한다.
+
+계속 “연결을 거부했습니다”가 나오면 브라우저 개발자 도구의 Network에서 `/embed` 응답을 확인한다.
+`Content-Security-Policy`의 `frame-ancestors`가 `*`이거나 실제 Confluence origin을 포함해야 한다.
+앞단 Nginx·사내 프록시가 `X-Frame-Options: DENY/SAMEORIGIN` 또는 별도의 차단 CSP를 추가하는지도 확인한다.
+출처를 제한한 상태에서 중첩 iframe 매크로를 쓰면 중간 프레임의 origin도 허용 목록에 필요하다.
+
+로그인 안내가 반복되는 경우는 iframe 허용과 별개의 쿠키 문제다. 현재 세션은 `SameSite=Lax`이므로
+Confluence와 Glossary가 서로 다른 사이트이면 iframe 요청에 쿠키가 전달되지 않는다.
+두 서비스를 같은 사이트의 HTTPS 하위 도메인으로 배치하고 새 창에서 로그인하거나, 공유 URL을 새 창 링크로 사용한다.
 
 여러 출처는 쉼표로 구분한다. 경로가 아니라 `https://호스트[:포트]` 형태의 origin만
 인정한다. 이 값은 Proxy가 요청마다 런타임에 읽으므로 Docker Hub의 같은 이미지를 환경별로

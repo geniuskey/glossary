@@ -39,6 +39,7 @@ import * as relationsRoute from "../src/app/api/v1/relations/route.js";
 import * as relationRoute from "../src/app/api/v1/relations/[id]/route.js";
 import * as relationTermsRoute from "../src/app/api/v1/relations/terms/route.js";
 import * as contributionSuggestionsRoute from "../src/app/api/v1/contributions/suggestions/route.js";
+import * as contributionDuplicatesRoute from "../src/app/api/v1/contributions/duplicates/route.js";
 import * as contributionReviewQueueRoute from "../src/app/api/v1/contributions/review-queue/route.js";
 import * as adminCategoriesRoute from "../src/app/api/v1/admin/categories/route.js";
 import * as adminCategoryRoute from "../src/app/api/v1/admin/categories/[key]/route.js";
@@ -130,6 +131,7 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "admin/ai-config/models", mod: adminAiConfigModelsRoute, allowed: ["POST"], allow: "POST" },
   { name: "chat", mod: chatRoute, allowed: ["GET", "POST", "PATCH", "DELETE"], allow: "GET, HEAD, POST, PATCH, DELETE" },
   { name: "contributions/suggestions", mod: contributionSuggestionsRoute, allowed: ["GET", "PATCH", "DELETE"], allow: "GET, HEAD, PATCH, DELETE" },
+  { name: "contributions/duplicates", mod: contributionDuplicatesRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "contributions/review-queue", mod: contributionReviewQueueRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
   { name: "admin/categories", mod: adminCategoriesRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "admin/categories/[key]", mod: adminCategoryRoute, allowed: ["PATCH", "DELETE"], allow: "PATCH, DELETE" },

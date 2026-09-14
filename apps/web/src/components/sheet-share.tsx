@@ -170,6 +170,7 @@ export function SheetShare({ baseQuery, filters, domains, categories, topics }: 
 
               <ShareOutput title="공유 URL" description="새 탭에서 열거나 Confluence URL 매크로에 붙여 넣습니다." value={url} onCopy={() => void copy("url")} copyLabel="URL 복사" />
               <ShareOutput title="iframe 코드" description="HTML/iframe 삽입을 지원하는 페이지에 그대로 붙여 넣습니다." value={iframe} onCopy={() => void copy("iframe")} copyLabel="iframe 복사" />
+              <p className="mt-2 text-xs leading-5 text-ink-3">Confluence에서 연결을 거부하면 관리자에게 Confluence 주소의 임베드 허용을 요청해 주세요. 일반 시트 주소 대신 위 공유 코드를 사용하세요. 공유 표에도 Glossary 로그인이 필요합니다.</p>
               <p aria-live="polite" className={cx("mt-3 min-h-5 text-xs", announcement.includes("실패") ? "text-danger" : "text-ok")}>{announcement}</p>
             </div>
           </section>

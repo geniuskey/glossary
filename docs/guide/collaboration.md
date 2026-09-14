@@ -73,13 +73,13 @@ https://glossary.example.com/embed?domain=ISP&category=design&topic=노출%20제
 
 <img src="/images/sheet-embed.png" width="1440" height="960" loading="lazy" alt="선택한 열만 표시하는 읽기 전용 용어 시트 임베드 화면">
 
-운영 환경에는 iframe을 허용할 Confluence origin을 설정한다.
+기본적으로 모든 출처에서 iframe을 삽입할 수 있다. 허용할 출처를 제한하려면 Confluence origin을 설정한다.
 
 ```dotenv
 GLOSSARY_EMBED_ANCESTORS=https://confluence.example.com
 ```
 
-여러 출처는 쉼표로 구분한다. 값이 비어 있으면 동일 출처 외에는 프레임 삽입이 차단된다.
+여러 출처는 쉼표로 구분한다. 미설정 또는 빈 값이면 모든 출처를 허용하며, 값을 지정하면 동일 출처와 지정한 출처만 허용한다.
 공유 표는 정리 상태와 관계없이 최대 200개의 용어를 보여 준다. 임베드 화면도
 Glossary 로그인을 요구한다. 브라우저의 서드파티 쿠키 제한을 피하려면
 Glossary와 Confluence를 같은 사이트 범위의 서브도메인으로 운영하는 편이 안전하다.

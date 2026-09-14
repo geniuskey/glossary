@@ -14,12 +14,14 @@ import { AgentReviewPanel } from "./agent-review-panel";
 import { ManualReviewButton } from "./manual-review-button";
 import { QueueRefresh } from "./queue-refresh";
 import { ReviewQueuePanel } from "./review-queue-panel";
+import { DuplicateReviewPanel } from "@/components/duplicate-review-panel";
 
 export const metadata = { title: "함께 정리" };
 
 const TABS = [
   { key: "edit", label: "정리 대기", href: "/contribute" },
   { key: "agent", label: "제안 검토", href: "/contribute?tab=agent" },
+  { key: "duplicates", label: "중복 정리", href: "/contribute?tab=duplicates" },
   { key: "queue", label: "AI 검토 큐", href: "/contribute?tab=queue" },
 ] as const;
 
@@ -30,14 +32,14 @@ export default async function ContributePage({ searchParams }: { searchParams: P
   const params = await searchParams;
   const rawTab = params.tab;
   const requestedTab = Array.isArray(rawTab) ? rawTab[0] : rawTab;
-  const tab = requestedTab === "agent" || requestedTab === "queue" ? requestedTab : "edit";
+  const tab = requestedTab === "agent" || requestedTab === "queue" || requestedTab === "duplicates" ? requestedTab : "edit";
   const rawTermId = params.termId;
   const selectedTermId = tab === "agent" ? (Array.isArray(rawTermId) ? rawTermId[0] : rawTermId) : undefined;
   const scalar = (key: string) => typeof params[key] === "string" ? params[key] as string : "";
   const filters = { q: scalar("q").slice(0, 200), category: scalar("category"), missing: scalar("missing"), page: Math.min(100000, Math.max(1, Number.parseInt(scalar("page"), 10) || 1)) };
   const pageHref = (page: number) => `/contribute?${new URLSearchParams({ q: filters.q, category: filters.category, missing: filters.missing, page: String(page) })}`;
   const [queue, storedAi, reviewQueue] = await Promise.all([
-    tab === "edit" ? listContributionTerms(60, user.id, selectedTermId, filters) : listContributionTerms(60, user.id, selectedTermId),
+    tab === "edit" ? listContributionTerms(60, user.id, selectedTermId, filters) : listContributionTerms(60, user.id, selectedTermId, { includePrepared: tab === "agent" }),
     loadAiConfig(),
     listReviewQueue(),
   ]);
@@ -57,7 +59,7 @@ export default async function ContributePage({ searchParams }: { searchParams: P
   return (
     <AppShell user={user} title="함께 정리" current="contribute">
       <p className="mb-4 text-xl font-semibold tracking-tight text-balance lg:hidden">함께 정리</p>
-      {tab !== "agent" && <QueueRefresh active={reviewQueue.counts.active > 0} />}
+      {tab !== "agent" && tab !== "duplicates" && <QueueRefresh active={reviewQueue.counts.active > 0} />}
       <section className="card mb-5 space-y-2 p-4 text-sm" aria-label="기여 방법">
         <h2 className="font-semibold text-ink">아는 용어 하나부터 함께 정리해 주세요</h2>
         <p className="text-ink-2">용어 선택 → 부족한 정보 작성 → 저장. AI 제안은 현재 내용과 비교한 뒤 필요한 것만 승인하세요.</p>
@@ -78,7 +80,7 @@ export default async function ContributePage({ searchParams }: { searchParams: P
         <span className="font-mono tabular-nums">{tab === "queue" ? `${reviewQueue.counts.active.toLocaleString("ko-KR")}개 처리 중` : `${queue.total.toLocaleString("ko-KR")}개`}</span>
       </div>
 
-      {tab === "edit" ? <>
+      {tab === "duplicates" ? <DuplicateReviewPanel initialQuery={scalar("term")} /> : tab === "edit" ? <>
       <form key={`${filters.q}:${filters.category}:${filters.missing}`} action="/contribute" className="mb-4 flex flex-wrap items-end gap-3">
         <label className="min-w-0 flex-1 text-xs text-ink-2">용어 검색<input name="q" defaultValue={filters.q} maxLength={200} autoComplete="off" placeholder="예: 캐시…" className="mt-1 block w-full rounded-lg border border-line bg-panel p-2 text-sm text-ink" /></label>
         <label className="text-xs text-ink-2">업무 분야<select name="category" defaultValue={filters.category} className="mt-1 block max-w-full rounded-lg border border-line bg-panel p-2 text-sm text-ink"><option value="">전체 분야</option>{categories.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>

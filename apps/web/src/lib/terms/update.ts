@@ -1,7 +1,10 @@
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { remainingAfterApproval } from "@/lib/ai/review-continuation";
+import type { ContributionSuggestion } from "@/lib/ai/contribution-suggestions";
+import { buildRuleSuggestions } from "@/lib/ai/contribution-suggestions";
 import { isUniqueViolation } from "@/lib/postgres-error";
 import {
-  apiKeys, attachmentRefs, attachments, surfaceKeys, terms, termRevisions, termSurfaces, users,
+  aiReviewSuggestions, aiReviewQueue, termRelations, apiKeys, attachmentRefs, attachments, surfaceKeys, terms, termRevisions, termSurfaces, users,
 } from "@glossary/db";
 import { extractAttachmentHashes } from "@/lib/attachments/refs";
 import { getDb } from "@/lib/db";
@@ -119,11 +122,13 @@ export async function updateTerm(
   // 다른 메시지를 남길 수 있어야 한다. 이력 화면이 이 문자열을 그대로 보여준다.
   message = "updated",
   afterWrite?: (tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0], revision: number) => Promise<void>,
+  database: ReturnType<typeof getDb> | Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0] = getDb(),
 ): Promise<UpdateTermResult> {
-  const db = getDb();
+  const db = database;
 
   const [oldTerm] = await db.select().from(terms).where(eq(terms.id, termId)).limit(1);
   if (!oldTerm) return { notFound: true };
+  if (oldTerm.replacedById) return { invalid: true, issues: ["병합된 용어입니다. 대표 용어를 편집해 주세요."] };
 
   const oldSurfaceRows = await db
     .select({
@@ -200,6 +205,9 @@ export async function updateTerm(
 
   try {
     return await db.transaction(async (tx) => {
+      const [locked] = await tx.select({ replacedById: terms.replacedById }).from(terms).where(eq(terms.id, termId)).for("no key update");
+      if (!locked) return { notFound: true };
+      if (locked.replacedById) return { invalid: true, issues: ["병합된 용어입니다. 대표 용어를 편집해 주세요."] };
       // R53: 리비전 번호는 실제 insert 직전에 트랜잭션 안에서 다시 읽어야
       // 경합 창을 최소화한다. R54: 두 요청이 여기서 같은 값을 봐도, 실제로
       // 경합하면 term_revisions_unique가 아래 insert에서 23505를 던진다.
@@ -289,6 +297,20 @@ export async function updateTerm(
       });
 
       // Chat action receipts must commit or roll back with the term revision.
+      const [review] = await tx.select().from(aiReviewSuggestions).where(and(
+        eq(aiReviewSuggestions.termId, termId), eq(aiReviewSuggestions.revision, currentRevision),
+      )).for("update");
+      const remaining = review && Array.isArray(review.suggestions)
+        ? remainingAfterApproval(review.suggestions as ContributionSuggestion[], input, buildRuleSuggestions({ ...oldTerm, categories: oldTerm.category })) : null;
+      if (review && remaining !== null) {
+        await tx.update(aiReviewSuggestions).set({ revision: currentRevision + 1, suggestions: remaining })
+          .where(eq(aiReviewSuggestions.termId, termId));
+        await tx.update(aiReviewQueue).set({ revision: currentRevision + 1 })
+          .where(and(eq(aiReviewQueue.termId, termId), eq(aiReviewQueue.revision, currentRevision), eq(aiReviewQueue.status, "ready")));
+        const relationIds = remaining.flatMap((item) => item.field === "relation" && item.value.relationId ? [item.value.relationId] : []);
+        if (relationIds.length) await tx.update(termRelations).set({ sourceRevision: currentRevision + 1 })
+          .where(and(inArray(termRelations.id, relationIds), eq(termRelations.sourceTermId, termId), eq(termRelations.sourceRevision, currentRevision), eq(termRelations.status, "proposed")));
+      }
       await afterWrite?.(tx, currentRevision + 1);
 
       return { term: updated, surfaces: savedSurfaces, warnings };

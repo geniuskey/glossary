@@ -159,9 +159,11 @@ async function generateAndStore(termId: string, expectedRevision: number, force 
   const generated = await generateContributionSuggestions(term);
   if (await currentRevisionNumber(termId) !== revision) return null;
   const suggestions = await materializeRelationSuggestions(termId, revision, generated);
+  if (await currentRevisionNumber(termId) !== revision) return null;
   await getDb().insert(aiReviewSuggestions).values({ termId, revision, generatorVersion: AUTO_REVIEW_GENERATOR_VERSION, suggestions }).onConflictDoUpdate({
     target: aiReviewSuggestions.termId,
     set: { revision, generatorVersion: AUTO_REVIEW_GENERATOR_VERSION, suggestions, generatedAt: new Date() },
+    setWhere: sql`${aiReviewSuggestions.revision} <= ${revision}`,
   });
   return { termId, revision, suggestions };
 }
@@ -227,6 +229,8 @@ export async function prepareAutoReview(termId: string): Promise<PreparedReview 
   if (!config.enabled || !config.autoReviewEnabled || !(await termNeedsContribution(termId))) return null;
   const revision = await currentRevisionNumber(termId);
   if (revision < 1) return null;
+  const existing = await getPreparedReview(termId, revision);
+  if (existing) return existing;
   await enqueueReview(termId, revision, "automatic", null);
   return processQueuedReview(termId, "automatic");
 }
@@ -348,15 +352,15 @@ export async function reviewQueueStatuses(termRevisions: ReadonlyArray<{ id: str
 }
 
 export async function dismissPreparedSuggestion(termId: string, revision: number, suggestionId: string): Promise<boolean> {
-  const review = await getPreparedReview(termId, revision);
-  if (!review) return false;
-  const suggestions = review.suggestions.filter((item) => item.id !== suggestionId);
-  if (suggestions.length === review.suggestions.length) return false;
-  await getDb().update(aiReviewSuggestions).set({ suggestions }).where(and(
+  const removed = await getDb().update(aiReviewSuggestions).set({ suggestions: sql`coalesce((
+    select jsonb_agg(item) from jsonb_array_elements(${aiReviewSuggestions.suggestions}) item where item->>'id' <> ${suggestionId}
+  ), '[]'::jsonb)` }).where(and(
     eq(aiReviewSuggestions.termId, termId),
     eq(aiReviewSuggestions.revision, revision),
-  ));
-  return true;
+    eq(aiReviewSuggestions.generatorVersion, AUTO_REVIEW_GENERATOR_VERSION),
+    sql`exists (select 1 from jsonb_array_elements(${aiReviewSuggestions.suggestions}) item where item->>'id' = ${suggestionId})`,
+  )).returning({ termId: aiReviewSuggestions.termId });
+  return removed.length > 0;
 }
 
 export async function decidePreparedRelationSuggestion(input: {

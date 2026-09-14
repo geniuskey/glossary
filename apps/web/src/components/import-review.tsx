@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { DEFAULT_SPLIT_OPTIONS, needsReview, REVIEW_OPTIONAL_COLUMNS, reviewColumns, type ReviewOptionalColumn, type ReviewDecision, type ReviewReport, type ReviewRow } from "@/lib/import/review";
 import { MAX_IMPORT_BYTES } from "@/lib/import/format";
+import type { DuplicateCandidate } from "@/lib/ai/duplicate-review";
 
 export function ImportReview({ initialText = "", onApplied, onBusyChange }: { initialText?: string; onApplied?: () => void; onBusyChange?: (busy: boolean) => void }) {
   const [text, setText] = useState(initialText);
@@ -22,11 +23,13 @@ export function ImportReview({ initialText = "", onApplied, onBusyChange }: { in
   const [finished, setFinished] = useState(false);
   const [completed, setCompleted] = useState<number[]>([]);
   const [uncertain, setUncertain] = useState(false);
+  const [duplicates, setDuplicates] = useState<{ rowNumber: number; candidates: DuplicateCandidate[] } | null>(null);
   const sourceInput = useRef<HTMLInputElement>(null);
 
   function reset() {
     setReport(null); setIndex(0); setDirty(false); setError(""); setMessage("");
     setFinished(false); setCompleted([]); setUncertain(false);
+    setDuplicates(null);
   }
 
   async function inspect(apply = false) {
@@ -36,13 +39,14 @@ export function ImportReview({ initialText = "", onApplied, onBusyChange }: { in
     if (file) body.set("file", file); else body.set("text", text);
     body.set("hasHeaders", String(hasHeaders));
     const clean = (values: string[]) => [...new Set(values.map((v) => v.trim()).filter(Boolean))];
-    body.set("review", JSON.stringify({ options, columns: selectedColumns, decisions: report?.rows.map(({ rowNumber, en, ko, skip, approval }) => ({ rowNumber, en: clean(en), ko: clean(ko), skip, approval })) ?? [] }));
+    body.set("review", JSON.stringify({ options, columns: selectedColumns, decisions: report?.rows.map(({ rowNumber, en, ko, skip, approval, mergeIntoRow, mergeIntoTerm }) => ({ rowNumber, en: clean(en), ko: clean(ko), skip, approval, mergeIntoRow, mergeIntoTerm })) ?? [] }));
     body.set("apply", String(apply));
     try {
       const response = await fetch("/api/v1/import/review", { method: "POST", body });
       const result = await response.json();
       if (!response.ok || !result.report) throw new Error(result.error?.message ?? "검토 결과를 읽지 못했습니다.");
       const next = result.report as ReviewReport;
+      setDuplicates(null);
       const saved = [...completed, ...(result.completed as number[] | undefined ?? [])];
       setCompleted(saved);
       const savedSet = new Set(saved);
@@ -53,7 +57,7 @@ export function ImportReview({ initialText = "", onApplied, onBusyChange }: { in
         setOnlyPending(true); setIndex(0);
       } else if (apply) {
         const failure = result.failures?.[0];
-        setMessage(`${saved.length}개 용어를 등록했습니다.${failure ? ` ${failure.rowNumber}행에서 저장이 중단됐습니다. 완료한 행은 재등록하지 않습니다.` : ""}`);
+        setMessage(`${saved.length}개 원본 행을 반영했습니다.${failure ? ` ${failure.rowNumber}행에서 저장이 중단됐습니다. 완료한 행은 재등록하지 않습니다.` : ""}`);
         if (failure) { setError(failure.message); setDirty(true); }
         else setFinished(true);
         onApplied?.();
@@ -71,13 +75,32 @@ export function ImportReview({ initialText = "", onApplied, onBusyChange }: { in
     if (completed.includes(row.rowNumber)) return;
     setReport((previous) => previous && ({ ...previous, rows: previous.rows.map((r) => r.rowNumber === row.rowNumber ? { ...r, ...patch, approval: undefined } : r) }));
     setDirty(true);
+    setDuplicates(null);
+  }
+
+  async function inspectDuplicates(row: ReviewRow) {
+    if (busyRef.current || !report) return;
+    busyRef.current = true; setBusy(true); onBusyChange?.(true); setError(""); setDuplicates(null);
+    const candidate = (r: ReviewRow) => ({ id: `row:${r.rowNumber}`, nameEn: r.en[0], nameKo: r.ko[0],
+      fullNameEn: r.en.slice(1).join("; "), fullNameKo: r.ko.slice(1).join("; "), definitionMd: r.definitionMd, bodyMd: r.bodyMd, domain: r.domain });
+    // Prefer nearby spellings, then nearby rows; bound each AI request.
+    const names = [...row.en, ...row.ko].map((s) => s.toLocaleLowerCase().replace(/\s/g, ""));
+    const similarity = (r: ReviewRow) => [...r.en, ...r.ko].reduce((score, s) => score + Number(names.some((name) => name && (s.toLocaleLowerCase().replace(/\s/g, "").includes(name) || name.includes(s.toLocaleLowerCase().replace(/\s/g, ""))))), 0);
+    const others = report.rows.filter((r) => r.rowNumber !== row.rowNumber && !r.skip && !r.mergeIntoRow && !completed.includes(r.rowNumber))
+      .sort((a, b) => similarity(b) - similarity(a) || Math.abs(a.rowNumber - row.rowNumber) - Math.abs(b.rowNumber - row.rowNumber)).slice(0, 30);
+    try {
+      const response = await fetch("/api/v1/contributions/duplicates", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ source: candidate(row), candidates: others.map(candidate) }) });
+      const body = await response.json(); if (!response.ok) throw new Error(body.error?.message ?? "중복 검토를 완료하지 못했습니다.");
+      setDuplicates({ rowNumber: row.rowNumber, candidates: body.candidates });
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "중복 검토를 완료하지 못했습니다."); }
+    finally { busyRef.current = false; setBusy(false); onBusyChange?.(false); }
   }
 
   const pending = report?.rows.filter(needsReview) ?? [];
   const visible = report?.rows.filter((row) => !onlyPending || needsReview(row)) ?? [];
   const position = Math.min(index, Math.max(0, visible.length - 1));
   const current = visible[position];
-  const included = report?.rows.filter((row) => !row.skip).length ?? 0;
+  const included = report?.rows.filter((row) => !row.skip && !row.mergeIntoRow).length ?? 0;
 
   function approve(row: ReviewRow) {
     if (dirty || row.errors.length) return;
@@ -166,6 +189,22 @@ export function ImportReview({ initialText = "", onApplied, onBusyChange }: { in
           </div>
           {current.reasons.length > 0 && <ul className="note-warn list-inside list-disc text-sm">{current.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
           {current.errors.length > 0 && <ul className="note-danger list-inside list-disc text-sm">{current.errors.map((reason, i) => <li key={i}>{reason}</li>)}</ul>}
+          <div className="space-y-2 rounded border border-line p-3">
+            <button type="button" className="btn-quiet btn-sm" disabled={current.skip || completed.includes(current.rowNumber)} onClick={() => void inspectDuplicates(current)}>AI로 같은 개념 찾기</button>
+            <p className="text-xs text-ink-3">파일 내 표기가 비슷하거나 가까운 최대 30행과 기존 용어 후보를 비교합니다. 병합 선택 후 다시 검사하여 저장될 내용을 승인하세요.</p>
+            {(current.mergeIntoRow || current.mergeIntoTerm) && <p className="text-sm">병합 선택됨: {current.mergeIntoRow ? `${current.mergeIntoRow}행` : "기존 용어"} <button type="button" className="link" onClick={() => update(current, { mergeIntoRow: undefined, mergeIntoTerm: undefined })}>병합 취소</button></p>}
+            {current.mergePreview && <details><summary className="cursor-pointer text-sm">병합 후 저장 내용</summary><pre className="max-h-60 overflow-auto whitespace-pre-wrap text-xs">{current.mergePreview}</pre></details>}
+            {duplicates?.rowNumber === current.rowNumber && <div className="space-y-2">
+              {duplicates.candidates.length === 0 && <p className="text-sm">비교할 후보가 없습니다.</p>}
+              {duplicates.candidates.map((candidate) => <div key={candidate.id} className="rounded bg-panel-2 p-2 text-sm">
+                <p className="font-medium">{candidate.nameKo || candidate.nameEn} · {candidate.id.startsWith("row:") ? `${candidate.id.slice(4)}행` : `/${candidate.slug}`}</p>
+                <p>{candidate.verdict === "same" ? "같은 개념" : candidate.verdict === "different" ? "다른 개념" : "판단 보류"}: {candidate.reason}</p>
+                {candidate.verdict === "same" && <button type="button" className="btn-primary btn-sm mt-2" onClick={() => update(current, candidate.id.startsWith("row:")
+                  ? { mergeIntoRow: Number(candidate.id.slice(4)), mergeIntoTerm: undefined }
+                  : { mergeIntoTerm: { id: candidate.id, revision: candidate.revision! }, mergeIntoRow: undefined })}>이 후보로 합치기</button>}
+              </div>)}
+            </div>}
+          </div>
           <p className="text-xs text-ink-2">한 줄에 표기 하나씩 입력하세요. 첫 줄이 대표 표기입니다. 분리가 잘못됐다면 한 줄로 합치거나 새 줄로 나누고, 대표로 쓸 표기를 첫 줄로 옮겨 주세요.</p>
           <div className="grid gap-3 sm:grid-cols-2">
             {(["en", "ko"] as const).map((lang) => <label key={lang} className="text-sm font-medium">{lang === "en" ? "영문 표기" : "한글 표기"}
@@ -183,7 +222,7 @@ export function ImportReview({ initialText = "", onApplied, onBusyChange }: { in
         </article> : <p className="text-sm text-ink-2">검토할 행이 없습니다. 전체 행을 보려면 필터를 해제하세요.</p>}
         <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
           {dirty && <button type="button" className="btn-primary" onClick={() => void inspect()}>수정 결과 다시 검사</button>}
-          <button type="button" className="btn-primary" disabled={dirty || pending.length > 0 || included === 0 || report.fileErrors.length > 0} onClick={() => void inspect(true)}>{included}개 용어 등록하기</button>
+          <button type="button" className="btn-primary" disabled={dirty || pending.length > 0 || included === 0 || report.fileErrors.length > 0} onClick={() => void inspect(true)}>{included}개 용어 저장하기</button>
           <p className="text-xs text-ink-2">{dirty ? "수정 후 다시 검사하면 행별 승인을 할 수 있습니다." : "애매한 행은 각각 승인하거나 건너뛰어야 등록할 수 있습니다."}</p>
         </div>
       </fieldset>}

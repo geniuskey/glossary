@@ -1,4 +1,4 @@
-import { and, eq, inArray, like, ne } from "drizzle-orm";
+import { and, eq, inArray, like, ne, sql } from "drizzle-orm";
 import { isUniqueViolation } from "@/lib/postgres-error";
 import {
   attachmentRefs, attachments, surfaceKeys, terms, termRevisions, termSurfaces,
@@ -78,7 +78,7 @@ export async function findDuplicates(
   const keys = surfaces.map((s) => surfaceKeys(s.text).normLoose).filter(Boolean);
   if (keys.length === 0) return [];
 
-  const conditions = [inArray(termSurfaces.normLoose, keys)];
+  const conditions = [inArray(termSurfaces.normLoose, keys), sql`${terms.replacedById} is null`];
   if (excludeTermId) conditions.push(ne(termSurfaces.termId, excludeTermId));
 
   const rows = await getDb()

@@ -23,6 +23,8 @@ export interface ReviewDecision {
   ko: string[];
   skip: boolean;
   approval?: string;
+  mergeIntoRow?: number;
+  mergeIntoTerm?: { id: string; revision: number };
 }
 export interface ReviewRow extends ReviewDecision {
   originalEn: string;
@@ -33,6 +35,7 @@ export interface ReviewRow extends ReviewDecision {
   domain?: string[];
   definitionMd?: string;
   bodyMd?: string;
+  mergePreview?: string;
 }
 export interface ReviewReport {
   rows: ReviewRow[];
@@ -76,8 +79,8 @@ export function splitSurfaceCell(raw: string, options = DEFAULT_SPLIT_OPTIONS): 
   return { values, reasons: [...new Set(reasons)] };
 }
 
-export function reviewFingerprint(row: Pick<ReviewRow, "rowNumber" | "en" | "ko" | "reasons" | "errors" | "domain" | "definitionMd" | "bodyMd">): string {
-  return JSON.stringify([row.rowNumber, row.en, row.ko, row.reasons, row.errors, row.domain, row.definitionMd, row.bodyMd]);
+export function reviewFingerprint(row: Pick<ReviewRow, "rowNumber" | "en" | "ko" | "reasons" | "errors" | "domain" | "definitionMd" | "bodyMd" | "mergeIntoRow" | "mergeIntoTerm" | "mergePreview">): string {
+  return JSON.stringify([row.rowNumber, row.en, row.ko, row.reasons, row.errors, row.domain, row.definitionMd, row.bodyMd, row.mergeIntoRow, row.mergeIntoTerm, row.mergePreview]);
 }
 
 export function needsReview(row: ReviewRow): boolean {

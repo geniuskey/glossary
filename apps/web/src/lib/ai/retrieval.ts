@@ -56,7 +56,7 @@ async function retrieveSnapshot(db: Parameters<Parameters<ReturnType<typeof getD
   const key = surfaceKeys(question).normLoose;
   const keywords = retrievalKeywords(question);
   const passageKeywords = retrievalKeywords(options.passageQuery ?? question);
-  const domainFilter = options.domain ? arrayContains(terms.domain, [options.domain]) : undefined;
+  const domainFilter = and(sql`${terms.replacedById} is null`, options.domain ? arrayContains(terms.domain, [options.domain]) : undefined);
   if (!key && keywords.length === 0) return { context: "{\"terms\":[],\"relationships\":[]}", sources: [] };
 
   const content = sql<string>`concat_ws(' ', ${terms.nameEn}, ${terms.nameKo}, ${terms.fullNameEn}, ${terms.fullNameKo}, ${terms.definitionMd}, ${terms.bodyMd})`;

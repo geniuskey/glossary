@@ -150,7 +150,7 @@ export async function getTermByIdOrSlug(idOrSlug: string): Promise<TermDetail | 
         .selectDistinctOn([terms.id], summaryColumns)
         .from(terms)
         .innerJoin(termSurfaces, eq(termSurfaces.termId, terms.id))
-        .where(and(inArray(termSurfaces.normLoose, keys), ne(terms.id, term.id)))
+        .where(and(inArray(termSurfaces.normLoose, keys), ne(terms.id, term.id), sql`${terms.replacedById} is null`))
         .orderBy(terms.id)
     : [];
 
@@ -190,6 +190,7 @@ export async function listRelatedTerms(
     .from(terms)
     .where(and(
       ne(terms.id, source.id),
+      sql`${terms.replacedById} is null`,
       or(...relationshipFilters),
     ))
     .orderBy(desc(terms.updatedAt), terms.id)
@@ -238,7 +239,7 @@ export interface ListParams {
 // 이미 검증된 리터럴 타입만 받으므로 `as never` 캐스트 없이 그대로 eq()에 넘긴다.
 function listFilters(params: ListParams) {
   const db = getDb();
-  const filters = [];
+  const filters = [sql`${terms.replacedById} is null`];
 
   if (params.status) filters.push(eq(terms.status, params.status));
   if (params.domain) filters.push(arrayContains(terms.domain, [params.domain]));
@@ -418,7 +419,7 @@ function incompleteTerm(settings: TermQualitySettings) {
   )`;
 }
 function needsContributionFilter(settings: TermQualitySettings) {
-  return or(eq(terms.status, "draft"), incompleteTerm(settings))!;
+  return and(sql`${terms.replacedById} is null`, or(eq(terms.status, "draft"), incompleteTerm(settings)))!;
 }
 function missingCount(settings: TermQualitySettings) {
   const profile = qualityBranches();
@@ -442,10 +443,15 @@ export interface ContributionTerm extends TermSummary {
 }
 
 /** 초안과 미완성 용어를 가장 비어 있고 오래 기다린 순으로 보여주는 공동 정리 대기열. */
-export async function listContributionTerms(limit = 60, currentUserId?: string, preferredTermId?: string, filters: { q?: string; category?: string; missing?: string; page?: number } = {}): Promise<{ items: ContributionTerm[]; total: number }> {
+export async function listContributionTerms(limit = 60, currentUserId?: string, preferredTermId?: string, filters: { q?: string; category?: string; missing?: string; page?: number; includePrepared?: boolean } = {}): Promise<{ items: ContributionTerm[]; total: number }> {
   const db = getDb();
   const settings = await getTermQualitySettings();
-  const conditions = [needsContributionFilter(settings)];
+  const pendingReview = sql`${terms.replacedById} is null and exists (
+    select 1 from ai_review_suggestions review where review.term_id = ${terms.id}
+    and review.revision = (select max(r.revision_number) from term_revisions r where r.term_id = ${terms.id})
+    and jsonb_array_length(review.suggestions) > 0
+  )`;
+  const conditions = [filters.includePrepared ? or(needsContributionFilter(settings), pendingReview)! : needsContributionFilter(settings)];
   if (filters.q?.trim()) {
     const needle = filters.q.trim().toLocaleLowerCase();
     conditions.push(sql`strpos(lower(concat_ws(' ', ${terms.nameKo}, ${terms.nameEn}, ${terms.fullNameKo}, ${terms.fullNameEn}, ${terms.slug})), ${needle}) > 0`);
@@ -522,7 +528,7 @@ export async function termFacets(): Promise<TermFacets> {
 
   // domain은 text[]다. unnest는 집합 반환 함수라 GROUP BY와 같은 SELECT 목록에
   // 둘 수 없다(Postgres 10+) — 먼저 펼친 서브쿼리를 만들고 그 결과를 센다.
-  const unnested = db.select({ value: sql<string>`unnest(${terms.domain})`.as("value") }).from(terms).as("d");
+  const unnested = db.select({ value: sql<string>`unnest(${terms.domain})`.as("value") }).from(terms).where(sql`${terms.replacedById} is null`).as("d");
 
   const [domains, categories, topics, statuses, [counted], [contribution]] = await Promise.all([
     db
@@ -538,21 +544,22 @@ export async function termFacets(): Promise<TermFacets> {
         count: sql<number>`count(${terms.id})::int`,
       })
       .from(businessCategories)
-      .leftJoin(terms, sql`${businessCategories.key} = any(${terms.category})`)
+      .leftJoin(terms, sql`${businessCategories.key} = any(${terms.category}) and ${terms.replacedById} is null`)
       .groupBy(businessCategories.key, businessCategories.label, businessCategories.sortOrder)
       .orderBy(businessCategories.sortOrder, businessCategories.key),
     db
       .select({ value: sql<string>`${terms.topic}`, count: sql<number>`count(*)::int` })
       .from(terms)
-      .where(sql`${terms.topic} is not null`)
+      .where(sql`${terms.topic} is not null and ${terms.replacedById} is null`)
       .groupBy(terms.topic)
       .orderBy(sql`count(*) desc`, terms.topic)
       .limit(80),
     db
       .select({ value: terms.status, count: sql<number>`count(*)::int` })
       .from(terms)
+      .where(sql`${terms.replacedById} is null`)
       .groupBy(terms.status),
-    db.select({ total: sql<number>`count(*)::int` }).from(terms),
+    db.select({ total: sql<number>`count(*)::int` }).from(terms).where(sql`${terms.replacedById} is null`),
     db.select({ total: sql<number>`count(*)::int` }).from(terms).where(needsContribution),
   ]);
 

@@ -174,3 +174,34 @@ test("metadata changes invalidate an existing ambiguous-row approval", async () 
   expect(result.needsReview).toBe(true);
   expect(mocks.createTerm).not.toHaveBeenCalled();
 });
+
+test("approved file-row merge saves one concept with both spellings and bodies", async () => {
+  const source = "AE\t자동 노출\t대표 본문\nAuto Exposure\t자동노출\t추가 본문";
+  const first = await (await request(source, undefined, false, ["bodyMd"])).json();
+  first.report.rows[1].mergeIntoRow = 1;
+  const preview = await (await request(source, first.report, false, ["bodyMd"])).json();
+  expect(preview.report.rows[0].mergePreview).toContain("추가 본문");
+  expect((await (await request(source, preview.report, true, ["bodyMd"])).json()).needsReview).toBe(true);
+  for (const row of preview.report.rows) row.approval = row.fingerprint;
+  const result = await (await request(source, preview.report, true, ["bodyMd"])).json();
+  expect(result.created).toBe(1); expect(result.completed).toEqual([1, 2]);
+  expect(mocks.createTerm).toHaveBeenCalledTimes(1);
+  const saved = mocks.createTerm.mock.calls[0]![0];
+  expect(saved.bodyMd).toBe("대표 본문\n\n추가 본문");
+  expect(saved.surfaces.map((s: { text: string }) => s.text)).toContain("Auto Exposure");
+});
+
+test("merge cycles and skipped targets block saving", async () => {
+  const source = "AA\t가\nBB\t나";
+  const first = await (await request(source)).json();
+  first.report.rows[0].mergeIntoRow = 2;
+  first.report.rows[1].mergeIntoRow = 1;
+  const cyclic = await (await request(source, first.report, true)).json();
+  expect(cyclic.needsReview).toBe(true);
+  expect(cyclic.report.rows[0].errors.length).toBeGreaterThan(0);
+  delete first.report.rows[1].mergeIntoRow;
+  first.report.rows[1].skip = true;
+  const skipped = await (await request(source, first.report, true)).json();
+  expect(skipped.needsReview).toBe(true);
+  expect(mocks.createTerm).not.toHaveBeenCalled();
+});
