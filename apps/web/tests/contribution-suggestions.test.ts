@@ -10,11 +10,9 @@ const base = {
   categories: [],
 };
 
-test("본문만 있는 용어에는 첫 설명 문장을 한줄 정의로 제안한다", () => {
-  const suggestions = buildRuleSuggestions(base);
-  expect(suggestions).toHaveLength(1);
-  expect(suggestions[0]).toMatchObject({ field: "definitionMd", source: "rule" });
-  expect(suggestions[0]?.value).toBe("배포 전에 변경 사항과 영향 범위를 함께 검토하는 팀 절차입니다.");
+test("본문 첫 문장이나 짧은 메모를 규칙으로 정의에 복사하지 않는다", () => {
+  expect(buildRuleSuggestions(base)).toEqual([]);
+  expect(buildRuleSuggestions({ ...base, bodyMd: "주문 들어오면 만든다. 재고 부담을 줄인다." })).toEqual([]);
 });
 
 test("이미 한줄 정의가 있거나 본문 근거가 짧으면 규칙 제안을 만들지 않는다", () => {
@@ -23,7 +21,9 @@ test("이미 한줄 정의가 있거나 본문 근거가 짧으면 규칙 제안
 });
 
 test("승인용 patch는 제안 필드 하나만 포함한다", () => {
-  const suggestion = buildRuleSuggestions(base)[0]!;
+  const suggestion = parseAgentSuggestions(JSON.stringify({ suggestions: [
+    { field: "definitionMd", value: "배포 전 변경 영향을 검토하는 팀 절차이다.", reason: "본문 근거" },
+  ] }), base, [], [])[0]!;
   expect(suggestionPatch(suggestion)).toEqual({ definitionMd: suggestion.value });
 });
 

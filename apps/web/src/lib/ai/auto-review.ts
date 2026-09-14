@@ -45,7 +45,7 @@ export interface ReviewQueueSnapshot {
 const inFlight = new Map<string, Promise<PreparedReview | null>>();
 const retryAfter = new Map<string, number>();
 const FAILURE_COOLDOWN_MS = 5 * 60 * 1_000;
-const AUTO_REVIEW_GENERATOR_VERSION = 2;
+const AUTO_REVIEW_GENERATOR_VERSION = 3;
 
 function validSuggestions(value: unknown): ContributionSuggestion[] {
   if (!Array.isArray(value)) return [];

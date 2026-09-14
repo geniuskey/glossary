@@ -45,11 +45,11 @@ test("완료된 수동 검토는 해당 용어 제안으로 바로 연결한다"
   expect(html).toContain("제안 보기");
 });
 
-test("규칙 제안은 일시적 동작임을 드러내는 건너뛰기로 표시한다", () => {
+test("본문만 있는 용어를 정의에 자동 복사하지 않고 직접 편집 안내를 표시한다", () => {
   const html = renderToStaticMarkup(createElement(AgentReviewPanel, {
     initialTerms: [{ ...term, bodyMd: "캐시는 자주 쓰는 데이터를 임시로 저장하는 방법입니다." }],
     autoReviewEnabled: false, categoryLabels: {}, initialReviews: {},
   }));
-  expect(html).toContain("이번에 건너뛰기");
-  expect(html).toContain("승인하고 저장");
+  expect(html).toContain("현재 검토할 제안이 없습니다. 직접 편집하거나 정리 대기에서 AI 검토를 요청할 수 있습니다.");
+  expect(html).not.toContain("이번에 건너뛰기");
 });

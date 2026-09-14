@@ -114,7 +114,7 @@ export function TermAiReviewPanel({
       <div className="flex flex-col gap-2 px-4 py-2.5 lg:flex-row lg:items-center">
         <div className="flex min-h-8 shrink-0 items-center gap-2">
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-brand-soft text-xs text-brand" aria-hidden="true">✦</span>
-          <h2 id="ai-review-heading" className="text-sm font-semibold text-ink">AI 검토</h2>
+          <h2 id="ai-review-heading" className="scroll-mt-24 text-sm font-semibold text-ink">AI 검토</h2>
           <HelpTip text={needsDraft ? "비워둔 정의와 설명의 초안을 작성하고, 용어집 근거와 관계를 함께 확인합니다." : "오타·모순·일관성과 다른 용어와의 관계를 확인합니다. 가이드를 비우면 전체 항목을 자동으로 검토합니다."} />
           {review && (
             <button
@@ -151,6 +151,7 @@ export function TermAiReviewPanel({
       </div>
 
       <div className={cx((stale || error || (review && resultsOpen)) && "border-t border-line px-4 py-3")}>
+        <p className="px-4 py-2 text-xs leading-5 text-ink-3">이미 작성된 정의와 본문도 AI가 다시 검토합니다. 제안을 반영한 뒤 저장하면 용어에 적용됩니다.</p>
         {stale && (
           <div className="note note-warn flex flex-wrap items-center justify-between gap-2" role="status">
             <span>검토 후 입력이 변경되었습니다. 일부 결과가 현재 내용과 다를 수 있습니다.</span>

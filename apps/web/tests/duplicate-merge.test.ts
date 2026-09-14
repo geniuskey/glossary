@@ -21,7 +21,7 @@ afterAll(async () => { if (ids.length) await getDb().delete(terms).where(inArray
 test("field approvals persist the rest across revisions, including a later relation decision", async () => {
   const source = await term("Sequential"), target = await term("RelationTarget");
   const [relation] = await getDb().insert(termRelations).values({ sourceTermId: source.id, targetTermId: target.id, relationType: "used_in", status: "proposed", sourceRevision: 1, targetRevision: 1, confidence: 90, evidenceMd: "관련 근거" }).returning();
-  await getDb().insert(aiReviewSuggestions).values({ termId: source.id, revision: 1, generatorVersion: 2, suggestions: [
+  await getDb().insert(aiReviewSuggestions).values({ termId: source.id, revision: 1, generatorVersion: 3, suggestions: [
     { id: "first", source: "agent", field: "definitionMd", value: "이것은 연속 승인에 사용하는 충분한 길이의 정의입니다.", reason: "본문 근거" },
     { id: "second", source: "agent", field: "domain", value: ["QA", "HW"], reason: "분류 근거" },
     { id: "third", source: "agent", field: "relation", value: { relationId: relation!.id, targetTermId: target.id, targetSlug: target.slug, targetName: target.nameEn, relationType: "used_in", confidence: 90 }, reason: "관련 근거" },

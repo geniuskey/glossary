@@ -126,6 +126,9 @@ export default async function TermDetailPage({
             )}
           </div>
           <div className="flex shrink-0 gap-1.5">
+            <Link href={`/edit/${term.slug}#ai-review-heading`} className="btn-ghost btn-sm">
+              AI 검토
+            </Link>
             <Link href={`/edit/${term.slug}`} className="btn-primary btn-sm">
               편집
             </Link>

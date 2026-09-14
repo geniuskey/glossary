@@ -43,7 +43,7 @@ beforeAll(async () => {
   await db.insert(aiReviewSuggestions).values({
     termId: source.term.id,
     revision: 1,
-    generatorVersion: 2,
+    generatorVersion: 3,
     suggestions: [{
       id: `relation-${relationId}`,
       field: "relation",
