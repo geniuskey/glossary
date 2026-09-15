@@ -6,6 +6,56 @@ export type RowDragPreview = {
   rowHeight: number;
 };
 
+export type RowDragGeometry = {
+  scrollY: number;
+  rows: ReadonlyMap<string, { top: number; height: number }>;
+};
+
+export type RowDropTarget = {
+  key: string;
+  edge: DropEdge;
+};
+
+/**
+ * 드래그 시작 순간의 행 위치를 저장한다. 드래그 중 주변 행에 transform을
+ * 적용하면 getBoundingClientRect()가 계속 바뀌므로, 이동한 행을 기준으로
+ * 다시 hit-test하면 한 칸씩 밀리는 동안 drop 위치가 흔들린다.
+ */
+export function captureRowDragGeometry(table: Element): RowDragGeometry {
+  const rows = new Map<string, { top: number; height: number }>();
+  table.querySelectorAll<HTMLElement>("tr[data-order-key]").forEach((row) => {
+    const key = row.dataset.orderKey;
+    if (!key) return;
+    const bounds = row.getBoundingClientRect();
+    rows.set(key, { top: bounds.top, height: bounds.height });
+  });
+  return { scrollY: window.scrollY, rows };
+}
+
+/**
+ * 행의 앞·뒤가 아니라 전체 목록의 삽입 슬롯을 계산한다. 따라서 행 사이의
+ * 빈 위치나 마지막 행 아래에서도 테이블이 drop을 받을 수 있다.
+ */
+export function getRowDropTarget<T extends { key: string }>(
+  items: readonly T[],
+  sourceKey: string,
+  clientY: number,
+  geometry: RowDragGeometry | null,
+  scrollY: number,
+): RowDropTarget | null {
+  if (!geometry || items.length === 0 || !items.some((item) => item.key === sourceKey)) return null;
+
+  const scrollDelta = scrollY - geometry.scrollY;
+  const insertionIndex = items.findIndex((item) => {
+    const row = geometry.rows.get(item.key);
+    return row ? clientY < row.top + scrollDelta + row.height / 2 : false;
+  });
+  const index = insertionIndex < 0 ? items.length : insertionIndex;
+  const target = items[index] ?? items.at(-1);
+  if (!target) return null;
+  return { key: target.key, edge: index >= items.length ? "after" : "before" };
+}
+
 export function getRowDragPreview<T extends { key: string }>(
   items: readonly T[],
   sourceKey: string | null,

@@ -134,11 +134,25 @@ export default async function TermsPage({
 
   return (
     <AppShell user={user} title="시트" current="sheet" wide>
-      <header className="relative z-[60] shrink-0 border-b border-line bg-panel/70 px-4 py-3 backdrop-blur lg:px-6">
-        <div className="flex flex-wrap items-center gap-2 xl:flex-nowrap">
-          <p className="text-lg font-semibold tracking-tight lg:hidden">시트</p>
-          <SheetFilterBar query={parsed.q ?? ""} />
-          <span className="ml-auto flex shrink-0 items-center gap-1.5">
+      <TermsGrid
+        rows={items}
+        viewerName={user.name || user.email}
+        canDelete={user.role === "admin"}
+        rowOffset={(parsed.page - 1) * parsed.pageSize}
+        sortHrefs={sortHrefs}
+        sortDirHrefs={sortDirHrefs}
+        sortState={{ key: parsed.sort ?? "updatedAt", dir: parsed.dir ?? "desc" }}
+        query={parsed.q}
+        // 도메인 후보는 현재 페이지의 행이 아니라 사전 전체에서 뽑는다 — 표에서
+        // 도메인을 새로 칠 때 이미 쓰던 값이 후보에 없으면 오타가 새 도메인이 된다.
+        knownDomains={knownDomains}
+        domainColors={domainOptions.map(({ label, color }) => ({ label, color }))}
+        categoryOptions={facets.categories.map((category) => ({ key: category.value, label: category.label }))}
+        filters={filters}
+        activeFilters={activeGridFilters}
+        toolbarLeading={<SheetFilterBar query={parsed.q ?? ""} />}
+        toolbarActions={(
+          <>
             {facets.needsContribution > 0 && (
               <Link href="/contribute" className="chip border-warn/30 bg-warn-soft text-warn">
                 정리 필요 {facets.needsContribution}
@@ -157,26 +171,8 @@ export default async function TermsPage({
               categories={facets.categories.map((facet) => ({ key: facet.value, label: facet.label }))}
               topics={facets.topics.map((facet) => facet.value)}
             />
-          </span>
-        </div>
-      </header>
-
-      <TermsGrid
-        rows={items}
-        viewerName={user.name || user.email}
-        canDelete={user.role === "admin"}
-        rowOffset={(parsed.page - 1) * parsed.pageSize}
-        sortHrefs={sortHrefs}
-        sortDirHrefs={sortDirHrefs}
-        sortState={{ key: parsed.sort ?? "updatedAt", dir: parsed.dir ?? "desc" }}
-        query={parsed.q}
-        // 도메인 후보는 현재 페이지의 행이 아니라 사전 전체에서 뽑는다 — 표에서
-        // 도메인을 새로 칠 때 이미 쓰던 값이 후보에 없으면 오타가 새 도메인이 된다.
-        knownDomains={knownDomains}
-        domainColors={domainOptions.map(({ label, color }) => ({ label, color }))}
-        categoryOptions={facets.categories.map((category) => ({ key: category.value, label: category.label }))}
-        filters={filters}
-        activeFilters={activeGridFilters}
+          </>
+        )}
         pagination={{
           page: pagination.page,
           totalPages: Math.max(1, pagination.totalPages),

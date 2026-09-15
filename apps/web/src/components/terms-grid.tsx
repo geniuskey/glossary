@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { HelpTip } from "@/components/help-tip";
 import { ImportReview } from "@/components/import-review";
 import { isSimpleGlossaryHeader } from "@/lib/import/review";
@@ -146,6 +146,10 @@ export interface TermsGridProps {
     pageSize: number;
     pageSizeOptions: Array<{ pageSize: number; href: string }>;
   };
+  /** 시트 전용 검색처럼 표 도구줄의 왼쪽에 붙일 작업 요소. */
+  toolbarLeading?: ReactNode;
+  /** 공유·정리 필요 수처럼 표 도구줄의 오른쪽에 붙일 작업 요소. */
+  toolbarActions?: ReactNode;
 }
 
 // --- 저장된 표 설정 ---------------------------------------------------------
@@ -1223,10 +1227,6 @@ export function TermsGrid(props: TermsGridProps) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center gap-3 border-b border-line px-3 py-2">
-        <button type="button" className="btn-quiet btn-sm" disabled={creating || checkingPaste} onClick={() => { setReviewDirty(false); setReviewPaste(""); }}>영문·한글 엑셀 가져오기</button>
-        <span className="text-xs text-ink-3">영문·한글 뒤에 도메인·한줄 정의·본문을 선택해 가져옵니다.</span>
-      </div>
       <dialog ref={importDialog} onCancel={(event) => { event.preventDefault(); closeImportReview(); }} onClose={() => { setReviewDirty(false); setReviewPaste(null); }} className="m-auto max-h-[90vh] w-[min(56rem,95vw)] overflow-auto rounded-xl border border-line bg-panel p-5 text-ink shadow-pop backdrop:bg-black/40" aria-labelledby="sheet-import-title">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 id="sheet-import-title" className="font-semibold">새 용어 가져오기</h2>
@@ -1257,6 +1257,10 @@ export function TermsGrid(props: TermsGridProps) {
         onUndo={undo}
         onRedo={redo}
         activeFilters={props.activeFilters}
+        toolbarLeading={props.toolbarLeading}
+        toolbarActions={props.toolbarActions}
+        importDisabled={creating || checkingPaste}
+        onImport={() => { setReviewDirty(false); setReviewPaste(""); }}
       />
 
       <div
@@ -1889,6 +1893,10 @@ function GridToolbar(props: {
   onUndo: () => void;
   onRedo: () => void;
   activeFilters: TermsGridProps["activeFilters"];
+  toolbarLeading?: ReactNode;
+  toolbarActions?: ReactNode;
+  importDisabled: boolean;
+  onImport: () => void;
 }) {
   // 메뉴는 바깥 클릭으로 닫힌다(문서 리스너). 여기서 전파를 막지 않으면
   // 메뉴를 여는 클릭이 곧바로 닫기 리스너에 잡힌다.
@@ -1956,54 +1964,62 @@ function GridToolbar(props: {
     // relative z-50: 여기서 열리는 메뉴는 표 위로 펼쳐진다. 도구 막대가 쌓임
     // 맥락을 만들지 않으면 아래로 펼쳐진 메뉴가 고정된 열 머리글에 가려진다.
     <div
-      className="relative z-50 flex shrink-0 flex-wrap items-center gap-1.5 border-b border-line bg-panel px-3 py-1.5 text-xs"
+      className="relative z-50 flex min-w-0 shrink-0 items-center border-b border-line bg-panel px-3 py-1.5 text-xs"
       onMouseDown={stop}
     >
-      <button
-        type="button"
-        className="btn-quiet btn-sm gap-1"
-        onClick={props.onUndo}
-        disabled={!props.canUndo}
-        title="되돌리기 (Ctrl+Z)"
-      >
-        <IconUndo />
-        되돌리기
-      </button>
-      <button
-        type="button"
-        className="btn-quiet btn-sm gap-1"
-        onClick={props.onRedo}
-        disabled={!props.canRedo}
-        title="다시하기 (Ctrl+Shift+Z)"
-      >
-        <IconUndo flip />
-        다시
-      </button>
+      <div className="min-w-0 flex-1 overflow-x-auto">
+        <div className="flex min-w-max items-center gap-1.5">
+          {props.toolbarLeading && <div className="shrink-0">{props.toolbarLeading}</div>}
+          <button type="button" className="btn-quiet btn-sm shrink-0" disabled={props.importDisabled} onClick={props.onImport} title="영문·한글 표 가져오기">가져오기</button>
 
-      <span className="mx-1 h-4 w-px bg-line" />
+          <button
+            type="button"
+            className="btn-quiet btn-sm gap-1"
+            onClick={props.onUndo}
+            disabled={!props.canUndo}
+            title="되돌리기 (Ctrl+Z)"
+          >
+            <IconUndo />
+            되돌리기
+          </button>
+          <button
+            type="button"
+            className="btn-quiet btn-sm gap-1"
+            onClick={props.onRedo}
+            disabled={!props.canRedo}
+            title="다시하기 (Ctrl+Shift+Z)"
+          >
+            <IconUndo flip />
+            다시
+          </button>
 
-      <HelpTip text="헤더를 포함해 복사하면 열 이름으로 자동 연결해 새 용어로 가져옵니다. 헤더가 없으면 선택한 셀부터 붙여넣습니다." />
+          <span className="mx-1 h-4 w-px bg-line" />
 
-      {props.activeFilters.length > 0 && (
-        <div className="flex min-w-0 flex-wrap items-center gap-1" aria-label="현재 적용된 필터">
-          <span className="mr-0.5 font-medium text-ink-3">필터</span>
-          {props.activeFilters.map((filter) => (
-            <Link
-              key={filter.key}
-              href={filter.href}
-              aria-label={`${filter.label} ${filter.value} 필터 해제`}
-              title={`${filter.label}: ${filter.value}`}
-              className="chip chip-on inline-flex h-6 max-w-48 items-center gap-1 px-2 py-0 text-[11px]"
-            >
-              <span className="shrink-0 opacity-70">{filter.label}</span>
-              <span className="truncate font-semibold">{filter.value}</span>
-              <span aria-hidden className="shrink-0 opacity-70">×</span>
-            </Link>
-          ))}
+          <HelpTip text="헤더를 포함해 복사하면 열 이름으로 자동 연결해 새 용어로 가져옵니다. 헤더가 없으면 선택한 셀부터 붙여넣습니다." />
+
+          {props.activeFilters.length > 0 && (
+            <div className="flex min-w-0 items-center gap-1" aria-label="현재 적용된 필터">
+              <span className="mr-0.5 font-medium text-ink-3">필터</span>
+              {props.activeFilters.map((filter) => (
+                <Link
+                  key={filter.key}
+                  href={filter.href}
+                  aria-label={`${filter.label} ${filter.value} 필터 해제`}
+                  title={`${filter.label}: ${filter.value}`}
+                  className="chip chip-on inline-flex h-6 max-w-48 items-center gap-1 px-2 py-0 text-[11px]"
+                >
+                  <span className="shrink-0 opacity-70">{filter.label}</span>
+                  <span className="truncate font-semibold">{filter.value}</span>
+                  <span aria-hidden className="shrink-0 opacity-70">×</span>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
-      <div className="ml-auto flex items-center gap-1.5">
+      <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        {props.toolbarActions}
         <Menu
           label={`${DENSITY_LABEL[props.density]} 밀도`}
           open={props.menu === "density"}

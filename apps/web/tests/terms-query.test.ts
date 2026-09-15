@@ -57,6 +57,7 @@ let aeSlug = "";
 let nakedAbbreviationId = "";
 let completeDraftId = "";
 let relatedTermId = "";
+let koreanOnlySlug = "";
 
 beforeAll(async () => {
   await purgeFixtures();
@@ -135,11 +136,21 @@ beforeAll(async () => {
     },
     null,
   );
-  ids.push(ae.term.id, hw.term.id, dupe.term.id, naked.term.id, draft.term.id, related.term.id);
+  const koreanOnly = await createTerm(
+    {
+      nameKo: `한글 URL 테스트 ${Date.now()}`,
+      domain: [],
+      status: "active",
+      surfaces: [],
+    },
+    null,
+  );
+  ids.push(ae.term.id, hw.term.id, dupe.term.id, naked.term.id, draft.term.id, related.term.id, koreanOnly.term.id);
   aeSlug = ae.term.slug;
   nakedAbbreviationId = naked.term.id;
   completeDraftId = draft.term.id;
   relatedTermId = related.term.id;
+  koreanOnlySlug = koreanOnly.term.slug;
 });
 
 afterAll(async () => {
@@ -152,6 +163,11 @@ test("슬러그로 상세를 조회한다", async () => {
   expect(detail?.categories).toEqual(["design", "process"]);
   expect(detail?.categoryLabels).toEqual(["설계", "공정"]);
   expect(detail?.surfaces.length).toBeGreaterThanOrEqual(3);
+});
+
+test("percent-encoded 한글 전용 slug로도 상세를 조회한다", async () => {
+  const detail = await getTermByIdOrSlug(encodeURIComponent(koreanOnlySlug));
+  expect(detail?.slug).toBe(koreanOnlySlug);
 });
 
 test("두 번째 업무 분류로도 용어를 필터링한다", async () => {

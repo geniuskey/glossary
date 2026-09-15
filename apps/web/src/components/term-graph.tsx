@@ -10,6 +10,7 @@ import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { HelpTip } from "@/components/help-tip";
@@ -378,12 +379,14 @@ export function TermGraph({
   semanticRelations = NO_RELATIONS,
   mode = "classification",
   onSelectTerm,
+  topBar,
 }: {
   terms: GraphTerm[];
   domainColors?: { label: string; color: string }[];
   semanticRelations?: SemanticRelation[];
   mode?: "classification" | "semantic";
   onSelectTerm?: (term: { id: string; name: string } | null) => void;
+  topBar?: ReactNode;
 }) {
   const model = useMemo(() => mode === "semantic" ? buildSemanticGraphModel(terms, semanticRelations) : buildGraphModel(terms), [terms, mode, semanticRelations]);
   const markerId = useId().replace(/:/g, "");
@@ -412,7 +415,7 @@ export function TermGraph({
   const [canvasScale, setCanvasScale] = useState(1);
   const [selected, setSelected] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
-  const detailsRef = useRef<HTMLDivElement>(null);
+  const detailsRef = useRef<HTMLElement>(null);
   const focusDetailsRef = useRef(false);
   const svgRef = useRef<SVGSVGElement>(null);
   const nodesRef = useRef(nodes);
@@ -676,33 +679,43 @@ export function TermGraph({
   }
 
   if (terms.length === 0) {
-    return <div className="card px-5 py-16 text-center text-sm text-ink-3">조건에 맞는 용어가 없습니다.</div>;
+    return (
+      <section className="flex h-full min-h-[480px] flex-col">
+        {topBar && <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-line px-3 py-1.5">{topBar}</div>}
+        <div className="grid min-h-0 flex-1 place-items-center px-5 py-16 text-center text-sm text-ink-3">조건에 맞는 용어가 없습니다.</div>
+      </section>
+    );
   }
 
   return (
-    <section className="card relative flex h-full min-h-[480px] flex-col overflow-hidden bg-panel-2/40 sm:min-h-[560px]">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line bg-panel/90 p-3">
-        <div className="flex min-w-0 items-center gap-2 text-xs">
-          <span className="truncate font-medium text-ink">
-            {activeNode ? `${kindLabel(activeNode.kind)} · ${activeNode.label}` : `${model.nodes.length}개 노드 · ${model.edges.length}개 연결`}
-          </span>
-          <HelpTip text={mode === "semantic" ? "화살표는 출발 용어에서 도착 용어를 향합니다. 노드를 선택하면 관계의 종류와 근거를 확인하고 아래 관리 목록에서 검토할 수 있습니다." : "빈 곳을 드래그해 이동하고 휠로 확대·축소합니다. 노드를 드래그해 배치를 바꾸거나 눌러 연결을 강조할 수 있고, 선택한 용어는 아래 상세 보기로 이동합니다."} />
+    <section className="relative flex h-full min-h-[480px] flex-col overflow-hidden sm:min-h-[560px]">
+      <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line px-3 py-1.5">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
+          <div className="flex min-w-0 items-center gap-2 text-xs">
+            <span className="truncate font-medium text-ink">
+              {activeNode ? `${kindLabel(activeNode.kind)} · ${activeNode.label}` : `${model.nodes.length}개 노드 · ${model.edges.length}개 연결`}
+            </span>
+            <HelpTip text={mode === "semantic" ? "화살표는 출발 용어에서 도착 용어를 향합니다. 노드를 선택하면 오른쪽 상세 패널에서 관계의 종류와 근거를 확인하고 아래 관리 목록에서 검토할 수 있습니다. 키보드: 방향키로 이동, Home 전체 맞춤, Escape로 선택 해제합니다." : "빈 곳을 드래그해 이동하고 휠로 확대·축소합니다. 노드를 드래그해 배치를 바꾸거나 눌러 연결을 강조할 수 있고, 선택한 용어는 오른쪽 상세 패널에서 확인합니다. 키보드: 방향키로 이동, Home 전체 맞춤, Escape로 선택 해제합니다."} />
+          </div>
+          {topBar && <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-1.5">{topBar}</div>}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1 rounded-lg border border-line bg-panel/90 p-1">
-          <button type="button" className="btn-ghost h-9 px-2 text-xs" onClick={fitView}>전체 맞춤</button>
-          <button type="button" className="btn-ghost grid h-9 w-9 place-items-center p-0" aria-label="축소" onClick={() => updateZoom(view.scale / 1.2)}>
+        <div className="flex shrink-0 items-center gap-0.5">
+          <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={resetLayout}>배치 초기화</button>
+          <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={fitView}>전체 맞춤</button>
+          <button type="button" className="btn-ghost grid h-8 w-8 place-items-center p-0" aria-label="축소" onClick={() => updateZoom(view.scale / 1.2)}>
             <IconMinus />
           </button>
-          <button type="button" className="btn-quiet h-9 min-w-12 px-2 text-[11px] tabular-nums" aria-label={`배율 ${zoomLabel}, 기본 배율로 돌아가기`} onClick={resetView}>
+          <button type="button" className="btn-quiet h-8 min-w-12 px-2 text-[11px] tabular-nums" aria-label={`배율 ${zoomLabel}, 기본 배율로 돌아가기`} onClick={resetView}>
             {zoomLabel}
           </button>
-          <button type="button" className="btn-ghost grid h-9 w-9 place-items-center p-0" aria-label="확대" onClick={() => updateZoom(view.scale * 1.2)}>
+          <button type="button" className="btn-ghost grid h-8 w-8 place-items-center p-0" aria-label="확대" onClick={() => updateZoom(view.scale * 1.2)}>
             <IconPlus />
           </button>
         </div>
       </div>
 
+      <div className="relative min-h-[400px] min-w-0 flex-1 sm:min-h-[460px]">
       <svg
         ref={svgRef}
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
@@ -710,7 +723,7 @@ export function TermGraph({
         tabIndex={0}
         onKeyDown={handleGraphKey}
         aria-labelledby="term-graph-title term-graph-description"
-        className="min-h-[400px] w-full flex-1 cursor-grab touch-none select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand active:cursor-grabbing sm:min-h-[460px]"
+        className="block h-full min-h-[400px] w-full cursor-grab touch-none select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand active:cursor-grabbing sm:min-h-[460px]"
         onWheel={handleWheel}
         onPointerDown={startPan}
         onPointerMove={movePointer}
@@ -719,7 +732,7 @@ export function TermGraph({
         onDoubleClick={() => setView({ x: 0, y: 0, scale: 1 })}
       >
         <title id="term-graph-title">{mode === "semantic" ? "승인된 의미 관계도" : "도메인, 업무 분류와 주제로 연결한 용어 관계도"}</title>
-        <desc id="term-graph-description">방향키로 이동, Home으로 전체 맞춤, Escape로 선택 해제. Tab으로 노드를 탐색하고 Enter 또는 Space로 선택하면 아래 연결 정보로 이동합니다.</desc>
+        <desc id="term-graph-description">방향키로 이동, Home으로 전체 맞춤, Escape로 선택 해제. Tab으로 노드를 탐색하고 Enter 또는 Space로 선택하면 오른쪽 상세 패널이 열립니다.</desc>
         <rect width={WIDTH} height={HEIGHT} className="fill-transparent" />
         {mode === "semantic" && <defs><marker id={markerId} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" className="fill-ink-3" /></marker></defs>}
         <g transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
@@ -875,18 +888,13 @@ export function TermGraph({
         </g>
       </svg>
 
-      <div className="border-t border-line bg-panel px-4 py-3">
-        {model.omittedHubCount > 0 && (
-          <p className="mb-2 text-xs text-ink-2">
-            그래프에서 허브 {model.omittedHubCount}개와 연결 {model.omittedEdgeCount}개를 생략했습니다. 용어를 선택하면 전체 연결 목록을 확인할 수 있습니다.
-          </p>
-        )}
-        <div
+      {activeNode && (
+        <aside
           ref={detailsRef}
           tabIndex={-1}
           role="region"
-          aria-label="선택한 노드의 연결 정보"
-          className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45"
+          aria-labelledby="term-graph-inspector-title"
+          className="absolute right-3 top-3 z-20 max-h-[calc(100%-1.5rem)] w-[min(24rem,calc(100%-1.5rem))] overflow-y-auto overscroll-contain rounded-xl border border-line bg-panel/95 p-3 text-xs shadow-pop backdrop-blur sm:right-4 sm:top-4"
           onKeyDown={(event) => {
             if (event.key !== "Escape") return;
             event.preventDefault();
@@ -894,54 +902,89 @@ export function TermGraph({
             svgRef.current?.focus();
           }}
         >
-        {activeNode ? (
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-xs">
-            <span className="rounded-md bg-brand-soft px-2 py-1 font-medium text-brand">{kindLabel(activeNode.kind)}</span>
-            <strong className="min-w-0 truncate text-sm text-ink">{activeNode.label}</strong>
-            <span className="text-ink-3">{mode === "semantic" ? "표시된 의미 관계" : "전체 연결"} {activeConnectionCount}개{mode !== "semantic" && activeNode.term && activeConnectionCount !== (activeNeighbors?.size ?? 0) ? ` · 그래프에 ${activeNeighbors?.size ?? 0}개 표시` : ""}</span>
-            {activeNode.kind === "term" && activeNode.term ? (
-              <Link href={`/w/${activeNode.term.slug}`} className="rounded font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45">상세 보기</Link>
-            ) : relatedTerms.length > 0 ? (
-              <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-medium text-brand">{kindLabel(activeNode.kind)}</p>
+              <h2 id="term-graph-inspector-title" className="mt-0.5 break-words text-sm font-semibold text-ink">{activeNode.label}</h2>
+              <p className="mt-1 text-ink-3">{mode === "semantic" ? "표시된 의미 관계" : "전체 연결"} {activeConnectionCount}개{mode !== "semantic" && activeNode.term && activeConnectionCount !== (activeNeighbors?.size ?? 0) ? ` · 그래프에 ${activeNeighbors?.size ?? 0}개 표시` : ""}</p>
+            </div>
+            <button
+              type="button"
+              className="btn-quiet grid h-7 w-7 shrink-0 place-items-center p-0 text-lg leading-none"
+              aria-label="선택한 노드 패널 닫기"
+              onClick={() => {
+                setSelected(null);
+                svgRef.current?.focus();
+              }}
+            >
+              ×
+            </button>
+          </div>
+
+          {model.omittedHubCount > 0 && (
+            <p className="mt-3 rounded-lg bg-panel-2 px-2.5 py-2 text-[11px] leading-5 text-ink-2">
+              그래프에서 허브 {model.omittedHubCount}개와 연결 {model.omittedEdgeCount}개를 생략했습니다. 전체 연결은 아래 목록에서 확인할 수 있습니다.
+            </p>
+          )}
+
+          {activeNode.kind === "term" && activeNode.term ? (
+            <Link href={`/w/${activeNode.term.slug}`} className="mt-3 inline-flex rounded-md bg-brand-soft px-2.5 py-1.5 font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45">상세 보기</Link>
+          ) : relatedTerms.length > 0 ? (
+            <section className="mt-3" aria-labelledby="term-graph-related-title">
+              <h3 id="term-graph-related-title" className="font-medium text-ink">연결된 용어</h3>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {relatedTerms.slice(0, 6).map((node) => (
                   <Link key={node.key} href={`/w/${node.term!.slug}`} className="max-w-36 truncate rounded-md border border-line px-2 py-1 text-ink-2 hover:border-brand/50 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45">
                     {node.label}
                   </Link>
                 ))}
-                {relatedTerms.length > 6 && <span className="text-ink-3">외 {relatedTerms.length - 6}개</span>}
-              </span>
-            ) : null}
-          </div>
-        ) : (
-          <p className="text-xs text-ink-3">{mode === "semantic" ? "노드를 선택하면 승인된 의미 관계와 근거를 확인할 수 있습니다. 관계가 없는 용어도 표시됩니다." : "허브를 선택하면 연결된 용어만 강조됩니다. 빈 공간을 드래그해 이동할 수 있습니다."}</p>
-        )}
-        {mode === "semantic" && activeNode && <ul className="mt-2 max-h-44 space-y-2 overflow-y-auto text-xs" aria-label="표시된 의미 관계의 근거">
-          {selectedEdges.map((edge) => <li key={edge.key} className="rounded border border-line p-2">
-            <p className="break-words font-medium">{byKey.get(edge.source)?.label} → {RELATION_LABEL[edge.relation!.relationType]} → {byKey.get(edge.target)?.label}</p>
-            <p className="mt-1 whitespace-pre-wrap break-words text-ink-2">{edge.relation!.evidenceMd || "기록된 근거가 없습니다."}</p>
-          </li>)}
-          <li className="text-ink-3">제안·거절된 관계와 화면 밖 용어의 연결은 아래 관리 목록에서 확인하세요.</li>
-        </ul>}
-        {mode !== "semantic" && activeNode?.term && activeRelations.length > 0 && (
-          <ul className="mt-2 flex max-h-32 flex-wrap gap-2 overflow-y-auto text-xs" aria-label="전체 연결 목록">
-            {activeRelations.map((relation) => (
-              <li key={relation.key} className="max-w-full break-words rounded-md border border-line px-2 py-1 text-ink-2">
-                {kindLabel(relation.kind)} · {relation.label}{!byKey.has(relation.key) ? " (그래프에서 생략)" : ""}
-              </li>
-            ))}
-          </ul>
-        )}
-        </div>
-        <p className="mt-2 text-[11px] text-ink-3">키보드: 방향키 이동 · Home 전체 맞춤 · Enter/Space 선택 후 연결 정보로 이동 · Esc 선택 해제</p>
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-ink-3">
-          {mode !== "semantic" && <>
-            <TermColorLegend hues={[...new Set(domainHues.values())].slice(0, 3)} label="도메인" variant="domain" />
-            <TermColorLegend hues={categoryHues} label="업무 분류" variant="category" />
-            <LegendDot className="graph-topic-swatch border" label="주제" />
-          </>}
-          <TermColorLegend hues={[...new Set(termColorHues.values())].slice(0, 3)} label="용어 · 분류색 우선" variant="term" />
-          <button type="button" className="ml-auto text-ink-3 underline-offset-2 hover:text-ink hover:underline" onClick={resetLayout}>배치 초기화</button>
-        </div>
+                {relatedTerms.length > 6 && <span className="self-center text-ink-3">외 {relatedTerms.length - 6}개</span>}
+              </div>
+            </section>
+          ) : null}
+
+          {mode === "semantic" && (
+            <section className="mt-3" aria-labelledby="term-graph-evidence-title">
+              <h3 id="term-graph-evidence-title" className="font-medium text-ink">표시된 의미 관계</h3>
+              <ul className="mt-1.5 max-h-44 space-y-2 overflow-y-auto" aria-label="표시된 의미 관계의 근거">
+                {selectedEdges.map((edge) => <li key={edge.key} className="rounded border border-line p-2">
+                  <p className="break-words font-medium">{byKey.get(edge.source)?.label} → {RELATION_LABEL[edge.relation!.relationType]} → {byKey.get(edge.target)?.label}</p>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-ink-2">{edge.relation!.evidenceMd || "기록된 근거가 없습니다."}</p>
+                </li>)}
+                {selectedEdges.length === 0 && <li className="rounded border border-line p-2 text-ink-3">표시된 승인 관계가 없습니다.</li>}
+                <li className="text-ink-3">제안·거절된 관계와 화면 밖 용어의 연결은 아래 관리 목록에서 확인하세요.</li>
+              </ul>
+            </section>
+          )}
+
+          {mode !== "semantic" && activeNode.term && activeRelations.length > 0 && (
+            <section className="mt-3" aria-labelledby="term-graph-connections-title">
+              <h3 id="term-graph-connections-title" className="font-medium text-ink">전체 연결</h3>
+              <ul className="mt-1.5 flex max-h-32 flex-wrap gap-2 overflow-y-auto" aria-label="전체 연결 목록">
+                {activeRelations.map((relation) => (
+                  <li key={relation.key} className="max-w-full break-words rounded-md border border-line px-2 py-1 text-ink-2">
+                    {kindLabel(relation.kind)} · {relation.label}{!byKey.has(relation.key) ? " (그래프에서 생략)" : ""}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </aside>
+      )}
+
+      <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg bg-panel/80 px-2.5 py-1.5 text-[11px] text-ink-3 backdrop-blur-sm">
+        {mode !== "semantic" && <>
+          <TermColorLegend hues={[...new Set(domainHues.values())].slice(0, 3)} label="도메인" variant="domain" />
+          <TermColorLegend hues={categoryHues} label="업무 분류" variant="category" />
+          <LegendDot className="graph-topic-swatch border" label="주제" />
+        </>}
+        <TermColorLegend hues={[...new Set(termColorHues.values())].slice(0, 3)} label="용어 · 분류색 우선" variant="term" />
+      </div>
+      {model.omittedHubCount > 0 && (
+        <p className="sr-only" aria-live="polite">
+          그래프에서 허브 {model.omittedHubCount}개와 연결 {model.omittedEdgeCount}개를 생략했습니다.
+        </p>
+      )}
       </div>
       <p className="sr-only" aria-live="polite">
         {activeNode ? `${kindLabel(activeNode.kind)} ${activeNode.label}, ${mode === "semantic" ? "표시된 의미 관계" : "전체 연결"} ${activeConnectionCount}개` : "전체 관계도"}

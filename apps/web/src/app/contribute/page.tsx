@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { HelpTip } from "@/components/help-tip";
 import { scheduleAfterResponse } from "@/lib/after-response";
 import { MissingFields } from "@/components/term-completion";
 import { CategoryBadges, DomainBadges, StatusBadge } from "@/components/term-badges";
@@ -60,20 +61,18 @@ export default async function ContributePage({ searchParams }: { searchParams: P
     <AppShell user={user} title="함께 정리" current="contribute">
       <p className="mb-4 text-xl font-semibold tracking-tight text-balance lg:hidden">함께 정리</p>
       {tab !== "agent" && tab !== "duplicates" && <QueueRefresh active={reviewQueue.counts.active > 0} />}
-      <section className="card mb-5 space-y-2 p-4 text-sm" aria-label="기여 방법">
-        <h2 className="font-semibold text-ink">아는 용어 하나부터 함께 정리해 주세요</h2>
-        <p className="text-ink-2">용어 선택 → 부족한 정보 작성 → 저장. AI 제안은 현재 내용과 비교한 뒤 필요한 것만 승인하세요.</p>
-        <p className="text-xs leading-5 text-ink-3">저장하거나 제안을 승인하면 용어에 바로 반영됩니다. 정리 기준을 충족하면 시스템이 상태를 판정합니다.</p>
-        <details className="text-xs text-ink-2"><summary className="cursor-pointer">좋은 한줄 정의 예시</summary><p className="mt-2 leading-5">캐시: 자주 사용하는 데이터를 임시로 저장해 같은 요청을 더 빠르게 처리하는 방법. 무엇인지와 쓰는 목적을 함께 적고, 확인할 수 있는 근거를 본문에 남겨 주세요.</p></details>
-        <Link href="/new" className="link inline-block">새 용어 제안하기</Link>
-      </section>
-      <nav className="flex overflow-x-auto overflow-y-hidden border-b border-line" aria-label="함께 정리 방식">
-        {TABS.map((item) => (
-          <Link key={item.key} href={item.href} aria-current={tab === item.key ? "page" : undefined} className={cx("relative -mb-px shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition", tab === item.key ? "border-brand text-brand" : "border-transparent text-ink-3 hover:text-ink")}>
-            {item.label}{item.key === "queue" && <span className="ml-1.5 rounded-full bg-panel-2 px-1.5 py-0.5 font-mono text-[10px] tabular-nums">{reviewQueue.counts.total}</span>}
-          </Link>
-        ))}
-      </nav>
+      <div className="flex min-w-0 items-end gap-2 border-b border-line">
+        <nav className="flex min-w-0 flex-1 overflow-x-auto overflow-y-hidden" aria-label="함께 정리 방식">
+          {TABS.map((item) => (
+            <Link key={item.key} href={item.href} aria-current={tab === item.key ? "page" : undefined} className={cx("relative -mb-px shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition", tab === item.key ? "border-brand text-brand" : "border-transparent text-ink-3 hover:text-ink")}>
+              {item.label}{item.key === "queue" && <span className="ml-1.5 rounded-full bg-panel-2 px-1.5 py-0.5 font-mono text-[10px] tabular-nums">{reviewQueue.counts.total}</span>}
+            </Link>
+          ))}
+        </nav>
+        <div className="shrink-0 pb-2.5">
+          <HelpTip text="아는 용어 하나부터 함께 정리해 주세요. 용어를 선택해 부족한 정보를 작성하고 저장합니다. AI 제안은 현재 내용과 비교한 뒤 필요한 것만 승인하세요. 좋은 한줄 정의는 무엇인지와 쓰는 목적을 함께 적고, 확인할 근거를 본문에 남기면 좋습니다. 예: 캐시 — 자주 사용하는 데이터를 임시로 저장해 같은 요청을 더 빠르게 처리하는 방법. 저장·승인 후 바로 반영되며 정리 기준 충족 여부는 시스템이 판정합니다." />
+        </div>
+      </div>
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-2 py-3 text-xs text-ink-3">
         <p>{tab === "edit" ? "내가 맡은 용어를 먼저, 부족한 정보가 많고 오래 기다린 순으로 보여드립니다." : tab === "agent" ? "현재 값과 제안을 비교한 뒤 필요한 변경만 승인하세요." : "자동·수동 AI 검토의 진행 상태를 함께 확인합니다."}</p>

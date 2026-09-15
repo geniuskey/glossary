@@ -36,35 +36,35 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
   filters.set("view", "semantic");
   const semanticHref = `/graph?${filters}`;
   const number = new Intl.NumberFormat("ko-KR");
+  const graphTopBar = (
+    <>
+      <span
+        className="max-w-52 truncate text-[11px] text-ink-3"
+        title={semantic
+          ? `승인된 의미 관계 ${relations.items.length}개 표시${relations.omitted > 0 ? ` · 연결 ${relations.omitted}개 생략` : ""}`
+          : `전체 ${number.format(total)}개 중 ${number.format(terms.length)}개 표시`}
+      >
+        {semantic ? `관계 ${number.format(relations.items.length)}개` : `${number.format(terms.length)} / ${number.format(total)}개`}
+      </span>
+      <nav className="flex shrink-0 gap-1.5" aria-label="관계도 보기">
+        <Link href={classificationHref} aria-current={!semantic ? "page" : undefined} className={!semantic ? "btn-primary h-8 px-2.5 text-xs" : "btn-ghost h-8 px-2.5 text-xs"}>분류 관계</Link>
+        <Link href={semanticHref} aria-current={semantic ? "page" : undefined} className={semantic ? "btn-primary h-8 px-2.5 text-xs" : "btn-ghost h-8 px-2.5 text-xs"}>의미 관계</Link>
+      </nav>
+      <GraphFilterBar
+        values={{ domain: domain ?? "", category: category ?? "", topic: topic ?? "" }}
+        domains={facets.domains.map((f) => ({ value: f.value, label: f.value }))}
+        categories={facets.categories.map((f) => ({ value: f.value, label: f.label }))}
+        topics={facets.topics.map((f) => ({ value: f.value, label: f.value }))}
+        view={semantic ? "semantic" : undefined}
+      />
+    </>
+  );
 
   return (
     <AppShell user={user} title="용어 관계도" current="graph" wide>
-      <header className="shrink-0 border-b border-line bg-panel/70 px-4 py-3 backdrop-blur lg:px-6">
-        <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
-          <div className="mr-auto min-w-0">
-            <p className="text-xs font-semibold tracking-[0.14em] text-brand lg:hidden">TERM MAP</p>
-            <p className="mt-1 text-xl font-semibold lg:hidden">용어 관계도</p>
-            <p className="mt-1 text-xs text-ink-3 lg:mt-0">
-              전체 {number.format(total)}개 중 {number.format(terms.length)}개 표시
-              {total > terms.length ? " · 필터를 좁히면 나머지 용어를 확인할 수 있습니다." : " · 노드를 눌러 연결을 살펴보세요."}
-            </p>
-          </div>
-          <GraphFilterBar
-            values={{ domain: domain ?? "", category: category ?? "", topic: topic ?? "" }}
-            domains={facets.domains.map((f) => ({ value: f.value, label: f.value }))}
-            categories={facets.categories.map((f) => ({ value: f.value, label: f.label }))}
-            topics={facets.topics.map((f) => ({ value: f.value, label: f.value }))}
-            view={semantic ? "semantic" : undefined}
-          />
-        </div>
-        <nav className="mt-3 flex gap-2" aria-label="관계도 보기">
-          <Link href={classificationHref} aria-current={!semantic ? "page" : undefined} className={!semantic ? "btn-primary text-xs" : "btn-ghost text-xs"}>분류 관계</Link>
-          <Link href={semanticHref} aria-current={semantic ? "page" : undefined} className={semantic ? "btn-primary text-xs" : "btn-ghost text-xs"}>의미 관계</Link>
-        </nav>
-      </header>
-      <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4 lg:p-6">
-        {semantic ? <SemanticGraphWorkspace terms={terms} relations={relations.items} omitted={relations.omitted} domainColors={domainOptions.map(({ label, color }) => ({ label, color }))} />
-          : <TermGraph terms={terms} domainColors={domainOptions.map(({ label, color }) => ({ label, color }))} />}
+      <div className="min-h-0 flex-1 overflow-auto">
+        {semantic ? <SemanticGraphWorkspace terms={terms} relations={relations.items} domainColors={domainOptions.map(({ label, color }) => ({ label, color }))} topBar={graphTopBar} />
+          : <TermGraph terms={terms} domainColors={domainOptions.map(({ label, color }) => ({ label, color }))} topBar={graphTopBar} />}
       </div>
     </AppShell>
   );

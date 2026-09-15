@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { reorderByKey } from "../src/lib/ui/reorder";
-import { getRowDragPreview, rowDragOffset } from "../src/lib/ui/table-row-drag";
+import { getRowDragPreview, getRowDropTarget, rowDragOffset } from "../src/lib/ui/table-row-drag";
 
 const items = [{ key: "a" }, { key: "b" }, { key: "c" }, { key: "d" }];
 
@@ -37,5 +37,25 @@ describe("row drag preview", () => {
     expect(rowDragOffset(1, preview)).toBe(36);
     expect(rowDragOffset(2, preview)).toBe(36);
     expect(rowDragOffset(3, preview)).toBe(0);
+  });
+});
+
+describe("row drop target", () => {
+  const geometry = {
+    scrollY: 0,
+    rows: new Map([
+      ["a", { top: 0, height: 32 }],
+      ["b", { top: 32, height: 32 }],
+      ["c", { top: 64, height: 32 }],
+      ["d", { top: 96, height: 32 }],
+    ]),
+  };
+
+  test("행이 transform으로 밀려도 다음 삽입 슬롯을 계산한다", () => {
+    expect(getRowDropTarget(items, "a", 60, geometry, 0)).toEqual({ key: "c", edge: "before" });
+  });
+
+  test("마지막 행 아래의 빈 공간은 마지막 행 뒤로 계산한다", () => {
+    expect(getRowDropTarget(items, "a", 140, geometry, 0)).toEqual({ key: "d", edge: "after" });
   });
 });

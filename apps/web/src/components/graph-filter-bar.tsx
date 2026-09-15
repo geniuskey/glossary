@@ -53,11 +53,11 @@ export function GraphFilterBar({
   }
 
   return (
-    <div className="flex w-full flex-wrap items-end gap-2 lg:w-auto" aria-label="관계도 필터" aria-busy={pending}>
+    <div className="flex w-full flex-wrap items-center gap-1.5 lg:w-auto" aria-label="관계도 필터" aria-busy={pending}>
       <FilterSelect name="domain" value={selected.domain} label="도메인" emptyLabel="전체" options={domains} onChange={change} />
       <FilterSelect name="category" value={selected.category} label="업무 분류" emptyLabel="전체" options={categories} onChange={change} />
       <FilterSelect name="topic" value={selected.topic} label="주제" emptyLabel="전체" options={topics} onChange={change} />
-      <button className="btn-ghost h-9 px-3 text-xs" type="button" onClick={reset} disabled={!Object.values(selected).some(Boolean) || pending}>
+      <button className="btn-ghost h-8 shrink-0 px-2.5 text-xs" type="button" onClick={reset} disabled={!Object.values(selected).some(Boolean) || pending}>
         초기화
       </button>
       <span className="sr-only" aria-live="polite">{pending ? "필터를 적용하는 중…" : ""}</span>
@@ -82,14 +82,14 @@ function FilterSelect({
 }) {
   const id = `graph-filter-${name}`;
   return (
-    <label htmlFor={id} className="min-w-[8.5rem] flex-1 text-[11px] font-medium text-ink-3 sm:flex-none">
-      <span className="mb-1 block">{label}</span>
+    <label htmlFor={id} className="flex min-w-0 flex-1 items-center gap-1 text-[11px] font-medium text-ink-3 sm:flex-none">
+      <span className="shrink-0">{label}</span>
       <select
         id={id}
         name={name}
         value={value}
         autoComplete="off"
-        className="field h-9 min-w-[8.5rem] py-0 text-xs"
+        className="field h-8 min-w-[7.25rem] flex-1 py-0 text-xs sm:min-w-[7.75rem]"
         onChange={(event) => onChange(name, event.target.value)}
       >
         <option value="">{emptyLabel}</option>

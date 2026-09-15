@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import type { ManagedBusinessCategory } from "@/lib/terms/categories";
 import { cx } from "@/lib/ui/format";
 import { reorderByKey, type DropEdge } from "@/lib/ui/reorder";
-import { getRowDragPreview, rowDragOffset, setTableRowDragImage } from "@/lib/ui/table-row-drag";
+import { captureRowDragGeometry, getRowDragPreview, getRowDropTarget, rowDragOffset, setTableRowDragImage, type RowDragGeometry } from "@/lib/ui/table-row-drag";
 import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
 import { HelpTip } from "./help-tip";
 
@@ -38,7 +38,9 @@ export function CategoriesPanel({
   const [draggedKey, setDraggedKey] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const [dragRowHeight, setDragRowHeight] = useState(0);
+  const [dropCommitKey, setDropCommitKey] = useState<string | null>(null);
   const draggedKeyRef = useRef<string | null>(null);
+  const dragGeometryRef = useRef<RowDragGeometry | null>(null);
   const dragPreview = useMemo(() => getRowDragPreview(
     categories,
     draggedKey,
@@ -141,6 +143,7 @@ export function CategoriesPanel({
 
   function clearDrag() {
     draggedKeyRef.current = null;
+    dragGeometryRef.current = null;
     setDraggedKey(null);
     setDropTarget(null);
     setDragRowHeight(0);
@@ -152,6 +155,9 @@ export function CategoriesPanel({
       return;
     }
     draggedKeyRef.current = key;
+    const table = event.currentTarget.closest("table");
+    dragGeometryRef.current = table ? captureRowDragGeometry(table) : null;
+    setDropCommitKey(null);
     setDraggedKey(key);
     setDropTarget(null);
     setMessage(null);
@@ -162,38 +168,38 @@ export function CategoriesPanel({
     if (row) setDragRowHeight(setTableRowDragImage(event.dataTransfer, row));
   }
 
-  function dragOver(event: React.DragEvent<HTMLTableRowElement>, key: string) {
+  function dragOver(event: React.DragEvent<HTMLTableElement>) {
     const sourceKey = draggedKeyRef.current;
-    if (!sourceKey || sourceKey === key || busyKey) return;
+    if (!sourceKey || busyKey) return;
+    const target = getRowDropTarget(categories, sourceKey, event.clientY, dragGeometryRef.current, window.scrollY);
+    if (!target) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const edge: DropEdge = event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
-    setDropTarget((current) => current?.key === key && current.edge === edge ? current : { key, edge });
+    setDropTarget((current) => current?.key === target.key && current.edge === target.edge ? current : target);
   }
 
-  function drop(event: React.DragEvent<HTMLTableRowElement>, targetKey: string) {
+  function drop(event: React.DragEvent<HTMLTableElement>) {
     event.preventDefault();
     const sourceKey = event.dataTransfer.getData(CATEGORY_DRAG_TYPE) || draggedKeyRef.current;
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const edge: DropEdge = event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+    const target = sourceKey
+      ? getRowDropTarget(categories, sourceKey, event.clientY, dragGeometryRef.current, window.scrollY)
+      : null;
+    if (!sourceKey || !target || sourceKey === target.key || busyKey) {
+      clearDrag();
+      return;
+    }
+    const reordered = reorderByKey(categories, sourceKey, target.key, target.edge);
+    if (reordered.every((category, index) => category.key === categories[index]?.key)) {
+      clearDrag();
+      return;
+    }
+    // 주변 행은 drag preview에서 이미 새 위치에 있으므로, 목록을 재배치하는
+    // 커밋 프레임에는 그 행들의 transform transition을 끈다. 그렇지 않으면
+    // 새 layout 위에서 기존 -rowHeight transform이 다시 재생되어 한 번 튄다.
+    setDropCommitKey(sourceKey);
     clearDrag();
-    if (!sourceKey || sourceKey === targetKey || busyKey) return;
-    const reordered = reorderByKey(categories, sourceKey, targetKey, edge);
-    if (reordered.every((category, index) => category.key === categories[index]?.key)) return;
     void saveOrder(reordered);
-  }
-
-  function moveCategory(key: string, direction: -1 | 1) {
-    if (busyKey) return;
-    const index = categories.findIndex((category) => category.key === key);
-    const targetIndex = index + direction;
-    if (index < 0 || targetIndex < 0 || targetIndex >= categories.length) return;
-    const reordered = [...categories];
-    const [moved] = reordered.splice(index, 1);
-    if (!moved) return;
-    reordered.splice(targetIndex, 0, moved);
-    void saveOrder(reordered);
+    requestAnimationFrame(() => requestAnimationFrame(() => setDropCommitKey(null)));
   }
 
   async function remove(category: ManagedBusinessCategory) {
@@ -236,7 +242,11 @@ export function CategoriesPanel({
 
       <form onSubmit={(event) => void addCategory(event)} className="card overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="w-full min-w-[680px] border-collapse text-left text-sm [&_td]:border [&_td]:border-line [&_th]:border [&_th]:border-line">
+        <table
+          className="w-full min-w-[680px] border-collapse text-left text-sm [&_td]:border [&_td]:border-line [&_th]:border [&_th]:border-line"
+          onDragOver={isAdmin ? dragOver : undefined}
+          onDrop={isAdmin ? drop : undefined}
+        >
           <thead>
             <tr className="bg-panel-2 text-xs text-ink-3">
               <th scope="col" className="w-14 px-2 py-1.5 font-medium">순서</th>
@@ -250,9 +260,11 @@ export function CategoriesPanel({
             {categories.map((category, index) => (
               <tr
                 key={category.key}
-                onDragOver={isAdmin ? (event) => dragOver(event, category.key) : undefined}
-                onDrop={isAdmin ? (event) => drop(event, category.key) : undefined}
-                style={draggedKey ? { transform: `translate3d(0, ${rowDragOffset(index, dragPreview)}px, 0)` } : undefined}
+                data-order-key={category.key}
+                style={{
+                  ...(draggedKey ? { transform: `translate3d(0, ${rowDragOffset(index, dragPreview)}px, 0)` } : {}),
+                  ...(dropCommitKey && dropCommitKey !== category.key ? { transition: "none" } : {}),
+                }}
                 className={cx(
                   "transition-[transform,opacity,background-color] duration-200 ease-out motion-reduce:transition-none hover:bg-panel-2/55",
                   draggedKey && "will-change-transform",
@@ -276,10 +288,6 @@ export function CategoriesPanel({
                       >
                         <DragHandleIcon />
                       </button>
-                      <span className="flex flex-col">
-                        <button type="button" className="grid h-4 w-5 place-items-center rounded text-[10px] leading-none text-ink-3 hover:bg-panel-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45" disabled={Boolean(busyKey) || index === 0} onClick={() => moveCategory(category.key, -1)} aria-label={`${category.labelKo} 위로 이동`} title="위로 이동">↑</button>
-                        <button type="button" className="grid h-4 w-5 place-items-center rounded text-[10px] leading-none text-ink-3 hover:bg-panel-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45" disabled={Boolean(busyKey) || index === categories.length - 1} onClick={() => moveCategory(category.key, 1)} aria-label={`${category.labelKo} 아래로 이동`} title="아래로 이동">↓</button>
-                      </span>
                     </div>
                   ) : (
                     <span className="font-mono text-xs tabular-nums text-ink-3">{index + 1}</span>

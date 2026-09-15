@@ -100,7 +100,17 @@ test("용어 노드는 선택만 담당하고 상세 이동은 별도 링크로 
   expect(html).toContain('role="button"');
   expect(html).not.toContain('aria-label="Term 1 상세 보기"');
   expect(source).toContain("activeNode.term.slug");
-  expect(source).toContain("선택한 용어는 아래 상세 보기로 이동합니다.");
+  expect(source).toContain("선택한 용어는 오른쪽 상세 패널에서 확인합니다.");
+});
+
+test("선택한 노드 상세는 그래프 오른쪽 인스펙터로 열고 닫는다", () => {
+  const testDir = path.dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(path.join(testDir, "../src/components/term-graph.tsx"), "utf8");
+
+  expect(source).toContain("absolute right-3 top-3");
+  expect(source).toContain('aria-label="선택한 노드 패널 닫기"');
+  expect(source).toContain("overscroll-contain");
+  expect(source).not.toContain('border-t border-line bg-panel px-4 py-3');
 });
 
 test("포커스 이동은 선택을 바꾸지 않고 활성화할 때만 선택한다", () => {

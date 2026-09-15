@@ -121,12 +121,24 @@ const detailColumns = {
   updatedAt: terms.updatedAt,
 };
 
+function decodeTermIdentifier(value: string): string {
+  // Next의 페이지 동적 세그먼트는 한글 URL을 percent-encoded 문자열로
+  // 전달하는 경우가 있다. API 라우트처럼 이미 decode된 값도 들어오므로
+  // 한 번만 풀고, 잘못된 퍼센트 시퀀스는 기존 조회 경로를 유지한다.
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 export async function getTermByIdOrSlug(idOrSlug: string): Promise<TermDetail | null> {
   const db = getDb();
+  const identifier = decodeTermIdentifier(idOrSlug);
   const [term] = await db
     .select(detailColumns)
     .from(terms)
-    .where(isUuid(idOrSlug) ? eq(terms.id, idOrSlug) : eq(terms.slug, idOrSlug))
+    .where(isUuid(identifier) ? eq(terms.id, identifier) : eq(terms.slug, identifier))
     .limit(1);
 
   if (!term) return null;
