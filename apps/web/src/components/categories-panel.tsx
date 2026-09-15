@@ -5,13 +5,14 @@ import type { ManagedBusinessCategory } from "@/lib/terms/categories";
 import { cx } from "@/lib/ui/format";
 import { reorderByKey, type DropEdge } from "@/lib/ui/reorder";
 import { getRowDragPreview, rowDragOffset, setTableRowDragImage } from "@/lib/ui/table-row-drag";
+import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
 import { HelpTip } from "./help-tip";
 
 type Message = { kind: "ok" | "bad"; text: string } | null;
 type DropTarget = { key: string; edge: DropEdge };
 
 const CATEGORY_DRAG_TYPE = "application/x-glossary-category-order";
-const GRID_INPUT_CLASS = "h-7 w-full min-w-0 bg-transparent px-1 text-sm text-ink outline-none placeholder:text-ink-3 focus:bg-brand/5 disabled:cursor-not-allowed disabled:opacity-60";
+const GRID_INPUT_CLASS = "h-7 w-full min-w-0 rounded px-1 text-sm text-ink outline-none placeholder:text-ink-3 focus:bg-brand/5 focus-visible:ring-2 focus-visible:ring-brand/35 disabled:cursor-not-allowed disabled:opacity-60";
 
 async function errorMessage(response: Response, fallback: string): Promise<string> {
   const body = await response.json().catch(() => null) as { error?: { message?: string } } | null;
@@ -45,6 +46,7 @@ export function CategoriesPanel({
     dropTarget?.edge ?? null,
     dragRowHeight,
   ), [categories, draggedKey, dropTarget, dragRowHeight]);
+  useUnsavedChanges(dirtyKeys.size > 0 || newLabelKo.trim().length > 0 || newLabelEn.trim().length > 0);
 
   async function addCategory(event: React.FormEvent) {
     event.preventDefault();
@@ -182,6 +184,18 @@ export function CategoriesPanel({
     void saveOrder(reordered);
   }
 
+  function moveCategory(key: string, direction: -1 | 1) {
+    if (busyKey) return;
+    const index = categories.findIndex((category) => category.key === key);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= categories.length) return;
+    const reordered = [...categories];
+    const [moved] = reordered.splice(index, 1);
+    if (!moved) return;
+    reordered.splice(targetIndex, 0, moved);
+    void saveOrder(reordered);
+  }
+
   async function remove(category: ManagedBusinessCategory) {
     if (busyKey || (!isAdmin && category.usageCount > 0)) return;
     const effect = category.usageCount > 0
@@ -211,7 +225,7 @@ export function CategoriesPanel({
     <section id="business-categories" className="scroll-mt-6" aria-labelledby="categories-heading">
       <div className="mb-3 flex items-center gap-2">
         <h2 id="categories-heading" className="text-base font-semibold text-ink">업무 분류</h2>
-        <HelpTip text="누구나 분류를 추가하고 미사용 분류를 삭제할 수 있습니다. 사용 중인 분류의 삭제와 이름·순서 변경은 관리자만 할 수 있습니다. 관리자는 손잡이를 끌어 순서를 바꿀 수 있습니다." />
+        <HelpTip text="누구나 분류를 추가하고 미사용 분류를 삭제할 수 있습니다. 사용 중인 분류의 삭제와 이름·순서 변경은 관리자만 할 수 있습니다. 관리자는 손잡이를 끌거나 위·아래 버튼으로 순서를 바꿀 수 있습니다." />
       </div>
 
       {message && (
@@ -249,18 +263,24 @@ export function CategoriesPanel({
               >
                 <td className="px-2 py-1">
                   {isAdmin ? (
-                    <button
-                      type="button"
-                      draggable={!busyKey}
-                      disabled={Boolean(busyKey)}
-                      onDragStart={(event) => startDrag(event, category.key)}
-                      onDragEnd={clearDrag}
-                      className="btn-quiet grid h-6 w-6 cursor-grab place-items-center p-0 active:cursor-grabbing"
-                      aria-label={`${category.labelKo} 순서 변경`}
-                      title="드래그하여 순서 변경"
-                    >
-                      <DragHandleIcon />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        draggable={!busyKey}
+                        disabled={Boolean(busyKey)}
+                        onDragStart={(event) => startDrag(event, category.key)}
+                        onDragEnd={clearDrag}
+                        className="btn-quiet grid h-7 w-7 cursor-grab place-items-center p-0 active:cursor-grabbing"
+                        aria-label={`${category.labelKo} 순서 변경`}
+                        title="드래그하여 순서 변경"
+                      >
+                        <DragHandleIcon />
+                      </button>
+                      <span className="flex flex-col">
+                        <button type="button" className="grid h-4 w-5 place-items-center rounded text-[10px] leading-none text-ink-3 hover:bg-panel-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45" disabled={Boolean(busyKey) || index === 0} onClick={() => moveCategory(category.key, -1)} aria-label={`${category.labelKo} 위로 이동`} title="위로 이동">↑</button>
+                        <button type="button" className="grid h-4 w-5 place-items-center rounded text-[10px] leading-none text-ink-3 hover:bg-panel-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45" disabled={Boolean(busyKey) || index === categories.length - 1} onClick={() => moveCategory(category.key, 1)} aria-label={`${category.labelKo} 아래로 이동`} title="아래로 이동">↓</button>
+                      </span>
+                    </div>
                   ) : (
                     <span className="font-mono text-xs tabular-nums text-ink-3">{index + 1}</span>
                   )}

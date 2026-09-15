@@ -26,6 +26,7 @@ const HOME_NAV_VISIBILITY: Partial<Record<NavKey, string>> = {
   contribute: "hidden md:inline-flex",
   sheet: "hidden sm:inline-flex",
   graph: "hidden lg:inline-flex",
+  chat: "hidden lg:inline-flex",
   import: "hidden xl:inline-flex",
   statistics: "hidden xl:inline-flex",
 };
@@ -105,9 +106,33 @@ function HomeHeader({ user }: { user: CurrentUser }) {
           </span>
         </Link>
         <nav className="ml-auto flex shrink-0 items-center gap-1" aria-label="주요 메뉴">
-          <Link href="/sheet" className="btn-quiet h-9 w-9 touch-manipulation p-0 sm:hidden" aria-label="용어 시트 열기" title="용어 시트">
-            <IconGrid />
-          </Link>
+          <details className="relative xl:hidden">
+            <summary
+              className="btn-quiet h-9 w-9 cursor-pointer list-none touch-manipulation p-0 [&::-webkit-details-marker]:hidden"
+              aria-label="전체 메뉴"
+              title="전체 메뉴"
+            >
+              <IconMenu />
+            </summary>
+            <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-line bg-panel p-1.5 shadow-xl shadow-ink/10">
+              <p className="px-2.5 pb-1.5 pt-1 text-[11px] font-medium text-ink-3">주요 메뉴</p>
+              <ul className="space-y-0.5">
+                {APP_NAV_ITEMS.filter((item) => !item.adminOnly || user.role === "admin").map((item) => (
+                  <li key={item.key}>
+                    <Link
+                      href={item.href}
+                      aria-label={`${item.label} · ${item.hint}`}
+                      className="flex min-h-10 items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-ink-2 transition hover:bg-panel-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45"
+                    >
+                      <span className="shrink-0 text-ink-3">{item.icon}</span>
+                      <span className="font-medium">{item.label}</span>
+                      <span className="ml-auto text-[10px] text-ink-3">{item.hint}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </details>
           {APP_NAV_ITEMS.filter((item) => !item.adminOnly || user.role === "admin").map((item) => (
             <Link key={item.key} href={item.href} className={`btn-quiet ${HOME_NAV_VISIBILITY[item.key] ?? "hidden"}`}>
               {item.label}
@@ -272,4 +297,4 @@ function IconArrow() { return <svg width="15" height="15" viewBox="0 0 16 16" fi
 function IconSearch() { return <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><circle cx="7.5" cy="7.5" r="4.5" /><path d="m11 11 3.5 3.5" strokeLinecap="round" /></svg>; }
 function IconPen() { return <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><path d="m11.3 3.2 3.5 3.5-8.7 8.7-3.9.4.4-3.9 8.7-8.7Z" strokeLinejoin="round" /><path d="m9.8 4.7 3.5 3.5" /></svg>; }
 function IconPeople() { return <svg width="19" height="19" viewBox="0 0 19 19" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><circle cx="7" cy="6" r="2.5" /><path d="M2.5 15c.3-3 1.8-4.5 4.5-4.5s4.2 1.5 4.5 4.5" strokeLinecap="round" /><path d="M12.5 4.5a2.4 2.4 0 0 1 0 4.7M13 11c2.1.2 3.2 1.5 3.5 4" strokeLinecap="round" /></svg>; }
-function IconGrid() { return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.5" /><path d="M1.75 6.25h12.5M6 6.25v7" /></svg>; }
+function IconMenu() { return <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><path d="M3 4.5h11M3 8.5h11M3 12.5h11" strokeLinecap="round" /></svg>; }

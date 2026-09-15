@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DEFAULT_SPLIT_OPTIONS, needsReview, REVIEW_OPTIONAL_COLUMNS, reviewColumns, type ReviewOptionalColumn, type ReviewDecision, type ReviewReport, type ReviewRow } from "@/lib/import/review";
 import { MAX_IMPORT_BYTES } from "@/lib/import/format";
 import type { DuplicateCandidate } from "@/lib/ai/duplicate-review";
+import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
 
-export function ImportReview({ initialText = "", onApplied, onBusyChange }: { initialText?: string; onApplied?: () => void; onBusyChange?: (busy: boolean) => void }) {
+export function ImportReview({ initialText = "", onApplied, onBusyChange, onDirtyChange }: { initialText?: string; onApplied?: () => void; onBusyChange?: (busy: boolean) => void; onDirtyChange?: (dirty: boolean) => void }) {
   const [text, setText] = useState(initialText);
   const [file, setFile] = useState<File | null>(null);
   const [hasHeaders, setHasHeaders] = useState(false);
@@ -25,6 +26,9 @@ export function ImportReview({ initialText = "", onApplied, onBusyChange }: { in
   const [uncertain, setUncertain] = useState(false);
   const [duplicates, setDuplicates] = useState<{ rowNumber: number; candidates: DuplicateCandidate[] } | null>(null);
   const sourceInput = useRef<HTMLInputElement>(null);
+  const hasUnsavedWork = !finished && (Boolean(file) || Boolean(text.trim()) || Boolean(report) || dirty);
+  useUnsavedChanges(hasUnsavedWork);
+  useEffect(() => onDirtyChange?.(hasUnsavedWork), [hasUnsavedWork, onDirtyChange]);
 
   function reset() {
     setReport(null); setIndex(0); setDirty(false); setError(""); setMessage("");

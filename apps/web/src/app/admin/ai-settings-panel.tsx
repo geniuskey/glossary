@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { HelpTip } from "@/components/help-tip";
 import { AI_PROVIDERS, AI_PROVIDER_LABEL, type AiProvider, type PublicAiConfig } from "@/lib/ai/config-values";
 import { cx } from "@/lib/ui/format";
+import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
 
 interface HeaderDraft { name: string; value: string; configured?: boolean }
 interface ModelOption { id: string; label: string }
@@ -20,6 +21,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
   const [models, setModels] = useState<ModelOption[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
+  const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
   const autoVerifyStarted = useRef(false);
   const usableKey = !clearApiKey && (Boolean(apiKey.trim()) || config.hasApiKey);
@@ -29,6 +31,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
   const canLoadModels = Boolean(config.baseUrl.trim()) && config.secretsReadable && headersReady
     && (config.provider === "openai_compatible" || usableKey);
   const shouldAutoLoadModels = canLoadModels && (usableKey || headers.some((header) => Boolean(header.value || header.configured)));
+  useUnsavedChanges(dirty);
   const connectionFingerprint = JSON.stringify({
     provider: config.provider,
     baseUrl: config.baseUrl,
@@ -100,6 +103,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
     setConfig((current) => ({ ...current, [key]: value }));
     setDirty(true);
     setMessage(null);
+    setConnectionMessage(null);
     if (key === "baseUrl") setConnected(false);
   }
 
@@ -114,6 +118,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
     }));
     setDirty(true);
     setMessage(null);
+    setConnectionMessage(null);
     setConnected(false);
   }
 
@@ -121,6 +126,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
     setHeaders((current) => current.map((header, itemIndex) => itemIndex === index ? { ...header, [key]: value } : header));
     setDirty(true);
     setMessage(null);
+    setConnectionMessage(null);
     setConnected(false);
   }
 
@@ -128,6 +134,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
     if (saving) return;
     setSaving(true);
     setMessage(null);
+    setConnectionMessage(null);
     try {
       const response = await fetch("/api/v1/admin/ai-config", {
         method: "PATCH",
@@ -165,6 +172,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
   async function verifyConnection(announceSuccess: boolean) {
     setTesting(true);
     setConnected(false);
+    setConnectionMessage(null);
     if (announceSuccess) setMessage(null);
     try {
       const response = await fetch("/api/v1/admin/ai-config/test", { method: "POST" });
@@ -174,11 +182,14 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
       if (connectionSucceeded) {
         if (announceSuccess) setMessage({ kind: "ok", text: "AI 연결에 성공했습니다." });
       } else {
-        setMessage({ kind: "bad", text: body?.error?.message || `연결하지 못했습니다 (${response.status}).` });
+        const text = body?.error?.message || `연결하지 못했습니다 (${response.status}).`;
+        if (announceSuccess) setMessage({ kind: "bad", text });
+        else setConnectionMessage(text);
       }
       return Boolean(connectionSucceeded);
     } catch {
-      setMessage({ kind: "bad", text: "AI 서버에 연결하지 못했습니다." });
+      if (announceSuccess) setMessage({ kind: "bad", text: "AI 서버에 연결하지 못했습니다." });
+      else setConnectionMessage("AI 서버에 연결하지 못했습니다.");
       return false;
     } finally {
       setTesting(false);
@@ -254,8 +265,8 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
           <label className="block sm:col-span-2">
             <span className="label inline-flex items-center gap-1.5">API Key <HelpTip text="키를 입력하면 선택 가능한 모델을 자동으로 불러옵니다. 저장 후에는 값을 다시 표시하지 않으며, 빈 칸으로 저장하면 기존 키를 유지합니다." /></span>
             <div className="flex gap-2">
-              <input name="aiApiKey" type="password" autoComplete="new-password" value={apiKey} onChange={(event) => { setApiKey(event.target.value); setClearApiKey(false); setDirty(true); setConnected(false); }} disabled={saving || clearApiKey} placeholder={config.hasApiKey ? "저장된 키 유지…" : "API Key…"} className="field min-w-0 flex-1 font-mono" />
-              {config.hasApiKey && <button type="button" className={cx("btn-sm", clearApiKey ? "btn-danger" : "btn-ghost")} onClick={() => { setClearApiKey((value) => !value); setDirty(true); setConnected(false); }} disabled={saving}>{clearApiKey ? "제거 예정" : "키 제거"}</button>}
+              <input name="aiApiKey" type="password" autoComplete="new-password" value={apiKey} onChange={(event) => { setApiKey(event.target.value); setClearApiKey(false); setDirty(true); setMessage(null); setConnectionMessage(null); setConnected(false); }} disabled={saving || clearApiKey} placeholder={config.hasApiKey ? "저장된 키 유지…" : "API Key…"} className="field min-w-0 flex-1 font-mono" />
+              {config.hasApiKey && <button type="button" className={cx("btn-sm", clearApiKey ? "btn-danger" : "btn-ghost")} onClick={() => { setClearApiKey((value) => !value); setDirty(true); setMessage(null); setConnectionMessage(null); setConnected(false); }} disabled={saving}>{clearApiKey ? "제거 예정" : "키 제거"}</button>}
             </div>
           </label>
         </div>
@@ -265,7 +276,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
             <div className="mb-2 flex items-center gap-2">
               <h3 className="text-sm font-medium text-ink">Custom headers</h3>
               <HelpTip text="Authorization, api-key, 조직 식별자처럼 공급자가 요구하는 값을 추가합니다. 위험한 전송·프록시 header는 저장할 수 없습니다." />
-              <button type="button" className="btn-ghost btn-sm ml-auto" disabled={saving || headers.length >= 20} onClick={() => { setHeaders((current) => [...current, { name: "", value: "" }]); setDirty(true); setConnected(false); }}>+ Header</button>
+              <button type="button" className="btn-ghost btn-sm ml-auto" disabled={saving || headers.length >= 20} onClick={() => { setHeaders((current) => [...current, { name: "", value: "" }]); setDirty(true); setMessage(null); setConnectionMessage(null); setConnected(false); }}>+ Header</button>
             </div>
             {headers.length === 0 ? (
               <p className="rounded-lg border border-dashed border-line px-3 py-4 text-center text-xs text-ink-3">추가 header가 없습니다.</p>
@@ -277,7 +288,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
                     <input id={`ai-header-name-${index}`} autoComplete="off" value={header.name} onChange={(event) => updateHeader(index, "name", event.target.value)} disabled={saving} placeholder="예: X-Organization…" className="field h-9 font-mono text-xs" />
                     <label className="sr-only" htmlFor={`ai-header-value-${index}`}>Header {index + 1} 값</label>
                     <input id={`ai-header-value-${index}`} type="password" autoComplete="new-password" value={header.value} onChange={(event) => updateHeader(index, "value", event.target.value)} disabled={saving} placeholder={header.configured ? "저장된 값 유지…" : "Header 값…"} className="field h-9 font-mono text-xs" />
-                    <button type="button" aria-label={`${header.name || `Header ${index + 1}`} 제거`} className="btn-quiet h-9 w-9 p-0" disabled={saving} onClick={() => { setHeaders((current) => current.filter((_, itemIndex) => itemIndex !== index)); setDirty(true); setConnected(false); }}>×</button>
+                    <button type="button" aria-label={`${header.name || `Header ${index + 1}`} 제거`} className="btn-quiet h-9 w-9 p-0" disabled={saving} onClick={() => { setHeaders((current) => current.filter((_, itemIndex) => itemIndex !== index)); setDirty(true); setMessage(null); setConnectionMessage(null); setConnected(false); }}>×</button>
                   </div>
                 ))}
               </div>
@@ -286,7 +297,12 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
         )}
 
         <div className="flex min-h-12 flex-wrap items-center justify-end gap-2 border-t border-line bg-panel-2/50 px-4 py-2.5">
-          {message && <p role={message.kind === "bad" ? "alert" : "status"} className={cx("mr-auto text-xs", message.kind === "bad" ? "text-danger" : "text-ok")}>{message.text}</p>}
+          {(message || connectionMessage) && (
+            <div className="mr-auto min-w-0 space-y-1 text-xs">
+              {message && <p role={message.kind === "bad" ? "alert" : "status"} className={message.kind === "bad" ? "text-danger" : "text-ok"}>{message.text}</p>}
+              {connectionMessage && <p role="alert" className="text-danger">연결 테스트: {connectionMessage}</p>}
+            </div>
+          )}
           <button type="button" className="btn-ghost btn-sm" onClick={() => void testConnection()} disabled={saving || testing || dirty || !config.secretsReadable}>{testing ? "연결 확인 중…" : "연결 테스트"}</button>
           <button type="button" className="btn-primary btn-sm" onClick={() => void save()} disabled={saving || !dirty}>{saving ? "저장 중…" : "AI 연결 저장"}</button>
         </div>

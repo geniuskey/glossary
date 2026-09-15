@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { formatClaimList, parseClaimList } from "@/lib/auth/sso/claims";
+import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
 
 // api-keys-panel.tsx와 같은 이유로 상태를 갖는 이 조각만 Client Component다 —
 // page.tsx는 평범한 Server Component로 남아 인증 게이트(PROTO B)를 그대로 받는다.
@@ -139,6 +140,10 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [proxyCheck, setProxyCheck] = useState<ProxyHeaderCheck | null>(null);
   const [checkingProxy, setCheckingProxy] = useState(false);
+  const dirty = Boolean(
+    form && view && JSON.stringify(form) !== JSON.stringify(toForm(view)),
+  ) || secret.length > 0;
+  useUnsavedChanges(dirty);
 
   async function load() {
     try {

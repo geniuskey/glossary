@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { HelpTip } from "@/components/help-tip";
 import { ImportReview } from "@/components/import-review";
 import { isSimpleGlossaryHeader } from "@/lib/import/review";
@@ -138,6 +138,7 @@ export interface TermsGridProps {
   pagination: {
     page: number;
     totalPages: number;
+    totalRows: number;
     previousHref: string;
     nextHref: string;
     hasPrevious: boolean;
@@ -245,6 +246,7 @@ export function TermsGrid(props: TermsGridProps) {
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
   const [failedRows, setFailedRows] = useState<ReadonlySet<string>>(new Set());
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [deleteConfirm, setDeleteConfirm] = useState<TermRow[] | null>(null);
   const [undoStack, setUndoStack] = useState<Batch[]>([]);
   const [redoStack, setRedoStack] = useState<Batch[]>([]);
   const [drag, setDrag] = useState<"select" | "fill" | null>(null);
@@ -262,19 +264,33 @@ export function TermsGrid(props: TermsGridProps) {
   const [creating, setCreating] = useState(false);
   const [pasteProgress, setPasteProgress] = useState("");
   const [reviewPaste, setReviewPaste] = useState<string | null>(null);
+  const [reviewDirty, setReviewDirty] = useState(false);
   const [reviewBusy, setReviewBusy] = useState(false);
   const importDialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     if (reviewPaste !== null) importDialog.current?.showModal();
     else importDialog.current?.close();
   }, [reviewPaste]);
+
+  function closeImportReview() {
+    if (reviewBusy) return;
+    if (reviewDirty && !window.confirm("검토 중인 가져오기 내용이 있습니다. 닫을까요?")) return;
+    setReviewDirty(false);
+    setReviewPaste(null);
+  }
   const pasteBusy = useRef(false);
   const [checkingPaste, setCheckingPaste] = useState(false);
   const [pasteIssues, setPasteIssues] = useState<string[] | null>(null);
 
   const bodyRef = useRef<HTMLTableSectionElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const headerMenuTriggerRef = useRef<HTMLElement | null>(null);
   const draftRef = useRef<HTMLInputElement>(null);
+  const allPickRef = useRef<HTMLInputElement>(null);
+  const deleteCancelRef = useRef<HTMLButtonElement>(null);
+  const deleteConfirmRef = useRef<HTMLButtonElement>(null);
+  const deleteTriggerRef = useRef<HTMLButtonElement>(null);
+  const deleteInFlightRef = useRef(false);
   const toastSeq = useRef(0);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -319,6 +335,21 @@ export function TermsGrid(props: TermsGridProps) {
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [pasteIssues]);
 
+  useEffect(() => {
+    if (!deleteConfirm) return;
+    deleteCancelRef.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeDeleteConfirm();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [deleteConfirm]);
+
+  function closeDeleteConfirm() {
+    setDeleteConfirm(null);
+    requestAnimationFrame(() => deleteTriggerRef.current?.focus());
+  }
+
   // R133: 메뉴 안을 눌러도 닫히면 안 된다. mousedown에서 무조건 닫으면 mouseup
   // 전에 항목이 사라져 click도 change도 아예 발생하지 않는다 — 열 체크박스를
   // 눌러도 아무 일이 없던 원인이 이것이었다. 메뉴 밖에서 눌렀을 때만 닫는다.
@@ -333,7 +364,8 @@ export function TermsGrid(props: TermsGridProps) {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setMenu(null);
-        setHeaderMenu(null);
+        if (headerMenu) closeHeaderMenu(true);
+        else setHeaderMenu(null);
         setColumnFilter(null);
       }
     };
@@ -563,23 +595,42 @@ export function TermsGrid(props: TermsGridProps) {
     }
   }
 
-  async function deletePicked() {
+  function requestDeletePicked() {
+    if (deleteInFlightRef.current || busy.size > 0) return;
     const targets = rows.filter((r) => picked.has(r.id));
+    if (targets.length > 0) setDeleteConfirm(targets);
+  }
+
+  async function deletePicked(targets: readonly TermRow[]) {
+    if (targets.length === 0 || deleteInFlightRef.current) return;
+    deleteInFlightRef.current = true;
     const ids = targets.map((r) => r.id);
     const deleted = new Set<string>();
     markBusy(ids, true);
-    for (const row of targets) {
-      try {
-        const res = await fetch(`/api/v1/terms/${row.id}`, { method: "DELETE" });
-        if (res.ok) deleted.add(row.id);
-        else pushToast({ tone: "error", text: `${rowLabel(row)}: 삭제하지 못했습니다 (${res.status}).` });
-      } catch {
-        pushToast({ tone: "error", text: `${rowLabel(row)}: 네트워크 오류로 삭제하지 못했습니다.` });
+    try {
+      for (const row of targets) {
+        try {
+          const res = await fetch(`/api/v1/terms/${row.id}`, { method: "DELETE" });
+          if (res.ok) deleted.add(row.id);
+          else pushToast({ tone: "error", text: `${rowLabel(row)}: 삭제하지 못했습니다 (${res.status}).` });
+        } catch {
+          pushToast({ tone: "error", text: `${rowLabel(row)}: 네트워크 오류로 삭제하지 못했습니다.` });
+        }
       }
+      setPicked((prev) => new Set([...prev].filter((id) => !deleted.has(id))));
+      if (deleted.size > 0) {
+        pushToast({
+          tone: "ok",
+          text: deleted.size === targets.length
+            ? `${deleted.size.toLocaleString("ko-KR")}개 용어를 삭제했습니다.`
+            : `${deleted.size.toLocaleString("ko-KR")}개 용어를 삭제했습니다. 실패한 ${targets.length - deleted.size}개는 남아 있습니다.`,
+        });
+        router.refresh();
+      }
+    } finally {
+      markBusy(ids, false);
+      deleteInFlightRef.current = false;
     }
-    markBusy(ids, false);
-    setPicked((prev) => new Set([...prev].filter((id) => !deleted.has(id))));
-    if (deleted.size > 0) router.refresh();
   }
 
   async function copyText(text: string) {
@@ -614,9 +665,15 @@ export function TermsGrid(props: TermsGridProps) {
 
   function openHeaderMenu(event: React.MouseEvent, column: GridColumn | null) {
     event.preventDefault();
+    headerMenuTriggerRef.current = event.currentTarget as HTMLElement;
     setMenu(null);
     setColumnFilter(null);
     setHeaderMenu({ column, x: event.clientX, y: event.clientY });
+  }
+
+  function closeHeaderMenu(restoreFocus = false) {
+    setHeaderMenu(null);
+    if (restoreFocus) requestAnimationFrame(() => headerMenuTriggerRef.current?.focus());
   }
 
   function filterForColumn(column: GridColumn | null): SheetFilter | undefined {
@@ -1155,22 +1212,27 @@ export function TermsGrid(props: TermsGridProps) {
     });
   }
 
-  const allPicked = rows.length > 0 && picked.size === rows.length;
+  const pickedOnPage = rows.reduce((count, row) => count + Number(picked.has(row.id)), 0);
+  const allPicked = rows.length > 0 && pickedOnPage === rows.length;
+  const somePicked = pickedOnPage > 0 && !allPicked;
+  useEffect(() => {
+    if (allPickRef.current) allPickRef.current.indeterminate = somePicked;
+  }, [somePicked]);
   const frozenKey = columns[0]?.key;
   const fixedTableWidth = GUTTER_W + columns.reduce((total, column) => total + widthOf(column), 0) + 1;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-wrap items-center gap-3 border-b border-line px-3 py-2">
-        <button type="button" className="btn-quiet btn-sm" disabled={creating || checkingPaste} onClick={() => setReviewPaste("")}>영문·한글 엑셀 가져오기</button>
+        <button type="button" className="btn-quiet btn-sm" disabled={creating || checkingPaste} onClick={() => { setReviewDirty(false); setReviewPaste(""); }}>영문·한글 엑셀 가져오기</button>
         <span className="text-xs text-ink-3">영문·한글 뒤에 도메인·한줄 정의·본문을 선택해 가져옵니다.</span>
       </div>
-      <dialog ref={importDialog} onCancel={(event) => { if (reviewBusy) event.preventDefault(); else setReviewPaste(null); }} onClose={() => setReviewPaste(null)} className="m-auto max-h-[90vh] w-[min(56rem,95vw)] overflow-auto rounded-xl border border-line bg-panel p-5 text-ink shadow-pop backdrop:bg-black/40" aria-labelledby="sheet-import-title">
+      <dialog ref={importDialog} onCancel={(event) => { event.preventDefault(); closeImportReview(); }} onClose={() => { setReviewDirty(false); setReviewPaste(null); }} className="m-auto max-h-[90vh] w-[min(56rem,95vw)] overflow-auto rounded-xl border border-line bg-panel p-5 text-ink shadow-pop backdrop:bg-black/40" aria-labelledby="sheet-import-title">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 id="sheet-import-title" className="font-semibold">새 용어 가져오기</h2>
-          <button type="button" className="btn-quiet btn-sm" disabled={reviewBusy} onClick={() => setReviewPaste(null)}>닫기</button>
+          <button type="button" className="btn-quiet btn-sm" disabled={reviewBusy} onClick={closeImportReview}>닫기</button>
         </div>
-        {reviewPaste !== null && <ImportReview initialText={reviewPaste} onApplied={() => router.refresh()} onBusyChange={setReviewBusy} />}
+        {reviewPaste !== null && <ImportReview initialText={reviewPaste} onApplied={() => router.refresh()} onBusyChange={setReviewBusy} onDirtyChange={setReviewDirty} />}
       </dialog>
       <GridToolbar
         columns={columns}
@@ -1232,11 +1294,13 @@ export function TermsGrid(props: TermsGridProps) {
                 style={scrolledX ? { boxShadow: "6px 0 8px -8px rgb(0 0 0 / 0.45)" } : undefined}
               >
                 <input
+                  ref={allPickRef}
                   type="checkbox"
-                  aria-label="전체 선택"
+                  aria-label={somePicked ? "현재 페이지 일부 선택됨 · 모두 선택" : "현재 페이지 전체 선택"}
+                  aria-checked={somePicked ? "mixed" : allPicked}
                   checked={allPicked}
                   onChange={() => setPicked(allPicked ? new Set() : new Set(rows.map((r) => r.id)))}
-                  className="h-3.5 w-3.5 accent-brand"
+                  className="h-3.5 w-3.5 rounded accent-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45"
                 />
               </th>
 
@@ -1286,7 +1350,11 @@ export function TermsGrid(props: TermsGridProps) {
               const isFailed = failedRows.has(row.id);
 
               return (
-                <tr key={row.id} className="group" style={{ height: rowH }}>
+                <tr
+                  key={row.id}
+                  className="group"
+                  style={{ height: rowH, contentVisibility: "auto", containIntrinsicSize: `${rowH}px` }}
+                >
                   <td
                     className={cx(
                       "sticky left-0 z-20 border-b border-r border-line-strong px-2 align-middle",
@@ -1300,7 +1368,7 @@ export function TermsGrid(props: TermsGridProps) {
                       <span className="relative grid h-4 w-6 place-items-center">
                         <span
                           className={cx(
-                            "font-mono text-[10px] tabular-nums text-ink-3 transition-opacity group-hover:opacity-0",
+                            "hidden font-mono text-[10px] tabular-nums text-ink-3 transition-opacity sm:inline sm:group-hover:opacity-0",
                             isPicked && "opacity-0",
                           )}
                         >
@@ -1312,8 +1380,8 @@ export function TermsGrid(props: TermsGridProps) {
                           checked={isPicked}
                           onChange={() => togglePick(row.id)}
                           className={cx(
-                            "absolute h-3.5 w-3.5 accent-brand transition-opacity",
-                            !isPicked && "opacity-0 group-hover:opacity-100",
+                            "absolute h-3.5 w-3.5 rounded accent-brand transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45",
+                            !isPicked && "opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100",
                           )}
                         />
                       </span>
@@ -1497,14 +1565,22 @@ export function TermsGrid(props: TermsGridProps) {
                     ref={draftRef}
                     value={draft.nameEn}
                     onChange={(e) => setDraft({ ...draft, nameEn: e.target.value })}
-                    onKeyDown={(e) => e.key === "Enter" && void createFromDraft()}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+                      e.preventDefault();
+                      void createFromDraft();
+                    }}
                     placeholder="새 용어 영문명…"
                     className="h-7 w-48 rounded-md border border-line bg-panel px-2 text-[13px] placeholder:text-ink-3 focus:border-brand focus:outline-none"
                   />
                   <input
                     value={draft.nameKo}
                     onChange={(e) => setDraft({ ...draft, nameKo: e.target.value })}
-                    onKeyDown={(e) => e.key === "Enter" && void createFromDraft()}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+                      e.preventDefault();
+                      void createFromDraft();
+                    }}
                     placeholder="국문명…"
                     className="h-7 w-40 rounded-md border border-line bg-panel px-2 text-[13px] placeholder:text-ink-3 focus:border-brand focus:outline-none"
                   />
@@ -1526,13 +1602,15 @@ export function TermsGrid(props: TermsGridProps) {
 
       <StatusBar
         rowCount={rows.length}
+        totalRowCount={props.pagination.totalRows}
         pagination={props.pagination}
         pickedCount={picked.size}
         range={range}
         busyCount={busy.size}
         canDelete={props.canDelete}
+        deleteButtonRef={deleteTriggerRef}
         onCopyPicked={() => void copyText(toTsv(rows.filter((r) => picked.has(r.id)), columns))}
-        onDelete={() => void deletePicked()}
+        onDelete={requestDeletePicked}
         onClearPick={() => setPicked(new Set())}
         onPageSizeChange={(pageSize) => {
           const option = props.pagination.pageSizeOptions.find((item) => item.pageSize === pageSize);
@@ -1556,7 +1634,7 @@ export function TermsGrid(props: TermsGridProps) {
             setHeaderMenu(null);
             setMenu("columns");
           }}
-          onClose={() => setHeaderMenu(null)}
+          onClose={() => closeHeaderMenu(true)}
         />
       )}
 
@@ -1610,8 +1688,67 @@ export function TermsGrid(props: TermsGridProps) {
         </div>
       )}
 
+      {deleteConfirm && (
+        <div
+          className="fixed inset-0 z-[90] grid place-items-center bg-black/35 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="sheet-delete-title"
+          aria-describedby="sheet-delete-description"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeDeleteConfirm();
+          }}
+        >
+          <section
+            className="card w-full max-w-md space-y-4 p-5 shadow-pop"
+            onKeyDown={(event) => {
+              if (event.key !== "Tab") return;
+              const first = deleteCancelRef.current;
+              const last = deleteConfirmRef.current;
+              if (!first || !last) return;
+              if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+              } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+              }
+            }}
+          >
+            <div>
+              <h2 id="sheet-delete-title" className="text-base font-semibold text-ink">선택한 용어를 삭제할까요?</h2>
+              <p id="sheet-delete-description" className="mt-2 text-sm leading-6 text-ink-2">
+                현재 페이지에서 선택한 {deleteConfirm.length.toLocaleString("ko-KR")}개 용어를 삭제합니다. 삭제 후에는 리비전 이력과 함께 복구할 수 없습니다.
+              </p>
+            </div>
+            <ul className="max-h-36 overflow-y-auto rounded-lg border border-line bg-panel-2/45 px-3 py-2 text-sm text-ink-2">
+              {deleteConfirm.slice(0, 5).map((row) => <li key={row.id} className="truncate py-0.5">{rowLabel(row)}</li>)}
+              {deleteConfirm.length > 5 && <li className="pt-0.5 text-xs text-ink-3">외 {(
+                deleteConfirm.length - 5
+              ).toLocaleString("ko-KR")}개</li>}
+            </ul>
+            <div className="flex justify-end gap-2">
+              <button type="button" ref={deleteCancelRef} className="btn-ghost" onClick={closeDeleteConfirm}>취소</button>
+              <button
+                type="button"
+                ref={deleteConfirmRef}
+                className="btn-danger"
+                onClick={() => {
+                  const targets = deleteConfirm;
+                  setDeleteConfirm(null);
+                  void deletePicked(targets);
+                  requestAnimationFrame(() => deleteTriggerRef.current?.focus());
+                }}
+              >
+                선택한 용어 삭제
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
       {toasts.length > 0 && (
-        <div className="pointer-events-none fixed bottom-16 right-5 z-50 flex flex-col items-end gap-2">
+        <div className="pointer-events-none fixed bottom-16 right-5 z-50 flex flex-col items-end gap-2" role="status" aria-live="polite" aria-atomic="false">
           {toasts.map((t) => (
             <div
               key={t.id}
@@ -1983,7 +2120,7 @@ function GridToolbar(props: {
         </Menu>
 
         <Menu
-          label="?"
+          label="도움말"
           open={props.menu === "help"}
           onToggle={() => props.setMenu(props.menu === "help" ? null : "help")}
           width="w-80"
@@ -2014,15 +2151,46 @@ function Menu({
   width: string;
   children: React.ReactNode;
 }) {
+  const menuId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const wasOpen = useRef(false);
+
+  useEffect(() => {
+    const previouslyOpen = wasOpen.current;
+    wasOpen.current = open;
+    if (open) {
+      const frame = requestAnimationFrame(() => {
+        panelRef.current?.querySelector<HTMLElement>(
+          "button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])",
+        )?.focus();
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+    if (previouslyOpen) triggerRef.current?.focus();
+    return undefined;
+  }, [open]);
+
   return (
     // data-menu-root: 바깥을 눌렀을 때만 닫히게 하는 표식(R133). 이게 없으면
     // 메뉴 안의 항목이 mouseup 전에 사라져 눌러도 아무 일이 일어나지 않는다.
     <div className="relative" data-menu-root>
-      <button type="button" className={cx("btn-ghost btn-sm", open && "border-brand/45 text-ink")} onClick={onToggle}>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        className={cx("btn-ghost btn-sm", open && "border-brand/45 text-ink")}
+        onClick={onToggle}
+      >
         {label}
       </button>
       {open && (
-        <div className={cx("absolute right-0 z-50 mt-1 rounded-lg border border-line bg-panel p-1 shadow-pop", width)}>
+        <div
+          ref={panelRef}
+          id={menuId}
+          className={cx("absolute right-0 z-50 mt-1 rounded-lg border border-line bg-panel p-1 shadow-pop", width)}
+        >
           {children}
         </div>
       )}
@@ -2061,6 +2229,13 @@ function HeaderMenu({
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ x, y });
 
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   // 커서 자리에 그대로 두면 오른쪽 끝 열이나 창 아래쪽에서 잘린다. 항목 수에
   // 따라 높이가 달라져 상수로는 못 맞추므로 그린 뒤 실제 크기를 재서 접는다.
   // useLayoutEffect라 페인트 전에 자리가 잡혀 메뉴가 튀어 보이지 않는다.
@@ -2098,7 +2273,8 @@ function HeaderMenu({
                 href={sort.asc}
                 scroll={false}
                 onClick={onClose}
-                className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-ink-2 hover:bg-panel-2"
+                role="menuitem"
+                className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-ink-2 hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45"
               >
                 <span className="w-3 text-brand">{sortedHere && sortState.dir === "asc" ? "•" : ""}</span>
                 오름차순 정렬
@@ -2107,7 +2283,8 @@ function HeaderMenu({
                 href={sort.desc}
                 scroll={false}
                 onClick={onClose}
-                className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-ink-2 hover:bg-panel-2"
+                role="menuitem"
+                className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-ink-2 hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45"
               >
                 <span className="w-3 text-brand">{sortedHere && sortState.dir === "desc" ? "•" : ""}</span>
                 내림차순 정렬
@@ -2304,11 +2481,13 @@ function MenuAction({
 
 function StatusBar(props: {
   rowCount: number;
+  totalRowCount: number;
   pagination: TermsGridProps["pagination"];
   pickedCount: number;
   range: CellRange | null;
   busyCount: number;
   canDelete: boolean;
+  deleteButtonRef: React.RefObject<HTMLButtonElement | null>;
   onCopyPicked: () => void;
   onDelete: () => void;
   onClearPick: () => void;
@@ -2320,7 +2499,10 @@ function StatusBar(props: {
     <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 overflow-x-auto whitespace-nowrap border-t border-line bg-panel px-3 py-1.5 text-[11px]">
       <span className="flex min-w-0 items-center gap-3">
         <span className="text-ink-3">
-          <span className="font-medium text-ink-2">{props.rowCount}</span>행
+          <span className="font-medium text-ink-2">현재 {props.rowCount}</span>행
+          {props.totalRowCount !== props.rowCount && (
+            <span className="ml-1 text-ink-3/75">· 전체 {props.totalRowCount.toLocaleString("ko-KR")}행</span>
+          )}
         </span>
 
         {cells > 1 && props.range && (
@@ -2368,12 +2550,12 @@ function StatusBar(props: {
       <span className="flex min-w-0 justify-end">
         {props.pickedCount > 0 && (
           <span className="flex shrink-0 flex-nowrap items-center gap-1.5">
-          <span className="font-medium text-ink">{props.pickedCount}줄 선택</span>
+          <span className="font-medium text-ink">현재 페이지 {props.pickedCount}줄 선택</span>
           <button type="button" className="btn-ghost btn-sm" onClick={props.onCopyPicked}>
             표로 복사
           </button>
           {props.canDelete && (
-            <button type="button" className="btn-danger btn-sm" onClick={props.onDelete}>
+            <button ref={props.deleteButtonRef} type="button" className="btn-danger btn-sm" onClick={props.onDelete}>
               삭제
             </button>
           )}
@@ -2453,6 +2635,7 @@ function HeaderCell({
   return (
     <th
       scope="col"
+      aria-sort={href ? (on ? sortState.dir === "asc" ? "ascending" : "descending" : "none") : undefined}
       data-column-key={column.key}
       draggable
       tabIndex={0}
@@ -2490,10 +2673,11 @@ function HeaderCell({
             href={href}
             scroll={false}
             draggable={false}
+            aria-label={`${column.label} ${on ? sortState.dir === "asc" ? "오름차순 정렬됨" : "내림차순 정렬됨" : "오름차순 정렬"}`}
             // 우클릭은 메뉴를 여는 동작이다. 막지 않으면 브라우저에 따라 링크가
             // 따라가 정렬이 바뀐 채로 메뉴가 열린다.
             onContextMenu={onContextMenu}
-            className="flex min-w-0 flex-1 items-center gap-1 rounded px-1 py-2 hover:bg-panel hover:text-ink"
+            className="flex min-w-0 flex-1 items-center gap-1 rounded px-1 py-2 hover:bg-panel hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45"
           >
             {label}
           </Link>

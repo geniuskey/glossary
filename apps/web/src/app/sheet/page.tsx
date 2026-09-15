@@ -180,6 +180,7 @@ export default async function TermsPage({
         pagination={{
           page: pagination.page,
           totalPages: Math.max(1, pagination.totalPages),
+          totalRows: total,
           previousHref: buildPageHref(parsed, parsed.page - 1),
           nextHref: buildPageHref(parsed, parsed.page + 1),
           hasPrevious: pagination.hasPrev,
