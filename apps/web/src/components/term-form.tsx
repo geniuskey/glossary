@@ -60,6 +60,7 @@ const SURFACE_LANGUAGE_STYLE: Record<SurfaceLangLiteral, string> = {
   neutral: "border-warn/40 bg-warn-soft text-warn",
 };
 const SURFACE_LANGUAGE_ORDER = ["ko", "en", "neutral"] as const;
+const SURFACE_PREVIEW_LIMIT = 6;
 
 function commaSeparatedValues(value: string): string[] {
   return [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
@@ -170,6 +171,9 @@ export function TermForm({
   const slugChanged = editSlug !== undefined && normalizedSlug !== editSlug;
   const slugDraftIssue = slugValidationMessage(normalizedSlug);
   const menuSurface = surfaceMenu ? form.surfaces[surfaceMenu.index] : undefined;
+  const surfaceCountLabel = form.surfaces.length > 0
+    ? `추가 표기 ${form.surfaces.length.toLocaleString("ko-KR")}개`
+    : "+ 추가 표기";
 
   useUnsavedChanges(dirty && savedSlug === null);
 
@@ -603,9 +607,30 @@ export function TermForm({
                 </div>
               )}
               <details ref={surfaceDetailsRef} className="group/details sm:col-span-2">
-                <summary className="btn-quiet btn-sm flex w-fit cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
-                  {form.surfaces.length > 0 ? `추가 표기 ${form.surfaces.length.toLocaleString("ko-KR")}개` : "+ 추가 표기"}
-                  <span className="text-ink-3 transition-transform group-open/details:rotate-180 motion-reduce:transition-none" aria-hidden="true">⌄</span>
+                <summary className="btn-quiet btn-sm flex min-w-0 w-full cursor-pointer list-none flex-wrap items-center gap-1.5 text-left [&::-webkit-details-marker]:hidden">
+                  {form.surfaces.length > 0 ? (
+                    <>
+                      <span className="shrink-0 font-medium">{surfaceCountLabel}</span>
+                      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1" aria-label="추가 표기 미리보기">
+                        {form.surfaces.slice(0, SURFACE_PREVIEW_LIMIT).map((surface, index) => {
+                          const language = inferSurfaceLang(surface.text);
+                          return (
+                            <span
+                              key={`${surface.text}-${index}`}
+                              title={surface.text || "이름 없음"}
+                              className={`inline-flex min-w-0 max-w-44 items-center rounded-full border px-2 py-0.5 text-[11px] ${SURFACE_LANGUAGE_STYLE[language]}`}
+                            >
+                              <span className="truncate">{surface.text || "이름 없음"}</span>
+                            </span>
+                          );
+                        })}
+                        {form.surfaces.length > SURFACE_PREVIEW_LIMIT && (
+                          <span className="shrink-0 px-1 text-[11px] text-ink-3">+ {form.surfaces.length - SURFACE_PREVIEW_LIMIT}개 더보기</span>
+                        )}
+                      </span>
+                    </>
+                  ) : <span className="font-medium">{surfaceCountLabel}</span>}
+                  <span className="ml-auto shrink-0 text-ink-3 transition-transform group-open/details:rotate-180 motion-reduce:transition-none" aria-hidden="true">⌄</span>
                 </summary>
                 <div className="mt-2 rounded-xl border border-line bg-panel-2/20 p-3">
                   <div>

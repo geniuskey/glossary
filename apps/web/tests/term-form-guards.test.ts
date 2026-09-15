@@ -189,6 +189,13 @@ test("추가 표기의 한 번에 추가 도구는 입력·종류·버튼을 한
   expect(code).not.toContain('<textarea\n                  id="surface-batch"');
 });
 
+test("접힌 추가 표기 영역도 기존 표기를 배지로 미리 보여준다", () => {
+  expect(code).toContain("SURFACE_PREVIEW_LIMIT");
+  expect(code).toContain("form.surfaces.slice(0, SURFACE_PREVIEW_LIMIT).map");
+  expect(code).toContain('aria-label="추가 표기 미리보기"');
+  expect(code).toContain("개 더보기");
+});
+
 test("상시 설명은 물음표 도움말로 대체하고 hover와 keyboard focus에서 표시한다", () => {
   expect(code).toContain('import { HelpTip } from "@/components/help-tip"');
   expect(helpTipSource).toContain("function HelpTip");
