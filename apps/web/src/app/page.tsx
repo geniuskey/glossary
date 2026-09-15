@@ -106,6 +106,14 @@ function HomeHeader({ user }: { user: CurrentUser }) {
           </span>
         </Link>
         <nav className="ml-auto flex shrink-0 items-center gap-1" aria-label="주요 메뉴">
+          <Link
+            href="/sheet"
+            className="btn-quiet h-9 w-9 touch-manipulation p-0 sm:hidden"
+            aria-label="용어 시트 열기"
+            title="용어 시트 열기"
+          >
+            <IconGrid />
+          </Link>
           <details className="relative xl:hidden">
             <summary
               className="btn-quiet h-9 w-9 cursor-pointer list-none touch-manipulation p-0 [&::-webkit-details-marker]:hidden"
@@ -298,3 +306,4 @@ function IconSearch() { return <svg width="18" height="18" viewBox="0 0 18 18" f
 function IconPen() { return <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><path d="m11.3 3.2 3.5 3.5-8.7 8.7-3.9.4.4-3.9 8.7-8.7Z" strokeLinejoin="round" /><path d="m9.8 4.7 3.5 3.5" /></svg>; }
 function IconPeople() { return <svg width="19" height="19" viewBox="0 0 19 19" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><circle cx="7" cy="6" r="2.5" /><path d="M2.5 15c.3-3 1.8-4.5 4.5-4.5s4.2 1.5 4.5 4.5" strokeLinecap="round" /><path d="M12.5 4.5a2.4 2.4 0 0 1 0 4.7M13 11c2.1.2 3.2 1.5 3.5 4" strokeLinecap="round" /></svg>; }
 function IconMenu() { return <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><path d="M3 4.5h11M3 8.5h11M3 12.5h11" strokeLinecap="round" /></svg>; }
+function IconGrid() { return <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden><rect x="2.5" y="2.5" width="5" height="5" rx=".8" /><rect x="9.5" y="2.5" width="5" height="5" rx=".8" /><rect x="2.5" y="9.5" width="5" height="5" rx=".8" /><rect x="9.5" y="9.5" width="5" height="5" rx=".8" /></svg>; }

@@ -1,14 +1,14 @@
 # Glossary on Docker Hub
 
-> **Development preview — `0.1.9`**
+> **Development preview — `0.2.0`**
 >
 > Glossary is under active development. Use this release for evaluation and internal pilots,
-> use the matching `0.1.9` and `0.1.9-migrator` tags, and keep tested database backups before upgrading.
+> use the matching `0.2.0` and `0.2.0-migrator` tags, and keep tested database backups before upgrading.
 >
-> **개발 미리보기 — `0.1.9`**
+> **개발 미리보기 — `0.2.0`**
 >
 > 현재 활발히 개발 중인 초기 버전입니다. 기능 검토와 사내 파일럿 용도로 사용하고,
-> 앱은 `0.1.9`, 마이그레이터는 `0.1.9-migrator`로 고정한 뒤 업그레이드 전 백업을 보관하세요.
+> 앱은 `0.2.0`, 마이그레이터는 `0.2.0-migrator`로 고정한 뒤 업그레이드 전 백업을 보관하세요.
 
 ## Short description
 
@@ -65,8 +65,8 @@ The web application and migrator are published separately in the same repository
 
 | Tag | Purpose |
 |---|---|
-| `0.1.9` | Version-pinned web application (recommended) |
-| `0.1.9-migrator` | Matching database migrations (recommended) |
+| `0.2.0` | Version-pinned web application (recommended) |
+| `0.2.0-migrator` | Matching database migrations (recommended) |
 | `latest` | Most recently published web application |
 | `latest-migrator` | Migrations matching `latest` |
 
@@ -75,13 +75,13 @@ For production, pin both images to the same version instead of using `latest`.
 사내 서버에서 명시적으로 받으려면 두 태그를 함께 pull합니다.
 
 ```bash
-docker pull euiyun/glossary:0.1.9
-docker pull euiyun/glossary:0.1.9-migrator
+docker pull euiyun/glossary:0.2.0
+docker pull euiyun/glossary:0.2.0-migrator
 ```
 
 ## Quick start with Docker Compose
 
-Requires Docker Engine with the Compose plugin. The published `0.1.9` app image is
+Requires Docker Engine with the Compose plugin. The published `0.2.0` app image is
 `linux/amd64`; native ARM64 support is not advertised for this tag. Node.js and pnpm
 are not needed on the host. Commands below use Bash (Git Bash or WSL on Windows).
 
@@ -89,14 +89,14 @@ Download the pull-based Compose file and its environment template:
 
 ```bash
 mkdir glossary && cd glossary
-curl -LO https://raw.githubusercontent.com/geniuskey/glossary/v0.1.9/docker-compose.hub.yml
-curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.1.9/.env.dockerhub.example -o .env
+curl -LO https://raw.githubusercontent.com/geniuskey/glossary/v0.2.0/docker-compose.hub.yml
+curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.2.0/.env.dockerhub.example -o .env
 ```
 
-Edit `.env` before starting: use the `0.1.9` / `0.1.9-migrator` pair, replace
+Edit `.env` before starting: use the `0.2.0` / `0.2.0-migrator` pair, replace
 `POSTGRES_PASSWORD` with a long URL-safe value, and replace `GLOSSARY_ENCRYPTION_KEY`
 with a separate fixed random secret of at least 32 characters if using AI.
-The examples download templates from `v0.1.9` so they match the documented release.
+The examples download templates from `v0.2.0` so they match the documented release.
 For example, generate a password with `openssl rand -hex 32` and an encryption key with
 `openssl rand -base64 48`, then copy the respective outputs into `.env`.
 
@@ -129,8 +129,8 @@ docker compose --env-file .env -f docker-compose.hub.yml ps
 
 | Variable | Description |
 |---|---|
-| `GLOSSARY_IMAGE` | Web image, for example `euiyun/glossary:0.1.9` |
-| `GLOSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/glossary:0.1.9-migrator` |
+| `GLOSSARY_IMAGE` | Web image, for example `euiyun/glossary:0.2.0` |
+| `GLOSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/glossary:0.2.0-migrator` |
 | `GLOSSARY_PORT` | Host port; defaults to `3000` |
 | `POSTGRES_PASSWORD` | Internal PostgreSQL password; use URL-safe characters |
 | `GLOSSARY_ENCRYPTION_KEY` | Fixed secret of at least 32 characters for AI API keys and custom headers; back up separately |
@@ -167,8 +167,8 @@ Run the repository scripts from the installation directory in Bash:
 
 ```bash
 mkdir -p scripts
-curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.1.9/scripts/backup.sh -o scripts/backup.sh
-curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.1.9/scripts/restore.sh -o scripts/restore.sh
+curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.2.0/scripts/backup.sh -o scripts/backup.sh
+curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.2.0/scripts/restore.sh -o scripts/restore.sh
 export COMPOSE_FILE=docker-compose.hub.yml
 BACKUP_DIR=./backups bash scripts/backup.sh
 # Replace the filename with the backup produced above.

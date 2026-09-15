@@ -8,3 +8,4 @@ dist/
 backups/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+.playwright-mcp/

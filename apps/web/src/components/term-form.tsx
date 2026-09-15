@@ -482,7 +482,7 @@ export function TermForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className={cx("w-full", compact ? "space-y-3 pb-24" : "space-y-5")}>
+    <form onSubmit={onSubmit} className={cx("w-full", compact ? "flex min-h-[calc(100dvh-8rem)] flex-col gap-3 pb-24" : "space-y-5")}>
       {conflict && (
         <div className="note note-warn" aria-live="polite">
           <p className="font-medium">{conflict.message}</p>
@@ -986,13 +986,13 @@ export function TermForm({
         />
       )}
 
-      <section className="card overflow-hidden">
+      <section className={cx("card overflow-hidden", compact && "flex min-h-0 flex-1 flex-col")}>
         <CompactSectionTitle
           compact={compact}
           title="상세 설명"
           description="예시나 배경처럼 한줄 정의만으로 부족한 맥락을 남깁니다."
         />
-        <div>
+        <div className={cx(compact && "flex min-h-0 flex-1 flex-col")}>
           <MarkdownEditor
             label="용어 본문"
             describedBy={errorsFor("bodyMd") ? "bodyMd-error" : undefined}
@@ -1003,6 +1003,8 @@ export function TermForm({
             disabled={locked}
             compact={compact}
             resizable={compact}
+            fillAvailable={compact}
+            livePreview={compact}
             embedded
             onUploadingChange={setImageUploading}
           />

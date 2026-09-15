@@ -3,10 +3,9 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import { isInternalAttachmentUrl } from "@/lib/markdown/images";
 import { normalizeDisplayMath } from "@/lib/markdown/normalize";
 import { MermaidDiagram } from "./mermaid-diagram";
-
-const INTERNAL_ATTACHMENT_RE = /^\/api\/v1\/attachments\/[a-f0-9]{64}$/;
 
 const components: Components = {
   a({ href, children, ...props }) {
@@ -23,7 +22,7 @@ const components: Components = {
     );
   },
   img({ src, alt, ...props }: ComponentPropsWithoutRef<"img">) {
-    if (typeof src !== "string" || !INTERNAL_ATTACHMENT_RE.test(src)) {
+    if (typeof src !== "string" || !isInternalAttachmentUrl(src)) {
       return <span className="text-sm text-danger">외부 이미지는 표시하지 않습니다: {alt || String(src ?? "")}</span>;
     }
     // 첨부 API가 원본 크기를 응답하므로 여기서는 문서 폭만 제한한다.

@@ -8,6 +8,8 @@ export function cx(...parts: Array<string | false | null | undefined>): string {
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
+const MONTH = 30 * DAY;
+const YEAR = 365 * DAY;
 
 /** 로컬 타임존 기준 자정 사이의 "날짜 수" 차이. 시간 차(24h)로 계산하면
  *  23:50 → 00:10이 "어제"가 아니라 "방금"으로 나온다. */
@@ -41,6 +43,22 @@ export function relativeTime(value: Date, now: Date = new Date()): string {
   if (days === 1) return "어제";
   if (days < 7) return `${days}일 전`;
   return isoDate(value);
+}
+
+/**
+ * 표처럼 같은 정보가 반복되는 화면에서 쓰는 짧은 상대 시간.
+ * 오래된 날짜도 ISO 문자열로 바꾸지 않고 달·년 단위까지 유지해, 최근 수정
+ * 열의 폭을 일정하게 만든다.
+ */
+export function compactRelativeTime(value: Date, now: Date = new Date()): string {
+  const diff = now.getTime() - value.getTime();
+  if (diff <= 0) return "방금";
+  if (diff < MINUTE) return `${Math.max(1, Math.floor(diff / 1_000))}초 전`;
+  if (diff < HOUR) return `${Math.floor(diff / MINUTE)}분 전`;
+  if (diff < DAY) return `${Math.floor(diff / HOUR)}시간 전`;
+  if (diff < MONTH) return `${Math.floor(diff / DAY)}일 전`;
+  if (diff < YEAR) return `${Math.floor(diff / MONTH)}달 전`;
+  return `${Math.floor(diff / YEAR)}년 전`;
 }
 
 /**

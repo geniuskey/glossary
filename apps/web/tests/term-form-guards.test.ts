@@ -93,7 +93,7 @@ test("값이 없는 영문·국문 확장명에도 사용자가 접근할 수 �
 });
 
 test("편집 화면의 저장 액션은 viewport 하단에 고정되고 본문이 가리지 않는다", () => {
-  expect(code).toContain('compact ? "space-y-3 pb-24"');
+  expect(code).toContain('compact ? "flex min-h-[calc(100dvh-8rem)] flex-col gap-3 pb-24"');
   expect(code).toContain("term-form-bottom-bar fixed inset-x-0 bottom-0");
   expect(code).toContain('compact ? "bottom-20" : "bottom-5"');
   expect(globalsSource).toContain('body:has([data-sidebar-collapsed="true"]) .term-form-bottom-bar');
@@ -152,8 +152,8 @@ test("표기·분류는 접을 수 있고 상세 설명은 항상 열린 일반 
   expect(code).not.toContain('summary={form.bodyMd.trim() ?');
   expect(code).toContain('title="상세 설명"');
   expect(code).toContain('description="예시나 배경처럼 한줄 정의만으로 부족한 맥락을 남깁니다."');
-  expect(code).toContain('<section className="card overflow-hidden">');
-  expect(code).toContain('resizable={compact}\n            embedded');
+  expect(code).toContain('className={cx("card overflow-hidden", compact && "flex min-h-0 flex-1 flex-col")}');
+  expect(code).toContain('resizable={compact}\n            fillAvailable={compact}\n            livePreview={compact}\n            embedded');
   expect(code).not.toContain('<h2 className="text-sm font-semibold text-ink">본문</h2>');
 });
 

@@ -68,7 +68,7 @@ import {
 // 서버가 필드를 바꿔도 이 파일은 조용히 옛 모양을 믿는다.
 import type { TermWriteResponse } from "@/lib/terms/wire";
 import { createSaveQueue, savedGridRow } from "@/lib/terms/save-queue";
-import { cx, isoDate, relativeTime } from "@/lib/ui/format";
+import { compactRelativeTime, cx, isoDate } from "@/lib/ui/format";
 import { domainColorStyle } from "@/lib/terms/domain-colors";
 import { rowDragOffset, type RowDragPreview } from "@/lib/ui/table-row-drag";
 
@@ -2793,16 +2793,14 @@ function CellView({
   if (column.key === "updatedAt") {
     const at = new Date(row.updatedAt);
     return (
-      <span className="flex items-center gap-1.5 leading-tight">
-        <span className="text-[11px] text-ink-2">{now ? relativeTime(at, now) : isoDate(at)}</span>
+      <span
+        className="flex min-w-0 items-center gap-1.5 leading-tight"
+        title={row.editorName ? `마지막 수정: ${row.editorName}` : "마지막 수정자 정보 없음"}
+      >
         {row.editorName && (
-          <span
-            title={`마지막 수정: ${row.editorName}`}
-            className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-panel-2 text-[9px] font-semibold text-ink-3"
-          >
-            {row.editorName.slice(0, 1).toUpperCase()}
-          </span>
+          <span className="min-w-0 truncate text-[11px] font-medium text-ink-2">{row.editorName}</span>
         )}
+        <span className="shrink-0 text-[11px] text-ink-3">{now ? compactRelativeTime(at, now) : isoDate(at)}</span>
       </span>
     );
   }

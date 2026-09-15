@@ -35,3 +35,13 @@ test("mermaid 코드 블록은 클라이언트 다이어그램 자리로 렌더�
   expect(html).toContain("Mermaid 다이어그램 렌더링 중");
   expect(html).not.toContain("<pre><code");
 });
+
+test("내부 첨부 이미지를 Markdown 콘텐츠로 렌더링한다", () => {
+  const hash = "b".repeat(64);
+  const html = renderToStaticMarkup(createElement(MarkdownContent, {
+    children: `![도표](/api/v1/attachments/${hash})`,
+  }));
+
+  expect(html).toContain(`src="/api/v1/attachments/${hash}"`);
+  expect(html).toContain('alt="도표"');
+});

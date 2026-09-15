@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "r
 import { basicSetup, EditorView } from "codemirror";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
+import { livePreviewExtension } from "@/lib/markdown/live-preview";
 import { cx } from "@/lib/ui/format";
 import {
   insertMarkdownBlock,
@@ -31,6 +32,8 @@ interface MarkdownEditorProps {
   maxLength?: number;
   compact?: boolean;
   resizable?: boolean;
+  fillAvailable?: boolean;
+  livePreview?: boolean;
   embedded?: boolean;
   onUploadingChange?: (uploading: boolean) => void;
 }
@@ -86,6 +89,8 @@ export function MarkdownEditor({
   maxLength,
   compact = false,
   resizable = false,
+  fillAvailable = false,
+  livePreview = false,
   embedded = false,
   onUploadingChange,
 }: MarkdownEditorProps) {
@@ -202,6 +207,7 @@ export function MarkdownEditor({
             ...(invalid ? { "aria-invalid": "true" } : {}),
           }),
           EditorState.readOnly.of(disabled),
+          livePreview ? livePreviewExtension : [],
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChangeRef.current(update.state.doc.toString());
           }),
@@ -227,6 +233,68 @@ export function MarkdownEditor({
               return true;
             },
           }),
+          livePreview ? EditorView.theme({
+            ".cm-live-heading-1": { fontSize: "1.5rem", fontWeight: "700", lineHeight: "1.45" },
+            ".cm-live-heading-2": { fontSize: "1.3rem", fontWeight: "700", lineHeight: "1.5" },
+            ".cm-live-heading-3": { fontSize: "1.15rem", fontWeight: "700", lineHeight: "1.55" },
+            ".cm-live-heading-4, .cm-live-heading-5, .cm-live-heading-6": { fontWeight: "700" },
+            ".cm-live-quote": { borderLeft: "3px solid rgb(var(--brand) / 0.45)", color: "rgb(var(--ink-2))", fontStyle: "italic", paddingLeft: "0.75rem" },
+            ".cm-live-list-marker, .cm-live-task-marker": { color: "rgb(var(--brand))", display: "inline-block", minWidth: "1.25rem" },
+            ".cm-live-inline-code": { backgroundColor: "rgb(var(--panel-2))", borderRadius: "0.25rem", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", padding: "0.1rem 0.3rem" },
+            ".cm-live-strong": { fontWeight: "700" },
+            ".cm-live-emphasis": { fontStyle: "italic" },
+            ".cm-live-strike": { textDecoration: "line-through", textDecorationColor: "rgb(var(--ink-3))" },
+            ".cm-live-link": { color: "rgb(var(--brand))", textDecoration: "underline", textUnderlineOffset: "0.15em" },
+            ".cm-live-image": { color: "rgb(var(--ink-3))", fontStyle: "italic" },
+            ".cm-live-preview-image": { border: "1px solid rgb(var(--line))", borderRadius: "0.5rem", display: "inline-block", height: "auto", margin: "0.5rem 0", maxHeight: "70vh", maxWidth: "100%", objectFit: "contain", verticalAlign: "middle" },
+            ".cm-lineNumbers .cm-live-preview-line-number": { display: "block", paddingTop: "0.25rem" },
+            ".cm-live-math": { color: "rgb(var(--info))", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" },
+            ".cm-live-code-block": { backgroundColor: "rgb(var(--panel-2) / 0.75)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" },
+            ".cm-live-code-fence": { color: "rgb(var(--ink-3))", fontFamily: "inherit", fontSize: "0.8em", fontStyle: "normal" },
+            ".cm-live-horizontal-rule": { borderTop: "1px solid rgb(var(--line))", display: "inline-block", height: "1px", verticalAlign: "middle", width: "100%" },
+            ".cm-live-preview-block": { cursor: "text", display: "block", position: "relative", width: "100%" },
+            ".cm-live-preview-block-inner": { position: "relative", width: "100%" },
+            ".cm-live-preview-edit": { alignItems: "center", backgroundColor: "rgb(var(--panel-2) / 0.9)", border: "1px solid rgb(var(--line))", borderRadius: "0.375rem", color: "rgb(var(--ink-2))", display: "flex", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "0.75rem", height: "1.5rem", justifyContent: "center", opacity: "0", padding: "0 0.35rem", pointerEvents: "none", position: "absolute", right: "0.35rem", top: "0.35rem", transition: "background-color 120ms ease, color 120ms ease, opacity 120ms ease", zIndex: "4" },
+            ".cm-live-preview-block:hover .cm-live-preview-edit, .cm-live-preview-edit:focus-visible": { opacity: "1", pointerEvents: "auto" },
+            ".cm-live-preview-edit:hover": { backgroundColor: "rgb(var(--brand) / 0.12)", color: "rgb(var(--brand))" },
+            ".cm-live-preview-add-paragraph": { alignItems: "center", backgroundColor: "transparent", border: "0", borderTop: "1px solid rgb(var(--line))", borderRadius: "0.375rem", color: "rgb(var(--brand))", display: "flex", fontSize: "0.875rem", height: "1.25rem", justifyContent: "center", margin: "0.1rem 0 0", opacity: "0", padding: "0 0.75rem", pointerEvents: "none", transition: "background-color 120ms ease, opacity 120ms ease" },
+            ".cm-live-preview-block:hover .cm-live-preview-add-paragraph, .cm-live-preview-add-paragraph:focus-visible": { opacity: "1", pointerEvents: "auto" },
+            ".cm-live-preview-add-paragraph:hover": { backgroundColor: "rgb(var(--brand) / 0.08)" },
+            ".cm-live-preview-block-content": { width: "100%" },
+            ".cm-live-preview-block-content a": { pointerEvents: "none" },
+            ".cm-live-preview-block-content .mermaid-diagram": { marginBottom: "0", marginTop: "0" },
+            ".cm-live-preview-block-content .katex-display": { marginBottom: "0", marginTop: "0" },
+            ".cm-live-preview-block-content.cm-live-table-shell": { marginBottom: "0", marginTop: "0" },
+            ".cm-live-table-shell": { display: "inline-block", marginBottom: "0.5rem", marginTop: "0.5rem", maxWidth: "100%", position: "relative", verticalAlign: "top", width: "fit-content" },
+            ".cm-live-table-scroll": { display: "inline-block", maxWidth: "100%", overflow: "visible", position: "relative", verticalAlign: "top", width: "fit-content" },
+            ".markdown-body .cm-live-table": { marginBottom: "0", marginTop: "0", minWidth: "0", tableLayout: "auto", width: "max-content" },
+            ".cm-live-table th:not(.cm-live-table-control-column)": { cursor: "default", userSelect: "none" },
+            ".cm-live-table th:not(.cm-live-table-control-column):active": { cursor: "default" },
+            ".cm-live-table-control-column": { backgroundColor: "transparent", border: "none", minWidth: "0", overflow: "visible", padding: "0", width: "0" },
+            ".cm-live-table-column-header": { position: "relative" },
+            ".cm-live-table-column-handle": { alignItems: "center", backgroundColor: "rgb(var(--brand))", border: "0", borderRadius: "0.375rem", boxShadow: "0 1px 3px rgb(0 0 0 / 0.16)", color: "white", cursor: "grab", display: "flex", fontSize: "0.75rem", height: "1.5rem", justifyContent: "center", left: "50%", minWidth: "2.25rem", opacity: "0", padding: "0", pointerEvents: "none", position: "absolute", top: "-1.5rem", transform: "translateX(-50%)", transition: "opacity 120ms ease", width: "calc(100% - 0.5rem)", zIndex: "3" },
+            ".cm-live-table-column-header:hover .cm-live-table-column-handle, .cm-live-table-column-dragging .cm-live-table-column-handle, .cm-live-table-column-handle:focus-visible": { opacity: "1", pointerEvents: "auto" },
+            ".cm-live-table-cell-input": { backgroundColor: "transparent", border: "0", boxSizing: "border-box", color: "inherit", display: "block", font: "inherit", lineHeight: "inherit", margin: "0", minWidth: "0", outline: "none", padding: "0", width: "100%" },
+            ".cm-live-table-cell-input::placeholder": { color: "rgb(var(--ink-3))", opacity: "0.8" },
+            ".cm-live-table-cell-input:focus": { backgroundColor: "rgb(var(--brand) / 0.06)", borderRadius: "0.2rem", boxShadow: "inset 0 0 0 2px rgb(var(--brand))" },
+            ".cm-live-table-row-handle-cell": { position: "relative" },
+            ".cm-live-table-row-handle": { alignItems: "center", backgroundColor: "rgb(var(--panel))", border: "1px solid rgb(var(--line))", borderRadius: "0.375rem", color: "rgb(var(--ink-3))", cursor: "grab", display: "flex", height: "2rem", justifyContent: "center", opacity: "0", padding: "0", position: "absolute", right: "0", top: "50%", transform: "translateY(-50%)", transition: "background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease", width: "1.5rem", zIndex: "3" },
+            ".cm-live-table-row-handle:active": { cursor: "grabbing" },
+            ".cm-live-table-row:hover .cm-live-table-row-handle, .cm-live-table-row:focus-within .cm-live-table-row-handle": { opacity: "1" },
+            ".cm-live-table-row-handle:hover": { backgroundColor: "rgb(var(--panel-2))", borderColor: "rgb(var(--brand) / 0.5)", color: "rgb(var(--brand))" },
+            ".cm-live-table-row-handle-active": { backgroundColor: "rgb(var(--brand))", borderColor: "rgb(var(--brand))", color: "white", opacity: "1" },
+            ".cm-live-table-drop-target": { backgroundColor: "transparent" },
+            ".cm-live-table-column-drop-before": { boxShadow: "inset 3px 0 0 0 rgb(var(--brand))" },
+            ".cm-live-table-column-drop-after": { boxShadow: "inset -3px 0 0 0 rgb(var(--brand))" },
+            ".cm-live-table-row-drop-before > td:not(.cm-live-table-control-column)": { backgroundColor: "rgb(var(--brand) / 0.08)", boxShadow: "inset 0 3px 0 0 rgb(var(--brand))" },
+            ".cm-live-table-row-drop-after > td:not(.cm-live-table-control-column)": { backgroundColor: "rgb(var(--brand) / 0.08)", boxShadow: "inset 0 -3px 0 0 rgb(var(--brand))" },
+            ".cm-live-table-add-column": { alignItems: "center", backgroundColor: "transparent", border: "0", borderRadius: "0.375rem", color: "rgb(var(--brand))", display: "flex", height: "auto", justifyContent: "center", opacity: "0", padding: "0", pointerEvents: "none", position: "absolute", right: "-1.5rem", top: "0.25rem", bottom: "0.25rem", transition: "background-color 120ms ease, opacity 120ms ease", width: "1.5rem", zIndex: "2" },
+            ".cm-live-table-shell:hover .cm-live-table-add-column, .cm-live-table-add-column:focus-visible": { opacity: "1", pointerEvents: "auto" },
+            ".cm-live-table-add-column:hover, .cm-live-table-add-column:focus-visible": { backgroundColor: "rgb(var(--brand) / 0.08)" },
+            ".cm-live-table-add-row": { backgroundColor: "transparent", border: "0", borderRadius: "0.375rem", borderTop: "1px solid rgb(var(--line))", color: "rgb(var(--brand))", display: "block", fontSize: "1rem", height: "1.25rem", lineHeight: "1", margin: "0", minHeight: "1.25rem", padding: "0", transition: "background-color 120ms ease", width: "100%" },
+            ".cm-live-table-add-row:hover, .cm-live-table-add-row:focus-visible": { backgroundColor: "rgb(var(--brand) / 0.08)" },
+            ".cm-live-table-fallback": { margin: "0", whiteSpace: "pre-wrap" },
+          }) : [],
           EditorView.theme({
             "&": { height: resizable ? "100%" : "auto", minHeight: compact ? "10rem" : "16rem", backgroundColor: "transparent", color: "rgb(var(--ink))" },
             ".cm-scroller": { overflow: "auto" },
@@ -253,7 +321,7 @@ export function MarkdownEditor({
       viewRef.current = null;
     };
     // disabled 변경 시 인스턴스를 다시 만들어 readOnly 상태까지 정확히 반영한다.
-  }, [compact, describedBy, disabled, invalid, label, resizable]);
+  }, [compact, describedBy, disabled, invalid, label, livePreview, resizable]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -280,32 +348,12 @@ export function MarkdownEditor({
           "overflow-hidden bg-panel",
           !embedded && "rounded-xl border border-line",
           "korean-editor-font",
-          resizable && "flex h-80 min-h-64 max-h-[75dvh] flex-col resize-y",
+          resizable && (fillAvailable
+            ? "flex min-h-64 min-w-0 flex-1 flex-col resize-y"
+            : "flex h-80 min-h-64 max-h-[75dvh] flex-col resize-y"),
         )}
     >
-      <div className="shrink-0 border-b border-line bg-panel-2">
-        <div className="flex flex-wrap items-center gap-2 border-b border-line/70 px-2 py-1.5">
-          <p className="text-xs font-medium text-ink-2">Markdown</p>
-          <span className="hidden text-[11px] text-ink-3 md:inline">선택한 텍스트에 서식을 적용합니다</span>
-          <div className="ml-auto flex items-center gap-1">
-            <div className="flex" aria-label="본문 보기 방식">
-              <button type="button" aria-pressed={mode === "edit"} className={`btn-sm ${mode === "edit" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("edit")}>편집</button>
-              <button type="button" aria-pressed={mode === "preview"} className={`btn-sm ${mode === "preview" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("preview")}>미리보기</button>
-            </div>
-            <button
-              ref={fullscreenButtonRef}
-              type="button"
-              className="btn-ghost btn-sm"
-              aria-pressed={fullscreen}
-              title={fullscreen ? "전체 화면 닫기 (Esc)" : "전체 화면으로 편집"}
-              onClick={() => setFullscreen((current) => !current)}
-            >
-              {fullscreen ? "전체 화면 닫기" : "전체 화면"}
-            </button>
-          </div>
-        </div>
-
-        <div role="toolbar" aria-label="Markdown 서식 도구" className="flex items-center gap-1 overflow-x-auto px-2 py-1.5">
+      <div role="toolbar" aria-label="Markdown 서식 도구" className="flex items-center gap-1 overflow-x-auto border-b border-line bg-panel-2 px-2 py-1.5">
           <div className="flex shrink-0 items-center gap-0.5" aria-label="제목">
             {[1, 2, 3, 4, 5, 6].map((level) => (
               <ToolbarButton
@@ -368,17 +416,38 @@ export function MarkdownEditor({
             >
               {uploadCount > 0 ? `변환 중 ${uploadCount}` : "이미지"}
             </ToolbarButton>
+        </div>
+        <div className="ml-auto flex shrink-0 items-center gap-1 border-l border-line pl-1">
+          {!livePreview && <div className="flex" aria-label="본문 보기 방식">
+            <button type="button" aria-pressed={mode === "edit"} className={`btn-sm ${mode === "edit" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("edit")}>편집</button>
+            <button type="button" aria-pressed={mode === "preview"} className={`btn-sm ${mode === "preview" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("preview")}>미리보기</button>
+          </div>}
+          <button
+            ref={fullscreenButtonRef}
+            type="button"
+            className="btn-ghost btn-sm"
+            aria-pressed={fullscreen}
+            title={fullscreen ? "전체 화면 닫기 (Esc)" : "전체 화면으로 편집"}
+            onClick={() => setFullscreen((current) => !current)}
+          >
+            {fullscreen ? "전체 화면 닫기" : "전체 화면"}
+          </button>
+        </div>
+      </div>
+      <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={chooseFiles} />
+      {uploadError && <div className="border-b border-danger/35 bg-danger-soft px-3 py-2 text-xs text-danger" aria-live="polite">{uploadError}</div>}
+      {livePreview ? (
+        <div className="min-h-0 flex-1 overflow-auto" aria-label="실시간 Markdown 편집기">
+          <div className="h-full" ref={hostRef} />
+        </div>
+      ) : (
+        <div className={`grid ${fullscreen || resizable ? "min-h-0 flex-1" : ""}`}>
+          <div className={`${mode === "preview" ? "hidden" : "block"} h-full min-h-0 overflow-auto`} ref={hostRef} />
+          <div className={`${mode === "edit" ? "hidden" : "block"} ${resizable ? "min-h-0" : compact ? "min-h-40" : "min-h-[16rem]"} h-full overflow-auto ${compact ? "p-3" : "p-4"} ${fullscreen ? "min-h-0" : ""}`}>
+            {value.trim() ? <MarkdownContent>{value}</MarkdownContent> : <p className="text-sm text-ink-3">미리보기가 여기에 표시됩니다.</p>}
           </div>
         </div>
-        <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={chooseFiles} />
-      </div>
-      {uploadError && <div className="border-b border-danger/35 bg-danger-soft px-3 py-2 text-xs text-danger" aria-live="polite">{uploadError}</div>}
-      <div className={`grid ${fullscreen || resizable ? "min-h-0 flex-1" : ""}`}>
-        <div className={`${mode === "preview" ? "hidden" : "block"} h-full min-h-0 overflow-auto`} ref={hostRef} />
-        <div className={`${mode === "edit" ? "hidden" : "block"} ${resizable ? "min-h-0" : compact ? "min-h-40" : "min-h-[16rem]"} h-full overflow-auto ${compact ? "p-3" : "p-4"} ${fullscreen ? "min-h-0" : ""}`}>
-          {value.trim() ? <MarkdownContent>{value}</MarkdownContent> : <p className="text-sm text-ink-3">미리보기가 여기에 표시됩니다.</p>}
-        </div>
-      </div>
+      )}
       {maxLength !== undefined && <div className="shrink-0 border-t border-line px-3 py-1.5 text-right text-[11px] text-ink-3">{value.length.toLocaleString()} / {maxLength.toLocaleString()}</div>}
     </div>
   );

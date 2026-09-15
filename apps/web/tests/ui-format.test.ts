@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { cx, displayName, isoDate, relativeTime, spineHue, withCount } from "../src/lib/ui/format.js";
+import { compactRelativeTime, cx, displayName, isoDate, relativeTime, spineHue, withCount } from "../src/lib/ui/format.js";
 
 // 날짜 라이브러리를 들이지 않고 직접 만든 함수들이라(번들 크기가 제약), 경계는
 // 여기서 고정한다. 특히 relativeTime의 "어제"는 시간 차가 아니라 달력 날짜
@@ -51,6 +51,17 @@ test("relativeTime: 일주일 이상은 ISO 날짜로 되돌아간다", () => {
 test("relativeTime: 미래 시각(서버-클라이언트 시계 차)은 날짜로 보여준다", () => {
   const now = new Date(2026, 7, 28, 12, 0, 0);
   expect(relativeTime(new Date(2026, 7, 29, 12, 0, 0), now)).toBe("2026-08-29");
+});
+
+test("compactRelativeTime: 시트의 최근 수정은 초·분·시간·일·달·년으로 짧게 표시한다", () => {
+  const now = new Date(2026, 7, 28, 12, 0, 0);
+
+  expect(compactRelativeTime(new Date(2026, 7, 28, 11, 59, 45), now)).toBe("15초 전");
+  expect(compactRelativeTime(new Date(2026, 7, 28, 11, 45, 0), now)).toBe("15분 전");
+  expect(compactRelativeTime(new Date(2026, 7, 28, 9, 0, 0), now)).toBe("3시간 전");
+  expect(compactRelativeTime(new Date(2026, 7, 26, 12, 0, 0), now)).toBe("2일 전");
+  expect(compactRelativeTime(new Date(2026, 6, 29, 12, 0, 0), now)).toBe("1달 전");
+  expect(compactRelativeTime(new Date(2025, 7, 28, 12, 0, 0), now)).toBe("1년 전");
 });
 
 test("spineHue: 같은 seed는 항상 같은 값, 범위는 0~359", () => {
