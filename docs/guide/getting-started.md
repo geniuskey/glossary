@@ -183,6 +183,14 @@ pnpm --filter @glossary/web exec tsx scripts/seed-terms.ts it semiconductor
 | `/statistics` | 용어·사용자 성장과 도메인/업무 분류별 관리 통계 (관리자 전용) |
 | `/settings` | 계정·화면 설정과 API 키 발급·폐기 |
 | `/classifications` | 도메인과 업무 분류 관리 |
+| `/contribute` | 함께 정리 — 정리 대기 표와 보완할 용어 필터 |
+| `/contribute?tab=agent` | 제안 검토 — 검토 대상 목록과 AI·규칙 제안 승인 |
+| `/contribute?tab=duplicates` | 중복 정리 — 같은 개념 후보 검토·병합 |
+| `/contribute?tab=queue` | AI 검토 큐 — 대기·처리·완료·실패 상태 |
+| `/contribute?tab=definitions` | 한줄 정의 정리 — 본문 근거와 LLM 제안 표 |
+| `/admin?tab=quality` | 콘텐츠 완성도 기준과 충족 현황 |
+| `/admin?tab=ai` | AI 공급자·모델·자동 검토 설정 |
+| `/admin?tab=rag` | Embedding·Reranker·벡터 색인 설정 |
 | `/admin?tab=sso` | 관리자 패널의 SSO 연결 탭 (`/settings/sso`는 이 주소로 이동) |
 | `/admin` | 홈 문구, 업무 분류 목록과 사용자·세션 관리 (관리자 전용) |
 

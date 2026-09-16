@@ -48,6 +48,7 @@ A future release may allow another native language to be selected alongside Engl
 - Admin panel for OIDC/OAuth 2.0 SSO, users, AI providers, and home-page messaging; API keys are managed under user settings
 - Glossary-grounded Gemini or OpenAI-compatible chat with passage citations, domain-scoped retrieval, and reviewable term creation/editing proposals
 - Paste CSV, TSV, Markdown tables, lists, or JSON into chat to review up to 25 term proposals before creating entries
+- Collaborative contribution workspace with a table-based completion queue, durable AI review queue, duplicate merging, and one-line definition review
 - Domain colors, term owners, classifications, and an interactive relationship graph with proposed/approved semantic relations
 - OpenAPI 3.1 API and batch terminology lookup for internal tools
 - Self-hosted Docker Compose deployment with PostgreSQL 16, `pg_trgm`, and `pgvector`
@@ -162,16 +163,53 @@ Use matching site boundaries where possible, such as `glossary.example.com` and
 
 ## Backup and restore
 
-Keep logical database dumps, Compose/environment configuration, and the encryption key.
+### 처음 하는 백업 (Beginner guide)
+
+Docker Hub 방식으로 설치한 뒤 처음 백업하는 경우, 서버의 터미널에서 `.env`와
+`docker-compose.hub.yml`이 있는 설치 디렉터리로 이동해 아래 순서대로 실행합니다.
+Windows에서는 Docker Desktop과 Git Bash 또는 WSL을 사용하세요.
+
+1. 스택 상태를 확인합니다.
+
+   ```bash
+   docker compose --env-file .env -f docker-compose.hub.yml ps
+   ```
+
+   `postgres`와 `app`이 실행 중이면 됩니다. `database-init`과 `migrator`의
+   `Exited (0)`은 일회성 작업이 성공했다는 뜻입니다. 앱이 실행 중이 아니면 먼저
+   `docker compose --env-file .env -f docker-compose.hub.yml up -d`를 실행합니다.
+
+2. 백업 스크립트를 준비하고 실행합니다. 저장소를 이미 내려받았다면 `curl` 줄은
+   건너뛰어도 됩니다.
+
+   ```bash
+   mkdir -p scripts backups
+   curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.2.1/scripts/backup.sh -o scripts/backup.sh
+   COMPOSE_FILE=docker-compose.hub.yml BACKUP_DIR=./backups bash scripts/backup.sh
+   ```
+
+3. 출력에 `완료:`가 표시됐는지 확인합니다. 예를 들어 다음 파일이 만들어집니다.
+
+   ```text
+   backups/glossary-20260917-030000.dump
+   ```
+
+   스크립트가 백업 파일을 자동 검증하므로, 오류가 나거나 `완료:`가 표시되지 않은
+   파일은 사용하지 마세요.
+
+4. `.dump` 파일과 함께 `.env`, `docker-compose.hub.yml`, 그리고 특히
+   `.env`의 `GLOSSARY_ENCRYPTION_KEY`를 서버와 다른 안전한 장소에 보관합니다.
+   `.dump`에는 용어와 첨부 이미지는 포함되지만 암호화 키는 포함되지 않습니다.
+   비밀번호와 키가 들어 있는 파일을 공개 저장소나 공개 파일 공유에 올리지 마세요.
+
+For restoration, keep the dump, Compose/environment configuration, and the encryption key.
 The dump includes attachment images but does not include the environment's encryption key.
-Run the repository scripts from the installation directory in Bash:
+Prepare the restore script from the installation directory in Bash:
 
 ```bash
 mkdir -p scripts
-curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.2.1/scripts/backup.sh -o scripts/backup.sh
 curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.2.1/scripts/restore.sh -o scripts/restore.sh
 export COMPOSE_FILE=docker-compose.hub.yml
-BACKUP_DIR=./backups bash scripts/backup.sh
 # Replace the filename with the backup produced above.
 bash scripts/restore.sh --rehearse ./backups/glossary-YYYYMMDD-HHMMSS.dump
 ```

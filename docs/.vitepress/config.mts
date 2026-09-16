@@ -48,6 +48,7 @@ export default defineConfig({
           { text: "제품 도움말", link: "/help" },
           { text: "데이터 모델", link: "/guide/data-model" },
           { text: "협업과 관계도", link: "/guide/collaboration" },
+          { text: "함께 정리", link: "/guide/contribute" },
           { text: "AI 활용과 챗봇", link: "/guide/ai" },
         ],
       },

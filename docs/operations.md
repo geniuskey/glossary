@@ -152,6 +152,76 @@ unset ADMIN_PASSWORD
 
 ## 백업
 
+### 처음 하는 백업 (Docker Hub 설치 기준)
+
+아래 절차는 운영 DB를 삭제하거나 변경하지 않고, 용어와 첨부 이미지를 백업 파일로
+복사한다. 서버의 터미널에서 `.env`와 `docker-compose.hub.yml`이 있는 설치 디렉터리로
+이동한 뒤 실행한다. 명령은 Bash 기준이며, Windows에서는 Docker Desktop과 Git Bash
+또는 WSL을 사용한다.
+
+1. 현재 스택이 실행 중인지 확인한다.
+
+   ```bash
+   docker compose --env-file .env -f docker-compose.hub.yml ps
+   ```
+
+   `postgres`와 `app`이 실행 중이면 된다. `database-init`과 `migrator`가
+   `Exited (0)`으로 보이는 것은 일회성 작업이 성공하고 종료했다는 뜻이므로 정상이다.
+   `postgres`나 `app`이 없다면 먼저 다음을 실행한다.
+
+   ```bash
+   docker compose --env-file .env -f docker-compose.hub.yml up -d
+   ```
+
+2. 백업 스크립트를 준비한다. 저장소를 내려받아 `scripts/backup.sh`가 이미 있으면
+   `curl` 줄은 건너뛴다.
+
+   ```bash
+   mkdir -p scripts backups
+   curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.2.1/scripts/backup.sh -o scripts/backup.sh
+   ```
+
+3. 백업을 실행한다.
+
+   ```bash
+   COMPOSE_FILE=docker-compose.hub.yml BACKUP_DIR=./backups bash scripts/backup.sh
+   ```
+
+4. 화면에 `완료:`가 표시되는지 확인한다. 실제 파일 이름은 출력된 이름을 사용한다.
+
+   ```text
+   완료: ./backups/glossary-20260917-030000.dump (... bytes)
+   ```
+
+   파일이 실제로 있는지도 확인한다.
+
+   ```bash
+   ls -lh backups
+   ```
+
+   스크립트는 백업을 만든 뒤 `pg_restore --list`로 읽을 수 있는지 자동 검증한다.
+   `완료:`가 나오지 않고 오류가 발생했다면 그 파일은 백업으로 사용하지 말고 원인을
+   해결한 뒤 다시 실행한다.
+
+5. 다음 항목을 서버와 다른 안전한 장소에도 보관한다.
+
+   - `backups/` 안의 `.dump` 파일
+   - 현재 사용 중인 `.env`
+   - `docker-compose.hub.yml`
+   - 특히 `.env`의 `GLOSSARY_ENCRYPTION_KEY`
+
+   `.dump`에는 용어와 첨부 이미지가 들어가지만 암호화 키는 들어가지 않는다. 키를
+   잃으면 DB에 암호화해 둔 AI API Key와 custom header를 복구할 수 없다. `.env`와
+   백업 파일은 비밀번호와 키가 포함될 수 있으므로 공개 저장소나 공개 파일 공유에
+   올리지 않는다.
+
+> 로컬 개발 Compose를 백업할 때는 위 명령의 `docker-compose.hub.yml`을
+> `docker-compose.yml`로 바꾼다. 직접 빌드한 운영 Compose는
+> `docker-compose.prod.yml`을 사용한다. `COMPOSE_FILE`을 생략하면 스크립트는
+> `docker-compose.prod.yml`을 기본으로 사용한다.
+
+### 정기 백업과 자동 실행
+
 아래 스크립트는 Bash 환경에서 설치 디렉터리를 기준으로 실행한다. Docker Hub 배포에서
 Compose와 `.env`만 내려받았다면 저장소의 `scripts/backup.sh`와 `scripts/restore.sh`도
 같은 디렉터리의 `scripts/`에 준비한다. 스크립트 기본 대상은 `docker-compose.prod.yml`이다.
@@ -165,13 +235,13 @@ export COMPOSE_FILE=docker-compose.hub.yml
 cron은 대화형 셸의 환경을 상속하지 않으므로 아래 예시의 Compose 파일도 배포에 맞춘다.
 
 ```bash
-BACKUP_DIR=/srv/glossary-backups ./scripts/backup.sh
+BACKUP_DIR=/srv/glossary-backups bash scripts/backup.sh
 ```
 
 cron 예시 (매일 새벽 3시):
 
 ```
-0 3 * * * cd /srv/glossary && COMPOSE_FILE=docker-compose.hub.yml BACKUP_DIR=/srv/glossary-backups ./scripts/backup.sh >> /var/log/glossary-backup.log 2>&1
+0 3 * * * cd /srv/glossary && COMPOSE_FILE=docker-compose.hub.yml BACKUP_DIR=/srv/glossary-backups bash scripts/backup.sh >> /var/log/glossary-backup.log 2>&1
 ```
 
 이 스크립트는 dump를 **검증한 뒤에만** 최종 파일 이름으로 옮긴다. 실패하면 파일을
@@ -190,13 +260,13 @@ cron 예시 (매일 새벽 3시):
 
 ```bash
 # 안전: 별도 DB(glossary_rehearsal)로 복구해 건수만 확인한다. 운영 DB는 그대로다.
-./scripts/restore.sh --rehearse /srv/glossary-backups/glossary-20260828-030000.dump
+bash scripts/restore.sh --rehearse /srv/glossary-backups/glossary-20260828-030000.dump
 ```
 
 실제 복구는 다음과 같고, 진행 전에 `replace glossary`를 직접 타이핑해야 한다:
 
 ```bash
-./scripts/restore.sh --force /srv/glossary-backups/glossary-20260828-030000.dump
+bash scripts/restore.sh --force /srv/glossary-backups/glossary-20260828-030000.dump
 ```
 
 `--force`는 순서가 이렇게 되어 있다:
