@@ -5,11 +5,15 @@
 
 ## Unreleased
 
+## 0.2.1 — 2026-09-17
+
 ### Added
 
 - 용어집 콘텐츠를 1536차원 Embedding으로 저장하는 pgvector 기반 RAG 색인과 `POST /api/v1/rag/search` API
 - 관리자 패널의 Embedding API·Cohere-compatible Reranker 설정, 연결 시험, 청크·검색 기본값, 전체 재색인
 - 용어 리비전과 함께 동작하는 영속 RAG 색인 대기열과 색인 상태 통계
+- 기여 페이지의 제안 검토·한줄 정의 정리·정리 대기 목록을 고정된 두 번째 사이드바와 표 형태로 제공
+- 정리 대기 항목을 여러 개 선택해 AI 검토를 일괄 요청하는 기능
 
 ### Upgrade
 
