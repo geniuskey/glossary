@@ -3,19 +3,19 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { HelpTip } from "@/components/help-tip";
 import { scheduleAfterResponse } from "@/lib/after-response";
-import { MissingFields } from "@/components/term-completion";
-import { CategoryBadges, DomainBadges, StatusBadge } from "@/components/term-badges";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { loadAiConfig, publicAiConfig } from "@/lib/ai/config";
 import { listPreparedReviews, listReviewQueue, prepareAutoReviews, resumeReviewQueue, reviewQueueStatuses } from "@/lib/ai/auto-review";
 import { listBusinessCategories } from "@/lib/terms/categories";
 import { listContributionTerms } from "@/lib/terms/query";
-import { cx, displayName, relativeTime } from "@/lib/ui/format";
+import { cx } from "@/lib/ui/format";
 import { AgentReviewPanel } from "./agent-review-panel";
-import { ManualReviewButton } from "./manual-review-button";
+import { ContributionQueueTable } from "./contribution-queue-table";
 import { QueueRefresh } from "./queue-refresh";
 import { ReviewQueuePanel } from "./review-queue-panel";
+import { DefinitionReviewPanel } from "./definition-review-panel";
 import { DuplicateReviewPanel } from "@/components/duplicate-review-panel";
+import { listDefinitionReviewCandidates } from "@/lib/ai/definition-review";
 
 export const metadata = { title: "함께 정리" };
 
@@ -24,7 +24,11 @@ const TABS = [
   { key: "agent", label: "제안 검토", href: "/contribute?tab=agent" },
   { key: "duplicates", label: "중복 정리", href: "/contribute?tab=duplicates" },
   { key: "queue", label: "AI 검토 큐", href: "/contribute?tab=queue" },
+  { key: "definitions", label: "한줄 정의 정리", href: "/contribute?tab=definitions" },
 ] as const;
+
+const AGENT_REVIEW_LIST_LIMIT = 300;
+const AUTO_REVIEW_PREFETCH_LIMIT = 60;
 
 export default async function ContributePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await getCurrentUser();
@@ -33,16 +37,18 @@ export default async function ContributePage({ searchParams }: { searchParams: P
   const params = await searchParams;
   const rawTab = params.tab;
   const requestedTab = Array.isArray(rawTab) ? rawTab[0] : rawTab;
-  const tab = requestedTab === "agent" || requestedTab === "queue" || requestedTab === "duplicates" ? requestedTab : "edit";
+  const tab = requestedTab === "agent" || requestedTab === "queue" || requestedTab === "duplicates" || requestedTab === "definitions" ? requestedTab : "edit";
   const rawTermId = params.termId;
   const selectedTermId = tab === "agent" ? (Array.isArray(rawTermId) ? rawTermId[0] : rawTermId) : undefined;
   const scalar = (key: string) => typeof params[key] === "string" ? params[key] as string : "";
   const filters = { q: scalar("q").slice(0, 200), category: scalar("category"), missing: scalar("missing"), page: Math.min(100000, Math.max(1, Number.parseInt(scalar("page"), 10) || 1)) };
   const pageHref = (page: number) => `/contribute?${new URLSearchParams({ q: filters.q, category: filters.category, missing: filters.missing, page: String(page) })}`;
-  const [queue, storedAi, reviewQueue] = await Promise.all([
-    tab === "edit" ? listContributionTerms(60, user.id, selectedTermId, filters) : listContributionTerms(60, user.id, selectedTermId, { includePrepared: tab === "agent" }),
+  const contributionLimit = tab === "agent" ? AGENT_REVIEW_LIST_LIMIT : 60;
+  const [queue, storedAi, reviewQueue, definitionCandidates] = await Promise.all([
+    tab === "edit" ? listContributionTerms(contributionLimit, user.id, selectedTermId, filters) : listContributionTerms(contributionLimit, user.id, selectedTermId, { includePrepared: tab === "agent", preservePreferredOrder: tab === "agent" }),
     loadAiConfig(),
     listReviewQueue(),
+    tab === "definitions" ? listDefinitionReviewCandidates() : Promise.resolve([]),
   ]);
   const ai = publicAiConfig(storedAi);
   const categories = await listBusinessCategories();
@@ -50,7 +56,9 @@ export default async function ContributePage({ searchParams }: { searchParams: P
   const preparedReviews = tab === "agent" ? await listPreparedReviews(queue.items) : {};
   const queueStatuses = tab === "edit" ? await reviewQueueStatuses(queue.items) : {};
   if (tab === "agent" && ai?.enabled && ai.secretsReadable && ai.autoReviewEnabled) {
-    const missing = queue.items.filter((term) => !preparedReviews[term.id]);
+    // 목록은 넓게 보여 주되, 첫 화면 진입만으로 수백 건의 외부 AI 호출을
+    // 예약하지 않는다. 나머지 용어는 선택했을 때 GET 라우트가 개별적으로 준비한다.
+    const missing = queue.items.slice(0, AUTO_REVIEW_PREFETCH_LIMIT).filter((term) => !preparedReviews[term.id]);
     scheduleAfterResponse(() => prepareAutoReviews(missing.map((term) => term.id)));
   }
   if (tab === "queue") {
@@ -58,9 +66,9 @@ export default async function ContributePage({ searchParams }: { searchParams: P
   }
 
   return (
-    <AppShell user={user} title="함께 정리" current="contribute">
+    <AppShell user={user} title="함께 정리" current="contribute" roomy>
       <p className="mb-4 text-xl font-semibold tracking-tight text-balance lg:hidden">함께 정리</p>
-      {tab !== "agent" && tab !== "duplicates" && <QueueRefresh active={reviewQueue.counts.active > 0} />}
+      {tab !== "agent" && tab !== "duplicates" && tab !== "definitions" && <QueueRefresh active={reviewQueue.counts.active > 0} />}
       <div className="flex min-w-0 items-end gap-2 border-b border-line">
         <nav className="flex min-w-0 flex-1 overflow-x-auto overflow-y-hidden" aria-label="함께 정리 방식">
           {TABS.map((item) => (
@@ -74,12 +82,14 @@ export default async function ContributePage({ searchParams }: { searchParams: P
         </div>
       </div>
 
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-2 py-3 text-xs text-ink-3">
-        <p>{tab === "edit" ? "내가 맡은 용어를 먼저, 부족한 정보가 많고 오래 기다린 순으로 보여드립니다." : tab === "agent" ? "현재 값과 제안을 비교한 뒤 필요한 변경만 승인하세요." : "자동·수동 AI 검토의 진행 상태를 함께 확인합니다."}</p>
-        <span className="font-mono tabular-nums">{tab === "queue" ? `${reviewQueue.counts.active.toLocaleString("ko-KR")}개 처리 중` : `${queue.total.toLocaleString("ko-KR")}개`}</span>
-      </div>
+      {tab !== "agent" && tab !== "definitions" && (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-2 py-3 text-xs text-ink-3">
+          <p>{tab === "edit" ? "내가 맡은 용어를 먼저, 부족한 정보가 많고 오래 기다린 순으로 보여드립니다." : "자동·수동 AI 검토의 진행 상태를 함께 확인합니다."}</p>
+          <span className="font-mono tabular-nums">{tab === "queue" ? `${reviewQueue.counts.active.toLocaleString("ko-KR")}개 처리 중` : `${queue.total.toLocaleString("ko-KR")}개`}</span>
+        </div>
+      )}
 
-      {tab === "duplicates" ? <DuplicateReviewPanel initialQuery={scalar("term")} /> : tab === "edit" ? <>
+      {tab === "definitions" ? <DefinitionReviewPanel initialCandidates={definitionCandidates} aiAvailable={Boolean(ai.enabled && ai.secretsReadable)} /> : tab === "duplicates" ? <DuplicateReviewPanel initialQuery={scalar("term")} /> : tab === "edit" ? <>
       <form key={`${filters.q}:${filters.category}:${filters.missing}`} action="/contribute" className="mb-4 flex flex-wrap items-end gap-3">
         <label className="min-w-0 flex-1 text-xs text-ink-2">용어 검색<input name="q" defaultValue={filters.q} maxLength={200} autoComplete="off" placeholder="예: 캐시…" className="mt-1 block w-full rounded-lg border border-line bg-panel p-2 text-sm text-ink" /></label>
         <label className="text-xs text-ink-2">업무 분야<select name="category" defaultValue={filters.category} className="mt-1 block max-w-full rounded-lg border border-line bg-panel p-2 text-sm text-ink"><option value="">전체 분야</option>{categories.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
@@ -89,52 +99,11 @@ export default async function ContributePage({ searchParams }: { searchParams: P
       </form>
       <section aria-label="정리를 기다리는 용어">
         {queue.items.length > 0 ? (
-          <ul className="grid gap-3 md:grid-cols-2">
-            {queue.items.map((term) => (
-              <li key={term.id} className="card flex min-w-0 flex-col p-4 sm:p-5">
-                <div className="flex items-start gap-3">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="break-words text-base font-semibold text-ink">{displayName(term)}</h3>
-                    {(term.fullNameEn || term.fullNameKo) && (
-                      <p className="mt-1 line-clamp-2 text-xs text-ink-3">
-                        {[term.fullNameEn, term.fullNameKo].filter(Boolean).join(" · ")}
-                      </p>
-                    )}
-                  </div>
-                  <StatusBadge status={term.status} />
-                </div>
-
-                <div className="mt-4">
-                  <p className="mb-2 text-xs font-semibold text-ink-2">{term.completion.complete ? "다음 할 일" : "필요한 정보"}</p>
-                  <div>
-                    {term.status === "draft" && term.completion.complete ? (
-                      <p className="text-xs leading-5 text-brand">
-                        핵심 정보가 채워졌습니다. 저장하면 시스템이 기준 충족 상태로 판정합니다.
-                      </p>
-                    ) : (
-                      <MissingFields completion={term.completion} />
-                    )}
-                  </div>
-                </div>
-
-                {term.definitionMd && (
-                  <p className="mt-3 line-clamp-2 text-sm leading-6 text-ink-2">{term.definitionMd}</p>
-                )}
-
-                <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-line pt-4 mt-4">
-                  <DomainBadges domain={term.domain} />
-                  <CategoryBadges categories={term.categories} labels={term.categoryLabels} />
-                  <span className="text-xs text-ink-3">최근 수정 {relativeTime(new Date(term.updatedAt))}</span>
-                  <div className="ml-auto flex items-start gap-2">
-                    <ManualReviewButton termId={term.id} revision={term.revision} initialStatus={queueStatuses[term.id]} aiAvailable={Boolean(ai.enabled && ai.secretsReadable)} />
-                    <Link href={`/edit/${term.slug}`} className="btn-primary btn-sm">
-                      {term.status === "draft" && term.completion.complete ? "검토하고 저장" : "내용 채우기"}
-                    </Link>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <ContributionQueueTable
+            initialItems={queue.items}
+            initialStatuses={queueStatuses}
+            aiAvailable={Boolean(ai.enabled && ai.secretsReadable)}
+          />
         ) : (
           <div className="card px-5 py-12 text-center">
             <p className="text-sm font-medium text-ink">이 목록에 표시할 용어가 없습니다.</p>
@@ -149,7 +118,7 @@ export default async function ContributePage({ searchParams }: { searchParams: P
           {filters.page * 60 < queue.total && <Link href={pageHref(filters.page + 1)} className="btn-quiet btn-sm">다음 페이지</Link>}
         </nav>}
       </section>
-      </> : tab === "agent" ? <AgentReviewPanel key={selectedTermId ?? "default"} initialTerms={queue.items} initialTermId={selectedTermId} autoReviewEnabled={Boolean(ai.enabled && ai.secretsReadable && ai.autoReviewEnabled)} initialReviews={preparedReviews} categoryLabels={categoryLabels} /> : <ReviewQueuePanel queue={reviewQueue} />}
+      </> : tab === "agent" ? <AgentReviewPanel key={selectedTermId ?? "default"} initialTerms={queue.items} initialTermId={selectedTermId} totalTerms={queue.total} autoReviewEnabled={Boolean(ai.enabled && ai.secretsReadable && ai.autoReviewEnabled)} initialReviews={preparedReviews} categoryLabels={categoryLabels} /> : <ReviewQueuePanel queue={reviewQueue} />}
     </AppShell>
   );
 }

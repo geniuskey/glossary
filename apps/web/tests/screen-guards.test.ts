@@ -121,20 +121,51 @@ test("관리자 화면은 사용자 목록을 읽기 전에 관리자 역할을 
   expect(userQuery).toBeGreaterThan(roleGuard);
 });
 
-test("관리자 화면은 홈·콘텐츠 완성도·AI 연결·SSO·사용자를 탭으로 분리한다", () => {
+test("관리자 화면은 홈·콘텐츠 완성도·AI·RAG·SSO·사용자를 탭으로 분리한다", () => {
   const content = stripComments(readFileSync(path.join(appDir, "admin", "page.tsx"), "utf8"));
   expect(content).toContain('aria-label="관리자 하위 메뉴"');
   expect(content).toContain('{ key: "home", label: "홈 화면" }');
   expect(content).toContain('{ key: "quality", label: "콘텐츠 완성도" }');
   expect(content).toContain('{ key: "ai", label: "AI 연결" }');
+  expect(content).toContain('{ key: "rag", label: "RAG 검색" }');
   expect(content).toContain('{ key: "sso", label: "로그인 · SSO" }');
   expect(content).toContain('{ key: "users", label: "사용자" }');
   expect(content).toContain('else if (tab === "quality")');
   expect(content).toContain('else if (tab === "ai")');
+  expect(content).toContain('else if (tab === "rag")');
   expect(content).toContain('else if (tab === "sso")');
   expect(content).not.toContain('href="/statistics"');
   expect(content).not.toContain('href="/classifications"');
   expect(content).not.toContain('href="/settings/sso"');
+});
+
+test("LLM 한줄 정의 정리는 관리자 화면에서 빠지고 함께 정리의 새 탭으로 이동한다", () => {
+  const admin = stripComments(readFileSync(path.join(appDir, "admin", "page.tsx"), "utf8"));
+  const contribute = stripComments(readFileSync(path.join(appDir, "contribute", "page.tsx"), "utf8"));
+  const panel = stripComments(readFileSync(path.join(appDir, "contribute", "definition-review-panel.tsx"), "utf8"));
+
+  expect(admin).not.toContain("DefinitionReviewPanel");
+  expect(admin).not.toContain("listDefinitionReviewCandidates");
+  expect(contribute).toContain('{ key: "definitions", label: "한줄 정의 정리", href: "/contribute?tab=definitions" }');
+  expect(contribute).toContain('tab === "definitions"');
+  expect(contribute).toContain("DefinitionReviewPanel");
+  expect(panel).toContain("/api/v1/contributions/term-definitions");
+  expect(panel).toContain("<table");
+  expect(panel).toContain("<textarea");
+  expect(panel).toContain('"승인"');
+  expect(panel).not.toContain("본문 근거와 제안을 한눈에 확인하고");
+  expect(panel).not.toContain("대기 {candidates.length");
+  expect(panel).not.toContain("검토 후 승인");
+  expect(panel).not.toContain("/api/v1/admin/term-definitions");
+});
+
+test("RAG 관리자 화면은 설정 저장·연결 시험·전체 재색인 동작을 제공한다", () => {
+  const content = stripComments(readFileSync(path.join(appDir, "admin", "rag-settings-panel.tsx"), "utf8"));
+  expect(content).toContain('fetch("/api/v1/admin/rag-config"');
+  expect(content).toContain('fetch("/api/v1/admin/rag-config/test"');
+  expect(content).toContain('fetch("/api/v1/admin/rag-config/reindex"');
+  expect(content).toContain("Embedding API");
+  expect(content).toContain("Reranker API");
 });
 
 test("용어 편집은 완성도 기준을 플랫폼에 맡기고 용어별 선택을 노출하지 않는다", () => {

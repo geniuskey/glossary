@@ -5,6 +5,17 @@
 
 ## Unreleased
 
+### Added
+
+- 용어집 콘텐츠를 1536차원 Embedding으로 저장하는 pgvector 기반 RAG 색인과 `POST /api/v1/rag/search` API
+- 관리자 패널의 Embedding API·Cohere-compatible Reranker 설정, 연결 시험, 청크·검색 기본값, 전체 재색인
+- 용어 리비전과 함께 동작하는 영속 RAG 색인 대기열과 색인 상태 통계
+
+### Upgrade
+
+- PostgreSQL 이미지를 `pgvector/pgvector:pg16`으로 사용하고 `0030_friendly_vector` 마이그레이션을 실행한다.
+- RAG API Key와 custom header도 `GLOSSARY_ENCRYPTION_KEY`로 암호화하므로 기존 운영 키를 유지한다.
+
 ## 0.2.0 — 2026-09-16
 
 ### Added

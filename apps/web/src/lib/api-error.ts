@@ -16,6 +16,8 @@ export type ApiErrorCode =
   | "ai_not_enabled"
   | "ai_provider_error"
   | "ai_config_error"
+  | "rag_not_ready"
+  | "rag_provider_error"
   | "method_not_allowed"
   | "internal_error";
 

@@ -4,16 +4,17 @@ import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { listManagedUsers } from "@/lib/admin/users";
 import { loadAiConfig, publicAiConfig } from "@/lib/ai/config";
-import { listDefinitionReviewCandidates } from "@/lib/ai/definition-review";
+import { loadRagConfig, publicRagConfig } from "@/lib/rag/config";
+import { getRagIndexStats } from "@/lib/rag/indexer";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { authMode, oauth2ProxyEnabled, proxyHeaderNames } from "@/lib/auth/sso/proxy-headers";
 import { getHomeContent } from "@/lib/workspace/home-content";
 import { getTermQualityOverview, getTermQualitySettings } from "@/lib/workspace/term-quality";
 import { cx } from "@/lib/ui/format";
 import { AiSettingsPanel } from "./ai-settings-panel";
+import { RagSettingsPanel } from "./rag-settings-panel";
 import { HomeContentPanel } from "./home-content-panel";
 import { TermQualityPanel } from "./term-quality-panel";
-import { DefinitionReviewPanel } from "./definition-review-panel";
 import { UsersPanel } from "./users-panel";
 import { SsoSettingsForm } from "@/app/settings/sso/sso-settings-form";
 
@@ -23,6 +24,7 @@ const ADMIN_TABS = [
   { key: "home", label: "홈 화면" },
   { key: "quality", label: "콘텐츠 완성도" },
   { key: "ai", label: "AI 연결" },
+  { key: "rag", label: "RAG 검색" },
   { key: "sso", label: "로그인 · SSO" },
   { key: "users", label: "사용자" },
 ] as const;
@@ -41,15 +43,12 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   if (tab === "home") panel = <HomeContentPanel initialContent={await getHomeContent()} />;
   else if (tab === "quality") {
     const settings = await getTermQualitySettings();
-    const [overview, candidates] = await Promise.all([
-      getTermQualityOverview(settings),
-      listDefinitionReviewCandidates(),
-    ]);
-    panel = <div className="space-y-8">
-      <TermQualityPanel overview={overview} />
-      <DefinitionReviewPanel initialCandidates={candidates} />
-    </div>;
+    panel = <TermQualityPanel overview={await getTermQualityOverview(settings)} />;
   } else if (tab === "ai") panel = <AiSettingsPanel initialConfig={publicAiConfig(await loadAiConfig())} />;
+  else if (tab === "rag") {
+    const [config, stats] = await Promise.all([loadRagConfig(), getRagIndexStats()]);
+    panel = <RagSettingsPanel initialConfig={publicRagConfig(config, stats)} />;
+  }
   else if (tab === "sso") panel = (
     <div>
       <header className="mb-6">

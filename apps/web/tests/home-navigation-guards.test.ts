@@ -30,3 +30,13 @@ test("홈은 공용 계정 메뉴에서 설정·테마·로그아웃을 제공�
   expect(homeSource).not.toContain("<ThemeToggle");
   expect(homeSource).not.toContain("<LogoutButton");
 });
+
+test("API 안내 페이지가 앱 사이드바에서 발견되고 실제 사용법을 설명한다", () => {
+  const shellSource = readFileSync(path.join(testDir, "..", "src", "components", "app-shell.tsx"), "utf8");
+  const apiPage = readFileSync(path.join(testDir, "..", "src", "app", "api", "page.tsx"), "utf8");
+  expect(shellSource).toContain('{ key: "api", href: "/api", label: "API", hint: "개발자 연동"');
+  expect(apiPage).toContain('current="api"');
+  expect(apiPage).toContain("Authorization: Bearer");
+  expect(apiPage).toContain("GET /api/v1/openapi");
+  expect(apiPage).toContain("expectedRevision");
+});

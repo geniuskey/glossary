@@ -13,6 +13,7 @@ import { domainsExist } from "@/lib/terms/domains";
 import { listTerms, type BusinessCategory, type TermStatus } from "@/lib/terms/query";
 import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
 import { prepareAutoReview } from "@/lib/ai/auto-review";
+import { scheduleRagIndexing } from "@/lib/rag/indexer";
 
 // R25: 새 라우트도 처리하지 않는 메서드를 명시 export한다.
 const ALLOWED_METHODS = ["GET", "POST"];
@@ -155,6 +156,7 @@ export const POST = withApiErrors(async (request: Request) => {
   const authorKeyId = auth.kind === "key" ? auth.keyId : null;
   const { term, surfaces, warnings } = await createTerm(parsed.data, authorId, authorKeyId);
   scheduleAfterResponse(() => prepareAutoReview(term.id));
+  scheduleRagIndexing(1);
 
   // R112: createTerm이 돌려주는 term/surfaces는 DB 원시 행이다 — 명시 wire
   // 타입으로 변환해 createdBy/updatedBy/normLoose 같은 내부 컬럼이 새지 않게

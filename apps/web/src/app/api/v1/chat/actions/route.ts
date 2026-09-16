@@ -11,6 +11,7 @@ import { chatEditPatchSchema } from "@/lib/ai/chat-edit-schema";
 import type { StoredChatMessage } from "@/lib/ai/chat-history-values";
 import { prepareAutoReview } from "@/lib/ai/auto-review";
 import { scheduleAfterResponse } from "@/lib/after-response";
+import { scheduleRagIndexing } from "@/lib/rag/indexer";
 
 const ALLOWED_METHODS = ["POST"];
 const { GET, PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -64,6 +65,7 @@ export const POST = withApiErrors(async (request: Request) => {
     if ("invalid" in result) return apiError("validation_failed", result.issues.join(" "), 400);
     if ("representativeConflict" in result || "slugConflict" in result) return apiError("validation_failed", "기존 용어와 표기가 충돌합니다. 수정안을 다시 요청해 주세요.", 400);
     scheduleAfterResponse(() => prepareAutoReview(result.term.id));
+    scheduleRagIndexing(1);
     return Response.json({ edit: finish("applied", proposal.expectedRevision + 1), warnings: result.warnings });
   } catch (error) {
     if (!(error instanceof ActionChanged)) throw error;

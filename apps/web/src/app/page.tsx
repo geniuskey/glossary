@@ -27,6 +27,7 @@ const HOME_NAV_VISIBILITY: Partial<Record<NavKey, string>> = {
   sheet: "hidden sm:inline-flex",
   graph: "hidden lg:inline-flex",
   chat: "hidden lg:inline-flex",
+  api: "hidden xl:inline-flex",
   import: "hidden xl:inline-flex",
   statistics: "hidden xl:inline-flex",
 };

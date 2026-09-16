@@ -415,13 +415,13 @@ export const openApiSpec = {
         },
       },
       post: {
-        summary: "용어 본문을 근거로 한줄 정의 제안 생성 (저장하지 않음)",
+        summary: "용어 본문을 근거로 한줄 정의 제안을 생성하고 리비전별로 캐시",
         security: [{ sessionCookie: [] }],
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",
           required: ["termId"],
           additionalProperties: false,
-          properties: { termId: { type: "string", format: "uuid" } },
+          properties: { termId: { type: "string", format: "uuid" }, force: { type: "boolean", default: false } },
         } } } },
         responses: {
           "200": json("{ suggestion }", { type: "object" }),
@@ -519,6 +519,74 @@ export const openApiSpec = {
           "401": errorResponse("unauthorized"),
           "403": errorResponse("forbidden — 관리자만 사용 가능"),
           "502": errorResponse("ai_provider_error"),
+        },
+      },
+    },
+    "/admin/rag-config": {
+      get: {
+        summary: "관리자용 RAG·Embedding·Reranker 설정과 색인 상태 조회",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("비밀값을 제외한 RAG 설정과 현재 색인 통계", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+      patch: {
+        summary: "Embedding/Reranker API와 RAG 청크 설정 저장",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["enabled", "embeddingProvider", "embeddingBaseUrl", "embeddingModel", "embeddingCustomHeaders", "rerankerEnabled", "rerankerProvider", "rerankerBaseUrl", "rerankerModel", "rerankerCustomHeaders", "chunkSize", "chunkOverlap", "topK"],
+          additionalProperties: false,
+          properties: {
+            enabled: { type: "boolean" },
+            embeddingProvider: { type: "string", enum: ["openai_compatible", "gemini"] },
+            embeddingBaseUrl: { type: "string", format: "uri", maxLength: 2000 },
+            embeddingModel: { type: "string", minLength: 1, maxLength: 200 },
+            embeddingApiKey: { type: ["string", "null"], description: "생략·빈 문자열이면 기존 값 유지, null이면 삭제" },
+            embeddingCustomHeaders: { type: "array", maxItems: 20, items: { type: "object", required: ["name", "value"], properties: { name: { type: "string" }, value: { type: "string" }, configured: { type: "boolean" } } } },
+            rerankerEnabled: { type: "boolean" },
+            rerankerProvider: { type: "string", enum: ["cohere_compatible"] },
+            rerankerBaseUrl: { type: "string", format: "uri", maxLength: 2000 },
+            rerankerModel: { type: "string", minLength: 1, maxLength: 200 },
+            rerankerApiKey: { type: ["string", "null"], description: "생략·빈 문자열이면 기존 값 유지, null이면 삭제" },
+            rerankerCustomHeaders: { type: "array", maxItems: 20, items: { type: "object", required: ["name", "value"], properties: { name: { type: "string" }, value: { type: "string" }, configured: { type: "boolean" } } } },
+            chunkSize: { type: "integer", minimum: 400, maximum: 8000 },
+            chunkOverlap: { type: "integer", minimum: 0, maximum: 2000 },
+            topK: { type: "integer", minimum: 1, maximum: 50 },
+          },
+        } } } },
+        responses: {
+          "200": json("저장된 설정과 재색인 대기 수", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+    },
+    "/admin/rag-config/reindex": {
+      post: {
+        summary: "전체 용어집을 RAG 색인 대기열에 넣는다",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "202": json("대기열에 들어간 용어 수", { type: "object", properties: { ok: { type: "boolean" }, queued: { type: "integer" } } }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+          "503": errorResponse("rag_not_ready"),
+        },
+      },
+    },
+    "/admin/rag-config/test": {
+      post: {
+        summary: "저장된 Embedding/Reranker 설정으로 연결 시험",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("연결됨", { type: "object", properties: { ok: { type: "boolean" }, embedding: { type: "boolean" }, reranker: { type: "boolean" } } }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+          "502": errorResponse("rag_provider_error"),
+          "503": errorResponse("rag_not_ready"),
         },
       },
     },
@@ -807,13 +875,38 @@ export const openApiSpec = {
         summary: "정리 대기 용어의 AI 검토를 수동 요청",
         security: [{ sessionCookie: [] }, { apiKey: [] }],
         requestBody: { required: true, content: { "application/json": { schema: {
-          type: "object",
-          required: ["termId", "revision"],
-          additionalProperties: false,
-          properties: {
-            termId: { type: "string", format: "uuid" },
-            revision: { type: "integer", minimum: 1 },
-          },
+          oneOf: [
+            {
+              type: "object",
+              required: ["termId", "revision"],
+              additionalProperties: false,
+              properties: {
+                termId: { type: "string", format: "uuid" },
+                revision: { type: "integer", minimum: 1 },
+              },
+            },
+            {
+              type: "object",
+              required: ["items"],
+              additionalProperties: false,
+              properties: {
+                items: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 60,
+                  items: {
+                    type: "object",
+                    required: ["termId", "revision"],
+                    additionalProperties: false,
+                    properties: {
+                      termId: { type: "string", format: "uuid" },
+                      revision: { type: "integer", minimum: 1 },
+                    },
+                  },
+                },
+              },
+            },
+          ],
         } } } },
         responses: {
           "202": json("검토 큐 등록됨", { type: "object" }),
@@ -822,6 +915,57 @@ export const openApiSpec = {
           "404": errorResponse("term_not_found"),
           "409": errorResponse("operation_conflict 또는 revision_conflict"),
           "503": errorResponse("ai_not_enabled"),
+        },
+      },
+    },
+    "/contributions/term-definitions": {
+      get: {
+        summary: "본문은 있고 한줄 정의가 없는 용어의 LLM 검토 대기열 조회",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        responses: {
+          "200": json("{ items, total }", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+        },
+      },
+      post: {
+        summary: "용어 본문을 근거로 한줄 정의 제안을 생성하고 리비전별로 캐시",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["termId"],
+          additionalProperties: false,
+          properties: { termId: { type: "string", format: "uuid" }, force: { type: "boolean", default: false } },
+        } } } },
+        responses: {
+          "200": json("{ suggestion }", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden"),
+          "409": errorResponse("ai_not_enabled 또는 operation_conflict"),
+          "422": errorResponse("본문 근거 부족"),
+          "502": errorResponse("ai_provider_error"),
+        },
+      },
+      patch: {
+        summary: "한줄 정의 한 건 승인",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["termId", "definitionMd", "expectedRevision"],
+          additionalProperties: false,
+          properties: {
+            termId: { type: "string", format: "uuid" },
+            definitionMd: { type: "string", minLength: 1, maxLength: 1000 },
+            expectedRevision: { type: "integer", minimum: 1 },
+          },
+        } } } },
+        responses: {
+          "200": json("승인 결과", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden"),
+          "404": errorResponse("term_not_found"),
+          "409": errorResponse("revision_conflict 또는 operation_conflict"),
         },
       },
     },
@@ -1029,6 +1173,31 @@ export const openApiSpec = {
           "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"),
           "403": errorResponse("forbidden"), "404": errorResponse("not_found 또는 term_not_found"),
           "409": errorResponse("revision_conflict"),
+        },
+      },
+    },
+    "/rag/search": {
+      post: {
+        summary: "용어집 벡터 검색",
+        description: "현재 용어 리비전의 pgvector 청크를 Embedding API로 검색하고, 설정된 경우 Cohere-compatible Reranker로 재정렬한다.",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["query"],
+          additionalProperties: false,
+          properties: {
+            query: { type: "string", minLength: 1, maxLength: 20000 },
+            topK: { type: "integer", minimum: 1, maximum: 50 },
+            domain: { type: ["string", "null"], maxLength: 200 },
+            rerank: { type: "boolean", description: "생략하면 관리자 설정을 따른다." },
+          },
+        } } } },
+        responses: {
+          "200": json("검색 청크와 용어 메타데이터", { type: "object", properties: { query: { type: "string" }, total: { type: "integer" }, items: { type: "array", items: { type: "object" } } } }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "502": errorResponse("rag_provider_error"),
+          "503": errorResponse("rag_not_ready"),
         },
       },
     },

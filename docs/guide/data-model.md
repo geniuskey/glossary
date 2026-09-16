@@ -57,6 +57,16 @@
 용어의 표기·상태·내용과 전역 최소 길이를 결합해 완성도를 자동 계산한다. 자세한 판정은
 [AI 활용과 챗봇](/guide/ai#콘텐츠-완성도-자동-판정)을 참고한다.
 
+## RAG 색인
+
+- **rag_config** — RAG 사용 여부, Embedding/Reranker 공급자·Base URL·모델, 청크 크기·겹침·기본 결과 수를 담는 단일 행이다. API Key와 custom header는 AES-256-GCM 암호문만 저장한다. 벡터 차원은 1536으로 고정한다.
+- **rag_documents** — 현재 용어 리비전의 metadata·definition·body 청크와 SHA-256 내용 해시, `vector(1536)` Embedding을 저장한다. 새 리비전이 색인되면 같은 용어의 이전 청크를 교체하고, 원래 `term_revisions` 이력은 지우지 않는다.
+- **rag_index_queue** — 용어별 최신 색인 요청을 `queued`, `processing`, `ready`, `failed` 상태로 관리한다. 용어 쓰기 트랜잭션과 함께 대기열을 기록해 저장 성공 후 색인 작업이 유실되지 않게 한다.
+
+검색은 병합되지 않은 용어의 현재 리비전만 대상으로 하며, [RAG 검색 API](/api/rag)는 이
+청크와 용어 메타데이터를 함께 반환한다. Embedding 서버가 실패해도 용어 저장은 롤백되지
+않고 색인 큐에 실패 상태가 남는다.
+
 ## term_surfaces — 그 개념을 가리키는 모든 실제 표기
 
 | 컬럼 | 타입 | 설명 |

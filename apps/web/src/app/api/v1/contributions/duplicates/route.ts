@@ -7,6 +7,7 @@ import { duplicateCandidates, duplicateInputSchema, reviewDuplicates } from "@/l
 import { getTermByIdOrSlug } from "@/lib/terms/query";
 import { currentRevisionNumber } from "@/lib/terms/update";
 import { mergeTerms } from "@/lib/terms/merge";
+import { scheduleRagIndexing } from "@/lib/rag/indexer";
 
 const ALLOWED_METHODS = ["GET", "POST", "PATCH"];
 const { PUT, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -60,6 +61,10 @@ export const PATCH = withApiErrors(async (request: Request) => {
   const parsed = mergeSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "병합할 두 용어와 리비전을 확인해 주세요.", 400);
   const d = parsed.data;
-  try { return Response.json(await mergeTerms(d.sourceId, d.targetId, d.sourceRevision, d.targetRevision, auth.kind === "user" ? auth.user.id : null, auth.kind === "key" ? auth.keyId : null)); }
+  try {
+    const merged = await mergeTerms(d.sourceId, d.targetId, d.sourceRevision, d.targetRevision, auth.kind === "user" ? auth.user.id : null, auth.kind === "key" ? auth.keyId : null);
+    scheduleRagIndexing(1);
+    return Response.json(merged);
+  }
   catch { return apiError("operation_conflict", "병합하지 못했습니다. 용어 변경·표기 충돌·이미 병합된 대상인지 확인하고 다시 검토해 주세요.", 409); }
 });

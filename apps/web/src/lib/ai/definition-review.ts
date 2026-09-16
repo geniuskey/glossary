@@ -1,7 +1,7 @@
 import "server-only";
 
-import { and, asc, inArray, sql } from "drizzle-orm";
-import { termRevisions, terms } from "@glossary/db";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { definitionReviewSuggestions, termRevisions, terms } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { displayName } from "@/lib/ui/format";
 import { loadAiConfig, runtimeAiConfig } from "./config";
@@ -18,10 +18,14 @@ export interface DefinitionReviewCandidate {
   fullNameKo: string | null;
   bodyMd: string;
   revision: number;
+  suggestion?: string | null;
 }
 
+const inFlight = new Map<string, Promise<string | null>>();
+
 export async function listDefinitionReviewCandidates(limit = 100): Promise<DefinitionReviewCandidate[]> {
-  const rows = await getDb().select({
+  const db = getDb();
+  const rows = await db.select({
     id: terms.id,
     slug: terms.slug,
     nameEn: terms.nameEn,
@@ -35,17 +39,30 @@ export async function listDefinitionReviewCandidates(limit = 100): Promise<Defin
   )).orderBy(asc(terms.updatedAt), asc(terms.id)).limit(Math.min(200, Math.max(1, limit)));
 
   const revisions = rows.length > 0
-    ? await getDb().select({
+    ? await db.select({
       termId: termRevisions.termId,
       revision: sql<number>`max(${termRevisions.revisionNumber})::int`,
     }).from(termRevisions).where(inArray(termRevisions.termId, rows.map((row) => row.id))).groupBy(termRevisions.termId)
     : [];
   const revisionByTerm = new Map(revisions.map((revision) => [revision.termId, revision.revision]));
+  const cached = rows.length > 0
+    ? await db.select({
+      termId: definitionReviewSuggestions.termId,
+      revision: definitionReviewSuggestions.revision,
+      suggestion: definitionReviewSuggestions.suggestion,
+    }).from(definitionReviewSuggestions).where(inArray(definitionReviewSuggestions.termId, rows.map((row) => row.id)))
+    : [];
+  const suggestionByTerm = new Map(cached.map((row) => [row.termId, row]));
   return rows.map((row) => ({
     ...row,
     name: displayName(row),
     bodyMd: row.bodyMd!,
     revision: revisionByTerm.get(row.id) ?? 0,
+    suggestion: (() => {
+      const revision = revisionByTerm.get(row.id) ?? 0;
+      const saved = suggestionByTerm.get(row.id);
+      return saved?.revision === revision ? saved.suggestion : null;
+    })(),
   }));
 }
 
@@ -85,4 +102,36 @@ export async function generateOneLineDefinition(candidate: DefinitionReviewCandi
     throw new Error("INSUFFICIENT_BODY");
   }
   return normalized.slice(0, 1_000);
+}
+
+async function currentRevisionNumber(termId: string): Promise<number> {
+  const [latest] = await getDb()
+    .select({ revision: sql<number>`coalesce(max(${termRevisions.revisionNumber}), 0)::int` })
+    .from(termRevisions)
+    .where(eq(termRevisions.termId, termId));
+  return latest?.revision ?? 0;
+}
+
+async function generateAndStore(candidate: DefinitionReviewCandidate, force: boolean): Promise<string | null> {
+  if (!force && candidate.suggestion) return candidate.suggestion;
+  const suggestion = await generateOneLineDefinition(candidate);
+  if (await currentRevisionNumber(candidate.id) !== candidate.revision) return null;
+  await getDb().insert(definitionReviewSuggestions).values({
+    termId: candidate.id,
+    revision: candidate.revision,
+    suggestion,
+  }).onConflictDoUpdate({
+    target: definitionReviewSuggestions.termId,
+    set: { revision: candidate.revision, suggestion, generatedAt: new Date() },
+  });
+  return suggestion;
+}
+
+/** 표에 미리 표시할 한줄 정의를 리비전별로 캐시한다. 같은 용어의 동시 요청은 합친다. */
+export function prepareOneLineDefinition(candidate: DefinitionReviewCandidate, force = false): Promise<string | null> {
+  const running = inFlight.get(candidate.id);
+  if (running) return running;
+  const task = generateAndStore(candidate, force).finally(() => inFlight.delete(candidate.id));
+  inFlight.set(candidate.id, task);
+  return task;
 }

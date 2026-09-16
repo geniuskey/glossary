@@ -33,7 +33,11 @@ import * as adminTermDefinitionsRoute from "../src/app/api/v1/admin/term-definit
 import * as adminAiConfigRoute from "../src/app/api/v1/admin/ai-config/route.js";
 import * as adminAiConfigTestRoute from "../src/app/api/v1/admin/ai-config/test/route.js";
 import * as adminAiConfigModelsRoute from "../src/app/api/v1/admin/ai-config/models/route.js";
+import * as adminRagConfigRoute from "../src/app/api/v1/admin/rag-config/route.js";
+import * as adminRagConfigReindexRoute from "../src/app/api/v1/admin/rag-config/reindex/route.js";
+import * as adminRagConfigTestRoute from "../src/app/api/v1/admin/rag-config/test/route.js";
 import * as chatRoute from "../src/app/api/v1/chat/route.js";
+import * as ragSearchRoute from "../src/app/api/v1/rag/search/route.js";
 import * as chatActionsRoute from "../src/app/api/v1/chat/actions/route.js";
 import * as relationsRoute from "../src/app/api/v1/relations/route.js";
 import * as relationRoute from "../src/app/api/v1/relations/[id]/route.js";
@@ -41,6 +45,7 @@ import * as relationTermsRoute from "../src/app/api/v1/relations/terms/route.js"
 import * as contributionSuggestionsRoute from "../src/app/api/v1/contributions/suggestions/route.js";
 import * as contributionDuplicatesRoute from "../src/app/api/v1/contributions/duplicates/route.js";
 import * as contributionReviewQueueRoute from "../src/app/api/v1/contributions/review-queue/route.js";
+import * as contributionTermDefinitionsRoute from "../src/app/api/v1/contributions/term-definitions/route.js";
 import * as adminCategoriesRoute from "../src/app/api/v1/admin/categories/route.js";
 import * as adminCategoryRoute from "../src/app/api/v1/admin/categories/[key]/route.js";
 import * as adminDomainsRoute from "../src/app/api/v1/admin/domains/route.js";
@@ -129,10 +134,15 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "admin/ai-config", mod: adminAiConfigRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
   { name: "admin/ai-config/test", mod: adminAiConfigTestRoute, allowed: ["POST"], allow: "POST" },
   { name: "admin/ai-config/models", mod: adminAiConfigModelsRoute, allowed: ["POST"], allow: "POST" },
+  { name: "admin/rag-config", mod: adminRagConfigRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
+  { name: "admin/rag-config/reindex", mod: adminRagConfigReindexRoute, allowed: ["POST"], allow: "POST" },
+  { name: "admin/rag-config/test", mod: adminRagConfigTestRoute, allowed: ["POST"], allow: "POST" },
   { name: "chat", mod: chatRoute, allowed: ["GET", "POST", "PATCH", "DELETE"], allow: "GET, HEAD, POST, PATCH, DELETE" },
+  { name: "rag/search", mod: ragSearchRoute, allowed: ["POST"], allow: "POST" },
   { name: "contributions/suggestions", mod: contributionSuggestionsRoute, allowed: ["GET", "PATCH", "DELETE"], allow: "GET, HEAD, PATCH, DELETE" },
   { name: "contributions/duplicates", mod: contributionDuplicatesRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "contributions/review-queue", mod: contributionReviewQueueRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
+  { name: "contributions/term-definitions", mod: contributionTermDefinitionsRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "admin/categories", mod: adminCategoriesRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "admin/categories/[key]", mod: adminCategoryRoute, allowed: ["PATCH", "DELETE"], allow: "PATCH, DELETE" },
   { name: "admin/domains", mod: adminDomainsRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },

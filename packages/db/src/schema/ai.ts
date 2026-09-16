@@ -41,6 +41,18 @@ export const aiReviewSuggestions = pgTable(
   (t) => ({ positiveRevision: check("ai_review_suggestions_positive_revision", sql`${t.revision} > 0`) }),
 );
 
+/** 현재 용어 리비전에 대해 미리 생성한 LLM 한줄 정의 제안. 리비전이 바뀌면 오래된 캐시가 된다. */
+export const definitionReviewSuggestions = pgTable(
+  "definition_review_suggestions",
+  {
+    termId: uuid("term_id").primaryKey().references(() => terms.id, { onDelete: "cascade" }),
+    revision: integer("revision").notNull(),
+    suggestion: text("suggestion").notNull(),
+    generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ positiveRevision: check("definition_review_suggestions_positive_revision", sql`${t.revision} > 0`) }),
+);
+
 /** 자동·수동 AI 검토 요청의 현재 상태. 용어마다 최신 리비전 한 건만 관리한다. */
 export const aiReviewQueue = pgTable(
   "ai_review_queue",

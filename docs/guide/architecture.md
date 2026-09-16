@@ -111,7 +111,7 @@ API 파서를 화면에서 재사용하지 마라.
 
 ## 인프라
 
-상시 실행 서비스는 PostgreSQL 16 + `pg_trgm`과 Next.js standalone 앱이다.
+상시 실행 서비스는 PostgreSQL 16 + `pg_trgm`·`pgvector`와 Next.js standalone 앱이다.
 앱 시작 전 일회성 `migrator`가 실행되며, Docker Hub 구성에는 확장을 준비하는
 `database-init`도 있다.
 

@@ -204,6 +204,8 @@ AI 관계 제안을 승인하거나 거절한다.
 
 `PATCH /chat`으로는 서버가 작성한 `edit` 제안·실행 상태나 `grounded` 답변·구절·출처를 변경할 수 없다.
 
+용어집을 Embedding API와 pgvector로 검색하는 별도 API는 [RAG 검색 API](/api/rag)에서 설명한다.
+
 ### `POST /chat` 오류 응답
 
 | HTTP | code | 의미 |

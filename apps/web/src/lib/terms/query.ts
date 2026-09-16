@@ -455,7 +455,7 @@ export interface ContributionTerm extends TermSummary {
 }
 
 /** 초안과 미완성 용어를 가장 비어 있고 오래 기다린 순으로 보여주는 공동 정리 대기열. */
-export async function listContributionTerms(limit = 60, currentUserId?: string, preferredTermId?: string, filters: { q?: string; category?: string; missing?: string; page?: number; includePrepared?: boolean } = {}): Promise<{ items: ContributionTerm[]; total: number }> {
+export async function listContributionTerms(limit = 60, currentUserId?: string, preferredTermId?: string, filters: { q?: string; category?: string; missing?: string; page?: number; includePrepared?: boolean; preservePreferredOrder?: boolean } = {}): Promise<{ items: ContributionTerm[]; total: number }> {
   const db = getDb();
   const settings = await getTermQualitySettings();
   const pendingReview = sql`${terms.replacedById} is null and exists (
@@ -476,17 +476,18 @@ export async function listContributionTerms(limit = 60, currentUserId?: string, 
   if (filters.missing === "body") conditions.push(sql`${profile.guidance} and ${missingBody(settings)}`);
   const needsContribution = and(...conditions)!;
   const ownerRank = currentUserId ? sql`case when ${terms.ownerId} = ${currentUserId} then 0 else 1 end` : sql`1`;
-  const preferredRank = preferredTermId ? sql`case when ${terms.id} = ${preferredTermId} then 0 else 1 end` : sql`1`;
+  const preferredRank = preferredTermId && !filters.preservePreferredOrder ? sql`case when ${terms.id} = ${preferredTermId} then 0 else 1 end` : sql`1`;
+  const contributionColumns = {
+    ...summaryColumns,
+    fullNameEn: terms.fullNameEn,
+    fullNameKo: terms.fullNameKo,
+    definitionMd: terms.definitionMd,
+    bodyMd: terms.bodyMd,
+    updatedAt: terms.updatedAt,
+  };
   const [rows, [counted]] = await Promise.all([
     db
-      .select({
-        ...summaryColumns,
-        fullNameEn: terms.fullNameEn,
-        fullNameKo: terms.fullNameKo,
-        definitionMd: terms.definitionMd,
-        bodyMd: terms.bodyMd,
-        updatedAt: terms.updatedAt,
-      })
+      .select(contributionColumns)
       .from(terms)
       .where(needsContribution)
       .orderBy(preferredRank, ownerRank, desc(missingCount(settings)), terms.updatedAt, terms.id)
@@ -495,17 +496,23 @@ export async function listContributionTerms(limit = 60, currentUserId?: string, 
     db.select({ total: sql<number>`count(*)::int` }).from(terms).where(needsContribution),
   ]);
 
-  const revisions = rows.length > 0
+  const preferredRows = preferredTermId && filters.preservePreferredOrder
+    ? await db.select(contributionColumns).from(terms).where(and(needsContribution, eq(terms.id, preferredTermId))).limit(1)
+    : [];
+  const preferred = preferredRows[0];
+  const listedRows = preferred && !rows.some((row) => row.id === preferred.id) ? [...rows, preferred] : rows;
+
+  const revisions = listedRows.length > 0
     ? await db
       .select({ termId: termRevisions.termId, revision: sql<number>`max(${termRevisions.revisionNumber})::int` })
       .from(termRevisions)
-      .where(inArray(termRevisions.termId, rows.map((row) => row.id)))
+      .where(inArray(termRevisions.termId, listedRows.map((row) => row.id)))
       .groupBy(termRevisions.termId)
     : [];
   const revisionByTerm = new Map(revisions.map((row) => [row.termId, row.revision]));
 
   return {
-    items: rows.map((row) => ({
+    items: listedRows.map((row) => ({
       ...row,
       updatedAt: row.updatedAt.toISOString(),
       revision: revisionByTerm.get(row.id) ?? 0,

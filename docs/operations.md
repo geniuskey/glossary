@@ -38,13 +38,13 @@ GLOSSARY_IMAGE=euiyun/glossary:0.2.0
 GLOSSARY_MIGRATOR_IMAGE=euiyun/glossary:0.2.0-migrator
 ```
 
-`database-init`이 `pg_trgm` 확장을 준비하고, `migrator`가 성공한 뒤에만 `app`이
+`database-init`이 `pg_trgm`·`vector` 확장을 준비하고, `migrator`가 성공한 뒤에만 `app`이
 시작된다. 데이터는 `glossary_hub_pgdata` 볼륨에 보존된다.
 
-### 용어 챗봇 암호화 키
+### 용어 챗봇·RAG 암호화 키
 
-Gemini API 키와 OpenAI-compatible custom header 값은 DB에 AES-256-GCM 암호문으로만
-저장한다. 앱을 시작하기 전에 `.env`에 32자 이상의 고정 키를 설정한다.
+Gemini/OpenAI-compatible AI 연결과 Embedding/Reranker API의 키·custom header 값은 DB에
+AES-256-GCM 암호문으로만 저장한다. 앱을 시작하기 전에 `.env`에 32자 이상의 고정 키를 설정한다.
 
 ```dotenv
 GLOSSARY_ENCRYPTION_KEY=replace-with-a-long-random-encryption-key
@@ -53,9 +53,36 @@ GLOSSARY_ENCRYPTION_KEY=replace-with-a-long-random-encryption-key
 `openssl rand -base64 48` 등으로 별도 생성하고 비밀 저장소에 백업한다. 이 값은 DB
 백업에 들어가지 않으며, 배포 후 값을 바꾸거나 잃으면 저장된 AI 비밀값을 읽을 수 없다.
 복구 리허설에도 운영과 같은 값을 별도로 주입해야 한다. 연결 자체는 관리자 패널의
-**AI 연결** 탭에서 설정·시험한다. `Connected`는 모델 목록 조회가 아니라 선택한 모델의
-실제 생성 요청까지 성공했다는 뜻이다. 공급자가 모델을 폐기하면 목록에는 남아 있어도
-생성 요청이 실패할 수 있으므로 연결 시험 메시지에 따라 다른 모델을 선택한다.
+**AI 연결**과 **RAG 검색** 탭에서 각각 설정·시험한다. `Connected`는 모델 목록 조회가
+아니라 실제 요청까지 성공했다는 뜻이다. 공급자가 모델을 폐기하면 목록에는 남아 있어도
+생성·Embedding 요청이 실패할 수 있으므로 연결 시험 메시지에 따라 다른 모델을 선택한다.
+
+### RAG 색인 운영
+
+PostgreSQL은 `pgvector/pgvector:pg16` 이미지가 필요하다. 새 설치는
+`docker-compose.yml` 또는 `docker-compose.hub.yml`을 그대로 사용하면 되고, 기존 운영
+볼륨은 앱과 함께 실행되는 `migrator`가 `0030_friendly_vector` 마이그레이션으로 `vector`
+확장과 RAG 테이블을 추가한다. 마이그레이션 전에 백업을 남긴다.
+
+용어 등록·수정이 성공하면 최신 리비전이 `rag_index_queue`에 먼저 기록되고 응답 뒤
+Embedding 요청이 실행된다. 관리자 패널의 **RAG 검색**에서 다음 상태를 확인할 수 있다.
+
+- `indexedTerms / totalTerms`: 현재 리비전까지 색인된 용어 수
+- `queued`, `processing`: 아직 처리되지 않았거나 처리 중인 대기열
+- `failed`: 공급자 오류로 실패한 용어 수
+
+Embedding 모델·Base URL·청크 설정을 바꾼 뒤에는 설정 저장이 전체 대기열을 갱신한다.
+연결을 고친 뒤 **전체 재색인**을 다시 누르면 실패 항목도 현재 설정으로 재시도한다.
+운영 API로도 `POST /api/v1/admin/rag-config/reindex`를 호출할 수 있으며, 진행 상태는
+`GET /api/v1/admin/rag-config`에서 조회한다.
+
+문제 발생 시 다음처럼 DB의 확장과 큐 상태만 확인할 수 있다.
+
+```bash
+docker compose -f docker-compose.prod.yml exec postgres psql -U glossary -d glossary \
+  -c "select extname from pg_extension where extname in ('vector', 'pg_trgm'); \
+      select status, count(*) from rag_index_queue group by status order by status;"
+```
 
 ## 소스에서 직접 빌드해 기동
 

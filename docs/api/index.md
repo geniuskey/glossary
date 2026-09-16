@@ -36,6 +36,11 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | PATCH | [`/admin/ai-config`](/api/ai#ai-연결-설정) | 세션(admin) | AI 연결 설정 저장 |
 | POST | [`/admin/ai-config/models`](/api/ai#모델-목록) | 세션(admin) | 공급자가 제공하는 모델 목록 조회 |
 | POST | [`/admin/ai-config/test`](/api/ai#연결-시험) | 세션(admin) | 선택 모델로 실제 생성 요청 시험 |
+| GET | [`/admin/rag-config`](/api/rag#관리자-설정) | 세션(admin) | RAG·Embedding·Reranker 설정과 색인 통계 |
+| PATCH | [`/admin/rag-config`](/api/rag#관리자-설정) | 세션(admin) | RAG 연결·청크 설정 저장 |
+| POST | [`/admin/rag-config/test`](/api/rag#post-adminrag-config-test) | 세션(admin) | Embedding·Reranker 연결 시험 |
+| POST | [`/admin/rag-config/reindex`](/api/rag#post-adminrag-config-reindex) | 세션(admin) | 전체 용어 재색인 대기열 생성 |
+| POST | [`/rag/search`](/api/rag#벡터-검색) | `read` | pgvector 용어집 검색 |
 | GET | [`/admin/term-quality`](/api/ai#콘텐츠-완성도) | 세션(admin) | 콘텐츠 완성도 조회 |
 | POST | [`/admin/term-quality`](/api/ai#콘텐츠-완성도) | 세션(admin) | 최소 길이 변경 영향 미리보기 |
 | PATCH | [`/admin/term-quality`](/api/ai#콘텐츠-완성도) | 세션(admin) | 최소 길이 저장 |
@@ -113,6 +118,8 @@ API 키는 해시만 저장한다. 평문 토큰은 발급 응답에서만 볼 �
 | `internal_error` | 500 | 처리되지 않은 예외. 스택은 응답에 노출하지 않는다 |
 | `ai_provider_error` | 502 | 선택 모델·인증·할당량 또는 AI 공급자 연결 문제 |
 | `ai_not_enabled` | 503 | 관리자가 용어 챗봇 연결을 활성화하지 않음 |
+| `rag_provider_error` | 502 | Embedding/Reranker 공급자 연결·인증·응답 문제 |
+| `rag_not_ready` | 503 | RAG가 꺼져 있거나 색인/비밀값 설정이 준비되지 않음 |
 
 ::: tip 4xx와 5xx의 경계
 재시도해도 절대 성공하지 않는 입력은 5xx가 아니라 4xx다. `?page=1e999`이나 형식이

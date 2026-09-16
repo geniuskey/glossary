@@ -50,7 +50,8 @@ A future release may allow another native language to be selected alongside Engl
 - Paste CSV, TSV, Markdown tables, lists, or JSON into chat to review up to 25 term proposals before creating entries
 - Domain colors, term owners, classifications, and an interactive relationship graph with proposed/approved semantic relations
 - OpenAPI 3.1 API and batch terminology lookup for internal tools
-- Self-hosted Docker Compose deployment with PostgreSQL 16
+- Self-hosted Docker Compose deployment with PostgreSQL 16, `pg_trgm`, and `pgvector`
+- Admin-configurable Embedding API and optional Reranker API, with a durable glossary RAG index
 
 The `read`-scope lookup API accepts 1–500 notation strings (1–500 characters each).
 Clients must extract those strings themselves. Full-document validation (`/validate`), lexicon
@@ -95,7 +96,7 @@ curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.2.0/.env.dockerh
 
 Edit `.env` before starting: use the `0.2.0` / `0.2.0-migrator` pair, replace
 `POSTGRES_PASSWORD` with a long URL-safe value, and replace `GLOSSARY_ENCRYPTION_KEY`
-with a separate fixed random secret of at least 32 characters if using AI.
+with a separate fixed random secret of at least 32 characters if using AI or RAG.
 The examples download templates from `v0.2.0` so they match the documented release.
 For example, generate a password with `openssl rand -hex 32` and an encryption key with
 `openssl rand -base64 48`, then copy the respective outputs into `.env`.
@@ -114,7 +115,7 @@ docker compose --env-file .env -f docker-compose.hub.yml up -d
 
 Open `http://<server-address>:3000` (`http://localhost:3000` on the Docker host). With default password login, the first visitor is redirected to `/setup` to create the initial administrator account. Complete this immediately after deployment.
 
-`database-init` prepares `pg_trgm`; `migrator` must finish successfully before `app` starts.
+`database-init` prepares `pg_trgm` and `vector`; `migrator` must finish successfully before `app` starts.
 One-time services exiting with code 0 is expected.
 
 데이터는 `glossary_hub_pgdata` Docker 볼륨에 보존됩니다. 새 버전으로 올릴 때는 두 이미지 태그를 같은 버전으로 바꾼 뒤 `pull`과 `up -d`를 다시 실행합니다.
@@ -133,7 +134,7 @@ docker compose --env-file .env -f docker-compose.hub.yml ps
 | `GLOSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/glossary:0.2.0-migrator` |
 | `GLOSSARY_PORT` | Host port; defaults to `3000` |
 | `POSTGRES_PASSWORD` | Internal PostgreSQL password; use URL-safe characters |
-| `GLOSSARY_ENCRYPTION_KEY` | Fixed secret of at least 32 characters for AI API keys and custom headers; back up separately |
+| `GLOSSARY_ENCRYPTION_KEY` | Fixed secret of at least 32 characters for AI/RAG API keys and custom headers; back up separately |
 | `INITIAL_ADMIN_EMAIL` | Initial administrator email for SSO bootstrap; required for a fresh proxy-only setup |
 | `SSO_LOGIN_URL` | Proxy login entry override; defaults to `/oauth2/start?rd=%2F` |
 | `GLOSSARY_EMBED_ANCESTORS` | Optional comma-separated Confluence origins allowed to frame `/embed` |

@@ -261,6 +261,14 @@ test("제안 검토에서 지정한 용어는 제한된 공동 정리 목록에 
   expect(queue.items[0]?.id).toBe(nakedAbbreviationId);
 });
 
+test("제안 검토 목록에서 선택한 용어를 우선 정렬하지 않을 수 있다", async () => {
+  const baseline = await listContributionTerms(2);
+  expect(baseline.items.length).toBeGreaterThan(1);
+  const selectedId = baseline.items[1]!.id;
+  const preserved = await listContributionTerms(2, undefined, selectedId, { preservePreferredOrder: true });
+  expect(preserved.items.map((item) => item.id)).toEqual(baseline.items.map((item) => item.id));
+});
+
 test("정리 상태는 목록과 공유 화면의 노출을 제어하지 않는다", async () => {
   const baseParams = { q: "CompleteDraftQueryProbe", page: 1, pageSize: 20 };
   expect((await listTerms(baseParams)).items.map((term) => term.id)).toContain(completeDraftId);

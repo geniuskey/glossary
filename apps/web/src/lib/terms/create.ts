@@ -6,6 +6,7 @@ import {
 import { isUuid } from "@/lib/api-error";
 import { extractAttachmentHashes } from "@/lib/attachments/refs";
 import { getDb } from "@/lib/db";
+import { queueRagIndex } from "@/lib/rag/indexer";
 import { completionStatus } from "./completion";
 import { getTermQualitySettings } from "@/lib/workspace/term-quality";
 import { RESERVED_SLUGS, slugify } from "./slug";
@@ -246,6 +247,7 @@ export async function createTerm(
           // 나중에 채울 방법이 없다 — 지금 기록해야 한다.
           authorKeyId,
         });
+        await queueRagIndex(tx, insertedTerm!.id, 1);
 
         return { term: insertedTerm!, savedSurfaces };
       });

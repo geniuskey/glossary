@@ -8,6 +8,7 @@ import {
 } from "@glossary/db";
 import { extractAttachmentHashes } from "@/lib/attachments/refs";
 import { getDb } from "@/lib/db";
+import { queueRagIndex } from "@/lib/rag/indexer";
 import { completionStatus } from "./completion";
 import { getTermQualitySettings } from "@/lib/workspace/term-quality";
 import { checkSurfaceConflicts } from "./schema";
@@ -204,7 +205,7 @@ export async function updateTerm(
     : [];
 
   try {
-    return await db.transaction(async (tx) => {
+    const result: UpdateTermResult = await db.transaction(async (tx): Promise<UpdateTermResult> => {
       const [locked] = await tx.select({ replacedById: terms.replacedById }).from(terms).where(eq(terms.id, termId)).for("no key update");
       if (!locked) return { notFound: true };
       if (locked.replacedById) return { invalid: true, issues: ["병합된 용어입니다. 대표 용어를 편집해 주세요."] };
@@ -295,6 +296,7 @@ export async function updateTerm(
         // 지금 기록해야만 나중에 누가 썼는지 복원할 수 있다(R47과 같은 이유).
         authorKeyId,
       });
+      await queueRagIndex(tx, termId, currentRevision + 1);
 
       // Chat action receipts must commit or roll back with the term revision.
       const [review] = await tx.select().from(aiReviewSuggestions).where(and(
@@ -315,6 +317,7 @@ export async function updateTerm(
 
       return { term: updated, surfaces: savedSurfaces, warnings };
     });
+    return result;
   } catch (err) {
     if (isSlugConflict(err)) {
       return { slugConflict: true };

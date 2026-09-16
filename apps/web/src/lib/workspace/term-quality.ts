@@ -3,6 +3,7 @@ import "server-only";
 import { eq, inArray } from "drizzle-orm";
 import { terms, workspaceSettings } from "@glossary/db";
 import { getDb } from "@/lib/db";
+import { queueAllRagTerms, scheduleRagIndexing } from "@/lib/rag/indexer";
 import { completionStatus, termCompletion } from "@/lib/terms/completion";
 import { DEFAULT_HOME_CONTENT } from "./home-content-values";
 import { DEFAULT_TERM_QUALITY, type TermQualitySettings } from "./term-quality-values";
@@ -54,6 +55,8 @@ export async function saveTermQualitySettings(settings: TermQualitySettings, upd
     const ids = idsByStatus[status];
     if (ids.length > 0) await getDb().update(terms).set({ status }).where(inArray(terms.id, ids));
   }));
+  await queueAllRagTerms();
+  scheduleRagIndexing(8);
 
   return saved!;
 }

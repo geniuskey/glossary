@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, eq, inArray, notExists, or, sql } from "drizzle-orm";
 import { businessCategories, terms } from "@glossary/db";
 import { getDb } from "@/lib/db";
+import { queueAllRagTerms, scheduleRagIndexing } from "@/lib/rag/indexer";
 import { slugify } from "./slug";
 
 export interface BusinessCategoryOption {
@@ -141,6 +142,10 @@ export async function renameBusinessCategory(
     .set({ label: normalizedKo, labelEn: normalizedEn, updatedAt: new Date() })
     .where(eq(businessCategories.key, key))
     .returning({ key: businessCategories.key });
+  if (updated) {
+    await queueAllRagTerms();
+    scheduleRagIndexing(8);
+  }
   return updated ? "ok" : "not_found";
 }
 
@@ -178,7 +183,13 @@ export async function deleteBusinessCategory(
       ),
     ))
     .returning({ key: businessCategories.key });
-  if (deleted) return "ok";
+  if (deleted) {
+    if (allowInUse) {
+      await queueAllRagTerms();
+      scheduleRagIndexing(8);
+    }
+    return "ok";
+  }
   const [existing] = await db
     .select({ key: businessCategories.key })
     .from(businessCategories)

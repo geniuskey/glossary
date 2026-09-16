@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 pnpm install                          # corepack enable 선행
-docker compose up -d                  # Postgres 16 + pg_trgm, 호스트 5434
+  docker compose up -d                  # Postgres 16 + pg_trgm + pgvector, 호스트 5434
 pnpm --filter @glossary/db db:migrate
 pnpm --filter @glossary/web dev       # http://localhost:3000
 

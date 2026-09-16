@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { domains, terms } from "@glossary/db";
 import { getDb } from "@/lib/db";
+import { queueAllRagTerms, scheduleRagIndexing } from "@/lib/rag/indexer";
 import { firstUnusedDomainColor } from "./domain-colors";
 import { slugify } from "./slug";
 
@@ -85,7 +86,7 @@ export async function updateDomain(
   input: { label?: string; color?: string },
 ): Promise<"ok" | "not_found" | "duplicate_label" | "duplicate_color"> {
   const db = getDb();
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('glossary_domain_catalog'))`);
     const [current] = await tx.select().from(domains).where(eq(domains.key, key)).limit(1);
     if (!current) return "not_found" as const;
@@ -119,6 +120,11 @@ export async function updateDomain(
     }
     return "ok" as const;
   });
+  if (result === "ok") {
+    await queueAllRagTerms();
+    scheduleRagIndexing(8);
+  }
+  return result;
 }
 
 export async function reorderDomains(keys: readonly string[]): Promise<boolean> {
@@ -137,7 +143,7 @@ export async function reorderDomains(keys: readonly string[]): Promise<boolean> 
 
 export async function deleteDomain(key: string, allowInUse = false): Promise<"ok" | "not_found" | "in_use"> {
   const db = getDb();
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [current] = await tx.select().from(domains).where(eq(domains.key, key)).limit(1);
     if (!current) return "not_found" as const;
     const [usage] = await tx
@@ -154,4 +160,9 @@ export async function deleteDomain(key: string, allowInUse = false): Promise<"ok
     await tx.delete(domains).where(eq(domains.key, key));
     return "ok" as const;
   });
+  if (result === "ok") {
+    await queueAllRagTerms();
+    scheduleRagIndexing(8);
+  }
+  return result;
 }

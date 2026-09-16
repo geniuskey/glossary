@@ -4,6 +4,7 @@ import { parseGlossaryWorkbook } from "@/lib/import/parse-xlsx";
 import { listBusinessCategories } from "@/lib/terms/categories";
 import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS } from "@/lib/import/format";
 import { applyImport, dryRunImport } from "@/lib/import/apply";
+import { scheduleRagIndexing } from "@/lib/rag/indexer";
 
 // R118: 이 라우트는 POST만 처리한다. 계획서 스케치는 이 export를 빠뜨렸다 —
 // 이 저장소에서 다섯 번째로 반복되는 실수라고 브리핑이 지적한 바로 그 결함.
@@ -98,5 +99,6 @@ export const POST = withApiErrors(async (request: Request) => {
   );
 
   const { created, skipped } = await applyImport(rows, authorId, authorKeyId, forceRowNumbers);
+  if (created > 0) scheduleRagIndexing(8);
   return Response.json({ dryRun: false, created, skipped, parseErrors: errors, fileErrors, ignoredHeaders });
 });

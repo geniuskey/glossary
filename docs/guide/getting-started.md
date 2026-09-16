@@ -37,13 +37,13 @@ cp .env.example .env
 | `PASSWORD_LOGIN_ENABLED` | 최초 부팅의 ID/비밀번호 로그인 초기값. 기본 `true`; 첫 관리자 로그인 후에는 관리자 패널 → 로그인 · SSO에서 관리 |
 | `INITIAL_ADMIN_EMAIL` | SSO로 최초 생성할 관리자 이메일. 대소문자를 구분하지 않음 |
 | `SSO_LOGIN_URL` | oauth2-proxy 로그인 진입점 재정의. 비우면 `/oauth2/start?rd=%2F` |
-| `GLOSSARY_ENCRYPTION_KEY` | AI API Key와 custom header 암호화 키. AI 연결을 쓰면 32자 이상 고정값 필요 |
+| `GLOSSARY_ENCRYPTION_KEY` | AI·RAG API Key와 custom header 암호화 키. AI 또는 RAG 연결을 쓰면 32자 이상 고정값 필요 |
 
 oauth2-proxy 배포의 헤더명·nginx 덮어쓰기·계정 연결 설정은 [SSO 연결](/guide/sso)을
 따른다.
 
-용어 챗봇을 사용한다면 `GLOSSARY_ENCRYPTION_KEY`를 먼저 생성해 `.env`와 운영 비밀
-저장소에 보관한다. 이 값을 바꾸거나 잃으면 DB에 저장한 AI 비밀값을 복호화할 수 없다.
+용어 챗봇이나 RAG 검색을 사용한다면 `GLOSSARY_ENCRYPTION_KEY`를 먼저 생성해 `.env`와
+운영 비밀 저장소에 보관한다. 이 값을 바꾸거나 잃으면 DB에 저장한 AI·RAG 비밀값을 복호화할 수 없다.
 연결 방법은 [AI 활용과 챗봇](/guide/ai)을 따른다.
 
 개발용 Postgres는 호스트 **5434** 포트에 뜬다(로컬에 이미 5432를 쓰는 Postgres가
@@ -55,7 +55,7 @@ oauth2-proxy 배포의 헤더명·nginx 덮어쓰기·계정 연결 설정은 [S
 docker compose up -d
 ```
 
-`scripts/init-db.sql`이 초기화 시점에 `pg_trgm` 확장과 테스트 DB를 만든다.
+`scripts/init-db.sql`이 초기화 시점에 `pg_trgm`·`vector` 확장과 테스트 DB를 만든다.
 
 ::: warning
 개발 머신에서 `docker-compose.prod.yml`로 `up`하지 마라. 두 파일이 같은 볼륨 이름

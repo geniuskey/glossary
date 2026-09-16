@@ -7,3 +7,4 @@ export * from "./revisions";
 export * from "./workspace";
 export * from "./attachments";
 export * from "./ai";
+export * from "./rag";

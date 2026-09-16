@@ -42,6 +42,8 @@
 6. **용어집 근거 챗봇** — 관련 용어와 승인된 관계를 찾아 Gemini 또는
    OpenAI-compatible API에 전달한다. 대화로 새 용어를 등록하고 기존 용어의 정의·별칭·분류
    수정안을 검토·적용할 수 있다. 수정은 리비전 충돌을 검사하며 실행 결과와 이력을 함께 남긴다.
+7. **RAG 검색 API** — 용어집 콘텐츠를 1536차원 Embedding으로 `pgvector`에 쌓고, 관리자 화면에서
+   Embedding API와 선택형 Reranker API를 설정해 의미 검색을 제공한다.
 
 핵심은 **개념(Term)과 표기(Surface)의 분리**다. 엑셀이 무너진 이유는 한 행이 개념이자
 표기였기 때문이다. `Auto Exposure` / `AE` / `자동노출` / `오토익스포저`가 모두 하나의
@@ -66,7 +68,7 @@
 
 - Node.js 22 이상
 - pnpm: 루트 `package.json`의 `packageManager`에 지정된 버전
-- Docker (Postgres 16 + `pg_trgm`)
+- Docker (Postgres 16 + `pg_trgm` + `pgvector`)
 
 ## 빠른 시작 (로컬 개발)
 
@@ -96,11 +98,12 @@ SSO 로그인을 자동 시작한다. 이후 실제 로그인 방식은 **관리
 개발용 Postgres는 호스트 **5434** 포트에 뜬다. 자세한 절차는
 [시작하기](https://geniuskey.github.io/glossary/guide/getting-started)를 본다.
 
-용어 챗봇을 쓰려면 `.env`의 `GLOSSARY_ENCRYPTION_KEY`에 32자 이상의 고정값을 넣고,
-관리자 패널의 **AI 연결**에서 Gemini 또는 OpenAI-compatible API를 설정한다. 이 키를
+용어 챗봇이나 RAG 검색을 쓰려면 `.env`의 `GLOSSARY_ENCRYPTION_KEY`에 32자 이상의 고정값을 넣고,
+관리자 패널의 **AI 연결** 또는 **RAG 검색**에서 공급자를 설정한다. 이 키를
 바꾸거나 잃으면 DB에 암호화해 둔 API 키와 custom header를 복구할 수 없다.
 API Key를 입력하면 모델 목록을 불러오며, `Connected`는 선택 모델로 실제 생성 요청까지
-성공한 경우에만 표시된다. 자세한 설정은 [AI 활용과 챗봇](https://geniuskey.github.io/glossary/guide/ai)을 참고한다.
+성공한 경우에만 표시된다. RAG API와 재색인 절차는 [RAG 검색 API](https://geniuskey.github.io/glossary/api/rag)를,
+전체 설정은 [AI 활용과 챗봇](https://geniuskey.github.io/glossary/guide/ai)을 참고한다.
 
 > [!WARNING]
 > 개발 머신에서 `docker-compose.prod.yml`로 `up`하지 마라. 두 파일이 같은 볼륨 이름

@@ -26,7 +26,7 @@ Glossary는 특정 조직·팀·제품군이 사용하는 용어집을 관리하
 | 검증 범위 | 비표준 표기 교정, 미등록 전문용어 발견, 금지어·폐기어 검출 |
 | 네임스페이스 | 단일 사전 + 동음이의어 허용 (domain 태그로 구분) |
 | 거버넌스 | 위키형 자유 편집 + 전체 이력 + 되돌리기 (승인 워크플로우 없음) |
-| AI 활용 | 용어 성격별 작성 기준 + Gemini/OpenAI-compatible 기반 용어 챗봇 |
+| AI 활용 | 용어 성격별 작성 기준 + Gemini/OpenAI-compatible 기반 챗봇·pgvector RAG 검색 |
 | 인증 | 자체 계정 + OIDC/OAuth 2.0 SSO, 도구는 API Key |
 | 아키텍처 | Next.js 모놀리스 + Postgres, 검증 엔진은 독립 TS 패키지 |
 | 첨부 저장 | Postgres bytea, content-addressed, WebP 변환, 파일당 2MB 상한 |
@@ -56,5 +56,5 @@ Glossary는 특정 조직·팀·제품군이 사용하는 용어집을 관리하
 - [아키텍처](/guide/architecture) — 패키지 구조와 의존 방향
 - [데이터 모델](/guide/data-model) — Term과 Surface의 분리
 - [협업과 관계도](/guide/collaboration) — 담당자, 업무 분류·주제, 그래프와 Confluence 임베드
-- [AI 활용과 챗봇](/guide/ai) — 작성 기준, 공급자 연결, 모델 선택과 보안
+- [AI 활용과 챗봇](/guide/ai) — 작성 기준, AI·RAG 공급자 연결, 모델 선택과 보안
 - [API 개요](/api/) — 인증과 에러 규약

@@ -8,6 +8,7 @@ import { revertTerm } from "@/lib/terms/revert";
 import type { UpdateTermSuccess } from "@/lib/terms/update";
 import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
 import { prepareAutoReview } from "@/lib/ai/auto-review";
+import { scheduleRagIndexing } from "@/lib/rag/indexer";
 
 // R130: 되돌리기는 POST 하나다. 되돌리기 자체가 쓰기이므로 GET이어서는 안 된다 —
 // R44와 같은 이유로, 이 사이트의 CSRF 방어는 SameSite=Lax 쿠키뿐이라 GET이 쓰기를
@@ -87,6 +88,7 @@ export const POST = withApiErrors(
     // 여기서 tsc 오류가 난다. 그렇지 않으면 내부 판별자가 200으로 새어 나간다.
     const ok: UpdateTermSuccess = result;
     scheduleAfterResponse(() => prepareAutoReview(ok.term.id));
+    scheduleRagIndexing(1);
     const body: TermWriteResponse = {
       term: toTermWire(ok.term),
       surfaces: ok.surfaces.map(toSurfaceWire),

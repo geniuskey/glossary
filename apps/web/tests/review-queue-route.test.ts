@@ -21,6 +21,7 @@ const db = createDb(process.env.DATABASE_URL_TEST!);
 let originalConfig: typeof aiConfig.$inferSelect | undefined;
 let userId = "";
 let termId = "";
+let bulkTermId = "";
 
 beforeAll(async () => {
   [originalConfig] = await db.select().from(aiConfig).where(eq(aiConfig.id, "default")).limit(1);
@@ -55,6 +56,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (termId) await db.delete(terms).where(eq(terms.id, termId));
+  if (bulkTermId) await db.delete(terms).where(eq(terms.id, bulkTermId));
   if (userId) await db.delete(users).where(eq(users.id, userId));
   await db.delete(aiConfig).where(eq(aiConfig.id, "default"));
   if (originalConfig) await db.insert(aiConfig).values(originalConfig);
@@ -76,6 +78,35 @@ test("일반 사용자가 자동 검토가 꺼진 상태에서도 수동 검토�
   const body = await listed.json() as { queue: { counts: { total: number }; items: Array<{ termId: string }> } };
   expect(body.queue.counts.total).toBeGreaterThanOrEqual(1);
   expect(body.queue.items.some((item) => item.termId === termId)).toBe(true);
+});
+
+test("여러 용어의 수동 검토를 한 번에 큐에 넣는다", async () => {
+  const created = await createTerm({
+    nameEn: `BulkManualReview${Date.now()}`,
+    bodyMd: "일괄 수동 검토 큐 요청을 검증하기 위한 충분한 길이의 본문입니다.",
+    domain: [],
+    status: "draft",
+    surfaces: [],
+  }, userId);
+  bulkTermId = created.term.id;
+
+  const response = await route.POST(new Request("https://glossary.example.com/api/v1/contributions/review-queue", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ items: [
+      { termId, revision: 1 },
+      { termId: bulkTermId, revision: 1 },
+    ] }),
+  }));
+  expect(response.status).toBe(202);
+  await expect(response.json()).resolves.toMatchObject({ state: "queued", requested: 2, queued: 2, skipped: 0 });
+
+  const [first, second] = await Promise.all([
+    db.select().from(aiReviewQueue).where(eq(aiReviewQueue.termId, termId)),
+    db.select().from(aiReviewQueue).where(eq(aiReviewQueue.termId, bulkTermId)),
+  ]);
+  expect(first[0]).toMatchObject({ revision: 1, status: "queued", requestMode: "manual", requestedBy: userId });
+  expect(second[0]).toMatchObject({ revision: 1, status: "queued", requestMode: "manual", requestedBy: userId });
 });
 
 test("검토 큐는 로그인하지 않은 요청에 공개되지 않는다", async () => {

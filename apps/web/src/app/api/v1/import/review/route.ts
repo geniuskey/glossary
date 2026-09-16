@@ -9,6 +9,7 @@ import { isSimpleGlossaryHeader, needsReview, reviewColumns } from "@/lib/import
 import { createTerm } from "@/lib/terms/create";
 import { termInputSchema } from "@/lib/terms/schema";
 import { updateTerm } from "@/lib/terms/update";
+import { scheduleRagIndexing } from "@/lib/rag/indexer";
 
 const ALLOWED_METHODS = ["POST"];
 const { GET, PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -94,5 +95,6 @@ export const POST = withApiErrors(async (request: Request) => {
       break;
     }
   }
+  if (created > 0 || merged > 0) scheduleRagIndexing(8);
   return Response.json({ report, completed, failures, created, merged });
 });

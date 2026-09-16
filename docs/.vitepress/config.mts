@@ -70,6 +70,7 @@ export default defineConfig({
           { text: "임포트", link: "/api/import" },
           { text: "첨부 이미지", link: "/api/attachments" },
           { text: "AI 연결과 챗봇", link: "/api/ai" },
+          { text: "RAG 검색", link: "/api/rag" },
         ],
       },
       {

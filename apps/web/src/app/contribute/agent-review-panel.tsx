@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PreparedReview } from "@/lib/ai/auto-review";
 import type { ContributionSuggestion } from "@/lib/ai/contribution-suggestions";
 import { buildRuleSuggestions, suggestionPatch } from "@/lib/ai/contribution-suggestions";
 import type { ContributionTerm } from "@/lib/terms/query";
 import { displayName, cx } from "@/lib/ui/format";
+import { AgentTermList } from "./agent-term-list";
 
 type Message = { kind: "ok" | "bad"; text: string } | null;
 type Busy = { kind: "approve" | "reject"; id: string } | null;
@@ -40,13 +42,15 @@ function valueText(value: ContributionSuggestion["value"], field?: ContributionS
   return value.map((item) => field === "category" ? categoryLabels?.[item] ?? item : item).join(" · ");
 }
 
-export function AgentReviewPanel({ initialTerms, initialTermId, autoReviewEnabled, initialReviews, categoryLabels }: {
+export function AgentReviewPanel({ initialTerms, initialTermId, totalTerms, autoReviewEnabled, initialReviews, categoryLabels }: {
   initialTerms: ContributionTerm[];
   initialTermId?: string;
+  totalTerms?: number;
   autoReviewEnabled: boolean;
   initialReviews: Record<string, PreparedReview>;
   categoryLabels: Record<string, string>;
 }) {
+  const router = useRouter();
   const [terms, setTerms] = useState(initialTerms);
   const [index, setIndex] = useState(() => {
     const selected = initialTerms.findIndex((term) => term.id === initialTermId);
@@ -104,7 +108,11 @@ export function AgentReviewPanel({ initialTerms, initialTermId, autoReviewEnable
 
   function move(offset: number) {
     if (terms.length === 0) return;
-    setIndex((value) => (value + offset + terms.length) % terms.length);
+    const nextIndex = (index + offset + terms.length) % terms.length;
+    const nextTerm = terms[nextIndex];
+    if (!nextTerm) return;
+    setIndex(nextIndex);
+    router.replace(`/contribute?tab=agent&termId=${encodeURIComponent(nextTerm.id)}`, { scroll: false });
     setRejectedIds([]);
     setLastRejected(null);
     setMessage(null);
@@ -209,8 +217,16 @@ export function AgentReviewPanel({ initialTerms, initialTermId, autoReviewEnable
   );
 
   return (
-    <section aria-label="용어 수정 제안 검토">
-      <div className="card overflow-hidden">
+    <section aria-label="용어 수정 제안 검토" className="mt-5">
+      <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
+        <AgentTermList
+          terms={terms}
+          reviews={reviews}
+          selectedTermId={current.id}
+          totalTerms={totalTerms ?? terms.length}
+          autoReviewEnabled={autoReviewEnabled}
+        />
+        <div className="card min-w-0 overflow-hidden">
         <header className="border-b border-line bg-panel-2/55 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
             <div className="min-w-0">
@@ -290,6 +306,7 @@ export function AgentReviewPanel({ initialTerms, initialTermId, autoReviewEnable
               )) : <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-ink-3">{prepared ? "AI 검토를 마쳤으며, 현재 내용에는 제안할 변경이 없습니다." : pollError ? "검토 결과를 아직 확인하지 못했습니다." : !autoReviewEnabled ? "현재 검토할 제안이 없습니다. 직접 편집하거나 정리 대기에서 AI 검토를 요청할 수 있습니다." : "AI가 이 용어를 검토하고 있습니다…"}</p>}
             </div>
           </div>
+        </div>
         </div>
       </div>
     </section>
