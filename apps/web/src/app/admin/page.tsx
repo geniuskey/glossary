@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { listManagedUsers } from "@/lib/admin/users";
 import { loadAiConfig, publicAiConfig } from "@/lib/ai/config";
+import { getAiObservabilitySnapshot } from "@/lib/ai/telemetry";
+import { listReviewQueue } from "@/lib/ai/auto-review";
 import { loadRagConfig, publicRagConfig } from "@/lib/rag/config";
 import { getRagIndexStats } from "@/lib/rag/indexer";
 import { getCurrentUser } from "@/lib/auth/current-user";
@@ -12,6 +14,7 @@ import { getHomeContent } from "@/lib/workspace/home-content";
 import { getTermQualityOverview, getTermQualitySettings } from "@/lib/workspace/term-quality";
 import { cx } from "@/lib/ui/format";
 import { AiSettingsPanel } from "./ai-settings-panel";
+import { AiObservabilityPanel } from "./ai-observability-panel";
 import { RagSettingsPanel } from "./rag-settings-panel";
 import { HomeContentPanel } from "./home-content-panel";
 import { TermQualityPanel } from "./term-quality-panel";
@@ -24,6 +27,7 @@ const ADMIN_TABS = [
   { key: "home", label: "홈 화면" },
   { key: "quality", label: "콘텐츠 완성도" },
   { key: "ai", label: "AI 연결" },
+  { key: "observability", label: "AI 모니터링" },
   { key: "rag", label: "RAG 검색" },
   { key: "sso", label: "로그인 · SSO" },
   { key: "users", label: "사용자" },
@@ -45,6 +49,27 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     const settings = await getTermQualitySettings();
     panel = <TermQualityPanel overview={await getTermQualityOverview(settings)} />;
   } else if (tab === "ai") panel = <AiSettingsPanel initialConfig={publicAiConfig(await loadAiConfig())} />;
+  else if (tab === "observability") {
+    const [snapshot, aiConfig, ragConfig, ragStats, reviewQueue] = await Promise.all([
+      getAiObservabilitySnapshot(24),
+      loadAiConfig(),
+      loadRagConfig(),
+      getRagIndexStats(),
+      listReviewQueue(20),
+    ]);
+    const publicAi = publicAiConfig(aiConfig);
+    const publicRag = publicRagConfig(ragConfig, ragStats);
+    panel = <AiObservabilityPanel
+      initialSnapshot={snapshot}
+      initialQueues={{ rag: ragStats, review: reviewQueue }}
+      initialReadiness={{
+        aiEnabled: publicAi.enabled,
+        aiSecretsReadable: publicAi.secretsReadable,
+        ragEnabled: publicRag.enabled,
+        ragSecretsReadable: publicRag.secretsReadable,
+      }}
+    />;
+  }
   else if (tab === "rag") {
     const [config, stats] = await Promise.all([loadRagConfig(), getRagIndexStats()]);
     panel = <RagSettingsPanel initialConfig={publicRagConfig(config, stats)} />;

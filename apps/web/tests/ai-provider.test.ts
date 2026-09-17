@@ -23,6 +23,23 @@ test("OpenAI-compatible API는 chat/completions와 custom header를 사용한다
   expect(JSON.parse(String(init?.body))).toMatchObject({ model: "local-model", stream: false });
 });
 
+test("OpenAI-compatible 구조화 응답은 JSON response_format을 요청한다", async () => {
+  const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => Response.json({ choices: [{ message: { content: '{"ok":true}' } }] }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(completeAi({
+    provider: "openai_compatible",
+    baseUrl: "http://127.0.0.1:11434/v1",
+    model: "local-model",
+    apiKey: "",
+    customHeaders: [],
+  }, [{ role: "user", content: "JSON으로 답해 줘" }], 128, { jsonOutput: true })).resolves.toBe('{"ok":true}');
+
+  expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+    response_format: { type: "json_object" },
+  });
+});
+
 test("Gemini native API는 generateContent 형식과 x-goog-api-key를 사용한다", async () => {
   const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => Response.json({ candidates: [{ content: { parts: [{ text: "Gemini 답변" }] } }] }));
   vi.stubGlobal("fetch", fetchMock);
@@ -88,6 +105,23 @@ test("AI 연결은 메타데이터 주소와 redirect를 차단한다", async ()
   }, [{ role: "user", content: "질문" }])).rejects.toThrow(/302/);
 });
 
+test("AI 연결은 사설 네트워크와 link-local 주소를 차단하고 loopback 개발 서버는 허용한다", async () => {
+  await expect(completeAi({
+    provider: "openai_compatible",
+    baseUrl: "http://10.0.0.8/v1",
+    model: "x",
+    apiKey: "",
+    customHeaders: [],
+  }, [{ role: "user", content: "질문" }])).rejects.toThrow(/링크 로컬|메타데이터/);
+  await expect(completeAi({
+    provider: "openai_compatible",
+    baseUrl: "http://192.168.1.20/v1",
+    model: "x",
+    apiKey: "",
+    customHeaders: [],
+  }, [{ role: "user", content: "질문" }])).rejects.toThrow(/링크 로컬|메타데이터/);
+});
+
 test("AI 생성 실패 시 공급자의 JSON 오류 원인을 관리자 진단에 남긴다", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => Response.json({
     error: { message: "This model is no longer available. Choose a newer model." },
@@ -116,6 +150,19 @@ test("AI 공급자의 일시적인 503은 한 번 재시도한다", async () => 
     customHeaders: [],
   }, [{ role: "user", content: "질문" }])).resolves.toBe("재시도 성공");
   expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
+test("토큰 상한으로 잘린 구조화 응답은 성공으로 취급하지 않는다", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({
+    choices: [{ message: { content: "{\"claims\":[" }, finish_reason: "length" }],
+  })));
+  await expect(completeAi({
+    provider: "openai_compatible",
+    baseUrl: "http://127.0.0.1:9999/v1",
+    model: "local-model",
+    apiKey: "",
+    customHeaders: [],
+  }, [{ role: "user", content: "JSON" }], 10)).rejects.toThrow(/토큰 상한/);
 });
 
 test("Gemini 모델 목록은 generateContent 지원 모델만 선택지로 만든다", async () => {

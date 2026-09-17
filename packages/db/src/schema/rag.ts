@@ -47,6 +47,7 @@ export const ragConfig = pgTable(
   {
     id: text("id").primaryKey().default("default"),
     enabled: boolean("enabled").notNull().default(false),
+    chatEnabled: boolean("chat_enabled").notNull().default(false),
     embeddingProvider: ragEmbeddingProviderEnum("embedding_provider").notNull().default("openai_compatible"),
     embeddingBaseUrl: text("embedding_base_url").notNull().default("https://api.openai.com/v1"),
     embeddingModel: text("embedding_model").notNull().default("text-embedding-3-small"),

@@ -91,7 +91,7 @@ export async function generateOneLineDefinition(candidate: DefinitionReviewCandi
       ].join("\n"),
     },
     { role: "user", content: `TERM_CONTEXT=${context}` },
-  ], 240);
+  ], 240, { context: { operation: "agent.definition" } });
   const normalized = answer
     .replace(/[\r\n]+/g, " ")
     .replace(/^\s*[-*#>]+\s*/, "")

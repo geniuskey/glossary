@@ -37,6 +37,7 @@ export function RagSettingsPanel({ initialConfig }: { initialConfig: PublicRagCo
 
   const draftFingerprint = JSON.stringify({
     enabled: config.enabled,
+    chatEnabled: config.chatEnabled,
     embedding: config.embedding,
     reranker: config.reranker,
     chunkSize: config.chunkSize,
@@ -51,6 +52,7 @@ export function RagSettingsPanel({ initialConfig }: { initialConfig: PublicRagCo
   });
   const savedFingerprint = JSON.stringify({
     enabled: savedConfig.enabled,
+    chatEnabled: savedConfig.chatEnabled,
     embedding: savedConfig.embedding,
     reranker: savedConfig.reranker,
     chunkSize: savedConfig.chunkSize,
@@ -66,7 +68,7 @@ export function RagSettingsPanel({ initialConfig }: { initialConfig: PublicRagCo
   const dirty = draftFingerprint !== savedFingerprint;
   useUnsavedChanges(dirty);
 
-  function updateConfig<K extends keyof Pick<PublicRagConfig, "enabled" | "chunkSize" | "chunkOverlap" | "topK">>(key: K, value: PublicRagConfig[K]) {
+  function updateConfig<K extends keyof Pick<PublicRagConfig, "enabled" | "chatEnabled" | "chunkSize" | "chunkOverlap" | "topK">>(key: K, value: PublicRagConfig[K]) {
     setConfig((current) => ({ ...current, [key]: value }));
     setMessage(null);
   }
@@ -91,6 +93,7 @@ export function RagSettingsPanel({ initialConfig }: { initialConfig: PublicRagCo
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           enabled: config.enabled,
+          chatEnabled: config.chatEnabled,
           embeddingProvider: config.embedding.provider,
           embeddingBaseUrl: config.embedding.baseUrl,
           embeddingModel: config.embedding.model,
@@ -186,6 +189,10 @@ export function RagSettingsPanel({ initialConfig }: { initialConfig: PublicRagCo
               <input type="checkbox" checked={config.enabled} onChange={(event) => updateConfig("enabled", event.target.checked)} disabled={saving} className="h-4 w-4 accent-[var(--brand)]" />
               <span className="text-sm font-medium text-ink">RAG 검색 사용</span>
               <span className="ml-auto text-xs text-ink-3">저장된 용어를 벡터 검색 API로 제공</span>
+            </label>
+            <label className="mt-2 flex items-start gap-3 text-xs text-ink-2">
+              <input type="checkbox" checked={config.chatEnabled} onChange={(event) => updateConfig("chatEnabled", event.target.checked)} disabled={saving || !config.enabled} className="mt-0.5 h-4 w-4 accent-[var(--brand)]" />
+              <span><span className="font-medium text-ink">챗봇의 하이브리드 검색 보조로 사용</span><span className="mt-0.5 block text-ink-3">활성화하면 챗봇 질문도 Embedding API로 전송되어 키워드 검색과 함께 검색합니다.</span></span>
             </label>
           </div>
           <div className="grid gap-5 p-4 lg:grid-cols-2">

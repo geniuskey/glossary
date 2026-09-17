@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
-import { createDb, ragConfig, ragDocuments, ragIndexQueue, terms } from "@glossary/db";
+import { aiRuns, createDb, ragConfig, ragDocuments, ragIndexQueue, terms } from "@glossary/db";
 import { encryptAiSecret } from "../src/lib/ai/crypto.js";
 import { createTerm } from "../src/lib/terms/create.js";
 import { updateTerm } from "../src/lib/terms/update.js";
@@ -122,6 +122,23 @@ test("OpenAI-compatible Embedding과 Reranker 응답을 안전하게 해석한�
   expect(embeddingUrl).toBe(`${testBaseUrl}/embeddings`);
   expect(new Headers(embeddingInit?.headers).get("authorization")).toBe("Bearer embedding-key");
   expect(JSON.parse(String(embeddingInit?.body))).toMatchObject({ model: "embedding-test", dimensions: 1_536 });
+});
+
+test("Embedding 응답의 개수·차원 오류도 성공으로 기록하지 않는다", async () => {
+  const traceId = randomUUID();
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ data: [] })));
+
+  await expect(embedTexts({
+    provider: "openai_compatible",
+    baseUrl: testBaseUrl,
+    model: "invalid-embedding",
+    apiKey: "",
+    customHeaders: [],
+    dimensions: 1_536,
+  }, ["하나"], { traceId, operation: "test.rag.invalid-response" })).rejects.toThrow(/요청 개수/);
+
+  const [run] = await db.select().from(aiRuns).where(eq(aiRuns.traceId, traceId)).orderBy(desc(aiRuns.startedAt)).limit(1);
+  expect(run).toMatchObject({ status: "failed", errorCode: "invalid_response", httpStatus: 200 });
 });
 
 test("용어 저장이 최신 리비전 대기열을 만들고 pgvector 색인·검색까지 연결한다", async () => {

@@ -33,6 +33,7 @@ export interface PublicRagEndpointConfig {
 
 export interface PublicRagConfig {
   enabled: boolean;
+  chatEnabled: boolean;
   embedding: PublicRagEndpointConfig & { provider: RagEmbeddingProvider; dimensions: typeof RAG_VECTOR_DIMENSIONS };
   reranker: PublicRagEndpointConfig & { provider: RagRerankerProvider; enabled: boolean };
   chunkSize: number;

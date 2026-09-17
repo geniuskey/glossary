@@ -13,18 +13,17 @@ import { inferSurfaceLang } from "@/lib/terms/surface-language";
 import type { ChatHistoryMessage } from "./chat";
 import type { ChatGrounding } from "./retrieval";
 import type { TermTeachingDraft } from "./teaching-values";
+import type { AiRunContext } from "./observability-values";
+import { parseAiJson } from "./json";
 
-export function readAiJson(raw: string): unknown {
-  try { return JSON.parse(raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")); }
-  catch { return null; }
-}
+export const readAiJson = parseAiJson;
 
 const intentSchema = z.object({
   intent: z.enum(["ask", "create", "edit", "unsupported"]),
   query: z.string().trim().min(1).max(500),
 }).strict();
 
-export async function classifyChatIntent(config: AiRuntimeConfig, question: string, history: ChatHistoryMessage[], previous?: ChatEditProposal | null, teachingDraft?: TermTeachingDraft | null) {
+export async function classifyChatIntent(config: AiRuntimeConfig, question: string, history: ChatHistoryMessage[], previous?: ChatEditProposal | null, teachingDraft?: TermTeachingDraft | null, context?: AiRunContext) {
   const raw = await completeAi(config, [
     { role: "system", content: [
       "용어집 요청의 의도만 분류하세요. JSON {intent, query}를 반환하세요.",
@@ -38,11 +37,11 @@ export async function classifyChatIntent(config: AiRuntimeConfig, question: stri
       `PENDING_CREATION=${JSON.stringify(teachingDraft ? { nameEn: teachingDraft.nameEn, nameKo: teachingDraft.nameKo } : null)}`,
     ].join("\n") },
     ...history.slice(-6), { role: "user", content: question },
-  ], 500, { jsonOutput: true });
+  ], 500, { jsonOutput: true, context: { ...context, operation: "chat.intent" } });
   return intentSchema.safeParse(readAiJson(raw));
 }
 
-export async function proposeChatEdit(config: AiRuntimeConfig, question: string, history: ChatHistoryMessage[], grounding: ChatGrounding, previous?: ChatEditProposal | null): Promise<{ answer: string; edit?: ChatEditProposal }> {
+export async function proposeChatEdit(config: AiRuntimeConfig, question: string, history: ChatHistoryMessage[], grounding: ChatGrounding, previous?: ChatEditProposal | null, context?: AiRunContext): Promise<{ answer: string; edit?: ChatEditProposal }> {
   const selection = await completeAi(config, [
     { role: "system", content: [
       "기존 용어의 수정 대상을 식별하고 JSON {slug:string|null, clarification:string}만 반환하세요.",
@@ -52,7 +51,7 @@ export async function proposeChatEdit(config: AiRuntimeConfig, question: string,
       `PENDING_EDIT=${JSON.stringify(previous ? { title: previous.title, slug: previous.slug } : null)}`,
     ].join("\n") },
     ...history.slice(-6), { role: "user", content: question },
-  ], 600, { jsonOutput: true });
+  ], 600, { jsonOutput: true, context: { ...context, operation: "chat.edit.select" } });
   const selected = z.object({ slug: z.string().nullable(), clarification: z.string().max(1000) }).safeParse(readAiJson(selection));
   if (!selected.success || !selected.data.slug || !grounding.sources.some((source) => source.slug === selected.data.slug)) {
     return { answer: selected.success && selected.data.clarification ? selected.data.clarification : "수정할 용어를 특정하지 못했습니다. 정확한 용어 이름과 도메인을 알려주세요." };
@@ -82,7 +81,7 @@ export async function proposeChatEdit(config: AiRuntimeConfig, question: string,
       `TERM=${JSON.stringify(before)}`, `DOMAINS=${JSON.stringify(domains)}`, `CATEGORIES=${JSON.stringify(categories)}`,
       `PREVIOUS_PROPOSAL=${JSON.stringify(previous?.termId === term.id ? previous.patch : null)}`,
     ].join("\n") }, ...history.slice(-6), { role: "user", content: question },
-  ], 8_000, { jsonOutput: true });
+  ], 8_000, { jsonOutput: true, context: { ...context, operation: "chat.edit.propose" } });
   const envelope = z.object({ patch: z.unknown(), reason: z.string().trim().min(1).max(2000) }).safeParse(readAiJson(raw));
   if (!envelope.success) return { answer: "수정안을 해석하지 못했습니다. 변경할 필드와 내용을 다시 알려주세요." };
   const parsed = chatEditPatchSchema.safeParse(envelope.data.patch);

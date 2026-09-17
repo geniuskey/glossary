@@ -31,7 +31,7 @@ export const POST = withApiErrors(async (request: Request) => {
     const problems = validateAiConfigInput({ ...parsed.data, enabled: true, autoReviewEnabled: false, model: "models-list" }, Boolean(config.apiKey));
     for (const header of config.customHeaders) if (!header.value) problems.push(`${header.name} 헤더 값을 입력해 주세요.`);
     if (problems.length > 0) return apiError("validation_failed", problems[0]!, 400, { formErrors: [...new Set(problems)] });
-    return Response.json({ models: await listAiModels(config) });
+    return Response.json({ models: await listAiModels(config, { operation: "admin.ai-models", actorId: admin.id }) });
   } catch (error) {
     if (error instanceof AiProviderError) return apiError("ai_provider_error", error.message, 502);
     return apiError("ai_config_error", "저장된 비밀값을 읽지 못했습니다. 암호화 키를 확인해 주세요.", 500);

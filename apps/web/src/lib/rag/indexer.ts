@@ -1,7 +1,7 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
-import { and, asc, eq, inArray, sql, type InferSelectModel } from "drizzle-orm";
+import { createHash, randomUUID } from "node:crypto";
+import { and, asc, eq, inArray, lt, sql, type InferSelectModel } from "drizzle-orm";
 import {
   ragDocuments,
   ragIndexQueue,
@@ -16,6 +16,7 @@ import { AiProviderError } from "@/lib/ai/provider";
 import { loadRagConfig, runtimeEmbeddingConfig, type RagDatabase } from "./config";
 import { embedTexts } from "./provider";
 import { RAG_VECTOR_DIMENSIONS } from "@glossary/db";
+import type { AiRunContext } from "@/lib/ai/observability-values";
 
 const MAX_EMBEDDING_BATCH = 96;
 const MAX_BACKGROUND_BATCHES = 128;
@@ -236,6 +237,21 @@ async function claimNextJob(): Promise<InferSelectModel<typeof ragIndexQueue> | 
   return claimed ?? null;
 }
 
+/** A crashed request must not leave a durable job permanently invisible to the worker. */
+async function recoverStaleJobs(): Promise<void> {
+  const staleBefore = new Date(Date.now() - 15 * 60 * 1_000);
+  await getDb().update(ragIndexQueue).set({
+    status: "queued",
+    requestedAt: new Date(),
+    startedAt: null,
+    finishedAt: null,
+    errorMessage: "중단된 색인 작업을 다시 대기열에 넣었습니다.",
+  }).where(and(
+    eq(ragIndexQueue.status, "processing"),
+    lt(ragIndexQueue.startedAt, staleBefore),
+  ));
+}
+
 function errorMessage(error: unknown): string {
   const raw = error instanceof Error ? error.message : "RAG 색인에 실패했습니다.";
   return raw.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, ERROR_MAX_LENGTH);
@@ -267,7 +283,7 @@ async function releaseClaimedJob(job: InferSelectModel<typeof ragIndexQueue>): P
   ));
 }
 
-async function indexJob(job: InferSelectModel<typeof ragIndexQueue>, config: RagConfigRow): Promise<void> {
+async function indexJob(job: InferSelectModel<typeof ragIndexQueue>, config: RagConfigRow, telemetry: AiRunContext): Promise<void> {
   const db = getDb();
   const [term] = await db.select().from(terms).where(eq(terms.id, job.termId)).limit(1);
   if (!term || term.replacedById) {
@@ -286,7 +302,7 @@ async function indexJob(job: InferSelectModel<typeof ragIndexQueue>, config: Rag
   const embeddings: number[][] = [];
   for (let offset = 0; offset < chunks.length; offset += MAX_EMBEDDING_BATCH) {
     const batch = chunks.slice(offset, offset + MAX_EMBEDDING_BATCH);
-    embeddings.push(...await embedTexts(embeddingConfig, batch.map((chunk) => chunk.content)));
+    embeddings.push(...await embedTexts(embeddingConfig, batch.map((chunk) => chunk.content), { ...telemetry, operation: "rag.embedding.index" }));
   }
   if (embeddings.length !== chunks.length) throw new AiProviderError("Embedding 결과 수가 색인 청크 수와 다릅니다.");
   if (embeddings.some((embedding) => embedding.length !== RAG_VECTOR_DIMENSIONS)) {
@@ -361,6 +377,7 @@ async function indexJob(job: InferSelectModel<typeof ragIndexQueue>, config: Rag
 
 /** Processes a bounded number of durable jobs so one request cannot run forever. */
 export async function processRagIndexQueue(limit = 8): Promise<number> {
+  await recoverStaleJobs();
   let attempted = 0;
   for (let index = 0; index < Math.max(0, Math.min(32, limit)); index += 1) {
     const job = await claimNextJob();
@@ -375,7 +392,10 @@ export async function processRagIndexQueue(limit = 8): Promise<number> {
         await releaseClaimedJob(job);
         return attempted;
       }
-      await indexJob(job, configured);
+      await indexJob(job, configured, {
+        traceId: randomUUID(),
+        metadata: { termId: job.termId, revision: job.revision },
+      });
     } catch (error) {
       await getDb().update(ragIndexQueue).set({
         status: "failed",

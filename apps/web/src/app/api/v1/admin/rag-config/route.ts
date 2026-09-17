@@ -18,6 +18,9 @@ const headerSchema = z.object({
 
 const patchSchema = z.object({
   enabled: z.boolean(),
+  // Older clients do not know this opt-in flag. Preserve the stored value
+  // instead of silently turning hybrid chat search off on their next save.
+  chatEnabled: z.boolean().optional(),
   embeddingProvider: z.enum(RAG_EMBEDDING_PROVIDERS),
   embeddingBaseUrl: z.string().trim().min(1).max(2_000),
   embeddingModel: z.string().trim().min(1).max(200),
@@ -46,7 +49,8 @@ export const PATCH = withApiErrors(async (request: Request) => {
   if (isResponse(admin)) return admin;
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "RAG 검색 설정을 확인해 주세요.", 400, parsed.error.flatten());
-  const result = await saveRagConfig(parsed.data, admin.id);
+  const stored = await loadRagConfig();
+  const result = await saveRagConfig({ ...parsed.data, chatEnabled: parsed.data.chatEnabled ?? stored.chatEnabled }, admin.id);
   if (!result.ok) return apiError("validation_failed", result.problems[0] ?? "RAG 검색 설정을 확인해 주세요.", 400, { formErrors: result.problems });
 
   // Embedding model, endpoint, chunking, and metadata changes all invalidate

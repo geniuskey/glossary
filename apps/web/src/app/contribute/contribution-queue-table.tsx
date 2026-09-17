@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { MissingFields } from "@/components/term-completion";
-import { StatusBadge } from "@/components/term-badges";
 import type { ContributionTerm } from "@/lib/terms/query";
 import { cx, displayName, relativeTime } from "@/lib/ui/format";
 import { ManualReviewButton } from "./manual-review-button";
@@ -128,9 +127,8 @@ export function ContributionQueueTable({ initialItems, initialStatuses, aiAvaila
             <tr>
               <th scope="col" className="w-[32%] border-b border-line px-2 py-3 font-semibold md:w-[26%]">용어</th>
               <th scope="col" className="w-[30%] border-b border-line px-2 py-3 font-semibold md:w-[26%]">필요한 정보</th>
-              <th scope="col" className="hidden w-[14%] border-b border-line px-2 py-3 font-semibold md:table-cell md:px-4">상태</th>
               <th scope="col" className="hidden w-[14%] border-b border-line px-2 py-3 font-semibold lg:table-cell lg:px-4">최근 수정</th>
-              <th scope="col" className="w-[38%] border-b border-line px-2 py-3 text-right font-semibold md:w-[34%] lg:w-[20%] lg:px-4">작업</th>
+              <th scope="col" className="w-[38%] border-b border-line px-2 py-3 text-right font-semibold md:w-[48%] lg:w-[34%] lg:px-4">작업</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -167,9 +165,6 @@ export function ContributionQueueTable({ initialItems, initialStatuses, aiAvaila
                         <MissingFields completion={term.completion} />
                       )}
                     </div>
-                  </td>
-                  <td className="hidden whitespace-nowrap px-2 py-3 md:table-cell md:px-4">
-                    <StatusBadge status={term.status} />
                   </td>
                   <td className="hidden whitespace-nowrap px-2 py-3 text-xs text-ink-3 lg:table-cell lg:px-4">
                     <time dateTime={term.updatedAt}>{relativeTime(new Date(term.updatedAt))}</time>

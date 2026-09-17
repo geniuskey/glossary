@@ -522,6 +522,20 @@ export const openApiSpec = {
         },
       },
     },
+    "/admin/ai-observability": {
+      get: {
+        summary: "최근 AI 호출·실패·지연·토큰과 RAG/검토 큐 상태 조회",
+        description: "프롬프트·응답 원문과 비밀값은 저장하거나 반환하지 않고 운영 집계만 제공한다.",
+        security: [{ sessionCookie: [] }],
+        parameters: [{ name: "hours", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 720, default: 24 } }],
+        responses: {
+          "200": json("AI 운영 집계와 큐 상태", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+    },
     "/admin/rag-config": {
       get: {
         summary: "관리자용 RAG·Embedding·Reranker 설정과 색인 상태 조회",
@@ -541,6 +555,7 @@ export const openApiSpec = {
           additionalProperties: false,
           properties: {
             enabled: { type: "boolean" },
+            chatEnabled: { type: "boolean", description: "챗봇이 Embedding 기반 하이브리드 검색을 보조로 사용할지 여부" },
             embeddingProvider: { type: "string", enum: ["openai_compatible", "gemini"] },
             embeddingBaseUrl: { type: "string", format: "uri", maxLength: 2000 },
             embeddingModel: { type: "string", minLength: 1, maxLength: 200 },
@@ -966,6 +981,31 @@ export const openApiSpec = {
           "403": errorResponse("forbidden"),
           "404": errorResponse("term_not_found"),
           "409": errorResponse("revision_conflict 또는 operation_conflict"),
+        },
+      },
+    },
+    "/contributions/classifications": {
+      post: {
+        summary: "비어 있는 도메인 또는 업무 분류의 AI 추천 생성",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["termId", "kind", "expectedRevision"],
+          additionalProperties: false,
+          properties: {
+            termId: { type: "string", format: "uuid" },
+            kind: { type: "string", enum: ["domain", "category"] },
+            expectedRevision: { type: "integer", minimum: 1 },
+            force: { type: "boolean", default: false, description: "승인 전 저장된 동일 리비전 추천을 무시하고 다시 생성" },
+          },
+        } } } },
+        responses: {
+          "200": json("{ suggestion } 또는 근거가 부족하면 suggestion=null", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "404": errorResponse("term_not_found"),
+          "409": errorResponse("revision_conflict 또는 operation_conflict"),
+          "503": errorResponse("ai_not_enabled"),
         },
       },
     },

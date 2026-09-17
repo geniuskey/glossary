@@ -1,4 +1,5 @@
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
+import { randomUUID } from "node:crypto";
 import { AiProviderError } from "@/lib/ai/provider";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";
 import { loadRagConfig, runtimeEmbeddingConfig, runtimeRerankerConfig } from "@/lib/rag/config";
@@ -13,9 +14,10 @@ export const POST = withApiErrors(async () => {
   if (isResponse(admin)) return admin;
   const config = await loadRagConfig();
   try {
-    await embedTexts(runtimeEmbeddingConfig(config), ["Glossary RAG 연결 테스트"]);
+    const traceId = randomUUID();
+    await embedTexts(runtimeEmbeddingConfig(config), ["Glossary RAG 연결 테스트"], { traceId, actorId: admin.id, operation: "admin.rag-embedding-test" });
     if (config.rerankerEnabled) {
-      await rerankTexts(runtimeRerankerConfig(config), "연결 테스트", ["Glossary RAG 연결 테스트 문서"]);
+      await rerankTexts(runtimeRerankerConfig(config), "연결 테스트", ["Glossary RAG 연결 테스트 문서"], { traceId, actorId: admin.id, operation: "admin.rag-reranker-test" });
     }
     return Response.json({ ok: true, embedding: true, reranker: config.rerankerEnabled });
   } catch (error) {

@@ -6,7 +6,8 @@
 
 RAG 설정과 색인 대기열은 DB에 저장된다. 용어를 등록·수정하거나 분류 체계를 바꾸면 해당
 최신 내용이 대기열에 들어가며, 응답 뒤 백그라운드에서 색인한다. 기존 용어는 관리자 화면의
-**전체 재색인**으로 다시 넣을 수 있다.
+**전체 재색인**으로 다시 넣을 수 있다. `chatEnabled`를 켜면 용어 챗봇도 이 색인을
+표기·키워드 검색과 함께 사용하는 하이브리드 검색 경로를 선택적으로 호출한다.
 
 ## 관리자 설정
 
@@ -21,6 +22,7 @@ RAG 설정과 색인 대기열은 DB에 저장된다. 용어를 등록·수정�
 ```json
 {
   "enabled": true,
+  "chatEnabled": false,
   "embeddingProvider": "openai_compatible",
   "embeddingBaseUrl": "https://api.openai.com/v1",
   "embeddingModel": "text-embedding-3-small",
@@ -37,6 +39,11 @@ RAG 설정과 색인 대기열은 DB에 저장된다. 용어를 등록·수정�
   "topK": 8
 }
 ```
+
+`chatEnabled`는 챗봇의 하이브리드 검색 보조 여부다. 기본값은 `false`이며, 켜면 챗봇
+질문이 Embedding 공급자에 전송될 수 있다. 벡터 공급자가 일시적으로 실패하거나 해당
+리비전이 아직 색인되지 않았을 때 챗봇은 기존 표기·키워드 검색으로 폴백한다. 직접 벡터
+결과가 필요한 호출자는 아래의 `POST /rag/search`를 사용한다.
 
 `embeddingProvider`는 `openai_compatible` 또는 `gemini`이고, 현재 `rerankerProvider`는
 `cohere_compatible`이다. Embedding 출력과 DB 벡터 차원은 **1536으로 고정**한다. OpenAI

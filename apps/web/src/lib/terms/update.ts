@@ -4,7 +4,7 @@ import type { ContributionSuggestion } from "@/lib/ai/contribution-suggestions";
 import { buildRuleSuggestions } from "@/lib/ai/contribution-suggestions";
 import { isUniqueViolation } from "@/lib/postgres-error";
 import {
-  aiReviewSuggestions, aiReviewQueue, termRelations, apiKeys, attachmentRefs, attachments, surfaceKeys, terms, termRevisions, termSurfaces, users,
+  aiReviewSuggestions, aiReviewQueue, classificationReviewSuggestions, termRelations, apiKeys, attachmentRefs, attachments, surfaceKeys, terms, termRevisions, termSurfaces, users,
 } from "@glossary/db";
 import { extractAttachmentHashes } from "@/lib/attachments/refs";
 import { getDb } from "@/lib/db";
@@ -296,6 +296,10 @@ export async function updateTerm(
         // 지금 기록해야만 나중에 누가 썼는지 복원할 수 있다(R47과 같은 이유).
         authorKeyId,
       });
+      // 분류 추천은 이 리비전에만 유효하다. 승인 저장을 포함해 용어가
+      // 어떤 필드로든 수정되면 이전 추천을 지워 다음 정리 화면이 새 리비전
+      // 기준으로 다시 판단하게 한다.
+      await tx.delete(classificationReviewSuggestions).where(eq(classificationReviewSuggestions.termId, termId));
       await queueRagIndex(tx, termId, currentRevision + 1);
 
       // Chat action receipts must commit or roll back with the term revision.

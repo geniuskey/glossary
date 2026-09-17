@@ -2,6 +2,7 @@ import { eq, or } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { createDb, terms } from "@glossary/db";
 import { createTerm } from "../src/lib/terms/create.js";
+import { listClassificationReviewCandidates } from "../src/lib/terms/classification-review.js";
 import {
   getTermByIdOrSlug,
   listContributionTerms,
@@ -55,6 +56,7 @@ async function purgeFixtures() {
 
 let aeSlug = "";
 let nakedAbbreviationId = "";
+let nakedName = "";
 let completeDraftId = "";
 let relatedTermId = "";
 let koreanOnlySlug = "";
@@ -148,6 +150,7 @@ beforeAll(async () => {
   ids.push(ae.term.id, hw.term.id, dupe.term.id, naked.term.id, draft.term.id, related.term.id, koreanOnly.term.id);
   aeSlug = ae.term.slug;
   nakedAbbreviationId = naked.term.id;
+  nakedName = naked.term.nameEn!;
   completeDraftId = draft.term.id;
   relatedTermId = related.term.id;
   koreanOnlySlug = koreanOnly.term.slug;
@@ -259,6 +262,18 @@ test("기준을 만족한 용어는 요청 상태와 무관하게 공동 정리 
 test("제안 검토에서 지정한 용어는 제한된 공동 정리 목록에 우선 포함한다", async () => {
   const queue = await listContributionTerms(1, undefined, nakedAbbreviationId);
   expect(queue.items[0]?.id).toBe(nakedAbbreviationId);
+});
+
+test("분류 축별 정리 목록은 해당 축이 비어 있는 용어만 돌려준다", async () => {
+  const domains = await listClassificationReviewCandidates("domain", 500);
+  const categories = await listClassificationReviewCandidates("category", 500);
+  const filteredDomains = await listClassificationReviewCandidates("domain", 500, nakedName);
+  expect(domains.map((item) => item.id)).toContain(nakedAbbreviationId);
+  expect(categories.map((item) => item.id)).toContain(nakedAbbreviationId);
+  expect(domains.map((item) => item.id)).not.toContain(ids[0]);
+  expect(categories.map((item) => item.id)).not.toContain(ids[0]);
+  expect(domains.find((item) => item.id === nakedAbbreviationId)?.revision).toBe(1);
+  expect(filteredDomains.map((item) => item.id)).toEqual([nakedAbbreviationId]);
 });
 
 test("제안 검토 목록에서 선택한 용어를 우선 정렬하지 않을 수 있다", async () => {

@@ -7,9 +7,12 @@ import { getCurrentUser } from "@/lib/auth/current-user";
 import { loadAiConfig, publicAiConfig } from "@/lib/ai/config";
 import { listPreparedReviews, listReviewQueue, prepareAutoReviews, resumeReviewQueue, reviewQueueStatuses } from "@/lib/ai/auto-review";
 import { listBusinessCategories } from "@/lib/terms/categories";
+import { listClassificationReviewCandidates, type ClassificationReviewKind } from "@/lib/terms/classification-review";
+import { listDomains } from "@/lib/terms/domains";
 import { listContributionTerms } from "@/lib/terms/query";
 import { cx } from "@/lib/ui/format";
 import { AgentReviewPanel } from "./agent-review-panel";
+import { ClassificationReviewPanel } from "./classification-review-panel";
 import { ContributionQueueTable } from "./contribution-queue-table";
 import { QueueRefresh } from "./queue-refresh";
 import { ReviewQueuePanel } from "./review-queue-panel";
@@ -25,6 +28,8 @@ const TABS = [
   { key: "duplicates", label: "중복 정리", href: "/contribute?tab=duplicates" },
   { key: "queue", label: "AI 검토 큐", href: "/contribute?tab=queue" },
   { key: "definitions", label: "한줄 정의 정리", href: "/contribute?tab=definitions" },
+  { key: "domains", label: "도메인 정리", href: "/contribute?tab=domains" },
+  { key: "categories", label: "업무 분류 정리", href: "/contribute?tab=categories" },
 ] as const;
 
 const AGENT_REVIEW_LIST_LIMIT = 300;
@@ -37,21 +42,28 @@ export default async function ContributePage({ searchParams }: { searchParams: P
   const params = await searchParams;
   const rawTab = params.tab;
   const requestedTab = Array.isArray(rawTab) ? rawTab[0] : rawTab;
-  const tab = requestedTab === "agent" || requestedTab === "queue" || requestedTab === "duplicates" || requestedTab === "definitions" ? requestedTab : "edit";
+  const tab = requestedTab === "agent" || requestedTab === "queue" || requestedTab === "duplicates" || requestedTab === "definitions" || requestedTab === "domains" || requestedTab === "categories" ? requestedTab : "edit";
   const rawTermId = params.termId;
   const selectedTermId = tab === "agent" ? (Array.isArray(rawTermId) ? rawTermId[0] : rawTermId) : undefined;
   const scalar = (key: string) => typeof params[key] === "string" ? params[key] as string : "";
   const filters = { q: scalar("q").slice(0, 200), category: scalar("category"), missing: scalar("missing"), page: Math.min(100000, Math.max(1, Number.parseInt(scalar("page"), 10) || 1)) };
   const pageHref = (page: number) => `/contribute?${new URLSearchParams({ q: filters.q, category: filters.category, missing: filters.missing, page: String(page) })}`;
   const contributionLimit = tab === "agent" ? AGENT_REVIEW_LIST_LIMIT : 60;
-  const [queue, storedAi, reviewQueue, definitionCandidates] = await Promise.all([
-    tab === "edit" ? listContributionTerms(contributionLimit, user.id, selectedTermId, filters) : listContributionTerms(contributionLimit, user.id, selectedTermId, { includePrepared: tab === "agent", preservePreferredOrder: tab === "agent" }),
+  const termListTab = tab === "edit" || tab === "agent";
+  const classificationKind: ClassificationReviewKind | undefined = tab === "domains" ? "domain" : tab === "categories" ? "category" : undefined;
+  const [queue, storedAi, reviewQueue, definitionCandidates, classificationCandidates] = await Promise.all([
+    termListTab
+      ? tab === "edit"
+        ? listContributionTerms(contributionLimit, user.id, selectedTermId, filters)
+        : listContributionTerms(contributionLimit, user.id, selectedTermId, { includePrepared: true, preservePreferredOrder: true })
+      : Promise.resolve({ items: [], total: 0 }),
     loadAiConfig(),
     listReviewQueue(),
     tab === "definitions" ? listDefinitionReviewCandidates() : Promise.resolve([]),
+    classificationKind ? listClassificationReviewCandidates(classificationKind, 200, filters.q) : Promise.resolve([]),
   ]);
   const ai = publicAiConfig(storedAi);
-  const categories = await listBusinessCategories();
+  const [categories, domains] = await Promise.all([listBusinessCategories(), listDomains()]);
   const categoryLabels = Object.fromEntries(categories.map((item) => [item.key, item.label]));
   const preparedReviews = tab === "agent" ? await listPreparedReviews(queue.items) : {};
   const queueStatuses = tab === "edit" ? await reviewQueueStatuses(queue.items) : {};
@@ -68,7 +80,7 @@ export default async function ContributePage({ searchParams }: { searchParams: P
   return (
     <AppShell user={user} title="함께 정리" current="contribute" roomy>
       <p className="mb-4 text-xl font-semibold tracking-tight text-balance lg:hidden">함께 정리</p>
-      {tab !== "agent" && tab !== "duplicates" && tab !== "definitions" && <QueueRefresh active={reviewQueue.counts.active > 0} />}
+      {tab !== "agent" && tab !== "duplicates" && tab !== "definitions" && tab !== "domains" && tab !== "categories" && <QueueRefresh active={reviewQueue.counts.active > 0} />}
       <div className="flex min-w-0 items-end gap-2 border-b border-line">
         <nav className="flex min-w-0 flex-1 overflow-x-auto overflow-y-hidden" aria-label="함께 정리 방식">
           {TABS.map((item) => (
@@ -82,14 +94,14 @@ export default async function ContributePage({ searchParams }: { searchParams: P
         </div>
       </div>
 
-      {tab !== "agent" && tab !== "definitions" && (
+      {tab !== "agent" && tab !== "definitions" && tab !== "domains" && tab !== "categories" && (
         <div className="mb-5 flex flex-wrap items-center justify-between gap-2 py-3 text-xs text-ink-3">
           <p>{tab === "edit" ? "내가 맡은 용어를 먼저, 부족한 정보가 많고 오래 기다린 순으로 보여드립니다." : "자동·수동 AI 검토의 진행 상태를 함께 확인합니다."}</p>
           <span className="font-mono tabular-nums">{tab === "queue" ? `${reviewQueue.counts.active.toLocaleString("ko-KR")}개 처리 중` : `${queue.total.toLocaleString("ko-KR")}개`}</span>
         </div>
       )}
 
-      {tab === "definitions" ? <DefinitionReviewPanel initialCandidates={definitionCandidates} aiAvailable={Boolean(ai.enabled && ai.secretsReadable)} /> : tab === "duplicates" ? <DuplicateReviewPanel initialQuery={scalar("term")} /> : tab === "edit" ? <>
+      {tab === "definitions" ? <DefinitionReviewPanel initialCandidates={definitionCandidates} aiAvailable={Boolean(ai.enabled && ai.secretsReadable)} /> : tab === "domains" ? <ClassificationReviewPanel key={`domain:${filters.q}`} kind="domain" initialCandidates={classificationCandidates} query={filters.q} aiAvailable={Boolean(ai.enabled && ai.secretsReadable)} domainOptions={domains.map((domain) => ({ value: domain.label, label: domain.label }))} categoryOptions={categories.map((category) => ({ value: category.key, label: category.labelKo, secondaryLabel: category.labelEn }))} /> : tab === "categories" ? <ClassificationReviewPanel key={`category:${filters.q}`} kind="category" initialCandidates={classificationCandidates} query={filters.q} aiAvailable={Boolean(ai.enabled && ai.secretsReadable)} domainOptions={domains.map((domain) => ({ value: domain.label, label: domain.label }))} categoryOptions={categories.map((category) => ({ value: category.key, label: category.labelKo, secondaryLabel: category.labelEn }))} /> : tab === "duplicates" ? <DuplicateReviewPanel initialQuery={scalar("term")} /> : tab === "edit" ? <>
       <form key={`${filters.q}:${filters.category}:${filters.missing}`} action="/contribute" className="mb-4 flex flex-wrap items-end gap-3">
         <label className="min-w-0 flex-1 text-xs text-ink-2">용어 검색<input name="q" defaultValue={filters.q} maxLength={200} autoComplete="off" placeholder="예: 캐시…" className="mt-1 block w-full rounded-lg border border-line bg-panel p-2 text-sm text-ink" /></label>
         <label className="text-xs text-ink-2">업무 분야<select name="category" defaultValue={filters.category} className="mt-1 block max-w-full rounded-lg border border-line bg-panel p-2 text-sm text-ink"><option value="">전체 분야</option>{categories.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>

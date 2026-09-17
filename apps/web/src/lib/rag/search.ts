@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import { AiProviderError } from "@/lib/ai/provider";
 import { loadRagConfig, runtimeEmbeddingConfig, runtimeRerankerConfig } from "./config";
 import { embedTexts, rerankTexts } from "./provider";
+import type { AiRunContext } from "@/lib/ai/observability-values";
 
 export class RagNotReadyError extends Error {
   constructor(message = "RAG 검색이 아직 설정되지 않았습니다.") {
@@ -17,6 +18,7 @@ export interface RagSearchOptions {
   topK?: number;
   domain?: string;
   rerank?: boolean;
+  telemetry?: AiRunContext;
 }
 
 export interface RagSearchHit {
@@ -60,7 +62,7 @@ export async function searchRag(query: string, options: RagSearchOptions = {}): 
   } catch {
     throw new RagNotReadyError("Embedding API 비밀값을 읽을 수 없습니다. 관리자 설정을 확인해 주세요.");
   }
-  const [queryEmbedding] = await embedTexts(embeddingConfig, [query]);
+  const [queryEmbedding] = await embedTexts(embeddingConfig, [query], { ...options.telemetry, operation: "rag.embedding.query" });
   if (!queryEmbedding) throw new AiProviderError("Embedding 서버가 검색 벡터를 반환하지 않았습니다.");
 
   const topK = Math.max(1, Math.min(50, Math.floor(options.topK ?? config.topK)));
@@ -113,7 +115,7 @@ export async function searchRag(query: string, options: RagSearchOptions = {}): 
     } catch {
       throw new RagNotReadyError("Reranker API 비밀값을 읽을 수 없습니다. 관리자 설정을 확인해 주세요.");
     }
-    const reranked = await rerankTexts(rerankerConfig, query, ordered.map((row) => row.content));
+    const reranked = await rerankTexts(rerankerConfig, query, ordered.map((row) => row.content), { ...options.telemetry, operation: "rag.reranker.query" });
     const byIndex = new Map(reranked.map((item) => [item.index, item.score]));
     ordered = ordered
       .map((row, index) => ({ ...row, rerankScore: byIndex.get(index) ?? null, rank: index }))

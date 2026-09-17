@@ -13,6 +13,7 @@ import {
   type ContributionSuggestion,
   type ContributionSuggestionField,
 } from "./contribution-suggestions";
+import { parseAiJson } from "./json";
 
 interface RawSuggestion {
   field?: unknown;
@@ -26,54 +27,10 @@ interface RelationTarget {
   name: string;
 }
 
-function balancedJsonAt(text: string, start: number): string | null {
-  const opening = text[start];
-  if (opening !== "{" && opening !== "[") return null;
-  const stack: string[] = [opening];
-  let quoted = false;
-  let escaped = false;
-  for (let index = start + 1; index < text.length; index += 1) {
-    const char = text[index]!;
-    if (quoted) {
-      if (escaped) escaped = false;
-      else if (char === "\\") escaped = true;
-      else if (char === '"') quoted = false;
-      continue;
-    }
-    if (char === '"') {
-      quoted = true;
-      continue;
-    }
-    if (char === "{" || char === "[") stack.push(char);
-    else if (char === "}" || char === "]") {
-      const expected = char === "}" ? "{" : "[";
-      if (stack.pop() !== expected) return null;
-      if (stack.length === 0) return text.slice(start, index + 1);
-    }
-  }
-  return null;
-}
-
 function jsonPayload(answer: string): unknown {
-  const stripped = answer
-    .replace(/<think>[\s\S]*?<\/think>/gi, " ")
-    .replace(/```(?:json)?/gi, " ")
-    .trim();
-  try {
-    return JSON.parse(stripped);
-  } catch {
-    for (let index = 0; index < stripped.length; index += 1) {
-      if (stripped[index] !== "{" && stripped[index] !== "[") continue;
-      const candidate = balancedJsonAt(stripped, index);
-      if (!candidate) continue;
-      try {
-        return JSON.parse(candidate);
-      } catch {
-        // 설명 속 예시 JSON일 수 있으므로 다음 객체를 계속 찾는다.
-      }
-    }
-    throw new Error("INVALID_AGENT_RESPONSE");
-  }
+  const parsed = parseAiJson(answer);
+  if (parsed === null) throw new Error("INVALID_AGENT_RESPONSE");
+  return parsed;
 }
 
 export function parseAgentSuggestions(
@@ -201,7 +158,7 @@ export async function generateContributionSuggestions(term: TermDetail, instruct
       ].join("\n"),
     },
     { role: "user", content: `REVIEW_CONTEXT=${JSON.stringify(context)}` },
-  ], 4_096, { jsonOutput: true, thinkingLevel: "minimal" });
+  ], 4_096, { jsonOutput: true, thinkingLevel: "minimal", context: { operation: "agent.review" } });
   const allowedDomains = domains.map((item) => item.label);
   const allowedCategories = categories.map((item) => item.key);
   try {
@@ -218,7 +175,7 @@ export async function generateContributionSuggestions(term: TermDetail, instruct
         ].join("\n"),
       },
       { role: "user", content: `RAW_RESPONSE=${JSON.stringify(answer.slice(0, 8_000))}` },
-    ], 2_048, { jsonOutput: true, thinkingLevel: "minimal" });
+    ], 2_048, { jsonOutput: true, thinkingLevel: "minimal", context: { operation: "agent.review.repair" } });
     return parseAgentSuggestions(repaired, term, allowedDomains, allowedCategories, relationTargets);
   }
 }

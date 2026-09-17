@@ -1,4 +1,4 @@
-import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./auth";
 import { terms } from "./terms";
@@ -51,6 +51,25 @@ export const definitionReviewSuggestions = pgTable(
     generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({ positiveRevision: check("definition_review_suggestions_positive_revision", sql`${t.revision} > 0`) }),
+);
+
+export const classificationReviewKindEnum = pgEnum("classification_review_kind", ["domain", "category"]);
+
+/** 현재 용어 리비전에 대해 생성한 도메인·업무 분류 추천. 승인 전까지 리비전별로 재사용한다. */
+export const classificationReviewSuggestions = pgTable(
+  "classification_review_suggestions",
+  {
+    termId: uuid("term_id").notNull().references(() => terms.id, { onDelete: "cascade" }),
+    kind: classificationReviewKindEnum("kind").notNull(),
+    revision: integer("revision").notNull(),
+    values: text("values").array().notNull().default(sql`array[]::text[]`),
+    reason: text("reason").notNull(),
+    generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    primary: primaryKey({ columns: [t.termId, t.kind] }),
+    positiveRevision: check("classification_review_suggestions_positive_revision", sql`${t.revision} > 0`),
+  }),
 );
 
 /** 자동·수동 AI 검토 요청의 현재 상태. 용어마다 최신 리비전 한 건만 관리한다. */

@@ -14,6 +14,7 @@ import {
   type EditReviewSuggestion,
 } from "./edit-review-values";
 import { completeAi } from "./provider";
+import { parseAiJson } from "./json";
 import { DEFINITION_GUIDELINES } from "./definition-guidelines";
 import { retrieveGlossaryContext } from "./retrieval";
 
@@ -22,31 +23,6 @@ const FINDING_KINDS = new Set(["typo", "contradiction", "consistency", "missing"
 const FIELD_SET = new Set<string>(EDIT_REVIEW_FIELDS);
 const ARRAY_FIELDS = new Set<EditReviewField>(["domain", "category"]);
 const NAME_FIELDS = new Set<EditReviewField>(["nameEn", "nameKo", "fullNameEn", "fullNameKo", "topic"]);
-
-function balancedJson(text: string): string | null {
-  const start = text.search(/[\[{]/);
-  if (start < 0) return null;
-  const stack: string[] = [];
-  let quoted = false;
-  let escaped = false;
-  for (let index = start; index < text.length; index += 1) {
-    const char = text[index]!;
-    if (quoted) {
-      if (escaped) escaped = false;
-      else if (char === "\\") escaped = true;
-      else if (char === '"') quoted = false;
-      continue;
-    }
-    if (char === '"') quoted = true;
-    else if (char === "{" || char === "[") stack.push(char);
-    else if (char === "}" || char === "]") {
-      const expected = char === "}" ? "{" : "[";
-      if (stack.pop() !== expected) return null;
-      if (stack.length === 0) return text.slice(start, index + 1);
-    }
-  }
-  return null;
-}
 
 function textValue(value: unknown, max: number): string | null {
   return typeof value === "string" && value.trim() ? value.trim().slice(0, max) : null;
@@ -65,16 +41,9 @@ export function parseEditReview(
   allowedCategories: readonly string[],
   availableSources: readonly EditReviewSource[],
 ): EditReviewResult {
-  const json = balancedJson(answer.replace(/<think>[\s\S]*?<\/think>/gi, " ").replace(/```(?:json)?/gi, " "));
-  if (!json) throw new Error("INVALID_EDIT_REVIEW");
-  let raw: Record<string, unknown>;
-  try {
-    const parsed = JSON.parse(json) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
-    raw = parsed as Record<string, unknown>;
-  } catch {
-    throw new Error("INVALID_EDIT_REVIEW");
-  }
+  const parsed = parseAiJson(answer);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("INVALID_EDIT_REVIEW");
+  const raw = parsed as Record<string, unknown>;
 
   const sourceMap = new Map(availableSources.map((source) => [source.slug, source]));
   const domains = new Set(allowedDomains);
@@ -238,7 +207,7 @@ export async function reviewTermDraft(term: TermWritePayload, currentSlug?: stri
       ].join("\n"),
     },
     { role: "user", content: `EDIT_REVIEW_CONTEXT=${JSON.stringify(context)}` },
-  ], 5_000);
+  ], 5_000, { context: { operation: "agent.edit-review" } });
   const review = parseEditReview(answer, context.allowedDomains, categoryOptions.map((item) => item.key), sources);
   const currentValue = (field: EditReviewField): string | string[] | undefined => {
     if (field === "domain") return term.domain;

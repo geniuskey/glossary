@@ -15,7 +15,7 @@ export const POST = withApiErrors(async () => {
     await completeAi(config, [
       { role: "system", content: "연결 확인 요청입니다." },
       { role: "user", content: "OK라고만 답하세요." },
-    ], 128);
+    ], 128, { context: { operation: "admin.ai-connection-test", actorId: admin.id } });
     return Response.json({ ok: true });
   } catch (error) {
     if (error instanceof AiProviderError) return apiError("ai_provider_error", error.message, 502);

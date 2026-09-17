@@ -13,6 +13,8 @@ import type { ChatHistoryMessage } from "./chat";
 import { termInputBaseSchema } from "@/lib/terms/schema";
 import { listDomains } from "@/lib/terms/domains";
 import { listBusinessCategories } from "@/lib/terms/categories";
+import type { AiRunContext } from "./observability-values";
+import { parseAiJson } from "./json";
 
 async function classificationContext(): Promise<string> {
   const [domains, categories] = await Promise.all([listDomains(), listBusinessCategories()]);
@@ -39,19 +41,7 @@ const extractionSchema = z.object({
 const batchExtractionSchema = z.object({ terms: z.array(extractionSchema).min(1).max(25) }).strict();
 
 function extractJson(text: string): unknown {
-  const unfenced = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  try {
-    return JSON.parse(unfenced);
-  } catch {
-    const start = unfenced.indexOf("{");
-    const end = unfenced.lastIndexOf("}");
-    if (start < 0 || end <= start) return null;
-    try {
-      return JSON.parse(unfenced.slice(start, end + 1));
-    } catch {
-      return null;
-    }
-  }
+  return parseAiJson(text);
 }
 
 function mergeDraft(previous: TermTeachingDraft | null, extracted: z.infer<typeof extractionSchema>): TermTeachingDraft | null {
@@ -114,6 +104,7 @@ export function looksLikeGlossaryPaste(text: string): boolean {
 export async function extractPastedGlossary(
   config: AiRuntimeConfig,
   pastedText: string,
+  context?: AiRunContext,
 ): Promise<{ answer: string; batch: TermTeachingBatch | null }> {
   const catalog = await classificationContext();
   const system = [
@@ -135,7 +126,7 @@ export async function extractPastedGlossary(
   const raw = await completeAi(config, [
     { role: "system", content: system },
     { role: "user", content: pastedText },
-  ], 5_000);
+  ], 5_000, { context: { ...context, operation: "chat.paste-extraction" } });
   const parsed = batchExtractionSchema.safeParse(extractJson(raw));
   if (!parsed.success) {
     return { answer: "붙여넣은 내용에서 용어 행을 구분하지 못했습니다. 표 머리글과 용어 열이 보이도록 다시 붙여넣어 주세요.", batch: null };
@@ -162,6 +153,7 @@ export async function collectTermTeaching(
   question: string,
   history: ChatHistoryMessage[],
   previous: TermTeachingDraft | null,
+  context?: AiRunContext,
 ): Promise<TermTeachingResult> {
   const catalog = await classificationContext();
   const system = [
@@ -183,7 +175,7 @@ export async function collectTermTeaching(
     ...history.slice(-8),
     { role: "user" as const, content: question },
   ];
-  const raw = await completeAi(config, messages, 900);
+  const raw = await completeAi(config, messages, 900, { context: { ...context, operation: "chat.teaching" } });
   const parsed = extractionSchema.safeParse(extractJson(raw));
   if (!parsed.success) {
     return {

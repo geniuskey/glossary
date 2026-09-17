@@ -29,6 +29,8 @@ export function ClassificationMultiSelect({
   refresh,
   disabled = false,
   invalid = false,
+  hideLabel = false,
+  compact = false,
   describedBy,
   onChange,
 }: {
@@ -43,6 +45,8 @@ export function ClassificationMultiSelect({
   refresh: RefreshConfig;
   disabled?: boolean;
   invalid?: boolean;
+  hideLabel?: boolean;
+  compact?: boolean;
   describedBy?: string;
   onChange: (values: string[]) => void;
 }) {
@@ -221,7 +225,7 @@ export function ClassificationMultiSelect({
 
   return (
     <div className="block min-w-0">
-      <span className="label inline-flex items-center gap-1.5">
+      <span className={cx("label inline-flex items-center gap-1.5", hideLabel && "sr-only")}>
         <label htmlFor={`${name}-search`}>{label}</label>
         <HelpTip text={help} />
       </span>
@@ -276,7 +280,7 @@ export function ClassificationMultiSelect({
           onChange={(event) => { setQuery(event.target.value); setOpen(true); }}
           onKeyDown={handleKeyDown}
           placeholder={selected.length === 0 ? placeholder : "검색…"}
-          className="min-w-[9rem] flex-1 border-0 bg-transparent px-1 py-1 text-sm text-ink outline-none placeholder:text-ink-3"
+          className={cx(compact ? "min-w-0" : "min-w-[9rem]", "flex-1 border-0 bg-transparent px-1 py-1 text-sm text-ink outline-none placeholder:text-ink-3")}
         />
       </div>
       {menu}

@@ -36,6 +36,7 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | PATCH | [`/admin/ai-config`](/api/ai#ai-연결-설정) | 세션(admin) | AI 연결 설정 저장 |
 | POST | [`/admin/ai-config/models`](/api/ai#모델-목록) | 세션(admin) | 공급자가 제공하는 모델 목록 조회 |
 | POST | [`/admin/ai-config/test`](/api/ai#연결-시험) | 세션(admin) | 선택 모델로 실제 생성 요청 시험 |
+| GET | [`/admin/ai-observability`](/api/ai#ai-실행-모니터링) | 세션(admin) | AI 호출 집계·실패와 RAG·검토 큐 상태 |
 | GET | [`/admin/rag-config`](/api/rag#관리자-설정) | 세션(admin) | RAG·Embedding·Reranker 설정과 색인 통계 |
 | PATCH | [`/admin/rag-config`](/api/rag#관리자-설정) | 세션(admin) | RAG 연결·청크 설정 저장 |
 | POST | [`/admin/rag-config/test`](/api/rag#post-adminrag-config-test) | 세션(admin) | Embedding·Reranker 연결 시험 |
@@ -52,6 +53,7 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | GET | [`/contributions/term-definitions`](/api/ai#한줄-정의-제안) | `read` | 한줄 정의 정리 대상과 캐시된 제안 |
 | POST | [`/contributions/term-definitions`](/api/ai#한줄-정의-제안) | `write` | LLM 한줄 정의 생성 |
 | PATCH | [`/contributions/term-definitions`](/api/ai#한줄-정의-제안) | `write` | 한줄 정의 한 건 승인 |
+| POST | [`/contributions/classifications`](/api/ai#분류-추천) | `write` | 도메인·업무 분류 AI 추천 생성 |
 | GET | [`/contributions/duplicates`](/api/ai#중복-정리) | `read` | 중복 표기·숫자 접미사 후보 |
 | POST | [`/contributions/duplicates`](/api/ai#중복-정리) | `write` | AI 중복 검토 |
 | PATCH | [`/contributions/duplicates`](/api/ai#중복-정리) | `write` | 중복 용어 병합 |

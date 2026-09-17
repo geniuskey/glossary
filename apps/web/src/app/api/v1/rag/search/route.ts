@@ -1,4 +1,5 @@
 import { z } from "zod/v3";
+import { randomUUID } from "node:crypto";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAuth } from "@/lib/auth/require";
 import { AiProviderError } from "@/lib/ai/provider";
@@ -27,6 +28,11 @@ export const POST = withApiErrors(async (request: Request) => {
       topK: parsed.data.topK,
       domain: parsed.data.domain ?? undefined,
       rerank: parsed.data.rerank,
+      telemetry: {
+        traceId: randomUUID(),
+        operation: "rag.search",
+        ...(auth.kind === "user" ? { actorId: auth.user.id } : { metadata: { apiKeyId: auth.keyId } }),
+      },
     });
     return Response.json({
       query: parsed.data.query,

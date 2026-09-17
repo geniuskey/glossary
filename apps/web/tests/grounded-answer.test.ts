@@ -66,3 +66,13 @@ test("잘못된 모델 응답은 근거 없는 일반 답변으로 대체하지 
   expect(result.answer).not.toContain("무조건 오늘");
   expect(result.answer).toContain("연결하지 못했습니다");
 });
+
+test("구조화 응답이 깨지면 허용된 근거 ID만 사용하는 한 번의 복구를 시도한다", async () => {
+  complete.mockResolvedValueOnce("설명과 함께 깨진 응답")
+    .mockResolvedValueOnce(JSON.stringify({ claims: [{ text: "정산은 다음 영업일에 실행합니다.", evidenceIds: [evidence.id] }], uncertainties: [], followUpQuery: null }));
+  const result = await answerWithEvidence(config, "정산?", [], grounding, ["정산"]);
+  expect(result.grounded.claims).toHaveLength(1);
+  expect(result.grounded.evidence).toEqual([evidence]);
+  expect(complete).toHaveBeenCalledTimes(2);
+  expect(complete.mock.calls[1]?.[3]).toMatchObject({ context: { operation: "chat.grounded-answer.repair" } });
+});

@@ -225,6 +225,27 @@
       "when": 1789571151063,
       "tag": "0031_odd_falcon",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1789638840041,
+      "tag": "0032_colorful_black_tarantula",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1789639302453,
+      "tag": "0033_loud_tempest",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1789650211701,
+      "tag": "0034_redundant_glorian",
+      "breakpoints": true
     }
   ]
 }

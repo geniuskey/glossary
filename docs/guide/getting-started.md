@@ -188,6 +188,8 @@ pnpm --filter @glossary/web exec tsx scripts/seed-terms.ts it semiconductor
 | `/contribute?tab=duplicates` | 중복 정리 — 같은 개념 후보 검토·병합 |
 | `/contribute?tab=queue` | AI 검토 큐 — 대기·처리·완료·실패 상태 |
 | `/contribute?tab=definitions` | 한줄 정의 정리 — 본문 근거와 LLM 제안 표 |
+| `/contribute?tab=domains` | 도메인 정리 — 도메인이 비어 있는 용어 분류 |
+| `/contribute?tab=categories` | 업무 분류 정리 — 업무 분류가 비어 있는 용어 분류 |
 | `/admin?tab=quality` | 콘텐츠 완성도 기준과 충족 현황 |
 | `/admin?tab=ai` | AI 공급자·모델·자동 검토 설정 |
 | `/admin?tab=rag` | Embedding·Reranker·벡터 색인 설정 |

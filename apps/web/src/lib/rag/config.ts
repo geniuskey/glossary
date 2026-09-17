@@ -27,6 +27,7 @@ export interface StoredRagHeader { name: string; value: string }
 
 export interface RagConfigPatch {
   enabled: boolean;
+  chatEnabled: boolean;
   embeddingProvider: RagEmbeddingProvider;
   embeddingBaseUrl: string;
   embeddingModel: string;
@@ -113,6 +114,7 @@ export function publicRagConfig(row: RagConfigRow, stats: RagIndexStats): Public
   const readable = secretsReadable;
   return {
     enabled: row.enabled,
+    chatEnabled: row.chatEnabled,
     embedding: {
       provider: row.embeddingProvider,
       baseUrl: row.embeddingBaseUrl,
@@ -240,6 +242,7 @@ export async function saveRagConfig(
   const values = {
     id: RAG_CONFIG_ID,
     enabled: input.enabled,
+    chatEnabled: input.chatEnabled,
     embeddingProvider: input.embeddingProvider,
     embeddingBaseUrl: input.embeddingBaseUrl.trim().replace(/\/+$/, ""),
     embeddingModel: input.embeddingModel.trim(),

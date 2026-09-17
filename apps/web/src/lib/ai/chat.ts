@@ -8,6 +8,7 @@ import { classifyChatIntent, proposeChatEdit } from "./chat-edit";
 import type { ChatEditProposal } from "./chat-edit-values";
 import { answerWithEvidence } from "./grounded-answer";
 import type { GroundedChatAnswer } from "./grounding-values";
+import type { AiRunContext } from "./observability-values";
 
 export interface ChatHistoryMessage {
   role: "user" | "assistant";
@@ -29,24 +30,25 @@ export async function answerGlossaryQuestion(
   teachingDraft: TermTeachingDraft | null = null,
   previousEdit: ChatEditProposal | null = null,
   domain?: string,
+  telemetry?: AiRunContext,
 ): Promise<GlossaryChatResult> {
   const row = await loadAiConfig();
   if (!row.enabled) throw new Error("AI_NOT_ENABLED");
   const config = runtimeAiConfig(row);
 
-  const classified = await classifyChatIntent(config, question, history, previousEdit, teachingDraft);
+  const classified = await classifyChatIntent(config, question, history, previousEdit, teachingDraft, telemetry);
   if (!classified.success) return { answer: "요청을 해석하지 못했습니다. 질문 또는 수정할 용어와 내용을 다시 알려주세요.", sources: [] };
   const intent = classified.data.intent;
   if (intent === "unsupported") return { answer: "현재 챗에서는 용어 생성과 정의·표기·분류 수정을 지원합니다. 관계 제안은 [정리 대기의 AI 검토](/contribute?tab=agent)에서 확인할 수 있습니다. 관계 변경·삭제·병합 실행은 현재 챗에서 지원하지 않습니다.", sources: [] };
 
   if (intent === "edit") {
-    const grounding = await retrieveGlossaryContext(classified.data.query, 12, { domain, passageQuery: question });
-    const result = await proposeChatEdit(config, question, history, grounding, previousEdit);
+    const grounding = await retrieveGlossaryContext(classified.data.query, 12, { domain, passageQuery: question, vectorSearch: true, telemetry });
+    const result = await proposeChatEdit(config, question, history, grounding, previousEdit, telemetry);
     return { ...result, sources: grounding.sources };
   }
 
   if (teachingDraft && intent === "create") {
-    const teaching = await collectTermTeaching(config, question, history, teachingDraft);
+    const teaching = await collectTermTeaching(config, question, history, teachingDraft, telemetry);
     return {
       answer: teaching.answer,
       sources: [],
@@ -55,7 +57,7 @@ export async function answerGlossaryQuestion(
   }
 
   if (intent === "create" && looksLikeGlossaryPaste(question)) {
-    const pasted = await extractPastedGlossary(config, question);
+    const pasted = await extractPastedGlossary(config, question, telemetry);
     return {
       answer: pasted.answer,
       sources: [],
@@ -64,15 +66,15 @@ export async function answerGlossaryQuestion(
   }
 
   if (intent === "create") {
-    const teaching = await collectTermTeaching(config, question, history, null);
+    const teaching = await collectTermTeaching(config, question, history, null, telemetry);
     return { answer: teaching.answer, sources: [], ...(teaching.draft ? { teaching: { draft: teaching.draft, ready: teaching.ready } } : {}) };
   }
 
   const retrievalQuestion = classified.data.query;
   const queries = [retrievalQuestion];
-  let grounding = await retrieveGlossaryContext(retrievalQuestion, 12, { domain, passageQuery: question });
+  let grounding = await retrieveGlossaryContext(retrievalQuestion, 12, { domain, passageQuery: question, vectorSearch: true, telemetry });
   if (!grounding.sources.length && retrievalQuestion !== question) {
-    grounding = await retrieveGlossaryContext(question, 12, { domain, passageQuery: question });
+    grounding = await retrieveGlossaryContext(question, 12, { domain, passageQuery: question, vectorSearch: true, telemetry });
     queries.push(question);
   }
   if (grounding.sources.length === 0) {
@@ -84,5 +86,5 @@ export async function answerGlossaryQuestion(
     };
   }
 
-  return answerWithEvidence(config, question, history, grounding, queries, { domain });
+  return answerWithEvidence(config, question, history, grounding, queries, { domain, vectorSearch: true, telemetry }, telemetry);
 }

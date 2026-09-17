@@ -84,6 +84,26 @@ docker compose -f docker-compose.prod.yml exec postgres psql -U glossary -d glos
       select status, count(*) from rag_index_queue group by status order by status;"
 ```
 
+### AI 실행 모니터링
+
+관리자 패널의 **AI 모니터링** 탭 또는 `GET /api/v1/admin/ai-observability?hours=24`에서
+LLM·Embedding·Reranker의 호출 수, 성공률, P95 지연, 토큰 사용량, 작업·모델별 실패를
+확인한다. 같은 챗봇 요청에서 발생한 의도 분류·벡터 검색·답변 호출은 trace ID로 묶이며,
+프롬프트·답변 원문과 비밀값은 저장하지 않는다. `running`이 장시간 남으면 프로세스 중단으로
+판정되어 다음 집계 때 실패로 전환된다.
+
+- 성공률이 낮으면 **최근 실패**의 `authentication`, `model_not_found`, `rate_limited`,
+  `provider_unavailable`, `timeout` 분류와 HTTP 상태를 확인한 뒤 AI 연결 시험을 다시 실행한다.
+- RAG 색인 `failed`가 있으면 공급자 연결과 모델·차원을 확인하고, 수정 후 **전체 재색인**을
+  실행한다. 챗봇 하이브리드 검색은 색인 공백이나 Embedding 오류가 있어도 lexical 검색으로
+  폴백한다.
+- AI 검토·RAG 큐의 `processing`이 10~15분 이상 남으면 앱을 재기동하거나 해당 큐 화면의
+  재개 경로를 호출한다. 오래된 작업은 다음 큐 재개 때 다시 `queued`로 돌아간다.
+
+운영 API의 집계 데이터는 호출 원문이 아닌 메타데이터지만 토큰 사용량과 모델명이 포함된다.
+접근은 관리자 세션으로 제한하고, 데이터 보존 기간이 필요한 조직은 `ai_runs` 테이블에 대한
+별도 보존·삭제 정책을 적용한다.
+
 ## 소스에서 직접 빌드해 기동
 
 ```bash

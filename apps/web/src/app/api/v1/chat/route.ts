@@ -1,4 +1,5 @@
 import { z } from "zod/v3";
+import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { chatConversations } from "@glossary/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
@@ -179,7 +180,18 @@ export const POST = withApiErrors(async (request: Request) => {
       ? previousMessages.slice(0, -1).slice(-8).map(({ role, content }) => ({ role, content: content.slice(-4_000) }))
       : parsed.data.history;
     const previousEdit = [...previousMessages].reverse().find((message) => message.edit?.status === "pending")?.edit ?? null;
-    const result = await answerGlossaryQuestion(parsed.data.question, history, parsed.data.teachingDraft ?? null, previousEdit, parsed.data.domain ?? undefined);
+    const result = await answerGlossaryQuestion(
+      parsed.data.question,
+      history,
+      parsed.data.teachingDraft ?? null,
+      previousEdit,
+      parsed.data.domain ?? undefined,
+      {
+        traceId: randomUUID(),
+        conversationId,
+        ...(auth.kind === "user" ? { actorId: auth.user.id } : { metadata: { apiKeyId: auth.keyId } }),
+      },
+    );
     if (auth.kind === "user" && conversationId) {
       const assistantMessage: StoredChatMessage = {
         id: nextMessageId(previousMessages),
