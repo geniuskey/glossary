@@ -55,6 +55,8 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | POST | [`/contributions/term-definitions`](/api/ai#한줄-정의-제안) | `write` | LLM 한줄 정의 생성 |
 | PATCH | [`/contributions/term-definitions`](/api/ai#한줄-정의-제안) | `write` | 한줄 정의 한 건 승인 |
 | POST | [`/contributions/classifications`](/api/ai#분류-추천) | `write` | 도메인·업무 분류 AI 추천 생성 |
+| POST | [`/contributions/suggestion-dispositions`](/api/ai#ai-제안-상태) | `write` | AI 제안 숨김·보류·개인 저장 |
+| DELETE | [`/contributions/suggestion-dispositions`](/api/ai#ai-제안-상태) | `write` | 내 작업에서 AI 제안 제거 |
 | GET | [`/contributions/duplicates`](/api/ai#중복-후보-검토) | `read` | 중복 후보 쌍·검토 상태 |
 | POST | [`/contributions/duplicates`](/api/ai#중복-후보-검토) | `write` | AI 동일 개념 판정 |
 | PATCH | [`/contributions/duplicates`](/api/ai#중복-후보-검토) | `write` | 병합·분리·보류 결정 |

@@ -34,7 +34,7 @@ export const GET = withApiErrors(async (request: Request) => {
   if (await currentRevisionNumber(termId) !== revision) {
     return apiError("revision_conflict", "용어가 변경되어 새 검토를 준비하고 있습니다.", 409);
   }
-  const review = await getPreparedReview(termId, revision);
+  const review = await getPreparedReview(termId, revision, auth.kind === "user" ? auth.user.id : null);
   if (!review) scheduleAfterResponse(() => prepareAutoReview(termId));
   return review ? Response.json({ state: "ready", review }) : Response.json({ state: "pending" }, { status: 202 });
 });

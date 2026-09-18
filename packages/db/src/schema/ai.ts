@@ -1,4 +1,4 @@
-import { boolean, check, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./auth";
 import { terms } from "./terms";
@@ -53,9 +53,58 @@ export const definitionReviewSuggestions = pgTable(
   (t) => ({ positiveRevision: check("definition_review_suggestions_positive_revision", sql`${t.revision} > 0`) }),
 );
 
+/** 현재 용어 리비전에 대해 생성한 대표명·확장명·추가 표기 정비 제안. */
+export const identityReviewSuggestions = pgTable(
+  "identity_review_suggestions",
+  {
+    termId: uuid("term_id").primaryKey().references(() => terms.id, { onDelete: "cascade" }),
+    revision: integer("revision").notNull(),
+    generatorVersion: integer("generator_version").notNull().default(1),
+    findings: jsonb("findings").$type<unknown>().notNull().default(sql`'[]'::jsonb`),
+    suggestions: jsonb("suggestions").$type<unknown>().notNull().default(sql`'[]'::jsonb`),
+    uncertainties: jsonb("uncertainties").$type<unknown[]>().notNull().default(sql`'[]'::jsonb`),
+    sources: jsonb("sources").$type<unknown[]>().notNull().default(sql`'[]'::jsonb`),
+    generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ positiveRevision: check("identity_review_suggestions_positive_revision", sql`${t.revision} > 0`) }),
+);
+
 export const classificationReviewKindEnum = pgEnum("classification_review_kind", ["domain", "category"]);
 
 export const duplicateReviewDecisionEnum = pgEnum("duplicate_review_decision", ["different", "uncertain"]);
+
+export const aiSuggestionDispositionEnum = pgEnum("ai_suggestion_disposition", ["dismissed", "deferred", "saved"]);
+export const aiSuggestionScopeEnum = pgEnum("ai_suggestion_scope", ["shared", "personal"]);
+
+/** AI 제안의 승인 전 검토 상태. 용어 리비전·생성기 버전이 바뀌면 다시 검토한다. */
+export const aiSuggestionDecisions = pgTable(
+  "ai_suggestion_decisions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    termId: uuid("term_id").notNull().references(() => terms.id, { onDelete: "cascade" }),
+    revision: integer("revision").notNull(),
+    feature: text("feature").notNull(),
+    suggestionId: text("suggestion_id").notNull(),
+    generatorVersion: integer("generator_version").notNull().default(1),
+    scope: aiSuggestionScopeEnum("scope").notNull(),
+    disposition: aiSuggestionDispositionEnum("disposition").notNull(),
+    reason: text("reason").notNull().default(""),
+    payload: jsonb("payload").$type<unknown>().notNull().default(sql`'{}'::jsonb`),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    remindAt: timestamp("remind_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    termFeatureIdx: index("ai_suggestion_decisions_term_feature_idx").on(t.termId, t.revision, t.feature),
+    userUpdatedIdx: index("ai_suggestion_decisions_user_updated_idx").on(t.userId, t.updatedAt),
+    sharedUnique: uniqueIndex("ai_suggestion_decisions_shared_unique").on(t.termId, t.revision, t.feature, t.suggestionId, t.generatorVersion).where(sql`${t.scope} = 'shared'`),
+    personalUnique: uniqueIndex("ai_suggestion_decisions_personal_unique").on(t.termId, t.revision, t.feature, t.suggestionId, t.generatorVersion, t.userId).where(sql`${t.scope} = 'personal'`),
+    positiveRevision: check("ai_suggestion_decisions_positive_revision", sql`${t.revision} > 0`),
+    positiveGenerator: check("ai_suggestion_decisions_positive_generator", sql`${t.generatorVersion} > 0`),
+    scopeOwner: check("ai_suggestion_decisions_scope_owner", sql`(${t.scope} = 'shared' and ${t.userId} is null) or (${t.scope} = 'personal' and ${t.userId} is not null)`),
+  }),
+);
 
 /** 사람이 같은 후보 쌍을 검토한 결과. 양쪽 리비전이 바뀌면 오래된 판단으로 취급한다. */
 export const duplicateReviewDecisions = pgTable(

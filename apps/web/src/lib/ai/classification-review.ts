@@ -8,6 +8,8 @@ import { getDb } from "@/lib/db";
 import type { ClassificationReviewKind } from "@/lib/terms/classification-review";
 import { generateContributionSuggestions } from "./contribution-agent";
 import type { ContributionSuggestion } from "./contribution-suggestions";
+import { AI_SUGGESTION_GENERATOR_VERSIONS, classificationSuggestionId } from "./suggestion-disposition-values";
+import { getSuggestionDisposition, isHiddenSuggestionDisposition } from "./suggestion-dispositions";
 
 export interface ClassificationSuggestion {
   termId: string;
@@ -31,12 +33,18 @@ async function generate(
   kind: ClassificationReviewKind,
   expectedRevision: number,
   force: boolean,
+  userId: string | null,
 ): Promise<ClassificationSuggestion | null> {
   const term = await getTermByIdOrSlug(termId);
   if (!term) throw new Error("TERM_NOT_FOUND");
   const revision = await currentRevisionNumber(termId);
   if (revision !== expectedRevision) throw new Error("REVISION_CONFLICT");
   if ((kind === "domain" ? term.domain : term.categories).length > 0) throw new Error("NOT_ELIGIBLE");
+
+  if (!force) {
+    const decision = await getSuggestionDisposition(termId, revision, "classification", classificationSuggestionId(kind), userId, AI_SUGGESTION_GENERATOR_VERSIONS.classification);
+    if (decision && isHiddenSuggestionDisposition(decision.disposition)) return null;
+  }
 
   const db = getDb();
   if (!force) {
@@ -88,11 +96,12 @@ export function generateClassificationSuggestion(
   kind: ClassificationReviewKind,
   expectedRevision: number,
   force = false,
+  userId: string | null = null,
 ): Promise<ClassificationSuggestion | null> {
-  const key = `${termId}:${kind}:${expectedRevision}:${force ? "force" : "cached"}`;
+  const key = `${termId}:${kind}:${expectedRevision}:${force ? "force" : "cached"}:${userId ?? "shared"}`;
   const running = inFlight.get(key);
   if (running) return running;
-  const task = generate(termId, kind, expectedRevision, force).finally(() => inFlight.delete(key));
+  const task = generate(termId, kind, expectedRevision, force, userId).finally(() => inFlight.delete(key));
   inFlight.set(key, task);
   return task;
 }

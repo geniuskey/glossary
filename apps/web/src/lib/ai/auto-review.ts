@@ -14,11 +14,14 @@ import {
   type RelationContributionSuggestion,
 } from "./contribution-suggestions";
 import type { ReviewQueueFilter } from "./review-queue-types";
+import { AI_SUGGESTION_GENERATOR_VERSIONS } from "./suggestion-disposition-values";
+import { isHiddenSuggestionDisposition, listSuggestionDispositionMap } from "./suggestion-dispositions";
 
 export interface PreparedReview {
   termId: string;
   revision: number;
   suggestions: ContributionSuggestion[];
+  deferredSuggestionIds?: string[];
 }
 
 export type ReviewQueueStatus = "queued" | "processing" | "ready" | "failed";
@@ -50,7 +53,7 @@ export interface ReviewQueueSnapshot {
 const inFlight = new Map<string, Promise<PreparedReview | null>>();
 const retryAfter = new Map<string, number>();
 const FAILURE_COOLDOWN_MS = 5 * 60 * 1_000;
-const AUTO_REVIEW_GENERATOR_VERSION = 3;
+export const AUTO_REVIEW_GENERATOR_VERSION = AI_SUGGESTION_GENERATOR_VERSIONS.agent;
 
 function validSuggestions(value: unknown): ContributionSuggestion[] {
   if (!Array.isArray(value)) return [];
@@ -133,23 +136,34 @@ async function materializeRelationSuggestions(
   return accepted.slice(0, 3);
 }
 
-export async function getPreparedReview(termId: string, revision: number): Promise<PreparedReview | null> {
+export async function getPreparedReview(termId: string, revision: number, userId: string | null = null): Promise<PreparedReview | null> {
   const [row] = await getDb().select().from(aiReviewSuggestions).where(and(
     eq(aiReviewSuggestions.termId, termId),
     eq(aiReviewSuggestions.revision, revision),
   )).limit(1);
-  return row?.generatorVersion === AUTO_REVIEW_GENERATOR_VERSION
-    ? { termId, revision, suggestions: validSuggestions(row.suggestions) }
-    : null;
+  if (row?.generatorVersion !== AUTO_REVIEW_GENERATOR_VERSION) return null;
+  const suggestions = validSuggestions(row.suggestions);
+  const decisions = await listSuggestionDispositionMap([{ termId, revision }], "agent", userId, AUTO_REVIEW_GENERATOR_VERSION);
+  return {
+    termId,
+    revision,
+    suggestions: suggestions.filter((suggestion) => !isHiddenSuggestionDisposition(decisions.get(`${termId}:${revision}:${suggestion.id}`)?.disposition)),
+    deferredSuggestionIds: suggestions.filter((suggestion) => decisions.get(`${termId}:${revision}:${suggestion.id}`)?.disposition === "deferred").map((suggestion) => suggestion.id),
+  };
 }
 
-export async function listPreparedReviews(terms: ReadonlyArray<{ id: string; revision: number }>): Promise<Record<string, PreparedReview>> {
+export async function listPreparedReviews(terms: ReadonlyArray<{ id: string; revision: number }>, userId: string | null = null): Promise<Record<string, PreparedReview>> {
   if (terms.length === 0) return {};
   const revisions = new Map(terms.map((term) => [term.id, term.revision]));
   const rows = await getDb().select().from(aiReviewSuggestions).where(inArray(aiReviewSuggestions.termId, [...revisions.keys()]));
-  return Object.fromEntries(rows
-    .filter((row) => revisions.get(row.termId) === row.revision && row.generatorVersion === AUTO_REVIEW_GENERATOR_VERSION)
-    .map((row) => [row.termId, { termId: row.termId, revision: row.revision, suggestions: validSuggestions(row.suggestions) }]));
+  const validRows = rows.filter((row) => revisions.get(row.termId) === row.revision && row.generatorVersion === AUTO_REVIEW_GENERATOR_VERSION);
+  const decisions = await listSuggestionDispositionMap(validRows.map((row) => ({ termId: row.termId, revision: row.revision })), "agent", userId, AUTO_REVIEW_GENERATOR_VERSION);
+  return Object.fromEntries(validRows.map((row) => [row.termId, {
+    termId: row.termId,
+    revision: row.revision,
+    suggestions: validSuggestions(row.suggestions).filter((suggestion) => !isHiddenSuggestionDisposition(decisions.get(`${row.termId}:${row.revision}:${suggestion.id}`)?.disposition)),
+    deferredSuggestionIds: validSuggestions(row.suggestions).filter((suggestion) => decisions.get(`${row.termId}:${row.revision}:${suggestion.id}`)?.disposition === "deferred").map((suggestion) => suggestion.id),
+  }]));
 }
 
 async function generateAndStore(termId: string, expectedRevision: number, force = false, requireAutomatic = true): Promise<PreparedReview | null> {

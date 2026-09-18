@@ -49,6 +49,8 @@ import * as contributionDuplicatesRoute from "../src/app/api/v1/contributions/du
 import * as contributionReviewQueueRoute from "../src/app/api/v1/contributions/review-queue/route.js";
 import * as contributionTermDefinitionsRoute from "../src/app/api/v1/contributions/term-definitions/route.js";
 import * as contributionClassificationsRoute from "../src/app/api/v1/contributions/classifications/route.js";
+import * as contributionIdentityReviewRoute from "../src/app/api/v1/contributions/identity-review/route.js";
+import * as contributionSuggestionDispositionsRoute from "../src/app/api/v1/contributions/suggestion-dispositions/route.js";
 import * as adminCategoriesRoute from "../src/app/api/v1/admin/categories/route.js";
 import * as adminCategoryRoute from "../src/app/api/v1/admin/categories/[key]/route.js";
 import * as adminDomainsRoute from "../src/app/api/v1/admin/domains/route.js";
@@ -149,6 +151,8 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "contributions/review-queue", mod: contributionReviewQueueRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
   { name: "contributions/term-definitions", mod: contributionTermDefinitionsRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "contributions/classifications", mod: contributionClassificationsRoute, allowed: ["POST"], allow: "POST" },
+  { name: "contributions/identity-review", mod: contributionIdentityReviewRoute, allowed: ["POST", "PATCH", "DELETE"], allow: "POST, PATCH, DELETE" },
+  { name: "contributions/suggestion-dispositions", mod: contributionSuggestionDispositionsRoute, allowed: ["POST", "DELETE"], allow: "POST, DELETE" },
   { name: "admin/categories", mod: adminCategoriesRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "admin/categories/[key]", mod: adminCategoryRoute, allowed: ["PATCH", "DELETE"], allow: "PATCH, DELETE" },
   { name: "admin/domains", mod: adminDomainsRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },

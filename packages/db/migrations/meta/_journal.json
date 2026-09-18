@@ -260,6 +260,34 @@
       "when": 1789717915111,
       "tag": "0036_premium_moira_mactaggert",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1789721157959,
+      "tag": "0037_furry_swarm",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1789721644126,
+      "tag": "0038_talented_hammerhead",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1789731833560,
+      "tag": "0039_clear_brother_voodoo",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1789732060373,
+      "tag": "0040_swift_raza",
+      "breakpoints": true
     }
   ]
 }

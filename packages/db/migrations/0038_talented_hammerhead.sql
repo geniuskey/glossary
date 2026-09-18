@@ -1,0 +1,2 @@
+ALTER TABLE "identity_review_suggestions" ADD COLUMN "uncertainties" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "identity_review_suggestions" ADD COLUMN "sources" jsonb DEFAULT '[]'::jsonb NOT NULL;

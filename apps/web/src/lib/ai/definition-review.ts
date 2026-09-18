@@ -7,6 +7,11 @@ import { displayName } from "@/lib/ui/format";
 import { loadAiConfig, runtimeAiConfig } from "./config";
 import { completeAi } from "./provider";
 import { DEFINITION_GUIDELINES } from "./definition-guidelines";
+import type { AiSuggestionDisposition } from "./suggestion-dispositions";
+import { isHiddenSuggestionDisposition, listSuggestionDispositionMap } from "./suggestion-dispositions";
+import { AI_SUGGESTION_GENERATOR_VERSIONS } from "./suggestion-disposition-values";
+
+export const DEFINITION_SUGGESTION_ID = "definition";
 
 export interface DefinitionReviewCandidate {
   id: string;
@@ -19,11 +24,12 @@ export interface DefinitionReviewCandidate {
   bodyMd: string;
   revision: number;
   suggestion?: string | null;
+  disposition?: AiSuggestionDisposition;
 }
 
 const inFlight = new Map<string, Promise<string | null>>();
 
-export async function listDefinitionReviewCandidates(limit = 100): Promise<DefinitionReviewCandidate[]> {
+export async function listDefinitionReviewCandidates(limit = 100, userId: string | null = null): Promise<DefinitionReviewCandidate[]> {
   const db = getDb();
   const rows = await db.select({
     id: terms.id,
@@ -53,17 +59,21 @@ export async function listDefinitionReviewCandidates(limit = 100): Promise<Defin
     }).from(definitionReviewSuggestions).where(inArray(definitionReviewSuggestions.termId, rows.map((row) => row.id)))
     : [];
   const suggestionByTerm = new Map(cached.map((row) => [row.termId, row]));
-  return rows.map((row) => ({
-    ...row,
-    name: displayName(row),
-    bodyMd: row.bodyMd!,
-    revision: revisionByTerm.get(row.id) ?? 0,
-    suggestion: (() => {
-      const revision = revisionByTerm.get(row.id) ?? 0;
-      const saved = suggestionByTerm.get(row.id);
-      return saved?.revision === revision ? saved.suggestion : null;
-    })(),
-  }));
+  const dispositions = await listSuggestionDispositionMap(rows.map((row) => ({ termId: row.id, revision: revisionByTerm.get(row.id) ?? 0 })), "definition", userId, AI_SUGGESTION_GENERATOR_VERSIONS.definition);
+  return rows.flatMap((row) => {
+    const revision = revisionByTerm.get(row.id) ?? 0;
+    const decision = dispositions.get(`${row.id}:${revision}:${DEFINITION_SUGGESTION_ID}`);
+    if (decision && isHiddenSuggestionDisposition(decision.disposition)) return [];
+    const saved = suggestionByTerm.get(row.id);
+    return [{
+      ...row,
+      name: displayName(row),
+      bodyMd: row.bodyMd!,
+      revision,
+      suggestion: saved?.revision === revision ? saved.suggestion : null,
+      disposition: decision?.disposition,
+    }];
+  });
 }
 
 export async function generateOneLineDefinition(candidate: DefinitionReviewCandidate): Promise<string> {

@@ -6,9 +6,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { PreparedReview } from "@/lib/ai/auto-review";
 import type { ContributionSuggestion } from "@/lib/ai/contribution-suggestions";
 import { buildRuleSuggestions, suggestionPatch } from "@/lib/ai/contribution-suggestions";
+import { AI_SUGGESTION_GENERATOR_VERSIONS } from "@/lib/ai/suggestion-disposition-values";
 import type { ContributionTerm } from "@/lib/terms/query";
 import { displayName, cx } from "@/lib/ui/format";
 import { AgentTermList } from "./agent-term-list";
+import { SuggestionDispositionActions } from "./suggestion-disposition-actions";
 
 type Message = { kind: "ok" | "bad"; text: string } | null;
 type Busy = { kind: "approve" | "reject"; id: string } | null;
@@ -286,6 +288,7 @@ export function AgentReviewPanel({ initialTerms, initialTermId, totalTerms, auto
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={cx("chip !py-0.5 !text-[11px]", suggestion.source === "agent" && "chip-on")}>{suggestion.source === "rule" ? "규칙" : "AI 판단"}</span>
                     <span className="text-xs font-semibold text-ink-2">{FIELD_LABEL[suggestion.field]}</span>
+                    {prepared?.deferredSuggestionIds?.includes(suggestion.id) && <span className="chip !border-warn/30 !bg-warn-soft !py-0.5 !text-[11px] !text-warn">보류됨</span>}
                   </div>
                   <div className="mt-3 grid gap-2 text-sm">
                     <div className="rounded-lg bg-panel-2/60 px-3 py-2 text-ink-3">
@@ -302,6 +305,25 @@ export function AgentReviewPanel({ initialTerms, initialTermId, totalTerms, auto
                     <button type="button" className="btn-quiet btn-sm" disabled={busy !== null} onClick={() => void reject(suggestion)}>{busy?.kind === "reject" && busy.id === suggestion.id ? "처리 중…" : suggestion.source === "rule" ? "이번에 건너뛰기" : "거절"}</button>
                     <button type="button" className="btn-primary btn-sm" disabled={busy !== null} onClick={() => void approve(suggestion)}>{busy?.kind === "approve" && busy.id === suggestion.id ? "저장 중…" : "승인하고 저장"}</button>
                   </div>
+                  {suggestion.source === "agent" && <SuggestionDispositionActions
+                    termId={current.id}
+                    revision={current.revision}
+                    feature="agent"
+                    suggestionId={suggestion.id}
+                    generatorVersion={AI_SUGGESTION_GENERATOR_VERSIONS.agent}
+                    payload={{ title: FIELD_LABEL[suggestion.field], field: suggestion.field, value: valueText(suggestion.value, suggestion.field, categoryLabels), reason: suggestion.reason }}
+                    disabled={busy !== null}
+                    onApplied={(disposition) => {
+                      if (disposition !== "deferred") setRejectedIds((items) => items.includes(suggestion.id) ? items : [...items, suggestion.id]);
+                      if (disposition === "deferred") setReviews((items) => {
+                        const review = items[current.id];
+                        if (!review) return items;
+                        const deferred = review.deferredSuggestionIds ?? [];
+                        return { ...items, [current.id]: { ...review, deferredSuggestionIds: deferred.includes(suggestion.id) ? deferred : [...deferred, suggestion.id] } };
+                      });
+                      setMessage({ kind: "ok", text: disposition === "dismissed" ? "오탐으로 숨겼습니다. 같은 생성기 버전에서는 다시 표시하지 않습니다." : disposition === "saved" ? "내 작업에 저장했습니다." : "보류로 기록했습니다." });
+                    }}
+                  />}
                 </article>
               )) : <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-ink-3">{prepared ? "AI 검토를 마쳤으며, 현재 내용에는 제안할 변경이 없습니다." : pollError ? "검토 결과를 아직 확인하지 못했습니다." : !autoReviewEnabled ? "현재 검토할 제안이 없습니다. 직접 편집하거나 정리 대기에서 AI 검토를 요청할 수 있습니다." : "AI가 이 용어를 검토하고 있습니다…"}</p>}
             </div>

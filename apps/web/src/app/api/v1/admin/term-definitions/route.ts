@@ -13,13 +13,13 @@ export { PUT, DELETE, OPTIONS };
 export const GET = withApiErrors(async () => {
   const admin = await requireAdminUser();
   if (isResponse(admin)) return admin;
-  return listDefinitionReviewResponse();
+  return listDefinitionReviewResponse(admin.id);
 });
 
 export const POST = withApiErrors(async (request: Request) => {
   const admin = await requireAdminUser();
   if (isResponse(admin)) return admin;
-  return generateDefinitionResponse(request);
+  return generateDefinitionResponse(request, admin.id);
 });
 
 export const PATCH = withApiErrors(async (request: Request) => {

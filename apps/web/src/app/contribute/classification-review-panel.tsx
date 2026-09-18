@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ClassificationMultiSelect, type ClassificationOption } from "@/components/classification-multi-select";
+import { AI_SUGGESTION_GENERATOR_VERSIONS, classificationSuggestionId } from "@/lib/ai/suggestion-disposition-values";
 import type { ClassificationReviewCandidate, ClassificationReviewKind } from "@/lib/terms/classification-review";
 import { cx } from "@/lib/ui/format";
+import { SuggestionDispositionActions } from "./suggestion-disposition-actions";
 
 type Message = { kind: "ok" | "bad"; text: string } | null;
 type ClassificationSuggestion = { revision: number; values: string[]; reason: string };
@@ -283,9 +285,28 @@ export function ClassificationReviewPanel({
                           <div className="mb-2 rounded-lg border border-brand/25 bg-brand-soft/45 p-2.5">
                             <div className="flex flex-wrap items-center gap-1.5">
                               <span className="chip chip-on !py-0.5 !text-[11px]">AI 추천</span>
+                              {candidate.disposition === "deferred" && <span className="chip !border-warn/30 !bg-warn-soft !py-0.5 !text-[11px] !text-warn">보류됨</span>}
                               {suggestionLabels.map((value) => <span key={value} className="chip !py-0.5 !text-[11px]">{value}</span>)}
                             </div>
                             <p className="mt-1.5 text-xs leading-5 text-ink-2">{suggestion.reason}</p>
+                            <SuggestionDispositionActions
+                              termId={candidate.id}
+                              revision={suggestion.revision}
+                              feature="classification"
+                              suggestionId={classificationSuggestionId(kind)}
+                              generatorVersion={AI_SUGGESTION_GENERATOR_VERSIONS.classification}
+                              payload={{ title: label, field: kind, value: suggestion.values, reason: suggestion.reason }}
+                              disabled={saving || generating}
+                              onApplied={(disposition) => {
+                                if (disposition === "dismissed" || disposition === "saved") {
+                                  setCandidates((items) => items.filter((item) => item.id !== candidate.id));
+                                  setSuggestions((items) => ({ ...items, [candidate.id]: null }));
+                                } else {
+                                  setCandidates((items) => items.map((item) => item.id === candidate.id ? { ...item, disposition } : item));
+                                }
+                                setMessage({ kind: "ok", text: disposition === "dismissed" ? "오탐으로 숨겼습니다." : disposition === "saved" ? "내 작업에 저장했습니다." : "보류로 기록했습니다." });
+                              }}
+                            />
                           </div>
                         )}
                         <ClassificationMultiSelect

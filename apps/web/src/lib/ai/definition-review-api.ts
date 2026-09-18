@@ -15,15 +15,15 @@ const approveSchema = z.object({
   expectedRevision: z.number().int().positive(),
 }).strict();
 
-export async function listDefinitionReviewResponse(): Promise<Response> {
-  const items = await listDefinitionReviewCandidates();
+export async function listDefinitionReviewResponse(userId: string | null = null): Promise<Response> {
+  const items = await listDefinitionReviewCandidates(100, userId);
   return Response.json({ items, total: items.length });
 }
 
-export async function generateDefinitionResponse(request: Request): Promise<Response> {
+export async function generateDefinitionResponse(request: Request, userId: string | null = null): Promise<Response> {
   const parsed = generateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "정리할 용어를 확인해 주세요.", 400, parsed.error.flatten());
-  const candidate = (await listDefinitionReviewCandidates(200)).find((item) => item.id === parsed.data.termId);
+  const candidate = (await listDefinitionReviewCandidates(200, userId)).find((item) => item.id === parsed.data.termId);
   if (!candidate) return apiError("operation_conflict", "이 용어는 더 이상 한줄 정의 정리 대상이 아닙니다.", 409);
   if (candidate.revision < 1) return apiError("operation_conflict", "용어 이력을 확인할 수 없어 한줄 정의를 준비하지 못했습니다.", 409);
   try {

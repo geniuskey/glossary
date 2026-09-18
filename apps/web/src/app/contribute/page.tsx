@@ -16,6 +16,8 @@ import { ContributionQueueTable } from "./contribution-queue-table";
 import { QueueRefresh } from "./queue-refresh";
 import { ReviewQueuePanel } from "./review-queue-panel";
 import { DuplicateReviewPanel } from "@/components/duplicate-review-panel";
+import { listPersonalSuggestionTasks } from "@/lib/ai/suggestion-dispositions";
+import { MySuggestionQueue } from "./my-suggestion-queue";
 
 export const metadata = { title: "함께 정리" };
 
@@ -23,6 +25,7 @@ const PRIMARY_TABS = [
   { key: "edit", label: "정리 대기", href: "/contribute" },
   { key: "agent", label: "제안 검토", href: "/contribute?tab=agent" },
   { key: "duplicates", label: "중복 후보 검토", href: "/contribute?tab=duplicates" },
+  { key: "mine", label: "내 작업", href: "/contribute?tab=mine" },
 ] as const;
 
 const AGENT_REVIEW_LIST_LIMIT = 300;
@@ -42,7 +45,7 @@ export default async function ContributePage({ searchParams }: { searchParams: P
     if (query) fieldParams.set("q", query);
     redirect(`/contribute/fields?${fieldParams.toString()}`);
   }
-  const tab = requestedTab === "agent" || requestedTab === "queue" || requestedTab === "duplicates" ? requestedTab : "edit";
+  const tab = requestedTab === "agent" || requestedTab === "queue" || requestedTab === "duplicates" || requestedTab === "mine" ? requestedTab : "edit";
   const rawTermId = params.termId;
   const selectedTermId = tab === "agent" ? (Array.isArray(rawTermId) ? rawTermId[0] : rawTermId) : undefined;
   const filters = { q: scalar("q").slice(0, 200), category: scalar("category"), missing: scalar("missing"), page: Math.min(100000, Math.max(1, Number.parseInt(scalar("page"), 10) || 1)) };
@@ -51,7 +54,7 @@ export default async function ContributePage({ searchParams }: { searchParams: P
   const pageHref = (page: number) => `/contribute?${new URLSearchParams({ q: filters.q, category: filters.category, missing: filters.missing, page: String(page) })}`;
   const contributionLimit = tab === "agent" ? AGENT_REVIEW_LIST_LIMIT : 60;
   const termListTab = tab === "edit" || tab === "agent";
-  const [queue, storedAi, reviewQueue] = await Promise.all([
+  const [queue, storedAi, reviewQueue, personalSuggestionTasks] = await Promise.all([
     termListTab
       ? tab === "edit"
         ? listContributionTerms(contributionLimit, user.id, selectedTermId, filters)
@@ -59,6 +62,7 @@ export default async function ContributePage({ searchParams }: { searchParams: P
       : Promise.resolve({ items: [], total: 0 }),
     loadAiConfig(),
     listReviewQueue(tab === "queue" ? { filter: queueFilter, page: filters.page } : { pageSize: 1 }),
+    tab === "mine" ? listPersonalSuggestionTasks(user.id) : Promise.resolve([]),
   ]);
   const ai = publicAiConfig(storedAi);
   const [categories, domains] = await Promise.all([
@@ -66,7 +70,7 @@ export default async function ContributePage({ searchParams }: { searchParams: P
     termListTab ? listDomains() : Promise.resolve([]),
   ]);
   const categoryLabels = Object.fromEntries(categories.map((item) => [item.key, item.label]));
-  const preparedReviews = tab === "agent" ? await listPreparedReviews(queue.items) : {};
+  const preparedReviews = tab === "agent" ? await listPreparedReviews(queue.items, user.id) : {};
   const queueStatuses = tab === "edit" ? await reviewQueueStatuses(queue.items) : {};
   if (tab === "queue") {
     scheduleAfterResponse(() => resumeReviewQueue());
@@ -79,6 +83,8 @@ export default async function ContributePage({ searchParams }: { searchParams: P
         ? "같은 개념으로 보이는 용어 쌍을 비교하고 병합·분리·보류를 결정합니다."
         : tab === "queue"
           ? "AI 요청의 대기·처리·완료·실패 상태를 확인하고 필요한 작업을 다시 요청합니다."
+          : tab === "mine"
+            ? "나중에 확인하기로 저장한 AI 제안을 다시 검토합니다."
           : "AI 요청의 대기·처리·완료·실패 상태를 확인하고 필요한 작업을 다시 요청합니다.";
   return (
     <AppShell user={user} title="함께 정리" current="contribute" roomy>
@@ -154,7 +160,7 @@ export default async function ContributePage({ searchParams }: { searchParams: P
           {filters.page * 60 < queue.total && <Link href={pageHref(filters.page + 1)} className="btn-quiet btn-sm">다음 페이지</Link>}
         </nav>}
       </section>
-      </> : tab === "agent" ? <AgentReviewPanel key={selectedTermId ?? "default"} initialTerms={queue.items} initialTermId={selectedTermId} totalTerms={queue.total} autoReviewEnabled={Boolean(ai.enabled && ai.secretsReadable && ai.autoReviewEnabled)} initialReviews={preparedReviews} categoryLabels={categoryLabels} /> : <ReviewQueuePanel queue={reviewQueue} aiAvailable={Boolean(ai.enabled && ai.secretsReadable)} />}
+      </> : tab === "agent" ? <AgentReviewPanel key={selectedTermId ?? "default"} initialTerms={queue.items} initialTermId={selectedTermId} totalTerms={queue.total} autoReviewEnabled={Boolean(ai.enabled && ai.secretsReadable && ai.autoReviewEnabled)} initialReviews={preparedReviews} categoryLabels={categoryLabels} /> : tab === "mine" ? <MySuggestionQueue initialItems={personalSuggestionTasks.map((task) => ({ ...task, payload: task.payload as { title?: string; field?: string; value?: unknown; reason?: string; href?: string }, createdAt: task.createdAt.toISOString(), updatedAt: task.updatedAt.toISOString(), remindAt: task.remindAt?.toISOString() ?? null }))} /> : <ReviewQueuePanel queue={reviewQueue} aiAvailable={Boolean(ai.enabled && ai.secretsReadable)} />}
     </AppShell>
   );
 }

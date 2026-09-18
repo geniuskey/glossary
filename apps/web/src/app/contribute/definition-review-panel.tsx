@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { DefinitionReviewCandidate } from "@/lib/ai/definition-review";
+import { AI_SUGGESTION_GENERATOR_VERSIONS } from "@/lib/ai/suggestion-disposition-values";
 import { cx } from "@/lib/ui/format";
+import { SuggestionDispositionActions } from "./suggestion-disposition-actions";
 
 type Message = { kind: "ok" | "bad"; text: string } | null;
 type DefinitionReviewRow = Omit<DefinitionReviewCandidate, "suggestion"> & { suggestion: string | null };
@@ -148,6 +150,7 @@ export function DefinitionReviewPanel({ initialCandidates, aiAvailable }: {
                           placeholder={generating ? "LLM 제안 준비 중…" : "직접 입력하거나 LLM 정리를 실행하세요…"}
                           className="field min-h-20 w-full resize-y text-sm leading-5"
                         />
+                        {candidate.disposition === "deferred" && <p className="mt-1 text-[11px] text-warn">보류된 제안입니다. 추가 근거를 확인해 주세요.</p>}
                         <div className="mt-1 flex min-h-5 items-center gap-2">
                           {error && <p role="alert" className="min-w-0 flex-1 truncate text-xs text-danger" title={error}>{error}</p>}
                           {hasSuggestion && <button type="button" className="link ml-auto shrink-0 text-xs" disabled={generating || approving || !aiAvailable} onClick={() => void generate(candidate, true)}>다시 정리</button>}
@@ -155,9 +158,28 @@ export function DefinitionReviewPanel({ initialCandidates, aiAvailable }: {
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
                         {hasSuggestion ? (
-                          <button type="button" className="btn-primary btn-sm" disabled={generating || approving} onClick={() => void approve(candidate)}>
-                            {approving ? "저장 중…" : "승인"}
-                          </button>
+                          <>
+                            <button type="button" className="btn-primary btn-sm" disabled={generating || approving} onClick={() => void approve(candidate)}>
+                              {approving ? "저장 중…" : "승인"}
+                            </button>
+                            <SuggestionDispositionActions
+                              termId={candidate.id}
+                              revision={candidate.revision}
+                              feature="definition"
+                              suggestionId="definition"
+                              generatorVersion={AI_SUGGESTION_GENERATOR_VERSIONS.definition}
+                              payload={{ title: "한줄 정의", field: "definitionMd", value: candidate.suggestion ?? "", reason: "AI 한줄 정의 제안" }}
+                              disabled={generating || approving}
+                              onApplied={(disposition) => {
+                                if (disposition === "dismissed" || disposition === "saved") {
+                                  setCandidates((items) => items.filter((item) => item.id !== candidate.id));
+                                } else {
+                                  setCandidates((items) => items.map((item) => item.id === candidate.id ? { ...item, disposition } : item));
+                                }
+                                setMessage({ kind: "ok", text: disposition === "dismissed" ? "오탐으로 숨겼습니다." : disposition === "saved" ? "내 작업에 저장했습니다." : "보류로 기록했습니다." });
+                              }}
+                            />
+                          </>
                         ) : error ? (
                           <button type="button" className="btn-quiet btn-sm" disabled={generating || approving || !aiAvailable} onClick={() => void generate(candidate, true)}>
                             다시 정리

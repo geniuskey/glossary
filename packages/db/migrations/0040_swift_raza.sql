@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "ai_suggestion_decisions_shared_unique" ON "ai_suggestion_decisions" USING btree ("term_id","revision","feature","suggestion_id","generator_version") WHERE "ai_suggestion_decisions"."scope" = 'shared';--> statement-breakpoint
+CREATE UNIQUE INDEX "ai_suggestion_decisions_personal_unique" ON "ai_suggestion_decisions" USING btree ("term_id","revision","feature","suggestion_id","generator_version","user_id") WHERE "ai_suggestion_decisions"."scope" = 'personal';

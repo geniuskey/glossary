@@ -17,7 +17,7 @@ export const GET = withApiErrors(async (request: Request) => {
   const page = Math.max(1, Math.min(100000, Number.parseInt(params.get("page") ?? "1", 10) || 1));
   const rawStatus = params.get("status") ?? "pending";
   const status = rawStatus === "all" || rawStatus === "different" || rawStatus === "uncertain" ? rawStatus : "pending";
-  return Response.json(await listDuplicateReviewPairs(page, status));
+  return Response.json(await listDuplicateReviewPairs(page, status, 30, auth.kind === "user" ? auth.user.id : null));
 });
 
 const reviewSchema = z.union([

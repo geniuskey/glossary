@@ -11,6 +11,8 @@ import type {
   DuplicateReviewCounts,
   DuplicateReviewPair,
 } from "@/lib/ai/duplicate-review";
+import { AI_SUGGESTION_GENERATOR_VERSIONS, duplicateSuggestionId } from "@/lib/ai/suggestion-disposition-values";
+import { SuggestionDispositionActions } from "@/app/contribute/suggestion-disposition-actions";
 
 const verdictLabel = { same: "같은 개념", different: "다른 개념", uncertain: "판단 보류" } as const;
 const filterLabel: Record<DuplicatePairFilter, string> = {
@@ -93,6 +95,7 @@ export function DuplicateReviewPanel({
   const [refreshKey, setRefreshKey] = useState(0);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [deferredPairIds, setDeferredPairIds] = useState<string[]>([]);
   const lock = useRef(false);
   const autoInspectDone = useRef(false);
 
@@ -140,6 +143,7 @@ export function DuplicateReviewPanel({
           signals: [], decision: null, decisionReason: null,
         };
       setReview({ pair, source: body.source, revision: body.revision, candidates: body.candidates ?? [] });
+      setDeferredPairIds([]);
       setDecisionReason("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "두 용어를 비교하지 못했습니다.");
@@ -293,10 +297,18 @@ export function DuplicateReviewPanel({
           {review.candidates.length === 0 && <p className="text-sm text-ink-2">비교할 후보가 없습니다. 용어의 표기나 URL을 다시 확인해 주세요.</p>}
           {review.candidates.map((candidate) => (
             <article key={candidate.id} className="space-y-3 rounded-lg border border-line p-3">
+              {(() => {
+                const suggestionId = duplicateSuggestionId(review.source.id, candidate.id);
+                const sourceIsAnchor = review.source.id.localeCompare(candidate.id) < 0;
+                const dispositionTermId = sourceIsAnchor ? review.source.id : candidate.id;
+                const dispositionRevision = sourceIsAnchor ? review.revision : candidate.revision ?? 0;
+                return (
+                  <>
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${candidate.verdict === "same" ? "bg-warn-soft text-warn" : candidate.verdict === "different" ? "bg-panel-2 text-ink-2" : "bg-brand/10 text-brand"}`}>
                   AI 판단: {verdictLabel[candidate.verdict]}
                 </span>
+                {deferredPairIds.includes(suggestionId) && <span className="chip !border-warn/30 !bg-warn-soft !py-0.5 !text-[11px] !text-warn">보류됨</span>}
                 <span className="text-xs text-ink-2">{candidate.reason}</span>
               </div>
               <label className="block text-xs text-ink-2">검토 메모(선택)
@@ -314,6 +326,32 @@ export function DuplicateReviewPanel({
                 <button type="button" className="btn-quiet btn-sm" disabled={busy} onClick={() => void decide("different")}>다른 개념으로 유지</button>
                 <button type="button" className="btn-quiet btn-sm" disabled={busy} onClick={() => void decide("uncertain")}>판단 보류</button>
               </div>
+              <SuggestionDispositionActions
+                termId={dispositionTermId}
+                revision={dispositionRevision}
+                feature="duplicate"
+                suggestionId={suggestionId}
+                generatorVersion={AI_SUGGESTION_GENERATOR_VERSIONS.duplicate}
+                payload={{
+                  title: "중복 후보",
+                  value: `${titleOf(review.source)} ↔ ${titleOf(candidate)}`,
+                  reason: candidate.reason,
+                  href: `/contribute?tab=duplicates&term=${encodeURIComponent(review.source.slug ?? "")}`,
+                }}
+                disabled={busy || dispositionRevision < 1}
+                onApplied={(disposition) => {
+                  if (disposition === "dismissed" || disposition === "saved") {
+                    setReview((current) => current ? { ...current, candidates: current.candidates.filter((item) => item.id !== candidate.id) } : current);
+                    setRefreshKey((value) => value + 1);
+                  } else {
+                    setDeferredPairIds((items) => items.includes(suggestionId) ? items : [...items, suggestionId]);
+                  }
+                  setMessage(disposition === "dismissed" ? "오탐으로 숨겼습니다." : disposition === "saved" ? "내 작업에 저장했습니다." : "보류로 기록했습니다.");
+                }}
+              />
+                  </>
+                );
+              })()}
             </article>
           ))}
         </div>

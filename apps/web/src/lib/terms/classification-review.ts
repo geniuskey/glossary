@@ -4,6 +4,9 @@ import { and, asc, inArray, sql } from "drizzle-orm";
 import { termRevisions, terms } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { displayName } from "@/lib/ui/format";
+import type { AiSuggestionDisposition } from "@/lib/ai/suggestion-dispositions";
+import { isHiddenSuggestionDisposition, listSuggestionDispositionMap } from "@/lib/ai/suggestion-dispositions";
+import { AI_SUGGESTION_GENERATOR_VERSIONS, classificationSuggestionId } from "@/lib/ai/suggestion-disposition-values";
 
 export type ClassificationReviewKind = "domain" | "category";
 
@@ -20,6 +23,7 @@ export interface ClassificationReviewCandidate {
   domain: string[];
   categories: string[];
   revision: number;
+  disposition?: AiSuggestionDisposition;
 }
 
 /** 특정 분류 축이 비어 있는 용어를 오래된 수정 순으로 보여준다. */
@@ -72,4 +76,22 @@ export async function listClassificationReviewCandidates(
     name: displayName(row),
     revision: revisionByTerm.get(row.id) ?? 0,
   }));
+}
+
+export async function filterClassificationReviewCandidates(
+  candidates: readonly ClassificationReviewCandidate[],
+  kind: ClassificationReviewKind,
+  userId: string | null,
+): Promise<ClassificationReviewCandidate[]> {
+  const decisions = await listSuggestionDispositionMap(
+    candidates.map((candidate) => ({ termId: candidate.id, revision: candidate.revision })),
+    "classification",
+    userId,
+    AI_SUGGESTION_GENERATOR_VERSIONS.classification,
+  );
+  return candidates.flatMap((candidate) => {
+    const decision = decisions.get(`${candidate.id}:${candidate.revision}:${classificationSuggestionId(kind)}`);
+    if (decision && isHiddenSuggestionDisposition(decision.disposition)) return [];
+    return [{ ...candidate, disposition: decision?.disposition }];
+  });
 }

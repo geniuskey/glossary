@@ -1048,6 +1048,119 @@ export const openApiSpec = {
         },
       },
     },
+    "/contributions/identity-review": {
+      post: {
+        summary: "대표명·확장명·추가 표기의 AI 정비 제안 생성",
+        description: "현재 용어의 대표 영문·국문, 영문·국문 확장명, 별칭·약어·표기 종류를 용어집 근거와 비교합니다. 제안은 저장하지 않으며 사람의 승인 전까지 현재 값을 보존합니다.",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["termId", "expectedRevision"],
+          additionalProperties: false,
+          properties: {
+            termId: { type: "string", format: "uuid" },
+            expectedRevision: { type: "integer", minimum: 1 },
+            force: { type: "boolean", default: false, description: "승인 전 저장된 동일 리비전 제안을 무시하고 다시 생성" },
+          },
+        } } } },
+        responses: {
+          "200": json("{ review }: 표기 정비 findings, suggestions, uncertainties", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "404": errorResponse("term_not_found"),
+          "409": errorResponse("revision_conflict"),
+          "502": errorResponse("ai_provider_error"),
+          "503": errorResponse("ai_not_enabled"),
+        },
+      },
+      patch: {
+        summary: "AI 표기 정비 제안 승인",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["termId", "revision", "suggestionId"],
+          additionalProperties: false,
+          properties: {
+            termId: { type: "string", format: "uuid" },
+            revision: { type: "integer", minimum: 1 },
+            suggestionId: { type: "string", minLength: 1, maxLength: 300 },
+            value: { description: "사람이 수정한 문자열 또는 추가 표기 객체(선택)" },
+          },
+        } } } },
+        responses: {
+          "200": json("{ ok, revision, review, candidate }", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "409": errorResponse("revision_conflict 또는 operation_conflict"),
+        },
+      },
+      delete: {
+        summary: "AI 표기 정비 제안 거절",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["termId", "revision", "suggestionId"],
+          additionalProperties: false,
+          properties: {
+            termId: { type: "string", format: "uuid" },
+            revision: { type: "integer", minimum: 1 },
+            suggestionId: { type: "string", minLength: 1, maxLength: 300 },
+          },
+        } } } },
+        responses: {
+          "204": { description: "제안이 거절됨" },
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "409": errorResponse("operation_conflict"),
+        },
+      },
+    },
+    "/contributions/suggestion-dispositions": {
+      post: {
+        summary: "AI 제안의 공용 숨김·보류 또는 개인 저장 상태 기록",
+        description: "dismissed와 deferred는 현재 생성기 버전의 공용 판단으로 저장하고, saved는 로그인한 사용자만 개인 작업으로 저장합니다. 용어 리비전이 바뀌면 상태는 적용되지 않습니다.",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["termId", "revision", "feature", "suggestionId", "generatorVersion", "disposition"],
+          additionalProperties: false,
+          properties: {
+            termId: { type: "string", format: "uuid" },
+            revision: { type: "integer", minimum: 1 },
+            feature: { type: "string", enum: ["agent", "identity", "definition", "classification", "duplicate"] },
+            suggestionId: { type: "string", minLength: 1, maxLength: 300 },
+            generatorVersion: { type: "integer", minimum: 1 },
+            disposition: { type: "string", enum: ["dismissed", "deferred", "saved"] },
+            reason: { type: "string", maxLength: 500 },
+            payload: { type: "object", additionalProperties: true },
+          },
+        } } } },
+        responses: {
+          "200": json("{ ok, decision }: 저장된 상태의 id, disposition, scope", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "404": errorResponse("term_not_found"),
+          "409": errorResponse("revision_conflict 또는 operation_conflict"),
+        },
+      },
+      delete: {
+        summary: "내 작업에서 AI 제안 제거",
+        description: "개인 저장(saved) 상태만 해당 사용자 본인이 제거할 수 있습니다. 제거하면 원래 AI 작업 목록에서 다시 검토할 수 있습니다.",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["decisionId"],
+          additionalProperties: false,
+          properties: { decisionId: { type: "string", format: "uuid" } },
+        } } } },
+        responses: {
+          "204": { description: "내 작업에서 제거됨" },
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "409": errorResponse("operation_conflict"),
+        },
+      },
+    },
     "/contributions/duplicates": {
       get: {
         summary: "중복 후보 쌍 및 검토 상태 조회",

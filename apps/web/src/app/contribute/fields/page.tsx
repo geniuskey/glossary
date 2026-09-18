@@ -4,20 +4,22 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { loadAiConfig, publicAiConfig } from "@/lib/ai/config";
 import { listBusinessCategories } from "@/lib/terms/categories";
-import { listClassificationReviewCandidates, type ClassificationReviewKind } from "@/lib/terms/classification-review";
+import { filterClassificationReviewCandidates, listClassificationReviewCandidates, type ClassificationReviewKind } from "@/lib/terms/classification-review";
 import { listDomains } from "@/lib/terms/domains";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { listDefinitionReviewCandidates } from "@/lib/ai/definition-review";
+import { listIdentityReviewCandidates } from "@/lib/ai/identity-review";
 import { HelpTip } from "@/components/help-tip";
 import { ClassificationReviewPanel } from "../classification-review-panel";
 import { DefinitionReviewPanel } from "../definition-review-panel";
+import { IdentityReviewPanel } from "../identity-review-panel";
 
 export const metadata: Metadata = {
   title: "필드 보완",
-  description: "한줄 정의·도메인·업무 분류가 비어 있는 용어를 집중해서 보완합니다.",
+  description: "대표 표기·확장명·추가 표기와 한줄 정의·분류를 AI와 함께 정비합니다.",
 };
 
-type FieldKey = "definition" | "domain" | "category";
+type FieldKey = "identity" | "definition" | "domain" | "category";
 
 const FIELD_ITEMS: ReadonlyArray<{
   key: FieldKey;
@@ -26,6 +28,13 @@ const FIELD_ITEMS: ReadonlyArray<{
   help: string;
   href: string;
 }> = [
+  {
+    key: "identity",
+    label: "표기 정비",
+    summary: "대표명·확장명·별칭·약어 정리",
+    help: "표기 언어·약어와 확장명의 불일치·중복·잘못된 표기 종류를 찾고 AI 제안을 필드별로 승인합니다.",
+    href: "/contribute/fields?field=identity",
+  },
   {
     key: "definition",
     label: "한줄 정의",
@@ -54,7 +63,7 @@ function scalar(params: Record<string, string | string[] | undefined>, key: stri
 }
 
 function parseField(value: string): FieldKey | undefined {
-  return value === "definition" || value === "domain" || value === "category" ? value : undefined;
+  return value === "identity" || value === "definition" || value === "domain" || value === "category" ? value : undefined;
 }
 
 export default async function FieldCompletionPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -66,15 +75,19 @@ export default async function FieldCompletionPage({ searchParams }: { searchPara
   const query = scalar(params, "q").slice(0, 200);
   const classificationKind: ClassificationReviewKind | undefined = field === "domain" ? "domain" : field === "category" ? "category" : undefined;
   const selectedField = field ? FIELD_ITEMS.find((item) => item.key === field) : undefined;
-  const [storedAi, definitionCandidates, classificationCandidates, categories, domains] = await Promise.all([
+  const [storedAi, identityCandidates, definitionCandidates, classificationCandidates, categories, domains] = await Promise.all([
     loadAiConfig(),
-    field === "definition" ? listDefinitionReviewCandidates() : Promise.resolve([]),
+    field === "identity" ? listIdentityReviewCandidates(200, query, user.id) : Promise.resolve([]),
+    field === "definition" ? listDefinitionReviewCandidates(100, user.id) : Promise.resolve([]),
     classificationKind ? listClassificationReviewCandidates(classificationKind, 200, query) : Promise.resolve([]),
     classificationKind ? listBusinessCategories() : Promise.resolve([]),
     classificationKind ? listDomains() : Promise.resolve([]),
   ]);
   const ai = publicAiConfig(storedAi);
   const aiAvailable = Boolean(ai.enabled && ai.secretsReadable);
+  const visibleClassificationCandidates = classificationKind
+    ? await filterClassificationReviewCandidates(classificationCandidates, classificationKind, user.id)
+    : classificationCandidates;
 
   return (
     <AppShell user={user} title="필드 보완" current="field-completion" roomy>
@@ -96,13 +109,15 @@ export default async function FieldCompletionPage({ searchParams }: { searchPara
             <HelpTip text={selectedField.help} />
           </div>
 
-          {field === "definition" ? (
+          {field === "identity" ? (
+            <IdentityReviewPanel initialCandidates={identityCandidates} query={query} aiAvailable={aiAvailable} />
+          ) : field === "definition" ? (
             <DefinitionReviewPanel initialCandidates={definitionCandidates} aiAvailable={aiAvailable} />
           ) : (
             <ClassificationReviewPanel
               key={`${field}:${query}`}
               kind={classificationKind!}
-              initialCandidates={classificationCandidates}
+              initialCandidates={visibleClassificationCandidates}
               query={query}
               aiAvailable={aiAvailable}
               domainOptions={domains.map((domain) => ({ value: domain.label, label: domain.label }))}
@@ -129,7 +144,7 @@ function FieldOverview() {
         <div>
           <div className="flex items-center gap-2">
             <h1 id="field-overview-title" className="text-2xl font-semibold tracking-tight text-ink text-balance">필드 보완</h1>
-            <HelpTip text="비어 있는 한줄 정의·도메인·업무 분류를 골라 보완합니다. 세부 기준과 AI 추천은 각 작업 화면의 ?에서 확인합니다." />
+            <HelpTip text="표기 정비와 비어 있는 한줄 정의·도메인·업무 분류를 골라 보완합니다. 세부 기준과 AI 추천은 각 작업 화면의 ?에서 확인합니다." />
           </div>
           <p className="mt-2 text-sm text-ink-2">필요한 필드만 골라 보완합니다.</p>
         </div>

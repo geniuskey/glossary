@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import { loadAiConfig, runtimeAiConfig } from "./config";
 import { completeAi } from "./provider";
 import { parseAiJson } from "./json";
+import { AI_SUGGESTION_GENERATOR_VERSIONS } from "./suggestion-disposition-values";
 
 export const duplicateInputSchema = z.object({
   id: z.string().max(100), nameEn: z.string().nullable().optional(), nameKo: z.string().nullable().optional(),
@@ -178,15 +179,33 @@ function mapPair(row: DuplicatePairRow): DuplicateReviewPair {
   };
 }
 
+function hiddenPairFilter(userId: string | null) {
+  const personal = userId
+    ? sql`or (d.scope = 'personal' and d.user_id = ${userId} and d.disposition = 'saved')`
+    : sql``;
+  return sql`and not exists (
+    select 1
+    from ai_suggestion_decisions d
+    where d.term_id = left_id
+      and d.revision = left_revision
+      and d.feature = 'duplicate'
+      and d.generator_version = ${AI_SUGGESTION_GENERATOR_VERSIONS.duplicate}
+      and d.suggestion_id = concat('duplicate:', left_id::text, ':', right_id::text)
+      and ((d.scope = 'shared' and d.disposition = 'dismissed') ${personal})
+  )`;
+}
+
 export async function listDuplicateReviewPairs(
   page = 1,
   status: DuplicatePairFilter = "pending",
   pageSize = 30,
+  userId: string | null = null,
 ): Promise<{ items: DuplicateReviewPair[]; page: number; counts: DuplicateReviewCounts }> {
   const safePage = Math.min(100000, Math.max(1, page));
   const safePageSize = Math.min(50, Math.max(1, pageSize));
   const offset = (safePage - 1) * safePageSize;
   const filter = pairFilter(status);
+  const hidden = hiddenPairFilter(userId);
   const db = getDb();
   const [rows, [counted]] = await Promise.all([
     db.execute<DuplicatePairRow>(sql`
@@ -203,7 +222,7 @@ export async function listDuplicateReviewPairs(
     right_definition_md as "rightDefinitionMd", right_body_md as "rightBodyMd", right_domain as "rightDomain",
         right_revision as "rightRevision", decision, decision_reason as "decisionReason"
       from reviewed_pairs
-      where ${filter}
+      where ${filter} ${hidden}
       order by left_slug, right_slug, left_id, right_id
       limit ${safePageSize} offset ${offset}
     `),
@@ -215,6 +234,7 @@ export async function listDuplicateReviewPairs(
         count(*) filter (where decision = 'different')::int as different,
         count(*) filter (where decision = 'uncertain')::int as uncertain
       from reviewed_pairs
+      where true ${hidden}
     `),
   ]);
 

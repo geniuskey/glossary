@@ -22,7 +22,7 @@ export const POST = withApiErrors(async (request: Request) => {
   if (!parsed.success) return apiError("validation_failed", "AI 추천을 준비할 용어와 분류를 확인해 주세요.", 400, parsed.error.flatten());
 
   try {
-    const suggestion = await generateClassificationSuggestion(parsed.data.termId, parsed.data.kind, parsed.data.expectedRevision, parsed.data.force === true);
+    const suggestion = await generateClassificationSuggestion(parsed.data.termId, parsed.data.kind, parsed.data.expectedRevision, parsed.data.force === true, auth.kind === "user" ? auth.user.id : null);
     return Response.json({ suggestion });
   } catch (error) {
     if (error instanceof Error && error.message === "TERM_NOT_FOUND") {

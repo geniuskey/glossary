@@ -241,6 +241,69 @@ AI 관계 제안을 승인하거나 거절한다.
 }
 ```
 
+## 표기 정비
+
+### `POST /contributions/identity-review`
+
+현재 용어의 대표 영문·국문, 영문·국문 확장명, 별칭·약어·표기 종류를 규칙과 용어집 근거로
+검토한다. 로그인 세션 또는 `write` API Key가 필요하며, `termId`와 현재 `expectedRevision`을
+보낸다. 결과는 `findings`, `suggestions`, `uncertainties`로 반환되고 저장은 승인 전까지
+발생하지 않는다. 같은 용어 리비전의 결과는 재사용하며 `force: true`로 다시 생성할 수 있다.
+
+```json
+{
+  "termId": "00000000-0000-4000-8000-000000000001",
+  "expectedRevision": 3,
+  "force": false
+}
+```
+
+### `PATCH /contributions/identity-review`
+
+표기 정비 제안 하나를 승인해 일반 용어 수정과 같은 새 리비전을 만든다. `suggestionId`와
+승인 기준 `revision`이 필요하다. 대표명·확장명 제안은 `value` 문자열을 함께 보내 직접
+다듬을 수 있으며, 생략하면 AI 값을 사용한다. 추가 표기 제안의 객체 값은 서버가 문자열의
+언어를 다시 계산하고 표기 종류를 검증한다.
+
+### `DELETE /contributions/identity-review`
+
+현재 리비전의 표기 정비 제안 하나를 거절한다. 용어 값이나 리비전은 변경하지 않는다.
+
+세 엔드포인트 모두 다른 사람이 먼저 용어를 수정했거나 표기 충돌이 생기면 `409`를 반환한다.
+AI 연결이 꺼져 있으면 생성 요청은 `503`, 공급자·JSON 해석 오류는 `502`다.
+
+## AI 제안 상태
+
+### `POST /contributions/suggestion-dispositions`
+
+AI 제안의 후속 판단을 승인 전 상태로 기록한다. `feature`는 `agent`, `identity`,
+`definition`, `classification`, `duplicate` 중 하나이며, `suggestionId`와 현재
+`generatorVersion`을 함께 보내야 한다. `revision`이 현재 용어 리비전과 다르면 저장하지
+않는다.
+
+- `dismissed`: 오탐으로 숨김. 같은 생성기 버전의 같은 리비전 제안에 대한 공용 판단이다.
+- `deferred`: 보류. 공용 목록에 남기되 보류 상태로 표시한다.
+- `saved`: 내 작업에 저장. 로그인한 사용자 본인에게만 보이며 다른 사용자의 목록에는
+  영향을 주지 않는다.
+
+```json
+{
+  "termId": "00000000-0000-4000-8000-000000000001",
+  "revision": 3,
+  "feature": "identity",
+  "suggestionId": "identity-term-fullNameEn-0",
+  "generatorVersion": 2,
+  "disposition": "saved",
+  "reason": "추가 근거를 확인한 뒤 반영",
+  "payload": { "title": "영문 확장명", "value": "Objectives and Key Results" }
+}
+```
+
+### `DELETE /contributions/suggestion-dispositions`
+
+내 작업에 저장한 제안을 다시 원래 작업 목록에 표시하려면 저장된 결정의 `decisionId`를
+보낸다. 본인 소유의 `saved` 상태만 삭제할 수 있으며, 성공하면 `204`를 반환한다.
+
 ## 중복 후보 검토
 
 ### `GET /contributions/duplicates`
