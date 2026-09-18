@@ -52,6 +52,13 @@ export interface RagEndpointRuntime {
   customHeaders: StoredRagHeader[];
 }
 
+export interface RagEndpointConnectionDraft {
+  provider: RagEmbeddingProvider | RagRerankerProvider;
+  baseUrl: string;
+  apiKey?: string | null;
+  customHeaders: RagHeaderInput[];
+}
+
 export interface EmbeddingRuntimeConfig extends RagEndpointRuntime {
   provider: RagEmbeddingProvider;
   dimensions: typeof RAG_VECTOR_DIMENSIONS;
@@ -142,7 +149,7 @@ export function publicRagConfig(row: RagConfigRow, stats: RagIndexStats): Public
   };
 }
 
-function validateUrl(raw: string, label: string, problems: string[]): void {
+export function validateRagUrl(raw: string, label: string, problems: string[] = []): string[] {
   try {
     const url = new URL(raw.trim());
     if (!new Set(["http:", "https:"]).has(url.protocol)) problems.push(`${label}는 http 또는 https만 사용할 수 있습니다.`);
@@ -150,6 +157,7 @@ function validateUrl(raw: string, label: string, problems: string[]): void {
   } catch {
     problems.push(`${label}을 올바른 URL로 입력해 주세요.`);
   }
+  return problems;
 }
 
 export function validateRagHeaders(headers: RagHeaderInput[], label: string): string[] {
@@ -174,8 +182,8 @@ export function validateRagConfigInput(input: RagConfigPatch): string[] {
   const problems: string[] = [];
   if (!input.embeddingModel.trim()) problems.push("Embedding 모델 이름을 입력해 주세요.");
   if (!input.rerankerModel.trim()) problems.push("Reranker 모델 이름을 입력해 주세요.");
-  validateUrl(input.embeddingBaseUrl, "Embedding API 주소", problems);
-  validateUrl(input.rerankerBaseUrl, "Reranker API 주소", problems);
+  validateRagUrl(input.embeddingBaseUrl, "Embedding API 주소", problems);
+  validateRagUrl(input.rerankerBaseUrl, "Reranker API 주소", problems);
   problems.push(...validateRagHeaders(input.embeddingCustomHeaders, "Embedding"));
   problems.push(...validateRagHeaders(input.rerankerCustomHeaders, "Reranker"));
   if (input.chunkSize < 400 || input.chunkSize > 8_000) problems.push("청크 크기는 400~8000자여야 합니다.");
@@ -190,6 +198,29 @@ function currentSecrets(row: RagConfigRow, kind: "embedding" | "reranker"): { ap
   const apiKeyEncrypted = kind === "embedding" ? row.embeddingApiKeyEncrypted : row.rerankerApiKeyEncrypted;
   const headersEncrypted = kind === "embedding" ? row.embeddingCustomHeadersEncrypted : row.rerankerCustomHeadersEncrypted;
   return { apiKey: apiKeyEncrypted ? decryptAiSecret(apiKeyEncrypted) : "", headers: decodeHeaders(headersEncrypted) };
+}
+
+/** 저장하지 않은 관리자 입력과 기존 암호문을 합쳐 모델 목록 조회에 사용한다. */
+export function runtimeRagEndpointFromDraft(
+  row: RagConfigRow,
+  kind: "embedding" | "reranker",
+  input: RagEndpointConnectionDraft,
+  model = "",
+): RagEndpointRuntime {
+  const existing = currentSecrets(row, kind);
+  const apiKey = input.apiKey === null ? "" : input.apiKey?.trim() || existing.apiKey;
+  const existingByName = new Map(existing.headers.map((header) => [header.name.toLowerCase(), header.value]));
+  const customHeaders = input.customHeaders.map((header) => ({
+    name: header.name.trim(),
+    value: header.value || existingByName.get(header.name.trim().toLowerCase()) || "",
+  }));
+  return {
+    provider: input.provider,
+    baseUrl: input.baseUrl.trim().replace(/\/+$/, ""),
+    model,
+    apiKey,
+    customHeaders,
+  };
 }
 
 function mergeSecret(

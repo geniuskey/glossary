@@ -35,6 +35,7 @@ import * as adminAiConfigTestRoute from "../src/app/api/v1/admin/ai-config/test/
 import * as adminAiConfigModelsRoute from "../src/app/api/v1/admin/ai-config/models/route.js";
 import * as adminAiObservabilityRoute from "../src/app/api/v1/admin/ai-observability/route.js";
 import * as adminRagConfigRoute from "../src/app/api/v1/admin/rag-config/route.js";
+import * as adminRagConfigModelsRoute from "../src/app/api/v1/admin/rag-config/models/route.js";
 import * as adminRagConfigReindexRoute from "../src/app/api/v1/admin/rag-config/reindex/route.js";
 import * as adminRagConfigTestRoute from "../src/app/api/v1/admin/rag-config/test/route.js";
 import * as chatRoute from "../src/app/api/v1/chat/route.js";
@@ -138,6 +139,7 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "admin/ai-config/models", mod: adminAiConfigModelsRoute, allowed: ["POST"], allow: "POST" },
   { name: "admin/ai-observability", mod: adminAiObservabilityRoute, allowed: ["GET"], allow: "GET, HEAD" },
   { name: "admin/rag-config", mod: adminRagConfigRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
+  { name: "admin/rag-config/models", mod: adminRagConfigModelsRoute, allowed: ["POST"], allow: "POST" },
   { name: "admin/rag-config/reindex", mod: adminRagConfigReindexRoute, allowed: ["POST"], allow: "POST" },
   { name: "admin/rag-config/test", mod: adminRagConfigTestRoute, allowed: ["POST"], allow: "POST" },
   { name: "chat", mod: chatRoute, allowed: ["GET", "POST", "PATCH", "DELETE"], allow: "GET, HEAD, POST, PATCH, DELETE" },

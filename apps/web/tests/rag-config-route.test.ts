@@ -17,6 +17,7 @@ vi.mock("next/headers", () => ({
 }));
 
 const { GET, PATCH } = await import("../src/app/api/v1/admin/rag-config/route.js");
+const { POST: LIST_MODELS } = await import("../src/app/api/v1/admin/rag-config/models/route.js");
 const db = createDb(process.env.DATABASE_URL_TEST!);
 const userIds: string[] = [];
 let originalConfig: typeof ragConfig.$inferSelect | undefined;
@@ -74,6 +75,14 @@ function request(body: unknown) {
   });
 }
 
+function modelsRequest(body: unknown) {
+  return new Request("https://glossary.example.com/api/v1/admin/rag-config/models", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 test("RAG 설정은 관리자만 변경하고 비밀값은 암호화·마스킹한다", async () => {
   currentCookieValue = undefined;
   expect((await GET()).status).toBe(401);
@@ -112,4 +121,42 @@ test("RAG 설정은 위험한 header와 잘못된 청크 범위를 거부한다"
   expect((await badOverlap.json()).error.details.formErrors).toEqual(expect.arrayContaining([
     expect.stringContaining("청크 겹침"),
   ]));
+});
+
+test("OpenAI-compatible RAG 모델 목록은 embed·reranker 키워드로 분류한다", async () => {
+  await loginAs("admin");
+  const openAiRagConfig = {
+    ...validConfig,
+    rerankerProvider: "openai_compatible" as const,
+    rerankerBaseUrl: "http://127.0.0.1:9999/v1",
+  };
+  const saved = await PATCH(request(openAiRagConfig));
+  expect(saved.status).toBe(200);
+  expect((await saved.json()).config.reranker.provider).toBe("openai_compatible");
+  const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => Response.json({ data: [
+    { id: "company-llm" },
+    { id: "company-embed-large" },
+    { id: "company-reranker-v2" },
+    { id: "company-embed-large" },
+  ] }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  const embedding = await LIST_MODELS(modelsRequest({
+    endpoint: "embedding",
+    baseUrl: "http://127.0.0.1:9999/v1",
+    customHeaders: [{ name: "X-Tenant", value: "", configured: true }],
+  }));
+  expect(embedding.status).toBe(200);
+  expect((await embedding.json()).models).toEqual([{ id: "company-embed-large", label: "company-embed-large" }]);
+
+  const reranker = await LIST_MODELS(modelsRequest({
+    endpoint: "reranker",
+    baseUrl: "http://127.0.0.1:9999/v1",
+    customHeaders: [],
+  }));
+  expect(reranker.status).toBe(200);
+  expect((await reranker.json()).models).toEqual([{ id: "company-reranker-v2", label: "company-reranker-v2" }]);
+  expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:9999/v1/models");
+  expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("authorization")).toBe("Bearer embedding-secret");
+  expect(new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get("authorization")).toBe("Bearer reranker-secret");
 });

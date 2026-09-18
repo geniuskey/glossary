@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- RAG 설정에서 OpenAI-compatible `/v1` Reranker와 `/v1/models` 기반 Embedding·Reranker 모델 선택, 공용 Base URL을 지원
+
 ## 0.2.1 — 2026-09-17
 
 ### Added

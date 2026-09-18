@@ -203,7 +203,7 @@ function rerankEndpoint(config: RerankerRuntimeConfig): string {
   return base.endsWith("/rerank") ? base : `${base}/rerank`;
 }
 
-/** Calls a Cohere v2/Jina-compatible rerank endpoint. */
+/** Calls a Cohere v2/Jina/OpenAI-compatible rerank endpoint. */
 export async function rerankTexts(
   config: RerankerRuntimeConfig,
   query: string,

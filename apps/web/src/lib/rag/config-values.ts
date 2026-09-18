@@ -8,11 +8,12 @@ export const RAG_EMBEDDING_PROVIDER_LABEL: Record<RagEmbeddingProvider, string> 
   gemini: "Gemini Embedding API",
 };
 
-export const RAG_RERANKER_PROVIDERS = ["cohere_compatible"] as const;
+export const RAG_RERANKER_PROVIDERS = ["cohere_compatible", "openai_compatible"] as const;
 export type RagRerankerProvider = (typeof RAG_RERANKER_PROVIDERS)[number];
 
 export const RAG_RERANKER_PROVIDER_LABEL: Record<RagRerankerProvider, string> = {
   cohere_compatible: "Cohere-compatible",
+  openai_compatible: "OpenAI Compatible",
 };
 
 export interface RagHeaderInput {

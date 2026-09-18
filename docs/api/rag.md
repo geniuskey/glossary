@@ -45,8 +45,8 @@ RAG 설정과 색인 대기열은 DB에 저장된다. 용어를 등록·수정�
 리비전이 아직 색인되지 않았을 때 챗봇은 기존 표기·키워드 검색으로 폴백한다. 직접 벡터
 결과가 필요한 호출자는 아래의 `POST /rag/search`를 사용한다.
 
-`embeddingProvider`는 `openai_compatible` 또는 `gemini`이고, 현재 `rerankerProvider`는
-`cohere_compatible`이다. Embedding 출력과 DB 벡터 차원은 **1536으로 고정**한다. OpenAI
+`embeddingProvider`는 `openai_compatible` 또는 `gemini`이고, `rerankerProvider`는
+`cohere_compatible` 또는 `openai_compatible`이다. Embedding 출력과 DB 벡터 차원은 **1536으로 고정**한다. OpenAI
 호환 서버에는 `/embeddings` 요청의 `dimensions: 1536`을, Gemini에는
 `batchEmbedContents` 요청의 `outputDimensionality: 1536`을 보낸다.
 
@@ -54,7 +54,7 @@ Base URL은 공급자에 따라 마지막 경로를 자동으로 붙인다.
 
 - OpenAI-compatible Embedding: `{baseUrl}/embeddings`
 - Gemini Embedding: `{baseUrl}/models/{model}:batchEmbedContents`
-- Cohere-compatible Reranker: `{baseUrl}/rerank`
+- Cohere/OpenAI-compatible Reranker: `{baseUrl}/rerank`
 
 API Key는 OpenAI/Cohere 호환 서버에는 `Authorization: Bearer`로, Gemini에는
 `x-goog-api-key`로 보낸다. custom header는 공급자별 추가 인증·테넌트 헤더에 사용하며
@@ -64,6 +64,15 @@ AES-256-GCM 암호화한다.
 API Key 또는 header를 생략하거나 빈 값으로 보내면 저장된 값을 유지하고, `null`이면 API
 Key를 삭제한다. GET 응답에서 받은 header 이름에 빈 값을 넣어 보내도 기존 값이 유지된다.
 header 행을 제거하면 해당 header가 삭제된다.
+
+### `POST /admin/rag-config/models`
+
+OpenAI-compatible 공급자의 `/v1/models`를 조회해 RAG 용도에 맞는 모델만 반환한다. `baseUrl`에
+`https://company.example/v1`을 넣으면 해당 주소의 `/v1/models`를 호출한다. `endpoint`가
+`embedding`이면 모델 ID에 `embed`, `reranker`이면 `reranker`가 포함된 모델만 선택지로
+반환한다. 응답은 `{ "models": [{ "id": "company-embed-large", "label": "company-embed-large" }] }`
+형식이며 설정을 저장하지 않는다. Embedding·Reranker를 같은 서버에서 서빙하면 두 요청에
+같은 Base URL을 사용하면 된다.
 
 `chunkSize`는 400~8000자, `chunkOverlap`은 0 이상이고 청크 크기보다 작아야 하며,
 `topK`는 1~50이다. Embedding 모델이나 Base URL, 청크 설정을 저장하면 모든 현재 용어를

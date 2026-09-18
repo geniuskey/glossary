@@ -39,6 +39,7 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | GET | [`/admin/ai-observability`](/api/ai#ai-실행-모니터링) | 세션(admin) | AI 호출 집계·실패와 RAG·검토 큐 상태 |
 | GET | [`/admin/rag-config`](/api/rag#관리자-설정) | 세션(admin) | RAG·Embedding·Reranker 설정과 색인 통계 |
 | PATCH | [`/admin/rag-config`](/api/rag#관리자-설정) | 세션(admin) | RAG 연결·청크 설정 저장 |
+| POST | [`/admin/rag-config/models`](/api/rag#post-adminrag-config-models) | 세션(admin) | `/v1/models`에서 Embedding·Reranker 모델 선택지 조회 |
 | POST | [`/admin/rag-config/test`](/api/rag#post-adminrag-config-test) | 세션(admin) | Embedding·Reranker 연결 시험 |
 | POST | [`/admin/rag-config/reindex`](/api/rag#post-adminrag-config-reindex) | 세션(admin) | 전체 용어 재색인 대기열 생성 |
 | POST | [`/rag/search`](/api/rag#벡터-검색) | `read` | pgvector 용어집 검색 |

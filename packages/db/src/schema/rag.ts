@@ -22,9 +22,10 @@ export const ragEmbeddingProviderEnum = pgEnum("rag_embedding_provider", [
   "gemini",
 ]);
 
-/** Cohere v2/Jina-compatible rerank endpoints share the same request/response shape. */
+/** Cohere v2/Jina/OpenAI-compatible rerank endpoints share the same request/response shape. */
 export const ragRerankerProviderEnum = pgEnum("rag_reranker_provider", [
   "cohere_compatible",
+  "openai_compatible",
 ]);
 
 export const ragIndexJobStatusEnum = pgEnum("rag_index_job_status", [

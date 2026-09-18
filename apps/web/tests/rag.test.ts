@@ -108,11 +108,11 @@ test("OpenAI-compatible Embedding과 Reranker 응답을 안전하게 해석한�
     dimensions: 1_536,
   }, ["하나", "둘"])).resolves.toHaveLength(2);
   await expect(rerankTexts({
-    provider: "cohere_compatible",
-    baseUrl: "http://127.0.0.1:9999/v2",
+    provider: "openai_compatible",
+    baseUrl: testBaseUrl,
     model: "rerank-test",
     apiKey: "rerank-key",
-    customHeaders: [],
+    customHeaders: [{ name: "X-Tenant", value: "glossary" }],
   }, "질문", ["문서 A", "문서 B"])).resolves.toEqual([
     { index: 1, score: 0.91 },
     { index: 0, score: 0.21 },
@@ -122,6 +122,25 @@ test("OpenAI-compatible Embedding과 Reranker 응답을 안전하게 해석한�
   expect(embeddingUrl).toBe(`${testBaseUrl}/embeddings`);
   expect(new Headers(embeddingInit?.headers).get("authorization")).toBe("Bearer embedding-key");
   expect(JSON.parse(String(embeddingInit?.body))).toMatchObject({ model: "embedding-test", dimensions: 1_536 });
+  const [rerankerUrl, rerankerInit] = fetchMock.mock.calls[1]!;
+  expect(rerankerUrl).toBe(`${testBaseUrl}/rerank`);
+  expect(new Headers(rerankerInit?.headers).get("authorization")).toBe("Bearer rerank-key");
+  expect(new Headers(rerankerInit?.headers).get("x-tenant")).toBe("glossary");
+  expect(JSON.parse(String(rerankerInit?.body))).toMatchObject({ model: "rerank-test", top_n: 2, return_documents: false });
+});
+
+test("기존 Cohere-compatible Reranker 경로도 계속 사용한다", async () => {
+  const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => Response.json({ results: [{ index: 0, relevance_score: 0.8 }] }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(rerankTexts({
+    provider: "cohere_compatible",
+    baseUrl: "http://127.0.0.1:9999/v2",
+    model: "rerank-v3.5",
+    apiKey: "cohere-key",
+    customHeaders: [],
+  }, "질문", ["문서"])).resolves.toEqual([{ index: 0, score: 0.8 }]);
+  expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:9999/v2/rerank");
 });
 
 test("Embedding 응답의 개수·차원 오류도 성공으로 기록하지 않는다", async () => {

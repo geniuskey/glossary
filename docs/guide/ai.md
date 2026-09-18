@@ -108,9 +108,13 @@ GLOSSARY_ENCRYPTION_KEY=replace-with-a-long-random-encryption-key
 청크로 나뉘며, 용어 등록·수정·병합·되돌리기 뒤 최신 리비전이 색인 대기열에 들어간다.
 
 Embedding은 OpenAI-compatible `/embeddings`와 Gemini `batchEmbedContents` 형식을
-지원하고, 선택적으로 Cohere-compatible Reranker를 붙일 수 있다. DB 벡터 차원은 1536으로
-고정되어 있으며, 공급자 응답도 이 차원인지 검증한다. 연결 설정·API Key·custom header는
-기존 **AI 연결**과 분리해 관리하고, 비밀값은 같은 `GLOSSARY_ENCRYPTION_KEY`로 암호화한다.
+지원하고, 선택적으로 Cohere-compatible 또는 OpenAI-compatible `/rerank` Reranker를 붙일
+수 있다. OpenAI-compatible RAG 서버는 `/v1/models`를 조회해 모델 ID에 `embed`가 포함된
+모델을 Embedding 선택지로, `reranker`가 포함된 모델을 Reranker 선택지로 보여 준다. 같은
+사내 `/v1` 서버를 Embedding과 Reranker에 함께 사용할 때는 관리자 화면의 공용 Base URL을
+한 번 입력하면 된다. DB 벡터 차원은 1536으로 고정되어 있으며, 공급자 응답도 이 차원인지
+검증한다. 연결 설정·API Key·custom header는 기존 **AI 연결**과 분리해 관리하고, 비밀값은
+같은 `GLOSSARY_ENCRYPTION_KEY`로 암호화한다.
 
 색인 상태는 관리자 화면에서 전체·색인 완료·대기·처리 중·실패 건수로 확인한다. 모델이나
 청크 설정을 바꾼 뒤에는 자동으로 전체 대기열을 갱신하며, 필요하면 **전체 재색인**을 눌러
