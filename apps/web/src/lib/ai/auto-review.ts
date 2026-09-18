@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
 import { aiReviewQueue, aiReviewSuggestions, termRelations, terms, users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { currentRevisionNumber } from "@/lib/terms/update";
@@ -13,6 +13,7 @@ import {
   type ContributionSuggestion,
   type RelationContributionSuggestion,
 } from "./contribution-suggestions";
+import type { ReviewQueueFilter } from "./review-queue-types";
 
 export interface PreparedReview {
   termId: string;
@@ -38,8 +39,12 @@ export interface ReviewQueueItem {
 }
 
 export interface ReviewQueueSnapshot {
-  counts: { total: number; active: number; queued: number; processing: number; ready: number; failed: number };
+  counts: { total: number; active: number; attention: number; queued: number; processing: number; ready: number; failed: number };
   items: ReviewQueueItem[];
+  filter: ReviewQueueFilter;
+  filteredTotal: number;
+  page: number;
+  pageSize: number;
 }
 
 const inFlight = new Map<string, Promise<PreparedReview | null>>();
@@ -214,7 +219,7 @@ async function processQueuedReview(termId: string, requestMode: ReviewRequestMod
       await getDb().update(aiReviewQueue).set({
         status: "failed",
         finishedAt: new Date(),
-        errorMessage: "AI 검토를 완료하지 못했습니다.",
+        errorMessage: "AI 검토에 실패했습니다. AI 연결·요청 한도를 확인한 뒤 다시 요청해 주세요.",
       }).where(and(eq(aiReviewQueue.termId, termId), eq(aiReviewQueue.revision, job.revision), eq(aiReviewQueue.status, "processing")));
       console.error(`${requestMode === "manual" ? "수동" : "자동"} AI 검토 준비 실패`, error);
       return null;
@@ -288,8 +293,27 @@ export async function resumeReviewQueue(): Promise<void> {
   await prepareQueuedReviews(queued);
 }
 
-export async function listReviewQueue(limit = 100): Promise<ReviewQueueSnapshot> {
-  const [[counts], rows] = await Promise.all([
+export interface ReviewQueueListOptions {
+  filter?: ReviewQueueFilter;
+  page?: number;
+  pageSize?: number;
+}
+
+function queueFilterWhere(filter: ReviewQueueFilter) {
+  if (filter === "attention") return inArray(aiReviewQueue.status, ["ready", "failed"] as ReviewQueueStatus[]);
+  if (filter === "active") return inArray(aiReviewQueue.status, ["queued", "processing"] as ReviewQueueStatus[]);
+  if (filter === "ready" || filter === "failed") return eq(aiReviewQueue.status, filter);
+  return undefined;
+}
+
+export async function listReviewQueue(input: number | ReviewQueueListOptions = {}): Promise<ReviewQueueSnapshot> {
+  const options = typeof input === "number" ? { pageSize: input } : input;
+  const filter = options.filter ?? "all";
+  const page = Math.max(1, Math.min(100_000, Math.floor(options.page ?? 1)));
+  const pageSize = Math.max(1, Math.min(100, Math.floor(options.pageSize ?? 50)));
+  const offset = (page - 1) * pageSize;
+  const filterWhere = queueFilterWhere(filter);
+  const [[counts], [filtered], rows] = await Promise.all([
     getDb().select({
       total: sql<number>`count(*)::int`,
       queued: sql<number>`count(*) filter (where ${aiReviewQueue.status} = 'queued')::int`,
@@ -297,6 +321,7 @@ export async function listReviewQueue(limit = 100): Promise<ReviewQueueSnapshot>
       ready: sql<number>`count(*) filter (where ${aiReviewQueue.status} = 'ready')::int`,
       failed: sql<number>`count(*) filter (where ${aiReviewQueue.status} = 'failed')::int`,
     }).from(aiReviewQueue),
+    getDb().select({ total: sql<number>`count(*)::int` }).from(aiReviewQueue).where(filterWhere),
     getDb().select({
       termId: aiReviewQueue.termId,
       revision: aiReviewQueue.revision,
@@ -313,20 +338,34 @@ export async function listReviewQueue(limit = 100): Promise<ReviewQueueSnapshot>
     }).from(aiReviewQueue)
       .innerJoin(terms, eq(terms.id, aiReviewQueue.termId))
       .leftJoin(users, eq(users.id, aiReviewQueue.requestedBy))
-      .orderBy(desc(aiReviewQueue.requestedAt))
-      .limit(limit),
+      .where(filterWhere)
+      .orderBy(sql`case
+        when ${aiReviewQueue.status} = 'failed' then 0
+        when ${aiReviewQueue.status} = 'ready' then 1
+        when ${aiReviewQueue.status} = 'processing' then 2
+        else 3
+      end`, asc(aiReviewQueue.requestedAt))
+      .limit(pageSize)
+      .offset(offset),
   ]);
   const queued = counts?.queued ?? 0;
   const processing = counts?.processing ?? 0;
+  const ready = counts?.ready ?? 0;
+  const failed = counts?.failed ?? 0;
   return {
     counts: {
       total: counts?.total ?? 0,
       active: queued + processing,
+      attention: ready + failed,
       queued,
       processing,
-      ready: counts?.ready ?? 0,
-      failed: counts?.failed ?? 0,
+      ready,
+      failed,
     },
+    filter,
+    filteredTotal: filtered?.total ?? 0,
+    page,
+    pageSize,
     items: rows.map((row) => ({
       termId: row.termId,
       revision: row.revision,

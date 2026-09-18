@@ -45,8 +45,8 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | GET | [`/admin/term-quality`](/api/ai#콘텐츠-완성도) | 세션(admin) | 콘텐츠 완성도 조회 |
 | POST | [`/admin/term-quality`](/api/ai#콘텐츠-완성도) | 세션(admin) | 최소 길이 변경 영향 미리보기 |
 | PATCH | [`/admin/term-quality`](/api/ai#콘텐츠-완성도) | 세션(admin) | 최소 길이 저장 |
-| GET | [`/contributions/review-queue`](/api/ai#자동-검토-제안) | `read` | AI 검토 큐 상태와 목록 |
-| POST | [`/contributions/review-queue`](/api/ai#자동-검토-제안) | `write` | 용어 한 건 또는 최대 60건의 AI 검토 요청 |
+| GET | [`/contributions/review-queue`](/api/ai#자동-검토-제안) | `read` | AI 작업 상태와 목록 |
+| POST | [`/contributions/review-queue`](/api/ai#자동-검토-제안) | `write` | AI 검토 요청 또는 대기 작업 재개 |
 | GET | [`/contributions/suggestions`](/api/ai#자동-검토-제안) | `read` | 현재 리비전의 AI 제안 조회 |
 | PATCH | [`/contributions/suggestions`](/api/ai#자동-검토-제안) | `write` | AI 관계 제안 승인·거절 |
 | DELETE | [`/contributions/suggestions`](/api/ai#자동-검토-제안) | `write` | AI 필드 제안 거절 |
@@ -54,9 +54,9 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | POST | [`/contributions/term-definitions`](/api/ai#한줄-정의-제안) | `write` | LLM 한줄 정의 생성 |
 | PATCH | [`/contributions/term-definitions`](/api/ai#한줄-정의-제안) | `write` | 한줄 정의 한 건 승인 |
 | POST | [`/contributions/classifications`](/api/ai#분류-추천) | `write` | 도메인·업무 분류 AI 추천 생성 |
-| GET | [`/contributions/duplicates`](/api/ai#중복-정리) | `read` | 중복 표기·숫자 접미사 후보 |
-| POST | [`/contributions/duplicates`](/api/ai#중복-정리) | `write` | AI 중복 검토 |
-| PATCH | [`/contributions/duplicates`](/api/ai#중복-정리) | `write` | 중복 용어 병합 |
+| GET | [`/contributions/duplicates`](/api/ai#중복-후보-검토) | `read` | 중복 후보 쌍·검토 상태 |
+| POST | [`/contributions/duplicates`](/api/ai#중복-후보-검토) | `write` | AI 동일 개념 판정 |
+| PATCH | [`/contributions/duplicates`](/api/ai#중복-후보-검토) | `write` | 병합·분리·보류 결정 |
 | POST | [`/chat`](/api/ai#용어집-챗봇) | `read` | 용어집에 근거한 AI 질문 |
 | GET | [`/terms`](/api/terms#목록-조회) | `read` | 용어 목록·검색 |
 | POST | [`/terms`](/api/terms#등록) | `write` | 용어 등록 |

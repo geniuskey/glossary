@@ -4,6 +4,7 @@ import { scheduleAfterResponse } from "@/lib/after-response";
 import { listReviewQueue, prepareManualReview, prepareQueuedReviews, requestManualReview, resumeReviewQueue } from "@/lib/ai/auto-review";
 import { isResponse, requireAuth } from "@/lib/auth/require";
 import { getTermByIdOrSlug } from "@/lib/terms/query";
+import { isReviewQueueFilter } from "@/lib/ai/review-queue-types";
 
 const ALLOWED_METHODS = ["GET", "POST"];
 const { PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -14,6 +15,7 @@ const requestItemSchema = z.object({
   revision: z.number().int().positive(),
 }).strict();
 const requestSchema = z.union([
+  z.object({ action: z.literal("resume") }).strict(),
   requestItemSchema,
   z.object({ items: z.array(requestItemSchema).min(1).max(60) }).strict(),
 ]);
@@ -21,8 +23,12 @@ const requestSchema = z.union([
 export const GET = withApiErrors(async (request: Request) => {
   const auth = await requireAuth(request, "read");
   if (isResponse(auth)) return auth;
-  scheduleAfterResponse(() => resumeReviewQueue());
-  return Response.json({ queue: await listReviewQueue() });
+  const url = new URL(request.url);
+  const requestedFilter = url.searchParams.get("status");
+  const filter = isReviewQueueFilter(requestedFilter) ? requestedFilter : "all";
+  const pageValue = Number.parseInt(url.searchParams.get("page") ?? "1", 10);
+  const page = Number.isFinite(pageValue) ? Math.max(1, Math.min(100_000, pageValue)) : 1;
+  return Response.json({ queue: await listReviewQueue({ filter, page }) });
 });
 
 export const POST = withApiErrors(async (request: Request) => {
@@ -30,6 +36,10 @@ export const POST = withApiErrors(async (request: Request) => {
   if (isResponse(auth)) return auth;
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "검토할 용어와 리비전을 확인해 주세요.", 400, parsed.error.flatten());
+  if ("action" in parsed.data) {
+    scheduleAfterResponse(() => resumeReviewQueue());
+    return Response.json({ state: "resuming" }, { status: 202 });
+  }
   if (!("items" in parsed.data)) {
     const singleTermId = parsed.data.termId;
     const singleRevision = parsed.data.revision;

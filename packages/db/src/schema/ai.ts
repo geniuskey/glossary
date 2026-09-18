@@ -55,6 +55,30 @@ export const definitionReviewSuggestions = pgTable(
 
 export const classificationReviewKindEnum = pgEnum("classification_review_kind", ["domain", "category"]);
 
+export const duplicateReviewDecisionEnum = pgEnum("duplicate_review_decision", ["different", "uncertain"]);
+
+/** 사람이 같은 후보 쌍을 검토한 결과. 양쪽 리비전이 바뀌면 오래된 판단으로 취급한다. */
+export const duplicateReviewDecisions = pgTable(
+  "duplicate_review_decisions",
+  {
+    leftTermId: uuid("left_term_id").notNull().references(() => terms.id, { onDelete: "cascade" }),
+    rightTermId: uuid("right_term_id").notNull().references(() => terms.id, { onDelete: "cascade" }),
+    leftRevision: integer("left_revision").notNull(),
+    rightRevision: integer("right_revision").notNull(),
+    decision: duplicateReviewDecisionEnum("decision").notNull(),
+    reason: text("reason").notNull().default(""),
+    reviewedBy: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    primary: primaryKey({ columns: [t.leftTermId, t.rightTermId] }),
+    rightIdx: index("duplicate_review_decisions_right_idx").on(t.rightTermId),
+    distinctTerms: check("duplicate_review_decisions_distinct_terms", sql`${t.leftTermId} <> ${t.rightTermId}`),
+    leftRevisionPositive: check("duplicate_review_decisions_left_revision_positive", sql`${t.leftRevision} > 0`),
+    rightRevisionPositive: check("duplicate_review_decisions_right_revision_positive", sql`${t.rightRevision} > 0`),
+  }),
+);
+
 /** 현재 용어 리비전에 대해 생성한 도메인·업무 분류 추천. 승인 전까지 리비전별로 재사용한다. */
 export const classificationReviewSuggestions = pgTable(
   "classification_review_suggestions",

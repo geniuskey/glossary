@@ -38,7 +38,7 @@ custom header는 이름과 `configured` 상태만 보여준다.
 
 관리자 세션만 사용할 수 있다. `hours` 쿼리(1~720, 기본 24)로 기간을 정하면 LLM·Embedding·
 Reranker 실행의 호출 수, 성공·실패·실행 중 건수, 평균·P95 지연, 토큰 합계, 작업·공급자·모델별
-집계와 최근 실패를 반환한다. RAG 색인과 AI 검토 큐의 현재 상태 및 AI/RAG 연결 준비 상태도
+집계와 최근 실패를 반환한다. RAG 색인과 AI 작업의 현재 상태 및 AI/RAG 연결 준비 상태도
 함께 반환한다.
 
 운영 메타데이터에는 trace ID·시도 횟수·HTTP 상태·안전한 오류 분류만 포함되며 프롬프트,
@@ -101,8 +101,10 @@ OpenAI-compatible은 `/models`의 ID를 반환한다. 성공 응답은 다음 �
 
 ### `GET /contributions/review-queue`
 
-로그인 세션 또는 `read` API Key로 AI 검토 큐의 전체·처리 중·대기·완료·실패 건수와
-최근 용어 목록을 조회한다.
+로그인 세션 또는 `read` API Key로 AI 작업의 전체·검토 필요·처리 중·대기·실패 건수와
+필터링된 용어 목록을 조회한다. `status=all|attention|active|ready|failed`(`attention`은
+검토 필요 또는 실패)와 `page`로
+목록 범위를 조정할 수 있다.
 
 ### `POST /contributions/review-queue`
 
@@ -118,6 +120,12 @@ AI 연결이 활성화되어 있으면 사용할 수 있다. 로그인 세션 �
 
 여러 용어는 `items` 배열로 한 번에 최대 60건까지 요청할 수 있다. 같은 `termId`가
 반복되면 마지막 항목 하나만 처리한다.
+
+오래된 `processing` 작업을 되돌리고 대기 작업을 다시 시작하려면 다음 요청을 사용한다.
+
+```json
+{ "action": "resume" }
+```
 
 ```json
 {
@@ -233,17 +241,20 @@ AI 관계 제안을 승인하거나 거절한다.
 }
 ```
 
-## 중복 정리
+## 중복 후보 검토
 
 ### `GET /contributions/duplicates`
 
-중복 표기 또는 숫자 접미사 URL이 있는 용어 후보를 페이지당 50건 조회한다. 로그인 세션
-또는 `read` API Key가 필요하며, `page` query로 페이지를 바꾼다.
+중복 표기 또는 숫자 접미사 URL로 발견한 **후보 쌍**을 페이지당 30건 조회한다. 로그인 세션
+또는 `read` API Key가 필요하며, `page` query로 페이지를 바꾼다. `status`는 `pending`(기본),
+`uncertain`, `different`, `all` 중 하나이며 응답에는 상태별 `counts`가 포함된다. 각 쌍은
+`left`, `right`, 발견 근거 `signals`, 저장된 `decision`과 양쪽 현재 `revision`을 가진다.
 
 ### `POST /contributions/duplicates`
 
-기존 용어의 `termId` 또는 가져오기 화면에서 만든 `source`와 최대 30개의 `candidates`를
-비교한다. 로그인 세션 또는 `write` API Key가 필요하다. 응답의 후보마다 `verdict`가
+기존 용어의 `termId`를 AI로 검토한다. `candidateId`를 함께 보내면 특정 후보 쌍만 비교한다.
+가져오기 화면에서는 기존처럼 `source`와 최대 30개의 `candidates`를 보낼 수 있다. 로그인
+세션 또는 `write` API Key가 필요하다. 응답의 후보마다 `verdict`가
 `same`, `different`, `uncertain` 중 하나로 들어가며, AI의 판단 근거는 `reason`에 들어간다.
 
 ```json
@@ -257,8 +268,25 @@ AI 검토를 완료하지 못하면 409를 반환한다.
 
 ### `PATCH /contributions/duplicates`
 
-검토한 두 용어를 병합한다. `targetId`가 대표 용어가 되고, 양쪽 표기·분류·본문은 보존된다.
-두 리비전을 함께 보내야 하며, 로그인 세션 또는 `write` API Key가 필요하다.
+검토한 두 용어를 병합하거나 후보 쌍의 분리·보류 결정을 저장한다. 병합에서는 `targetId`가
+대표 용어가 되고, 양쪽 표기·분류·본문은 보존된다. 두 리비전을 함께 보내야 하며, 로그인
+세션 또는 `write` API Key가 필요하다.
+
+분리·보류 결정은 다음 형식이다.
+
+```json
+{
+  "action": "decide",
+  "leftId": "00000000-0000-4000-8000-000000000001",
+  "rightId": "00000000-0000-4000-8000-000000000002",
+  "leftRevision": 2,
+  "rightRevision": 4,
+  "decision": "different",
+  "reason": "정의와 도메인이 달라 별개 개념"
+}
+```
+
+병합 요청은 다음 형식이다.
 
 ```json
 {

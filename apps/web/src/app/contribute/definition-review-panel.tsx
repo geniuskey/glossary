@@ -106,9 +106,7 @@ export function DefinitionReviewPanel({ initialCandidates, aiAvailable }: {
   }
 
   return (
-    <section aria-labelledby="definition-review-heading" className="space-y-3">
-      <h2 id="definition-review-heading" className="text-base font-semibold text-ink">LLM 한줄 정의 정리</h2>
-
+    <section aria-label="한줄 정의 보완 목록" className="space-y-3">
       <div className="card overflow-hidden">
         {candidates.length === 0 ? (
           <p className="px-4 py-12 text-center text-sm text-ink-3">정리할 용어가 없습니다.</p>

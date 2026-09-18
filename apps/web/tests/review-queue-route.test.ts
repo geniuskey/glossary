@@ -109,6 +109,23 @@ test("여러 용어의 수동 검토를 한 번에 큐에 넣는다", async () =
   expect(second[0]).toMatchObject({ revision: 1, status: "queued", requestMode: "manual", requestedBy: userId });
 });
 
+test("작업 조회는 상태 필터를 적용하고 재개는 명시적인 POST로 요청한다", async () => {
+  const listed = await route.GET(new Request("https://glossary.example.com/api/v1/contributions/review-queue?status=active&page=1"));
+  expect(listed.status).toBe(200);
+  const body = await listed.json() as { queue: { filter: string; filteredTotal: number; items: Array<{ termId: string }>; page: number } };
+  expect(body.queue).toMatchObject({ filter: "active", page: 1 });
+  expect(body.queue.filteredTotal).toBeGreaterThanOrEqual(2);
+  expect(body.queue.items.some((item) => item.termId === termId)).toBe(true);
+
+  const resumed = await route.POST(new Request("https://glossary.example.com/api/v1/contributions/review-queue", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "resume" }),
+  }));
+  expect(resumed.status).toBe(202);
+  await expect(resumed.json()).resolves.toMatchObject({ state: "resuming" });
+});
+
 test("검토 큐는 로그인하지 않은 요청에 공개되지 않는다", async () => {
   currentCookieValue = undefined;
   expect((await route.GET(new Request("https://glossary.example.com/api/v1/contributions/review-queue"))).status).toBe(401);

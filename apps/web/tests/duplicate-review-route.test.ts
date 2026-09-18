@@ -67,6 +67,38 @@ test("import merges into the selected existing term without creating a numbered 
   expect(replay.needsReview).toBe(true); expect(await currentRevisionNumber(target.id)).toBe(2);
 });
 
+test("lists candidate pairs and persists a different-concept decision until a revision changes", async () => {
+  const first = await seed("PairReview");
+  const second = await seed("PairReview");
+  const pendingResponse = await GET(new Request("http://localhost/api/v1/contributions/duplicates?status=pending"));
+  expect(pendingResponse.status).toBe(200);
+  const pending = await pendingResponse.json();
+  const pair = pending.items.find((item: { left: { id: string }; right: { id: string } }) => [item.left.id, item.right.id].includes(first.id) && [item.left.id, item.right.id].includes(second.id));
+  expect(pair).toBeDefined();
+  expect(pair.signals).toContain("same_surface");
+  expect(pair.left.revision).toBe(1);
+  expect(pair.right.revision).toBe(1);
+
+  const decision = await PATCH(request("PATCH", {
+    action: "decide",
+    leftId: pair.left.id,
+    rightId: pair.right.id,
+    leftRevision: pair.left.revision,
+    rightRevision: pair.right.revision,
+    decision: "different",
+    reason: "정의가 달라 별개 개념",
+  }));
+  expect(decision.status).toBe(200);
+  const different = await (await GET(new Request("http://localhost/api/v1/contributions/duplicates?status=different"))).json();
+  expect(different.items.some((item: { id: string }) => item.id === pair.id)).toBe(true);
+  const stillPending = await (await GET(new Request("http://localhost/api/v1/contributions/duplicates?status=pending"))).json();
+  expect(stillPending.items.some((item: { id: string }) => item.id === pair.id)).toBe(false);
+
+  await updateTerm(first.id, { definitionMd: "수정되어 다시 검토해야 하는 정의입니다." }, userId, 1);
+  const afterEdit = await (await GET(new Request("http://localhost/api/v1/contributions/duplicates?status=pending"))).json();
+  expect(afterEdit.items.some((item: { id: string }) => item.id === pair.id)).toBe(true);
+});
+
 test("unauthenticated callers cannot inspect or merge", async () => {
   mocks.auth.mockResolvedValue(new Response(null, { status: 401 }));
   expect((await GET(new Request("http://localhost/api/v1/contributions/duplicates"))).status).toBe(401);

@@ -879,18 +879,30 @@ export const openApiSpec = {
     },
     "/contributions/review-queue": {
       get: {
-        summary: "AI 검토 큐의 상태와 용어 목록 조회",
+        summary: "AI 작업의 상태와 용어 목록 조회",
         security: [{ sessionCookie: [] }, { apiKey: [] }],
+        parameters: [
+          { name: "status", in: "query", required: false, schema: { type: "string", enum: ["all", "attention", "active", "ready", "failed"], default: "all" } },
+          { name: "page", in: "query", required: false, schema: { type: "integer", minimum: 1, default: 1 } },
+        ],
         responses: {
-          "200": json("검토 큐 건수와 최근 항목", { type: "object" }),
+          "200": json("AI 작업 건수와 필터링된 항목", { type: "object" }),
           "401": errorResponse("unauthorized"),
         },
       },
       post: {
-        summary: "정리 대기 용어의 AI 검토를 수동 요청",
+        summary: "AI 작업을 요청하거나 대기 작업을 재개",
         security: [{ sessionCookie: [] }, { apiKey: [] }],
         requestBody: { required: true, content: { "application/json": { schema: {
           oneOf: [
+            {
+              type: "object",
+              required: ["action"],
+              additionalProperties: false,
+              properties: {
+                action: { type: "string", enum: ["resume"] },
+              },
+            },
             {
               type: "object",
               required: ["termId", "revision"],
@@ -1011,28 +1023,36 @@ export const openApiSpec = {
     },
     "/contributions/duplicates": {
       get: {
-        summary: "중복 표기 및 숫자 접미사 URL 후보 조회",
+        summary: "중복 후보 쌍 및 검토 상태 조회",
         security: [{ sessionCookie: [] }, { apiKey: [] }],
-        parameters: [{ name: "page", in: "query", schema: { type: "integer", minimum: 1 }, description: "페이지당 50개" }],
-        responses: { "200": json("{ items, page }", { type: "object" }), "401": errorResponse("unauthorized") },
+        parameters: [
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1 }, description: "페이지당 30개" },
+          { name: "status", in: "query", schema: { type: "string", enum: ["pending", "uncertain", "different", "all"], default: "pending" }, description: "검토 상태 필터" },
+        ],
+        responses: { "200": json("{ items, page, counts }: 후보 쌍은 left/right와 signals, decision, 양쪽 revision을 포함", { type: "object" }), "401": errorResponse("unauthorized") },
       },
       post: {
         summary: "기존 용어 또는 가져오기 행의 동일 개념 AI 검토",
         security: [{ sessionCookie: [] }, { apiKey: [] }],
         requestBody: { required: true, content: { "application/json": { schema: { type: "object", oneOf: [
-          { required: ["termId"], properties: { termId: { type: "string", format: "uuid" } } },
+          { required: ["termId"], properties: { termId: { type: "string", format: "uuid" }, candidateId: { type: "string", format: "uuid", description: "특정 후보 쌍만 비교" } } },
           { required: ["source"], properties: { source: { type: "object", required: ["id"], description: "id, nameEn, nameKo, fullNameEn, fullNameKo, definitionMd, bodyMd, domain" }, candidates: { type: "array", maxItems: 30, items: { type: "object" } } } },
         ] } } } },
         responses: { "200": json("{ source, revision, candidates }: 각 후보는 verdict(same/different/uncertain), reason, revision을 포함", { type: "object" }), "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "404": errorResponse("term_not_found"), "409": errorResponse("AI 검토 실패"), "413": errorResponse("payload_too_large") },
       },
       patch: {
-        summary: "두 용어를 대표 용어로 병합",
-        description: "표기·분류·설명을 보존하고 원본은 이력과 함께 보관합니다. 원본 URL은 대표 용어로 연결됩니다. 양쪽 리비전 확인과 쓰기는 한 트랜잭션에서 처리합니다.",
+        summary: "두 용어 병합 또는 후보 쌍 결정 저장",
+        description: "병합은 표기·분류·설명을 보존하고 원본은 이력과 함께 보관합니다. 분리·보류 결정은 양쪽 리비전과 함께 저장하며 리비전이 바뀌면 다시 검토합니다.",
         security: [{ sessionCookie: [] }, { apiKey: [] }],
-        requestBody: { required: true, content: { "application/json": { schema: { type: "object", additionalProperties: false, required: ["sourceId", "targetId", "sourceRevision", "targetRevision"], properties: {
-          sourceId: { type: "string", format: "uuid" }, targetId: { type: "string", format: "uuid" }, sourceRevision: { type: "integer", minimum: 1 }, targetRevision: { type: "integer", minimum: 1 },
-        } } } } },
-        responses: { "200": json("대표 용어 slug", { type: "object" }), "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "409": errorResponse("operation_conflict") },
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", oneOf: [
+          { additionalProperties: false, required: ["sourceId", "targetId", "sourceRevision", "targetRevision"], properties: {
+            sourceId: { type: "string", format: "uuid" }, targetId: { type: "string", format: "uuid" }, sourceRevision: { type: "integer", minimum: 1 }, targetRevision: { type: "integer", minimum: 1 },
+          } },
+          { additionalProperties: false, required: ["action", "leftId", "rightId", "leftRevision", "rightRevision", "decision"], properties: {
+            action: { type: "string", enum: ["decide"] }, leftId: { type: "string", format: "uuid" }, rightId: { type: "string", format: "uuid" }, leftRevision: { type: "integer", minimum: 1 }, rightRevision: { type: "integer", minimum: 1 }, decision: { type: "string", enum: ["different", "uncertain"] }, reason: { type: "string", maxLength: 1000 },
+          } },
+        ] } } } },
+        responses: { "200": json("병합 결과 또는 { decision }", { type: "object" }), "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "409": errorResponse("operation_conflict") },
       },
     },
     "/contributions/suggestions": {

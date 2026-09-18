@@ -1,8 +1,8 @@
 import "server-only";
+import { inArray, sql } from "drizzle-orm";
 import { z } from "zod/v3";
-import { sql } from "drizzle-orm";
+import { duplicateReviewDecisions, surfaceKeys, termRevisions } from "@glossary/db";
 import { getDb } from "@/lib/db";
-import { surfaceKeys } from "@glossary/db";
 import { loadAiConfig, runtimeAiConfig } from "./config";
 import { completeAi } from "./provider";
 import { parseAiJson } from "./json";
@@ -15,6 +15,270 @@ export const duplicateInputSchema = z.object({
 });
 export type DuplicateInput = z.infer<typeof duplicateInputSchema>;
 export interface DuplicateCandidate extends DuplicateInput { revision?: number; verdict: "same" | "different" | "uncertain"; reason: string }
+
+export type DuplicateDecision = "different" | "uncertain";
+export type DuplicatePairFilter = "all" | "pending" | DuplicateDecision;
+export type DuplicateSignal = "same_surface" | "numbered_slug";
+
+export interface DuplicatePairTerm extends DuplicateInput { revision: number }
+export interface DuplicateReviewPair {
+  id: string;
+  left: DuplicatePairTerm;
+  right: DuplicatePairTerm;
+  signals: DuplicateSignal[];
+  decision: DuplicateDecision | null;
+  decisionReason: string | null;
+}
+export interface DuplicateReviewCounts {
+  all: number;
+  pending: number;
+  different: number;
+  uncertain: number;
+}
+
+type DuplicatePairRow = Record<string, unknown> & {
+  leftId: string;
+  rightId: string;
+  signals: DuplicateSignal[] | null;
+  leftSlug: string;
+  rightSlug: string;
+  leftNameEn: string | null;
+  leftNameKo: string | null;
+  leftFullNameEn: string | null;
+  leftFullNameKo: string | null;
+  leftDefinitionMd: string | null;
+  leftBodyMd: string | null;
+  leftDomain: string[];
+  leftRevision: number;
+  rightNameEn: string | null;
+  rightNameKo: string | null;
+  rightFullNameEn: string | null;
+  rightFullNameKo: string | null;
+  rightDefinitionMd: string | null;
+  rightBodyMd: string | null;
+  rightDomain: string[];
+  rightRevision: number;
+  decision: DuplicateDecision | null;
+  decisionReason: string | null;
+}
+
+/** 규칙으로 발견한 후보 쌍. 실제 병합 여부는 AI와 사람이 따로 결정한다. */
+const duplicatePairsCte = sql`
+  with current_revisions as (
+    select term_id, coalesce(max(revision_number), 0)::int as revision
+    from term_revisions
+    group by term_id
+  ), base_pairs as (
+    select distinct
+      a.id as left_id,
+      b.id as right_id,
+      array_remove(array[
+        case when (a.slug ~ '-[0-9]+$' or b.slug ~ '-[0-9]+$')
+          and regexp_replace(a.slug, '-[0-9]+$', '') = regexp_replace(b.slug, '-[0-9]+$', '')
+          then 'numbered_slug'::text end,
+        case when exists (
+          select 1 from term_surfaces sa
+          join term_surfaces sb on sb.term_id = b.id and sb.norm_loose = sa.norm_loose
+          where sa.term_id = a.id
+        ) then 'same_surface'::text end
+      ], null) as signals
+    from terms a
+    join terms b on a.id < b.id and b.replaced_by_id is null
+    where a.replaced_by_id is null
+      and (
+        ((a.slug ~ '-[0-9]+$' or b.slug ~ '-[0-9]+$')
+          and regexp_replace(a.slug, '-[0-9]+$', '') = regexp_replace(b.slug, '-[0-9]+$', ''))
+        or exists (
+          select 1 from term_surfaces sa
+          join term_surfaces sb on sb.term_id = b.id and sb.norm_loose = sa.norm_loose
+          where sa.term_id = a.id
+        )
+      )
+  ), reviewed_pairs as (
+    select
+      p.left_id,
+      p.right_id,
+      p.signals,
+      l.slug as left_slug,
+      r.slug as right_slug,
+      l.name_en as left_name_en,
+      l.name_ko as left_name_ko,
+      l.full_name_en as left_full_name_en,
+      l.full_name_ko as left_full_name_ko,
+      l.definition_md as left_definition_md,
+      left(l.body_md, 1200) as left_body_md,
+      l.domain as left_domain,
+      coalesce(lr.revision, 0)::int as left_revision,
+      r.name_en as right_name_en,
+      r.name_ko as right_name_ko,
+      r.full_name_en as right_full_name_en,
+      r.full_name_ko as right_full_name_ko,
+      r.definition_md as right_definition_md,
+      left(r.body_md, 1200) as right_body_md,
+      r.domain as right_domain,
+      coalesce(rr.revision, 0)::int as right_revision,
+      case when d.left_revision = coalesce(lr.revision, 0)
+        and d.right_revision = coalesce(rr.revision, 0)
+        then d.decision::text else null end as decision,
+      case when d.left_revision = coalesce(lr.revision, 0)
+        and d.right_revision = coalesce(rr.revision, 0)
+        then d.reason else null end as decision_reason
+    from base_pairs p
+    join terms l on l.id = p.left_id
+    join terms r on r.id = p.right_id
+    left join current_revisions lr on lr.term_id = l.id
+    left join current_revisions rr on rr.term_id = r.id
+    left join duplicate_review_decisions d on d.left_term_id = p.left_id and d.right_term_id = p.right_id
+  )
+`;
+
+function pairFilter(status: DuplicatePairFilter) {
+  if (status === "pending") return sql`decision is null`;
+  if (status === "different") return sql`decision = 'different'`;
+  if (status === "uncertain") return sql`decision = 'uncertain'`;
+  return sql`true`;
+}
+
+function pairTerm(row: DuplicatePairRow, side: "left" | "right"): DuplicatePairTerm {
+  return side === "left"
+    ? {
+        id: row.leftId,
+        slug: row.leftSlug,
+        nameEn: row.leftNameEn,
+        nameKo: row.leftNameKo,
+        fullNameEn: row.leftFullNameEn,
+        fullNameKo: row.leftFullNameKo,
+        definitionMd: row.leftDefinitionMd,
+        bodyMd: row.leftBodyMd,
+        domain: row.leftDomain ?? [],
+        revision: Number(row.leftRevision),
+      }
+    : {
+        id: row.rightId,
+        slug: row.rightSlug,
+        nameEn: row.rightNameEn,
+        nameKo: row.rightNameKo,
+        fullNameEn: row.rightFullNameEn,
+        fullNameKo: row.rightFullNameKo,
+        definitionMd: row.rightDefinitionMd,
+        bodyMd: row.rightBodyMd,
+        domain: row.rightDomain ?? [],
+        revision: Number(row.rightRevision),
+      };
+}
+
+function mapPair(row: DuplicatePairRow): DuplicateReviewPair {
+  return {
+    id: `${row.leftId}:${row.rightId}`,
+    left: pairTerm(row, "left"),
+    right: pairTerm(row, "right"),
+    signals: row.signals ?? [],
+    decision: row.decision,
+    decisionReason: row.decisionReason,
+  };
+}
+
+export async function listDuplicateReviewPairs(
+  page = 1,
+  status: DuplicatePairFilter = "pending",
+  pageSize = 30,
+): Promise<{ items: DuplicateReviewPair[]; page: number; counts: DuplicateReviewCounts }> {
+  const safePage = Math.min(100000, Math.max(1, page));
+  const safePageSize = Math.min(50, Math.max(1, pageSize));
+  const offset = (safePage - 1) * safePageSize;
+  const filter = pairFilter(status);
+  const db = getDb();
+  const [rows, [counted]] = await Promise.all([
+    db.execute<DuplicatePairRow>(sql`
+      ${duplicatePairsCte}
+      select
+        left_id as "leftId", right_id as "rightId", signals,
+        left_slug as "leftSlug", right_slug as "rightSlug",
+        left_name_en as "leftNameEn", left_name_ko as "leftNameKo",
+        left_full_name_en as "leftFullNameEn", left_full_name_ko as "leftFullNameKo",
+        left_definition_md as "leftDefinitionMd", left_body_md as "leftBodyMd", left_domain as "leftDomain",
+        left_revision as "leftRevision",
+        right_name_en as "rightNameEn", right_name_ko as "rightNameKo",
+        right_full_name_en as "rightFullNameEn", right_full_name_ko as "rightFullNameKo",
+    right_definition_md as "rightDefinitionMd", right_body_md as "rightBodyMd", right_domain as "rightDomain",
+        right_revision as "rightRevision", decision, decision_reason as "decisionReason"
+      from reviewed_pairs
+      where ${filter}
+      order by left_slug, right_slug, left_id, right_id
+      limit ${safePageSize} offset ${offset}
+    `),
+    db.execute<{ all: number; pending: number; different: number; uncertain: number }>(sql`
+      ${duplicatePairsCte}
+      select
+        count(*)::int as "all",
+        count(*) filter (where decision is null)::int as pending,
+        count(*) filter (where decision = 'different')::int as different,
+        count(*) filter (where decision = 'uncertain')::int as uncertain
+      from reviewed_pairs
+    `),
+  ]);
+
+  return {
+    items: rows.map(mapPair),
+    page: safePage,
+    counts: {
+      all: Number(counted?.all ?? 0),
+      pending: Number(counted?.pending ?? 0),
+      different: Number(counted?.different ?? 0),
+      uncertain: Number(counted?.uncertain ?? 0),
+    },
+  };
+}
+
+export async function saveDuplicateDecision(input: {
+  leftId: string;
+  rightId: string;
+  leftRevision: number;
+  rightRevision: number;
+  decision: DuplicateDecision;
+  reason?: string;
+  reviewedBy: string | null;
+}): Promise<{ decision: DuplicateDecision }> {
+  if (input.leftId === input.rightId) throw new Error("서로 다른 용어를 선택해 주세요.");
+  const ordered = [
+    { id: input.leftId, revision: input.leftRevision },
+    { id: input.rightId, revision: input.rightRevision },
+  ].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const current = await getDb()
+    .select({ termId: termRevisions.termId, revision: sql<number>`max(${termRevisions.revisionNumber})::int` })
+    .from(termRevisions)
+    .where(inArray(termRevisions.termId, ordered.map((term) => term.id)))
+    .groupBy(termRevisions.termId);
+  const currentById = new Map(current.map((row) => [row.termId, Number(row.revision)]));
+  if (currentById.get(ordered[0]!.id) !== ordered[0]!.revision || currentById.get(ordered[1]!.id) !== ordered[1]!.revision) {
+    throw new Error("검토 후 용어가 변경되었습니다. 다시 검토해 주세요.");
+  }
+
+  await getDb()
+    .insert(duplicateReviewDecisions)
+    .values({
+      leftTermId: ordered[0]!.id,
+      rightTermId: ordered[1]!.id,
+      leftRevision: ordered[0]!.revision,
+      rightRevision: ordered[1]!.revision,
+      decision: input.decision,
+      reason: input.reason?.trim() ?? "",
+      reviewedBy: input.reviewedBy,
+      reviewedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [duplicateReviewDecisions.leftTermId, duplicateReviewDecisions.rightTermId],
+      set: {
+        leftRevision: ordered[0]!.revision,
+        rightRevision: ordered[1]!.revision,
+        decision: input.decision,
+        reason: input.reason?.trim() ?? "",
+        reviewedBy: input.reviewedBy,
+        reviewedAt: new Date(),
+      },
+    });
+  return { decision: input.decision };
+}
 
 export async function duplicateCandidates(source: DuplicateInput): Promise<Array<DuplicateInput & { revision: number }>> {
   const keys = [source.nameEn, source.nameKo, source.fullNameEn, source.fullNameKo].filter((s): s is string => !!s)

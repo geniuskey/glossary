@@ -185,11 +185,12 @@ pnpm --filter @glossary/web exec tsx scripts/seed-terms.ts it semiconductor
 | `/classifications` | 도메인과 업무 분류 관리 |
 | `/contribute` | 함께 정리 — 정리 대기 표와 보완할 용어 필터 |
 | `/contribute?tab=agent` | 제안 검토 — 검토 대상 목록과 AI·규칙 제안 승인 |
-| `/contribute?tab=duplicates` | 중복 정리 — 같은 개념 후보 검토·병합 |
-| `/contribute?tab=queue` | AI 검토 큐 — 대기·처리·완료·실패 상태 |
-| `/contribute?tab=definitions` | 한줄 정의 정리 — 본문 근거와 LLM 제안 표 |
-| `/contribute?tab=domains` | 도메인 정리 — 도메인이 비어 있는 용어 분류 |
-| `/contribute?tab=categories` | 업무 분류 정리 — 업무 분류가 비어 있는 용어 분류 |
+| `/contribute?tab=duplicates` | 중복 후보 검토 — 후보 쌍 비교·병합·분리·보류 |
+| `/contribute?tab=queue` | AI 작업 링크 — 검토 필요·대기·처리·실패 상태 |
+| `/contribute/fields` | 필드 보완 — 한줄 정의·도메인·업무 분류 작업 선택 |
+| `/contribute/fields?field=definition` | 필드 보완: 한줄 정의 — 본문 근거와 LLM 제안 표 |
+| `/contribute/fields?field=domain` | 필드 보완: 도메인 — 도메인이 비어 있는 용어 분류 |
+| `/contribute/fields?field=category` | 필드 보완: 업무 분류 — 업무 분류가 비어 있는 용어 분류 |
 | `/admin?tab=quality` | 콘텐츠 완성도 기준과 충족 현황 |
 | `/admin?tab=ai` | AI 공급자·모델·자동 검토 설정 |
 | `/admin?tab=rag` | Embedding·Reranker·벡터 색인 설정 |

@@ -31,6 +31,7 @@ export function ClassificationReviewPanel({
   aiAvailable,
   domainOptions,
   categoryOptions,
+  basePath = "/contribute/fields",
 }: {
   kind: ClassificationReviewKind;
   initialCandidates: ClassificationReviewCandidate[];
@@ -38,6 +39,7 @@ export function ClassificationReviewPanel({
   aiAvailable: boolean;
   domainOptions: ClassificationOption[];
   categoryOptions: ClassificationOption[];
+  basePath?: string;
 }) {
   const [candidates, setCandidates] = useState<ClassificationReviewCandidate[]>(initialCandidates);
   const [selectedValues, setSelectedValues] = useState<Record<string, string[]>>(() => Object.fromEntries(
@@ -54,14 +56,13 @@ export function ClassificationReviewPanel({
   const handledRef = useRef(new Set<string>());
   const isDomain = kind === "domain";
   const label = isDomain ? "도메인" : "업무 분류";
-  const heading = `${label} 정리`;
   const options = isDomain ? domainOptions : categoryOptions;
   const otherOptions = isDomain ? categoryOptions : domainOptions;
   const refresh = isDomain
     ? { url: "/api/v1/admin/domains", responseKey: "domains" as const }
     : { url: "/api/v1/admin/categories", responseKey: "categories" as const };
   const manageHref = isDomain ? "/classifications" : "/classifications?view=categories";
-  const tabKey = isDomain ? "domains" : "categories";
+  const fieldKey = isDomain ? "domain" : "category";
 
   function isGenerating(termId: string): boolean {
     return generatingIds.includes(termId);
@@ -215,22 +216,16 @@ export function ClassificationReviewPanel({
   }
 
   return (
-    <section aria-labelledby={`${kind}-review-heading`} className="space-y-3">
-      <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 id={`${kind}-review-heading`} className="text-base font-semibold text-ink">{heading}</h2>
-          {autoProgress.active && <span role="status" className="text-xs text-brand">AI 추천 준비 중 {autoProgress.completed}/{autoProgress.total}</span>}
-        </div>
-        <p className="mt-1 text-xs text-ink-3">{label}이 비어 있는 용어만 표시합니다. 참고 내용을 보고 {label}을 선택해 저장하면 다음 용어로 넘어갑니다.</p>
-      </div>
+    <section aria-label={`${label} 보완 목록`} className="space-y-3">
+      {autoProgress.active && <p role="status" className="text-xs text-brand">AI 추천 준비 중 {autoProgress.completed}/{autoProgress.total}</p>}
 
-      <form action="/contribute" className="flex flex-wrap items-end gap-3">
-        <input type="hidden" name="tab" value={tabKey} />
+      <form action={basePath} className="flex flex-wrap items-end gap-3">
+        <input type="hidden" name="field" value={fieldKey} />
         <label className="min-w-0 flex-1 text-xs text-ink-2">용어 필터
           <input name="q" defaultValue={query} autoComplete="off" placeholder="특정 단어가 들어간 용어…" className="mt-1 block w-full rounded-lg border border-line bg-panel p-2 text-sm text-ink" />
         </label>
         <button type="submit" className="btn-primary btn-sm">필터</button>
-        {query && <Link href={`/contribute?tab=${tabKey}`} className="btn-quiet btn-sm">초기화</Link>}
+        {query && <Link href={`${basePath}?field=${fieldKey}`} className="btn-quiet btn-sm">초기화</Link>}
       </form>
 
       <div className="card overflow-hidden">

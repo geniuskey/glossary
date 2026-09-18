@@ -142,13 +142,15 @@ test("관리자 화면은 홈·콘텐츠 완성도·AI·RAG·SSO·사용자를 �
 test("LLM 한줄 정의 정리는 관리자 화면에서 빠지고 함께 정리의 새 탭으로 이동한다", () => {
   const admin = stripComments(readFileSync(path.join(appDir, "admin", "page.tsx"), "utf8"));
   const contribute = stripComments(readFileSync(path.join(appDir, "contribute", "page.tsx"), "utf8"));
+  const fieldsPage = stripComments(readFileSync(path.join(appDir, "contribute", "fields", "page.tsx"), "utf8"));
   const panel = stripComments(readFileSync(path.join(appDir, "contribute", "definition-review-panel.tsx"), "utf8"));
 
   expect(admin).not.toContain("DefinitionReviewPanel");
   expect(admin).not.toContain("listDefinitionReviewCandidates");
-  expect(contribute).toContain('{ key: "definitions", label: "한줄 정의 정리", href: "/contribute?tab=definitions" }');
-  expect(contribute).toContain('tab === "definitions"');
-  expect(contribute).toContain("DefinitionReviewPanel");
+  expect(contribute).toContain('redirect(`/contribute/fields?${fieldParams.toString()}`)');
+  expect(fieldsPage).toContain('current="field-completion" roomy>');
+  expect(fieldsPage).toContain('field === "definition"');
+  expect(fieldsPage).toContain("DefinitionReviewPanel");
   expect(panel).toContain("/api/v1/contributions/term-definitions");
   expect(panel).toContain("<table");
   expect(panel).toContain("<textarea");

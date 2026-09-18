@@ -56,6 +56,7 @@ Glossary는 특정 조직·팀·제품군이 사용하는 용어집을 관리하
 - [아키텍처](/guide/architecture) — 패키지 구조와 의존 방향
 - [데이터 모델](/guide/data-model) — Term과 Surface의 분리
 - [협업과 관계도](/guide/collaboration) — 담당자, 업무 분류·주제, 그래프와 Confluence 임베드
-- [함께 정리](/guide/contribute) — 정리 대기, AI 제안·큐, 중복·한줄 정의·분류 작업
+- [함께 정리](/guide/contribute) — 정리 대기, AI 제안·큐, 중복 작업
+- [필드 보완](/guide/contribute) — 한줄 정의·도메인·업무 분류 집중 작업
 - [AI 활용과 챗봇](/guide/ai) — 작성 기준, AI·RAG 공급자 연결, 모델 선택과 보안
 - [API 개요](/api/) — 인증과 에러 규약

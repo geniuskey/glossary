@@ -96,7 +96,7 @@ export function AgentReviewPanel({ initialTerms, initialTermId, totalTerms, auto
           return;
         }
         if (response.status !== 202) throw new Error(await responseMessage(response, "검토 결과를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요"));
-        if (++attempts >= 20) throw new Error("검토가 예상보다 오래 걸리고 있습니다. 다시 확인하거나 AI 검토 큐에서 진행 상태를 확인해 주세요.");
+        if (++attempts >= 20) throw new Error("검토가 예상보다 오래 걸리고 있습니다. 다시 확인하거나 AI 작업에서 진행 상태를 확인해 주세요.");
         if (!controller.signal.aborted) timer = setTimeout(() => void poll(), 1_500);
       } catch (error) {
         if (!controller.signal.aborted) setPollError(error instanceof Error ? error.message : "연결을 확인하고 다시 시도해 주세요.");
@@ -233,7 +233,7 @@ export function AgentReviewPanel({ initialTerms, initialTermId, totalTerms, auto
               <p className="truncate font-semibold text-ink">{displayName(current)}</p>
               <p className="truncate font-mono text-[11px] text-ink-3">/{current.slug}</p>
             </div>
-            <Link href={`/contribute?tab=duplicates&term=${encodeURIComponent(current.slug)}`} className="btn-quiet btn-sm ml-auto">중복 검토</Link>
+          <Link href={`/contribute?tab=duplicates&term=${encodeURIComponent(current.slug)}`} className="btn-quiet btn-sm ml-auto">중복 후보 검토</Link>
             <Link href={`/edit/${current.slug}`} className="btn-quiet btn-sm">직접 편집</Link>
           </div>
           <div className="mt-2 flex items-center justify-end gap-2 border-t border-line/70 pt-2 sm:mt-0 sm:border-0 sm:pt-0">

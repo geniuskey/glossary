@@ -90,7 +90,7 @@ export default async function ApiPage() {
               <Endpoint method="POST" path="/import" scope="write">Excel·TSV 자료를 검증한 뒤 여러 용어를 가져옵니다.</Endpoint>
             </EndpointGroup>
             <EndpointGroup title="협업과 AI">
-              <Endpoint method="GET" path="/contributions/review-queue" scope="read">AI 검토 큐의 상태와 최근 항목을 확인합니다.</Endpoint>
+              <Endpoint method="GET" path="/contributions/review-queue" scope="read">AI 작업의 상태와 최근 항목을 확인합니다.</Endpoint>
               <Endpoint method="POST · PATCH" path="/contributions/term-definitions" scope="write">본문을 근거로 한줄 정의를 만들고 검토 후 승인합니다.</Endpoint>
               <Endpoint method="POST" path="/rag/search" scope="read">색인된 용어집에서 의미 기반 검색을 수행합니다.</Endpoint>
             </EndpointGroup>
