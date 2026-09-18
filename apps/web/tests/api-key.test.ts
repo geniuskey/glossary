@@ -44,7 +44,12 @@ async function loginAs(user: { id: string }) {
   currentCookieValue = token;
 }
 
-async function makeKeyRow(overrides: { scopes?: string[]; revokedAt?: Date | null; expiresAt?: Date | null } = {}) {
+async function makeKeyRow(overrides: {
+  scopes?: string[];
+  revokedAt?: Date | null;
+  expiresAt?: Date | null;
+  createdBy?: string | null;
+} = {}) {
   const { token, prefix, hash } = generateApiKey();
   const [row] = await db
     .insert(apiKeys)
@@ -53,6 +58,7 @@ async function makeKeyRow(overrides: { scopes?: string[]; revokedAt?: Date | nul
       prefix,
       keyHash: hash,
       scopes: overrides.scopes ?? ["read"],
+      createdBy: overrides.createdBy ?? null,
       revokedAt: overrides.revokedAt ?? null,
       expiresAt: overrides.expiresAt ?? null,
     })
@@ -228,6 +234,21 @@ test("로그인하면 키를 발급하고 목록에서 조회되며, 평문 토�
   expect(JSON.stringify(list)).not.toContain(created.token);
 });
 
+test("키 목록은 현재 사용자가 발급한 키만 반환한다", async () => {
+  const owner = await makeUser();
+  const other = await makeUser();
+  const { row: otherKey } = await makeKeyRow({ createdBy: other.id });
+  const { row: ownerKey } = await makeKeyRow({ createdBy: owner.id });
+  createdKeyIds.push(otherKey.id, ownerKey.id);
+  await loginAs(owner);
+
+  const res = await keysGet();
+  expect(res.status).toBe(200);
+  const list = (await res.json()).keys as Array<{ id: string }>;
+  expect(list.map((key) => key.id)).toContain(ownerKey.id);
+  expect(list.map((key) => key.id)).not.toContain(otherKey.id);
+});
+
 test("공백뿐이거나 지나치게 긴 키 이름은 발급하지 않는다", async () => {
   const user = await makeUser();
   await loginAs(user);
@@ -282,7 +303,7 @@ test("형식이 잘못된 id로 키를 폐기하면 404(DB까지 가지 않는�
 test("키를 폐기하면 revokedAt이 찍히고, 이미 폐기된 키를 다시 폐기해도 성공한다(멱등)", async () => {
   const user = await makeUser();
   await loginAs(user);
-  const { row } = await makeKeyRow();
+  const { row } = await makeKeyRow({ createdBy: user.id });
 
   const res1 = await keyDelete(new Request("http://x", { method: "DELETE" }), {
     params: Promise.resolve({ id: row.id }),
@@ -298,10 +319,25 @@ test("키를 폐기하면 revokedAt이 찍히고, 이미 폐기된 키를 다시
   expect(res2.status).toBe(200);
 });
 
+test("다른 사용자의 키는 조회하거나 폐기할 수 없다", async () => {
+  const owner = await makeUser();
+  const other = await makeUser();
+  const { row } = await makeKeyRow({ createdBy: owner.id });
+  await loginAs(other);
+
+  const res = await keyDelete(new Request("http://x", { method: "DELETE" }), {
+    params: Promise.resolve({ id: row.id }),
+  });
+  expect(res.status).toBe(404);
+
+  const [unchanged] = await db.select({ revokedAt: apiKeys.revokedAt }).from(apiKeys).where(eq(apiKeys.id, row.id));
+  expect(unchanged?.revokedAt).toBeNull();
+});
+
 test("폐기 라우트로 폐기한 키는 requireAuth에서 401이 된다", async () => {
   const user = await makeUser();
   await loginAs(user);
-  const { token: apiToken, row } = await makeKeyRow();
+  const { token: apiToken, row } = await makeKeyRow({ createdBy: user.id });
 
   await keyDelete(new Request("http://x", { method: "DELETE" }), { params: Promise.resolve({ id: row.id }) });
   currentCookieValue = undefined; // 세션 로그인 상태를 지우고 API 키 경로만 확인한다

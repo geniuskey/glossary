@@ -29,7 +29,12 @@ export function ThemeToggle({
   // 속성을 JSX가 관리하는 것만 남기고 지워버려, layout.tsx의 인라인 스크립트가
   // 걸어둔 data-theme이 사라진다(운영 빌드에서는 no-op).
   useLayoutEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(STORAGE_KEY);
+    } catch {
+      // Storage may be disabled; system theme remains the safe fallback.
+    }
     if (saved === "light" || saved === "dark") {
       setTheme(saved);
       document.documentElement.setAttribute("data-theme", saved);
@@ -40,10 +45,18 @@ export function ThemeToggle({
     setTheme(next);
     if (next === "system") {
       document.documentElement.removeAttribute("data-theme");
-      localStorage.removeItem(STORAGE_KEY);
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        // Theme switching still applies to the current page without persistence.
+      }
     } else {
       document.documentElement.setAttribute("data-theme", next);
-      localStorage.setItem(STORAGE_KEY, next);
+      try {
+        localStorage.setItem(STORAGE_KEY, next);
+      } catch {
+        // Theme switching still applies to the current page without persistence.
+      }
     }
   }
 

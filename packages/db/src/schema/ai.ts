@@ -47,10 +47,14 @@ export const definitionReviewSuggestions = pgTable(
   {
     termId: uuid("term_id").primaryKey().references(() => terms.id, { onDelete: "cascade" }),
     revision: integer("revision").notNull(),
+    generatorVersion: integer("generator_version").notNull().default(1),
     suggestion: text("suggestion").notNull(),
     generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => ({ positiveRevision: check("definition_review_suggestions_positive_revision", sql`${t.revision} > 0`) }),
+  (t) => ({
+    positiveRevision: check("definition_review_suggestions_positive_revision", sql`${t.revision} > 0`),
+    positiveGenerator: check("definition_review_suggestions_positive_generator", sql`${t.generatorVersion} > 0`),
+  }),
 );
 
 /** 현재 용어 리비전에 대해 생성한 대표명·확장명·추가 표기 정비 제안. */
@@ -135,6 +139,7 @@ export const classificationReviewSuggestions = pgTable(
     termId: uuid("term_id").notNull().references(() => terms.id, { onDelete: "cascade" }),
     kind: classificationReviewKindEnum("kind").notNull(),
     revision: integer("revision").notNull(),
+    generatorVersion: integer("generator_version").notNull().default(1),
     values: text("values").array().notNull().default(sql`array[]::text[]`),
     reason: text("reason").notNull(),
     generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -142,6 +147,7 @@ export const classificationReviewSuggestions = pgTable(
   (t) => ({
     primary: primaryKey({ columns: [t.termId, t.kind] }),
     positiveRevision: check("classification_review_suggestions_positive_revision", sql`${t.revision} > 0`),
+    positiveGenerator: check("classification_review_suggestions_positive_generator", sql`${t.generatorVersion} > 0`),
   }),
 );
 

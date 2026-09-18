@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { apiError, methodNotAllowed, withApiErrors } from "../src/lib/api-error.js";
 import { GET as unmatchedGet, POST as unmatchedPost } from "../src/app/api/v1/[...unmatched]/route.js";
 import * as loginRoute from "../src/app/api/v1/auth/login/route.js";
@@ -255,6 +255,23 @@ test("withApiErrors는 던져진 예외를 500 internal_error로 바꾸고 메�
   expect(raw).not.toContain(err.message);
   expect(raw).not.toContain("hunter2");
   if (err.stack) expect(raw).not.toContain(err.stack.split("\n")[0]!);
+});
+
+test("withApiErrors는 원시 예외 대신 안전한 오류 메타데이터만 로그에 남긴다", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    const err = new Error("DB_PASSWORD=hunter2 (config at /secret/internal/path.ts:42)") as Error & { code: string };
+    err.code = "22021";
+    await withApiErrors(async () => {
+      throw err;
+    })();
+
+    expect(log).toHaveBeenCalledWith("[api-error]", { name: "Error", code: "22021" });
+    expect(JSON.stringify(log.mock.calls)).not.toContain("hunter2");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("/secret/internal/path.ts");
+  } finally {
+    log.mockRestore();
+  }
 });
 
 // R35(c): try/catch 자체가 통째로 빠지는 회귀. 위 테스트는 그 경우 await가 그대로

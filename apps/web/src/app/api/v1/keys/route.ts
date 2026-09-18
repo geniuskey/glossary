@@ -1,4 +1,4 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { z } from "zod/v3";
 import { apiKeys } from "@glossary/db";
 import { getDb } from "@/lib/db";
@@ -27,6 +27,9 @@ export const GET = withApiErrors(async () => {
       lastUsedAt: apiKeys.lastUsedAt, revokedAt: apiKeys.revokedAt,
     })
     .from(apiKeys)
+    // API 키는 개인 자격 증명이다. 전체 행을 반환하면 로그인한 편집자가
+    // 다른 사람의 키 이름·접두사·사용 시각을 볼 수 있다.
+    .where(eq(apiKeys.createdBy, user.id))
     .orderBy(desc(apiKeys.createdAt));
 
   return Response.json({ keys: rows });

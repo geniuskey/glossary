@@ -25,7 +25,9 @@ pnpm --filter @glossary/web dev
 
 개발 DB는 기본적으로 `localhost:5434/glossary`, 테스트 DB는
 `localhost:5434/glossary_test`를 사용합니다. 테스트가 개발 데이터를 건드리지 않도록
-`DATABASE_URL_TEST`가 없으면 DB 테스트는 시작되지 않습니다.
+`DATABASE_URL_TEST`가 없으면 DB 테스트는 시작되지 않습니다. Vitest가 저장소 루트의
+`.env`를 자동으로 읽으므로, `.env.example`을 복사한 뒤 별도 셸 변수 없이도 문서의
+`pnpm test`를 실행할 수 있습니다.
 
 ## 변경 원칙
 

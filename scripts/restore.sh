@@ -12,7 +12,7 @@
 #   1) dump를 먼저 검증한다 (pg_restore --list)
 #   2) 현재 DB의 안전 덤프를 뜬다 — 유일한 되돌리기 수단이다
 #   3) 사람에게 명시적으로 확인받는다 (set -euo pipefail로는 실수를 못 막는다)
-#   4) app 컨테이너를 멈춘 뒤 교체하고, 끝나면 다시 띄운다
+#   4) app 컨테이너를 멈춘 뒤 교체한다. 교체가 실패하면 app은 안전을 위해 멈춘 채 둔다
 #
 # 그리고 **리허설 경로**(--rehearse)를 제공한다. 별도 DB(glossary_rehearsal)로
 # 복구해 검증만 하고 운영 DB는 건드리지 않는다. docs/operations.md의
@@ -50,16 +50,25 @@ done
 [ -f "$DUMP" ] || { echo "dump 파일이 없다: $DUMP" >&2; exit 1; }
 
 container_tmp="/tmp/restore-$(date +%s).dump"
-# app을 멈춘 뒤 pg_restore가 실패하면 set -e가 여기서 스크립트를 끝낸다. 그대로
-# 두면 DB는 반쯤 복구된 채 서비스가 죽어 있다. 멈춘 사실을 기록해뒀다가 정상
-# 종료가 아니면 다시 띄운다 — 사람이 손으로 복구할 때 최소한 화면은 살아 있다.
+# app을 멈춘 뒤 pg_restore가 실패하면 set -e가 여기서 스크립트를 끝낸다.
+# DB가 반쯤 복구됐을 수 있으므로, 교체가 시작된 뒤에는 app을 자동으로 다시 띄우지
+# 않는다. DB를 건드리기 전에 실패한 경우에만 복구 전 실행 상태로 되돌린다.
 app_stopped=0
+app_was_running=0
+db_replace_started=0
 done_ok=0
 cleanup() {
   compose exec -T postgres rm -f "$container_tmp" >/dev/null 2>&1 || true
   if [ "$app_stopped" = "1" ] && [ "$done_ok" = "0" ]; then
-    echo "복구가 정상 종료되지 않았다. app 컨테이너를 다시 띄운다." >&2
-    compose start app || true
+    if [ "$db_replace_started" = "0" ] && [ "$app_was_running" = "1" ]; then
+      echo "DB 교체 전에 복구가 중단됐다. 원래 실행 중이던 app을 다시 띄운다." >&2
+      compose start app || true
+    else
+      echo "복구가 정상 종료되지 않았다. DB 상태 확인 전까지 app을 중지한 채 둔다." >&2
+      if [ -n "${safety:-}" ]; then
+        echo "안전 덤프: ${safety}" >&2
+      fi
+    fi
   fi
 }
 trap cleanup EXIT
@@ -109,16 +118,25 @@ compose exec -T postgres rm -f "$safety_tmp" >/dev/null 2>&1 || true
 echo "      안전 덤프 확보. 복구가 잘못되면 이 파일로 되돌린다."
 
 echo "[3/4] app 컨테이너를 멈춘다 (연결이 남아 있으면 DROP DATABASE가 실패한다)"
+running_app="$(compose ps --status running -q app 2>/dev/null || true)"
+if [ -n "$running_app" ]; then
+  app_was_running=1
+fi
 compose stop app
 app_stopped=1
 
 echo "[4/4] DB 교체"
+db_replace_started=1
 compose exec -T postgres psql -U glossary -d postgres \
   -c "DROP DATABASE IF EXISTS glossary;" -c "CREATE DATABASE glossary;"
 compose exec -T postgres pg_restore -U glossary -d glossary --no-owner "$container_tmp"
 
-echo "app 컨테이너를 다시 띄운다"
+if [ "$app_was_running" = "1" ]; then
+  echo "복구 전 실행 중이던 app 컨테이너를 다시 띄운다"
+  compose start app
+else
+  echo "복구 전 app 컨테이너가 중지돼 있어 그대로 둔다"
+fi
 done_ok=1
-compose start app
 
 echo "완료. 되돌리려면: scripts/restore.sh --force '${safety}'"

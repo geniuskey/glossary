@@ -21,7 +21,12 @@ export function CollapsibleSidebar({
     // 페이지 이동으로 셸이 다시 마운트될 때 저장된 접힘 상태는 첫 페인트 전에
     // 즉시 복원한다. transition은 그 다음 프레임부터 켜야, 이미 접힌 상태인데도
     // 매 화면마다 펼침 → 접힘 애니메이션이 재생되지 않는다.
-    setCollapsed(localStorage.getItem(STORAGE_KEY) === "true");
+    try {
+      setCollapsed(localStorage.getItem(STORAGE_KEY) === "true");
+    } catch {
+      // Storage may be disabled by a privacy setting; the default expanded
+      // sidebar remains usable in that case.
+    }
     const frame = requestAnimationFrame(() => setReady(true));
     return () => cancelAnimationFrame(frame);
   }, []);
@@ -29,7 +34,11 @@ export function CollapsibleSidebar({
   function toggle() {
     const next = !collapsed;
     setCollapsed(next);
-    localStorage.setItem(STORAGE_KEY, String(next));
+    try {
+      localStorage.setItem(STORAGE_KEY, String(next));
+    } catch {
+      // The visual state is still applied for this mount when persistence fails.
+    }
   }
 
   return (

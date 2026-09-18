@@ -49,12 +49,18 @@ async function generate(
   const db = getDb();
   if (!force) {
     const [cached] = await db
-      .select({ revision: classificationReviewSuggestions.revision, values: classificationReviewSuggestions.values, reason: classificationReviewSuggestions.reason })
+      .select({
+        revision: classificationReviewSuggestions.revision,
+        generatorVersion: classificationReviewSuggestions.generatorVersion,
+        values: classificationReviewSuggestions.values,
+        reason: classificationReviewSuggestions.reason,
+      })
       .from(classificationReviewSuggestions)
       .where(and(
         eq(classificationReviewSuggestions.termId, termId),
         eq(classificationReviewSuggestions.kind, kind),
         eq(classificationReviewSuggestions.revision, revision),
+        eq(classificationReviewSuggestions.generatorVersion, AI_SUGGESTION_GENERATOR_VERSIONS.classification),
       ))
       .limit(1);
     if (cached) {
@@ -73,11 +79,18 @@ async function generate(
     termId,
     kind,
     revision,
+    generatorVersion: AI_SUGGESTION_GENERATOR_VERSIONS.classification,
     values,
     reason,
   }).onConflictDoUpdate({
     target: [classificationReviewSuggestions.termId, classificationReviewSuggestions.kind],
-    set: { revision, values, reason, generatedAt: new Date() },
+    set: {
+      revision,
+      generatorVersion: AI_SUGGESTION_GENERATOR_VERSIONS.classification,
+      values,
+      reason,
+      generatedAt: new Date(),
+    },
   });
 
   if (values.length === 0) return null;

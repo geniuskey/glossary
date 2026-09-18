@@ -115,6 +115,22 @@ export function requireUuid(value: string, notFoundMessage: string): string | Re
   return value;
 }
 
+function safeErrorLog(err: unknown): { name: string; code?: string } {
+  if (!(err instanceof Error)) return { name: "UnknownError" };
+
+  const name = /^[A-Za-z0-9_.-]{1,64}$/.test(err.name) ? err.name : "Error";
+  const directCode = (err as Error & { code?: unknown }).code;
+  const cause = (err as Error & { cause?: unknown }).cause;
+  const causeCode = cause && typeof cause === "object" && "code" in cause
+    ? (cause as { code?: unknown }).code
+    : undefined;
+  const code = [directCode, causeCode].find((value): value is string => (
+    typeof value === "string" && /^[A-Za-z0-9_-]{1,32}$/.test(value)
+  ));
+
+  return code ? { name, code } : { name };
+}
+
 /**
  * R28: 라우트 핸들러가 던진 예외를 본문 있는 JSON 500으로 바꾼다.
  *
@@ -132,7 +148,10 @@ export function withApiErrors<A extends unknown[]>(
     try {
       return await handler(...args);
     } catch (err) {
-      console.error(err);
+      // DB 드라이버 예외에는 SQL과 바인딩 파라미터가 포함될 수 있다. 원시
+      // 예외·스택을 그대로 남기지 않고 장애 분류에 필요한 최소 메타데이터만
+      // 기록해 비밀값과 사용자 입력의 로그 유출을 막는다.
+      console.error("[api-error]", safeErrorLog(err));
       return apiError("internal_error", "서버 오류가 발생했습니다.", 500);
     }
   };

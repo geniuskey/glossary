@@ -55,6 +55,7 @@ export async function listDefinitionReviewCandidates(limit = 100, userId: string
     ? await db.select({
       termId: definitionReviewSuggestions.termId,
       revision: definitionReviewSuggestions.revision,
+      generatorVersion: definitionReviewSuggestions.generatorVersion,
       suggestion: definitionReviewSuggestions.suggestion,
     }).from(definitionReviewSuggestions).where(inArray(definitionReviewSuggestions.termId, rows.map((row) => row.id)))
     : [];
@@ -70,7 +71,9 @@ export async function listDefinitionReviewCandidates(limit = 100, userId: string
       name: displayName(row),
       bodyMd: row.bodyMd!,
       revision,
-      suggestion: saved?.revision === revision ? saved.suggestion : null,
+      suggestion: saved?.revision === revision && saved.generatorVersion === AI_SUGGESTION_GENERATOR_VERSIONS.definition
+        ? saved.suggestion
+        : null,
       disposition: decision?.disposition,
     }];
   });
@@ -129,10 +132,16 @@ async function generateAndStore(candidate: DefinitionReviewCandidate, force: boo
   await getDb().insert(definitionReviewSuggestions).values({
     termId: candidate.id,
     revision: candidate.revision,
+    generatorVersion: AI_SUGGESTION_GENERATOR_VERSIONS.definition,
     suggestion,
   }).onConflictDoUpdate({
     target: definitionReviewSuggestions.termId,
-    set: { revision: candidate.revision, suggestion, generatedAt: new Date() },
+    set: {
+      revision: candidate.revision,
+      generatorVersion: AI_SUGGESTION_GENERATOR_VERSIONS.definition,
+      suggestion,
+      generatedAt: new Date(),
+    },
   });
   return suggestion;
 }

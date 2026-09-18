@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { apiKeys } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { apiError, methodStubs, requireUuid, withApiErrors } from "@/lib/api-error";
@@ -23,14 +23,19 @@ export const DELETE = withApiErrors(
     const [existing] = await getDb()
       .select({ id: apiKeys.id, revokedAt: apiKeys.revokedAt })
       .from(apiKeys)
-      .where(eq(apiKeys.id, id))
+      // 존재 여부도 다른 사용자에게 공개하지 않는다. 소유하지 않은 키는
+      // 자신의 키 목록에 없는 것과 같은 404로 처리한다.
+      .where(and(eq(apiKeys.id, id), eq(apiKeys.createdBy, user.id)))
       .limit(1);
 
     if (!existing) return apiError("not_found", "API 키를 찾을 수 없습니다.", 404);
 
     // 멱등: 이미 폐기된 키를 다시 폐기해도 원래 폐기 시각을 덮어쓰지 않고 성공만 반환한다.
     if (!existing.revokedAt) {
-      await getDb().update(apiKeys).set({ revokedAt: new Date() }).where(eq(apiKeys.id, id));
+      await getDb().update(apiKeys).set({ revokedAt: new Date() }).where(and(
+        eq(apiKeys.id, id),
+        eq(apiKeys.createdBy, user.id),
+      ));
     }
 
     return Response.json({ ok: true });

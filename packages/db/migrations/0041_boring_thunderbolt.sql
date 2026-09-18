@@ -1,0 +1,4 @@
+ALTER TABLE "classification_review_suggestions" ADD COLUMN "generator_version" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
+ALTER TABLE "definition_review_suggestions" ADD COLUMN "generator_version" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
+ALTER TABLE "classification_review_suggestions" ADD CONSTRAINT "classification_review_suggestions_positive_generator" CHECK ("classification_review_suggestions"."generator_version" > 0);--> statement-breakpoint
+ALTER TABLE "definition_review_suggestions" ADD CONSTRAINT "definition_review_suggestions_positive_generator" CHECK ("definition_review_suggestions"."generator_version" > 0);

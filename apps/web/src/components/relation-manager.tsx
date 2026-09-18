@@ -157,7 +157,7 @@ export function RelationManager({ selectedTerm, onClearSelection }: { selectedTe
       </form>
     </details>
     <p className="mt-2 text-sm text-brand" role="status">{message}</p>
-    {error && <p className="mt-2 text-sm text-red-600" role="alert">{error}</p>}
+    {error && <p className="mt-2 text-sm text-danger" role="alert">{error}</p>}
     <div className="mt-4 flex flex-wrap items-end gap-3">
       <div className="min-w-48 flex-1">
         {selectedTerm ? <p className="text-sm">선택한 용어: <strong>{selectedTerm.name}</strong> <button type="button" className="btn-ghost text-xs" onClick={() => { onClearSelection(); setLookupTerm(null); }}>전체 관계 보기</button></p>
@@ -168,7 +168,7 @@ export function RelationManager({ selectedTerm, onClearSelection }: { selectedTe
       <button type="button" className="btn-ghost text-xs" disabled={loading || busy} onClick={() => { setEditing(null); setReload((value) => value + 1); }}>목록 새로고침</button>
     </div>
     <p className="mt-2 text-xs text-ink-3">관리 목록은 상단 그래프의 분류 필터와 별개입니다. 그래프에서 노드를 선택하면 해당 용어의 모든 관계를 조회합니다.</p>
-    {loadError && <p className="mt-3 text-sm text-red-600" role="alert">{loadError}</p>}
+    {loadError && <p className="mt-3 text-sm text-danger" role="alert">{loadError}</p>}
     <div className="mt-3 space-y-3" aria-busy={loading}>
       {loading ? <p role="status" className="text-sm text-ink-3">관계를 불러오는 중…</p> : !loadError && <>
         <p className="text-xs text-ink-3">{new Intl.NumberFormat("ko-KR").format(result?.total ?? 0)}개 관계</p>

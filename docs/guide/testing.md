@@ -11,8 +11,10 @@ pnpm --filter @glossary/web test       # API·화면 (Postgres 필요)
 
 ## 테스트 DB는 분리되어 있다
 
-`apps/web/tests/setup.ts`가 `DATABASE_URL_TEST`를 `DATABASE_URL`에 덮어쓴다.
-환경변수가 없으면 테스트가 시작 자체를 거부한다.
+`apps/web/tests/setup.ts`와 `packages/db/tests/setup.ts`가 저장소 루트의 `.env`를
+읽은 뒤 `DATABASE_URL_TEST`를 사용한다. web 테스트는 호환되는 기존 테스트 코드가
+`DATABASE_URL`을 읽어도 테스트 DB를 보도록 그 값도 덮어쓴다. 환경변수가 없고 `.env`에도
+값이 없으면 테스트가 시작 자체를 거부한다.
 
 ```ts
 const testUrl = process.env.DATABASE_URL_TEST;

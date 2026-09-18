@@ -39,7 +39,7 @@ export function RevertButton({
       <button type="button" onClick={onClick} disabled={busy} className="btn-ghost btn-sm">
         {busy ? "되돌리는 중" : "이 버전으로 되돌리기"}
       </button>
-      {error && <span className="text-xs text-danger">{error}</span>}
+      {error && <span role="alert" className="text-xs text-danger">{error}</span>}
     </span>
   );
 }
