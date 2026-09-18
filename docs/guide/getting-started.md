@@ -194,6 +194,7 @@ pnpm --filter @glossary/web exec tsx scripts/seed-terms.ts it semiconductor
 | `/admin?tab=quality` | 콘텐츠 완성도 기준과 충족 현황 |
 | `/admin?tab=ai` | AI 공급자·모델·자동 검토 설정 |
 | `/admin?tab=rag` | Embedding·Reranker·벡터 색인 설정 |
+| `/admin?tab=data` | 서버 전체 용어집 읽기 전용 스냅샷 다운로드 (관리자 전용) |
 | `/admin?tab=sso` | 관리자 패널의 SSO 연결 탭 (`/settings/sso`는 이 주소로 이동) |
 | `/admin` | 홈 문구, 업무 분류 목록과 사용자·세션 관리 (관리자 전용) |
 

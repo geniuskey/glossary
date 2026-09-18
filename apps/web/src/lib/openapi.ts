@@ -307,6 +307,31 @@ export const openApiSpec = {
         },
       },
     },
+    "/admin/exports/terms": {
+      get: {
+        summary: "전체 용어집 읽기 전용 스냅샷 다운로드",
+        description:
+          "관리자 세션으로만 현재 서버의 용어·표기·분류·관계를 JSON 스냅샷으로 내려받는다. " +
+          "이 형식은 일반 POST /import에서 거부되며 자동 복원하지 않는다.",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("다운로드 가능한 읽기 전용 용어집 스냅샷", {
+            type: "object",
+            required: ["format", "version", "readOnly", "exportedAt", "counts", "data"],
+            properties: {
+              format: { type: "string", const: "geniuskey.glossary.snapshot" },
+              version: { type: "integer", const: 1 },
+              readOnly: { type: "boolean", const: true },
+              exportedAt: { type: "string", format: "date-time" },
+              counts: { type: "object" },
+              data: { type: "object" },
+            },
+          }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+    },
     "/admin/home-content": {
       get: {
         summary: "홈 첫 화면 소개 문구 조회",

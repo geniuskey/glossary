@@ -1,6 +1,7 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import ExcelJS from "exceljs";
 import { DEFAULT_SPLIT_OPTIONS, needsReview, splitSurfaceCell, reviewColumns, type ReviewOptionalColumn } from "../src/lib/import/review";
+import { GLOSSARY_SNAPSHOT_FORMAT, GLOSSARY_SNAPSHOT_VERSION } from "../src/lib/admin/term-snapshot-format";
 
 const mocks = vi.hoisted(() => ({ createTerm: vi.fn(), findDuplicates: vi.fn(), requireAuth: vi.fn() }));
 vi.mock("@/lib/terms/create", () => ({ createTerm: mocks.createTerm, findDuplicates: mocks.findDuplicates }));
@@ -114,6 +115,18 @@ test("authentication and forged row numbers are rejected", async () => {
   expect((await request("One\t하나", report, true)).status).toBe(400);
   mocks.requireAuth.mockResolvedValue(new Response(null, { status: 401 }));
   expect((await request("One\t하나")).status).toBe(401);
+  expect(mocks.createTerm).not.toHaveBeenCalled();
+});
+
+test("스냅샷 JSON을 붙여넣어도 검토·반영 경로에서 거부한다", async () => {
+  const body = new FormData();
+  body.set("text", JSON.stringify({ format: GLOSSARY_SNAPSHOT_FORMAT, version: GLOSSARY_SNAPSHOT_VERSION, readOnly: true }));
+  body.set("review", JSON.stringify({ options: DEFAULT_SPLIT_OPTIONS, columns: [], decisions: [] }));
+  body.set("apply", "true");
+
+  const response = await POST(new Request("http://localhost/api/v1/import/review", { method: "POST", body }));
+  expect(response.status).toBe(400);
+  expect((await response.json()).error.code).toBe("validation_failed");
   expect(mocks.createTerm).not.toHaveBeenCalled();
 });
 

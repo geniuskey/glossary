@@ -1,5 +1,6 @@
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { requireAuth, isResponse } from "@/lib/auth/require";
+import { isGlossarySnapshotBytes } from "@/lib/admin/term-snapshot-format";
 import { parseGlossaryWorkbook } from "@/lib/import/parse-xlsx";
 import { listBusinessCategories } from "@/lib/terms/categories";
 import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS } from "@/lib/import/format";
@@ -54,9 +55,18 @@ export const POST = withApiErrors(async (request: Request) => {
     return apiError("payload_too_large", "파일이 10MB를 넘습니다.", 413);
   }
 
+  const bytes = await file.arrayBuffer();
+  if (isGlossarySnapshotBytes(bytes)) {
+    return apiError(
+      "validation_failed",
+      "관리자용 용어집 스냅샷은 일반 가져오기에서 사용할 수 없습니다. 복원은 별도의 관리자 절차로 진행해야 합니다.",
+      400,
+    );
+  }
+
   const categoryOptions = await listBusinessCategories();
   const { rows, errors, fileErrors, ignoredHeaders } = await parseGlossaryWorkbook(
-    await file.arrayBuffer(),
+    bytes,
     categoryOptions.map((category) => category.key),
   );
 

@@ -2,6 +2,25 @@
 
 기존 엑셀 용어집을 옮기는 경로다. **dry-run이 기본**이고 실제 반영은 명시해야 한다.
 
+## 관리자용 전체 스냅샷
+
+`/sheet`의 내보내기는 현재 화면 또는 선택한 행을 CSV로 저장하는 기능이다. 서버에 있는
+전체 용어를 내려받으려면 관리자 패널 → **데이터**에서 다음 API를 사용한다.
+
+```http
+GET /api/v1/admin/exports/terms
+```
+
+이 엔드포인트는 관리자 세션만 허용하고, 현재 용어·추가 표기·분류·의미 관계를
+`glossary-snapshot-YYYY-MM-DD.json`으로 내려준다. 사용자 비밀번호, API 키, AI·RAG
+연결 비밀값은 포함하지 않는다. 응답에는 `format: "geniuskey.glossary.snapshot"`,
+`version: 1`, `readOnly: true` 표식이 있다.
+
+이 파일은 일반 `POST /api/v1/import`의 xlsx 데이터와 다른 **백업·검토용 형식**이다.
+파일 이름을 바꾸거나 `dryRun=false`를 보내도 서버가 표식을 확인해 `validation_failed`로
+거부하므로 자동으로 기존 용어를 덮어쓰지 않는다. 복원이 필요하면 별도의 관리자 복원
+절차에서 차이와 적용 대상을 검토한 뒤 진행해야 한다.
+
 ## 영문·한글 두 열 가져오기
 
 `/import`의 기본 화면과 `/sheet`의 **영문·한글 엑셀 가져오기**는 공통 검토 화면을

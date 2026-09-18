@@ -4,6 +4,7 @@ import { afterAll, expect, test, vi } from "vitest";
 import { apiKeys, createDb, terms } from "@glossary/db";
 import { generateApiKey } from "../src/lib/auth/api-key.js";
 import { SESSION_COOKIE } from "../src/lib/auth/session.js";
+import { GLOSSARY_SNAPSHOT_FORMAT, GLOSSARY_SNAPSHOT_VERSION } from "../src/lib/admin/term-snapshot-format.js";
 
 // terms-lookup.test.ts(R83)와 같은 이유: 이 라우트의 요청은 실제 Next 요청
 // 컨텍스트 밖에서 만들어지므로, next/headers의 cookies()를 모킹하지 않으면
@@ -152,6 +153,24 @@ test("파일이 없는 form-data는 400 validation_failed를 반환한다", asyn
   expect(res.status).toBe(400);
   const body = await res.json();
   expect(body.error.code).toBe("validation_failed");
+});
+
+test("관리자 스냅샷은 파일 이름을 바꿔도 일반 가져오기에서 반영되지 않는다", async () => {
+  const token = await makeWriteKey();
+  const form = new FormData();
+  form.set(
+    "file",
+    new File(
+      [JSON.stringify({ format: GLOSSARY_SNAPSHOT_FORMAT, version: GLOSSARY_SNAPSHOT_VERSION, readOnly: true })],
+      "renamed.xlsx",
+    ),
+  );
+  form.set("dryRun", "false");
+
+  const res = await importPost(new Request("http://x/api/v1/import", { method: "POST", body: form, headers: { authorization: `Bearer ${token}` } }));
+
+  expect(res.status).toBe(400);
+  expect((await res.json()).error).toMatchObject({ code: "validation_failed" });
 });
 
 test("dry-run 요청은 실제로 DB에 아무 것도 쓰지 않고 report를 돌려준다", async () => {

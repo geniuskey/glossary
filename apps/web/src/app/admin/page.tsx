@@ -19,6 +19,7 @@ import { RagSettingsPanel } from "./rag-settings-panel";
 import { HomeContentPanel } from "./home-content-panel";
 import { TermQualityPanel } from "./term-quality-panel";
 import { UsersPanel } from "./users-panel";
+import { DataExportPanel } from "./data-export-panel";
 import { SsoSettingsForm } from "@/app/settings/sso/sso-settings-form";
 
 export const metadata = { title: "관리자" };
@@ -29,6 +30,7 @@ const ADMIN_TABS = [
   { key: "ai", label: "AI 연결" },
   { key: "observability", label: "AI 모니터링" },
   { key: "rag", label: "RAG 검색" },
+  { key: "data", label: "데이터" },
   { key: "sso", label: "로그인 · SSO" },
   { key: "users", label: "사용자" },
 ] as const;
@@ -74,6 +76,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     const [config, stats] = await Promise.all([loadRagConfig(), getRagIndexStats()]);
     panel = <RagSettingsPanel initialConfig={publicRagConfig(config, stats)} />;
   }
+  else if (tab === "data") panel = <DataExportPanel />;
   else if (tab === "sso") panel = (
     <div>
       <header className="mb-6">

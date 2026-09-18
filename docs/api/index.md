@@ -43,6 +43,7 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | POST | [`/admin/rag-config/test`](/api/rag#post-adminrag-config-test) | 세션(admin) | Embedding·Reranker 연결 시험 |
 | POST | [`/admin/rag-config/reindex`](/api/rag#post-adminrag-config-reindex) | 세션(admin) | 전체 용어 재색인 대기열 생성 |
 | POST | [`/rag/search`](/api/rag#벡터-검색) | `read` | pgvector 용어집 검색 |
+| GET | [`/admin/exports/terms`](/api/import#관리자용-전체-스냅샷) | 세션(admin) | 서버 전체 용어집 읽기 전용 스냅샷 다운로드 |
 | GET | [`/admin/term-quality`](/api/ai#콘텐츠-완성도) | 세션(admin) | 콘텐츠 완성도 조회 |
 | POST | [`/admin/term-quality`](/api/ai#콘텐츠-완성도) | 세션(admin) | 최소 길이 변경 영향 미리보기 |
 | PATCH | [`/admin/term-quality`](/api/ai#콘텐츠-완성도) | 세션(admin) | 최소 길이 저장 |

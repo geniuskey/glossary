@@ -1,5 +1,6 @@
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { requireAuth, isResponse } from "@/lib/auth/require";
+import { isGlossarySnapshotBytes, isGlossarySnapshotText } from "@/lib/admin/term-snapshot-format";
 import { parseGlossaryMatrix, parseGlossaryWorkbook } from "@/lib/import/parse-xlsx";
 import { parseClipboardMatrix } from "@/lib/terms/grid";
 import { listBusinessCategories } from "@/lib/terms/categories";
@@ -40,9 +41,16 @@ export const POST = withApiErrors(async (request: Request) => {
   try {
     if (file instanceof File) {
       if (file.size > MAX_IMPORT_BYTES) return apiError("payload_too_large", "파일이 10MB를 넘습니다.", 413);
-      parsed = await parseGlossaryWorkbook(await file.arrayBuffer(), categories, columns.map((column) => column.key));
+      const bytes = await file.arrayBuffer();
+      if (isGlossarySnapshotBytes(bytes)) {
+        return apiError("validation_failed", "관리자용 용어집 스냅샷은 일반 가져오기에서 사용할 수 없습니다. 복원은 별도의 관리자 절차로 진행해야 합니다.", 400);
+      }
+      parsed = await parseGlossaryWorkbook(bytes, categories, columns.map((column) => column.key));
     } else if (typeof text === "string") {
       if (new TextEncoder().encode(text).length > MAX_IMPORT_BYTES) return apiError("payload_too_large", "붙여넣기 내용이 10MB를 넘습니다.", 413);
+      if (isGlossarySnapshotText(text)) {
+        return apiError("validation_failed", "관리자용 용어집 스냅샷은 일반 가져오기에서 사용할 수 없습니다. 복원은 별도의 관리자 절차로 진행해야 합니다.", 400);
+      }
       const matrix = parseClipboardMatrix(text);
       if (matrix.length > MAX_IMPORT_ROWS + 1) return apiError("validation_failed", "최대 5000행까지 가져올 수 있습니다.", 400);
       let addedHeader = false;
