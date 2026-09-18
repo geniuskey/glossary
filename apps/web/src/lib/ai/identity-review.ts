@@ -1,7 +1,7 @@
 import "server-only";
 
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { identityReviewSuggestions, surfaceKeys, termRevisions, termSurfaces, terms } from "@glossary/db";
+import { aiSuggestionDecisions, identityReviewSuggestions, surfaceKeys, termRevisions, termSurfaces, terms } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { displayName } from "@/lib/ui/format";
 import { inferSurfaceLang } from "@/lib/terms/surface-language";
@@ -564,11 +564,24 @@ export function identityCandidateFromTerm(term: Pick<TermDetail, "id" | "slug" |
   };
 }
 
-export async function listIdentityReviewCandidates(limit = 200, query = "", userId: string | null = null): Promise<IdentityReviewCandidate[]> {
+export const IDENTITY_REVIEW_PAGE_SIZE = 40;
+
+export interface IdentityReviewCandidatePage {
+  candidates: IdentityReviewCandidate[];
+  hasNextPage: boolean;
+}
+
+export async function listIdentityReviewCandidatePage(
+  limit = IDENTITY_REVIEW_PAGE_SIZE,
+  query = "",
+  userId: string | null = null,
+  offset = 0,
+): Promise<IdentityReviewCandidatePage> {
   const db = getDb();
   const needle = query.trim().toLocaleLowerCase();
   const conditions = [sql`${terms.replacedById} is null`];
   if (needle) conditions.push(sql`strpos(lower(concat_ws(' ', ${terms.nameKo}, ${terms.nameEn}, ${terms.fullNameKo}, ${terms.fullNameEn}, ${terms.slug}, array_to_string(${terms.domain}, ' '), array_to_string(${terms.category}, ' '))), ${needle}) > 0`);
+  const pageSize = Math.min(200, Math.max(1, limit));
   const rows = await db.select({
     id: terms.id,
     slug: terms.slug,
@@ -578,10 +591,12 @@ export async function listIdentityReviewCandidates(limit = 200, query = "", user
     fullNameKo: terms.fullNameKo,
     domain: terms.domain,
     categories: terms.category,
-  }).from(terms).where(and(...conditions)).orderBy(asc(terms.updatedAt), asc(terms.id)).limit(Math.min(200, Math.max(1, limit)));
-  if (rows.length === 0) return [];
+  }).from(terms).where(and(...conditions)).orderBy(asc(terms.updatedAt), asc(terms.id)).limit(pageSize + 1).offset(Math.max(0, offset));
+  const hasNextPage = rows.length > pageSize;
+  const pageRows = rows.slice(0, pageSize);
+  if (pageRows.length === 0) return { candidates: [], hasNextPage };
 
-  const ids = rows.map((row) => row.id);
+  const ids = pageRows.map((row) => row.id);
   const [surfaceRows, revisions, cached, duplicateGroups] = await Promise.all([
     db.select({ termId: termSurfaces.termId, id: termSurfaces.id, text: termSurfaces.text, lang: termSurfaces.lang, kind: termSurfaces.kind })
       .from(termSurfaces).where(inArray(termSurfaces.termId, ids)),
@@ -602,8 +617,9 @@ export async function listIdentityReviewCandidates(limit = 200, query = "", user
     surfacesByTerm.set(row.termId, list);
   }
   const duplicateNorms = new Set(duplicateGroups.filter((row) => row.termCount > 1).map((row) => row.normLoose));
-  const decisions = await listSuggestionDispositionMap(rows.map((row) => ({ termId: row.id, revision: revisionByTerm.get(row.id) ?? 0 })), "identity", userId, IDENTITY_REVIEW_GENERATOR_VERSION);
-  return rows.flatMap((row) => {
+  const decisions = await listSuggestionDispositionMap(pageRows.map((row) => ({ termId: row.id, revision: revisionByTerm.get(row.id) ?? 0 })), "identity", userId, IDENTITY_REVIEW_GENERATOR_VERSION);
+  return {
+    candidates: pageRows.flatMap((row) => {
     const revision = revisionByTerm.get(row.id) ?? 0;
     const surfaces = surfacesByTerm.get(row.id) ?? [];
     const candidate = identityCandidateFromTerm({ ...row, surfaces, revision }, duplicateNorms);
@@ -619,7 +635,14 @@ export async function listIdentityReviewCandidates(limit = 200, query = "", user
     } : null;
     const enrichmentCandidate = shouldOfferIdentityEnrichment({ ...row, surfaces });
     return shouldKeepIdentityReviewCandidate(candidate.issues, enrichmentCandidate, review) ? [candidate] : [];
-  });
+    }),
+    hasNextPage,
+  };
+}
+
+export async function listIdentityReviewCandidates(limit = 200, query = "", userId: string | null = null): Promise<IdentityReviewCandidate[]> {
+  const page = await listIdentityReviewCandidatePage(limit, query, userId);
+  return page.candidates;
 }
 
 function referenceSources(context: string, termId: string): { sources: IdentityReviewSource[]; glossary: unknown } {
@@ -822,6 +845,7 @@ export async function applyIdentitySuggestion(input: ApplyIdentitySuggestionInpu
   }
 
   let remaining: IdentityReviewSuggestion[] = [];
+  let deferredSuggestionIds: string[] = [];
   const result = await updateTerm(
     input.termId,
     patch,
@@ -840,6 +864,32 @@ export async function applyIdentitySuggestion(input: ApplyIdentitySuggestionInpu
         eq(identityReviewSuggestions.termId, input.termId),
         eq(identityReviewSuggestions.revision, input.revision),
       ));
+
+      // 승인으로 용어 리비전이 올라가도, 같은 검토 안에서 사용자가
+      // 보류·저장·숨김으로 판단한 다른 제안의 상태는 유지해야 한다.
+      // 상태를 이전 리비전에 묶어 두면 한 건 승인 후 보류 배지가 사라지고
+      // 새로고침 때 같은 제안이 다시 나타난다.
+      const decisions = await tx.select({
+        id: aiSuggestionDecisions.id,
+        suggestionId: aiSuggestionDecisions.suggestionId,
+        disposition: aiSuggestionDecisions.disposition,
+      }).from(aiSuggestionDecisions).where(and(
+        eq(aiSuggestionDecisions.termId, input.termId),
+        eq(aiSuggestionDecisions.revision, input.revision),
+        eq(aiSuggestionDecisions.feature, "identity"),
+        eq(aiSuggestionDecisions.generatorVersion, IDENTITY_REVIEW_GENERATOR_VERSION),
+      ));
+      const remainingIds = new Set(remaining.map((item) => item.id));
+      deferredSuggestionIds = decisions
+        .filter((decision) => remainingIds.has(decision.suggestionId) && decision.disposition === "deferred")
+        .map((decision) => decision.suggestionId);
+      for (const decision of decisions) {
+        if (remainingIds.has(decision.suggestionId)) {
+          await tx.update(aiSuggestionDecisions).set({ revision: nextRevision, updatedAt: new Date() }).where(eq(aiSuggestionDecisions.id, decision.id));
+        } else {
+          await tx.delete(aiSuggestionDecisions).where(eq(aiSuggestionDecisions.id, decision.id));
+        }
+      }
     },
   );
   if (!("term" in result)) return { result, review: null };
@@ -857,6 +907,7 @@ export async function applyIdentitySuggestion(input: ApplyIdentitySuggestionInpu
     suggestions: remaining,
     uncertainties: [],
     sources: [],
+    deferredSuggestionIds,
   } satisfies IdentityReview : null;
   return { result, review };
 }

@@ -375,7 +375,7 @@
 
   .btn {
     @apply inline-flex select-none items-center justify-center gap-1.5 rounded-lg border
-      border-transparent px-3 py-1.5 text-sm font-medium transition touch-manipulation
+      border-transparent px-3 py-1.5 text-sm font-medium transition-[background-color,border-color,color,box-shadow,opacity] touch-manipulation
       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45
       focus-visible:ring-offset-2 focus-visible:ring-offset-paper
       disabled:cursor-not-allowed disabled:opacity-50;
@@ -398,7 +398,7 @@
 
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-panel
-      px-2.5 py-1 text-xs text-ink-2 transition hover:border-line-strong hover:text-ink
+      px-2.5 py-1 text-xs text-ink-2 transition-[background-color,border-color,color,box-shadow,opacity] hover:border-line-strong hover:text-ink
       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40;
   }
   .chip-on {
@@ -412,7 +412,7 @@
 
   .link {
     @apply text-ink underline decoration-line-strong underline-offset-[3px]
-      rounded-sm transition hover:decoration-brand focus-visible:outline-none
+      rounded-sm transition-[color,text-decoration-color] hover:decoration-brand focus-visible:outline-none
       focus-visible:ring-2 focus-visible:ring-brand/40;
   }
 

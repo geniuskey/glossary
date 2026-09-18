@@ -8,11 +8,11 @@ import { filterClassificationReviewCandidates, listClassificationReviewCandidate
 import { listDomains } from "@/lib/terms/domains";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { listDefinitionReviewCandidates } from "@/lib/ai/definition-review";
-import { listIdentityReviewCandidates } from "@/lib/ai/identity-review";
+import { IDENTITY_REVIEW_PAGE_SIZE, listIdentityReviewCandidatePage } from "@/lib/ai/identity-review";
 import { HelpTip } from "@/components/help-tip";
 import { ClassificationReviewPanel } from "../classification-review-panel";
 import { DefinitionReviewPanel } from "../definition-review-panel";
-import { IdentityReviewPanel } from "../identity-review-panel";
+import { IdentityReviewPanel, type IdentityReviewView } from "../identity-review-panel";
 
 export const metadata: Metadata = {
   title: "필드 보완",
@@ -66,6 +66,15 @@ function parseField(value: string): FieldKey | undefined {
   return value === "identity" || value === "definition" || value === "domain" || value === "category" ? value : undefined;
 }
 
+function parsePositivePage(value: string): number {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? Math.min(1_000, Math.max(1, parsed)) : 1;
+}
+
+function parseIdentityView(value: string): IdentityReviewView {
+  return value === "issues" || value === "enrichment" || value === "pending" ? value : "all";
+}
+
 export default async function FieldCompletionPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -73,11 +82,15 @@ export default async function FieldCompletionPage({ searchParams }: { searchPara
   const params = await searchParams;
   const field = parseField(scalar(params, "field"));
   const query = scalar(params, "q").slice(0, 200);
+  const page = parsePositivePage(scalar(params, "page"));
+  const identityView = parseIdentityView(scalar(params, "view"));
   const classificationKind: ClassificationReviewKind | undefined = field === "domain" ? "domain" : field === "category" ? "category" : undefined;
   const selectedField = field ? FIELD_ITEMS.find((item) => item.key === field) : undefined;
-  const [storedAi, identityCandidates, definitionCandidates, classificationCandidates, categories, domains] = await Promise.all([
+  const [storedAi, identityPage, definitionCandidates, classificationCandidates, categories, domains] = await Promise.all([
     loadAiConfig(),
-    field === "identity" ? listIdentityReviewCandidates(200, query, user.id) : Promise.resolve([]),
+    field === "identity"
+      ? listIdentityReviewCandidatePage(IDENTITY_REVIEW_PAGE_SIZE, query, user.id, (page - 1) * IDENTITY_REVIEW_PAGE_SIZE)
+      : Promise.resolve({ candidates: [], hasNextPage: false }),
     field === "definition" ? listDefinitionReviewCandidates(100, user.id) : Promise.resolve([]),
     classificationKind ? listClassificationReviewCandidates(classificationKind, 200, query) : Promise.resolve([]),
     classificationKind ? listBusinessCategories() : Promise.resolve([]),
@@ -110,7 +123,14 @@ export default async function FieldCompletionPage({ searchParams }: { searchPara
           </div>
 
           {field === "identity" ? (
-            <IdentityReviewPanel initialCandidates={identityCandidates} query={query} aiAvailable={aiAvailable} />
+            <IdentityReviewPanel
+              initialCandidates={identityPage.candidates}
+              query={query}
+              view={identityView}
+              page={page}
+              hasNextPage={identityPage.hasNextPage}
+              aiAvailable={aiAvailable}
+            />
           ) : field === "definition" ? (
             <DefinitionReviewPanel initialCandidates={definitionCandidates} aiAvailable={aiAvailable} />
           ) : (
@@ -134,7 +154,7 @@ export default async function FieldCompletionPage({ searchParams }: { searchPara
 }
 
 function tabClass(active: boolean): string {
-  return `relative -mb-px shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition ${active ? "border-brand text-brand" : "border-transparent text-ink-3 hover:text-ink"}`;
+  return `relative -mb-px shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${active ? "border-brand text-brand" : "border-transparent text-ink-3 hover:text-ink"}`;
 }
 
 function FieldOverview() {
