@@ -1076,7 +1076,7 @@ export const openApiSpec = {
     "/contributions/identity-review": {
       post: {
         summary: "대표명·확장명·추가 표기의 AI 정비 제안 생성",
-        description: "현재 용어의 대표 영문·국문, 영문·국문 확장명, 별칭·약어·표기 종류를 용어집 근거와 비교합니다. 제안은 저장하지 않으며 사람의 승인 전까지 현재 값을 보존합니다.",
+        description: "현재 용어의 대표 영문·국문, 영문·국문 확장명, 별칭·약어·표기 종류를 용어집 근거와 비교합니다. 약어와 영문 확장명의 머리글자 대응은 규칙으로 판정하지 않으며, nameKo는 공식 국문 표기가 있을 때만, fullNameKo는 국문 대표명이 약어일 때만 제안합니다. 제안은 저장하지 않으며 사람의 승인 전까지 현재 값을 보존합니다.",
         security: [{ sessionCookie: [] }, { apiKey: [] }],
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",

@@ -49,21 +49,8 @@ test("AI 편집 검토는 JSON이 아니면 실패한다", () => {
   expect(() => parseEditReview("검토 결과가 없습니다.", [], [], [])).toThrow("INVALID_EDIT_REVIEW");
 });
 
-test("약어 원문이 없으면 AI가 문제없다고 해도 규칙 검토가 경고한다", () => {
-  expect(buildDraftReviewFindings(BASE_TERM)).toEqual([
-    expect.objectContaining({
-      id: "rule-missing-english-expansion",
-      kind: "missing",
-      severity: "warning",
-      title: "약어의 원문을 확인할 수 없습니다",
-    }),
-  ]);
+test("약어와 영문 확장명의 누락·머리글자 차이는 규칙상 경고하지 않는다", () => {
+  expect(buildDraftReviewFindings(BASE_TERM)).toEqual([]);
   expect(buildDraftReviewFindings({ ...BASE_TERM, fullNameEn: "Make to Order" })).toEqual([]);
-  expect(buildDraftReviewFindings({ ...BASE_TERM, fullNameEn: "Make to Stock" })).toEqual([
-    expect.objectContaining({
-      id: "rule-english-expansion-mismatch",
-      kind: "consistency",
-      title: "약어와 전체 이름 표기를 확인해 주세요",
-    }),
-  ]);
+  expect(buildDraftReviewFindings({ ...BASE_TERM, fullNameEn: "Make to Stock" })).toEqual([]);
 });

@@ -124,7 +124,11 @@ export function IdentityReviewPanel({ initialCandidates, query, aiAvailable }: {
       });
       if (!response.ok) throw new Error(await errorMessage(response, "표기 정비 제안을 준비하지 못했습니다"));
       const body = await response.json() as { review?: IdentityReview | null };
-      setReviews((items) => ({ ...items, [candidate.id]: body.review ?? null }));
+      const review = body.review ?? null;
+      setReviews((items) => ({ ...items, [candidate.id]: review }));
+      if (review && review.suggestions.length === 0) {
+        setCandidates((items) => items.filter((item) => item.id !== candidate.id));
+      }
       if (announce) setMessage({ kind: "ok", text: `‘${candidate.name}’의 표기 정비 제안을 준비했습니다. 필드별로 확인해 주세요.` });
     } catch (error) {
       setErrors((items) => ({ ...items, [candidate.id]: error instanceof Error ? error.message : "표기 정비 제안을 준비하지 못했습니다." }));
@@ -195,7 +199,7 @@ export function IdentityReviewPanel({ initialCandidates, query, aiAvailable }: {
           ...body.candidate,
           revision: body.revision ?? item.revision + 1,
         };
-        return nextCandidate.issues.length === 0 && nextReview?.suggestions.length === 0 ? [] : [nextCandidate];
+        return nextReview && nextReview.suggestions.length === 0 ? [] : [nextCandidate];
       }));
       setMessage({ kind: "ok", text: `‘${candidate.name}’의 ${FIELD_LABEL[suggestion.field]} 제안을 승인해 저장했습니다.` });
     } catch (error) {
@@ -218,10 +222,14 @@ export function IdentityReviewPanel({ initialCandidates, query, aiAvailable }: {
         body: JSON.stringify({ termId: candidate.id, revision: review.revision, suggestionId: suggestion.id }),
       });
       if (!response.ok) throw new Error(await errorMessage(response, "표기 정비 제안을 거절하지 못했습니다"));
+      const nextReview = { ...review, suggestions: review.suggestions.filter((item) => item.id !== suggestion.id) };
       setReviews((items) => ({
         ...items,
-        [candidate.id]: { ...review, suggestions: review.suggestions.filter((item) => item.id !== suggestion.id) },
+        [candidate.id]: nextReview,
       }));
+      if (nextReview.suggestions.length === 0) {
+        setCandidates((items) => items.filter((item) => item.id !== candidate.id));
+      }
       setMessage({ kind: "ok", text: `‘${candidate.name}’의 제안을 이번 검토에서 제외했습니다.` });
     } catch (error) {
       const text = error instanceof Error ? error.message : "표기 정비 제안을 거절하지 못했습니다.";
@@ -243,7 +251,7 @@ export function IdentityReviewPanel({ initialCandidates, query, aiAvailable }: {
           <button type="submit" className="btn-primary btn-sm">필터</button>
           {query && <Link href="/contribute/fields?field=identity" className="btn-quiet btn-sm">초기화</Link>}
         </form>
-        <p className="text-xs text-ink-3">규칙상 확인할 표기 {candidates.length.toLocaleString("ko-KR")}개</p>
+        <p className="text-xs text-ink-3">검토·보완 대상 {candidates.length.toLocaleString("ko-KR")}개</p>
       </div>
 
       {autoProgress.active && <p role="status" className="text-xs text-brand">AI 제안 준비 중 {autoProgress.completed}/{autoProgress.total}</p>}
@@ -251,8 +259,8 @@ export function IdentityReviewPanel({ initialCandidates, query, aiAvailable }: {
       <div className="space-y-3">
         {candidates.length === 0 ? (
           <div className="card px-5 py-12 text-center">
-            <p className="text-sm font-medium text-ink">정리할 표기 문제가 없습니다.</p>
-            <p className="mt-1 text-xs text-ink-3">대표명·확장명·추가 표기와 관련된 규칙상 확인 항목이 없습니다.</p>
+            <p className="text-sm font-medium text-ink">검토·보완할 표기 대상이 없습니다.</p>
+            <p className="mt-1 text-xs text-ink-3">규칙상 오류가 있거나 도메인 문맥으로 AI가 채워볼 수 있는 누락 필드가 있는 용어가 없습니다.</p>
           </div>
         ) : candidates.map((candidate) => {
           const review = reviews[candidate.id];
@@ -265,7 +273,13 @@ export function IdentityReviewPanel({ initialCandidates, query, aiAvailable }: {
                   <div className="flex flex-wrap items-center gap-2">
                     <Link href={`/edit/${candidate.slug}`} className="font-semibold text-ink hover:text-brand">{candidate.name}</Link>
                     <span className="font-mono text-[11px] text-ink-3">/{candidate.slug}</span>
+                    {candidate.issues.length === 0 && <span className="chip chip-on !py-0.5 !text-[11px]">도메인 문맥 기반 AI 보완</span>}
                   </div>
+                  {(candidate.domain.length > 0 || candidate.categories.length > 0) && (
+                    <p className="mt-1 text-[11px] text-ink-3">
+                      {[candidate.domain.length > 0 ? `도메인: ${candidate.domain.join(" · ")}` : "", candidate.categories.length > 0 ? `업무: ${candidate.categories.join(" · ")}` : ""].filter(Boolean).join("  ·  ")}
+                    </p>
+                  )}
                   <div className="mt-2 flex flex-wrap gap-1">
                     {candidate.issues.map((issue) => <span key={issue.id} className={cx("chip !py-0.5 !text-[11px]", issue.severity === "warning" && "border-warn/35 bg-warn-soft text-warn")}>{issue.message}</span>)}
                   </div>
@@ -354,6 +368,9 @@ export function IdentityReviewPanel({ initialCandidates, query, aiAvailable }: {
                                   }
                                   return { ...items, [candidate.id]: { ...currentReview, suggestions: currentReview.suggestions.filter((item) => item.id !== suggestion.id) } };
                                 });
+                                if (disposition !== "deferred" && !review.suggestions.some((item) => item.id !== suggestion.id)) {
+                                  setCandidates((items) => items.filter((item) => item.id !== candidate.id));
+                                }
                                 setMessage({ kind: "ok", text: disposition === "dismissed" ? "오탐으로 숨겼습니다. 같은 생성기 버전에서는 다시 표시하지 않습니다." : disposition === "saved" ? "내 작업에 저장했습니다." : "보류로 기록했습니다." });
                               }}
                             />

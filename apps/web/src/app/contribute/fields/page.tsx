@@ -32,7 +32,7 @@ const FIELD_ITEMS: ReadonlyArray<{
     key: "identity",
     label: "표기 정비",
     summary: "대표명·확장명·별칭·약어 정리",
-    help: "표기 언어·약어와 확장명의 불일치·중복·잘못된 표기 종류를 찾고 AI 제안을 필드별로 승인합니다.",
+    help: "표기 언어·중복·잘못된 표기 종류를 찾고, 도메인 문맥으로 보완할 수 있는 대표명·확장명·별칭을 AI 제안으로 승인합니다.",
     href: "/contribute/fields?field=identity",
   },
   {

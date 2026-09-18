@@ -84,6 +84,8 @@ export const PATCH = withApiErrors(async (request: Request) => {
         nameKo: current.nameKo,
         fullNameEn: current.fullNameEn,
         fullNameKo: current.fullNameKo,
+        domain: current.domain,
+        categories: current.categories,
         surfaces: current.surfaces,
         revision,
       })

@@ -1,6 +1,6 @@
 export const AI_SUGGESTION_GENERATOR_VERSIONS = {
   agent: 3,
-  identity: 2,
+  identity: 8,
   definition: 1,
   classification: 1,
   duplicate: 1,

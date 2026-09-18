@@ -119,41 +119,29 @@ export function parseEditReview(
   };
 }
 
-/** LLM이 놓쳐도 반드시 보여야 하는, 입력만으로 확정할 수 있는 검토 항목. */
+/**
+ * 약어와 영문 확장명의 관계는 표기 관례가 다양하므로 결정적 규칙으로
+ * 오류를 만들지 않는다. 필요한 보완은 reviewTermDraft의 AI가 도메인 문맥을
+ * 함께 보고 승인 전 제안으로만 만든다.
+ */
 export function buildDraftReviewFindings(term: TermWritePayload): EditReviewFinding[] {
-  const findings: EditReviewFinding[] = [];
-  const englishName = term.nameEn?.trim() ?? "";
-  const acronym = /^[A-Z][A-Z0-9-]{1,9}$/.test(englishName) ? englishName.replace(/-/g, "") : "";
-  const fullName = term.fullNameEn?.trim() ?? "";
-  if (acronym && !fullName) {
-    findings.push({
-      id: "rule-missing-english-expansion",
-      kind: "missing",
-      severity: "warning",
-      title: "약어의 원문을 확인할 수 없습니다",
-      description: `“${englishName}”은 약어 형태이지만 영문 전체 이름이 비어 있습니다. 원문과 정의가 맞는지 확인한 뒤 전체 이름을 입력해 주세요.`,
-      sources: [],
-    });
-  } else if (acronym && fullName) {
-    const initials = (fullName.match(/[A-Za-z0-9]+/g) ?? []).map((word) => word[0]!.toUpperCase()).join("");
-    if (initials && initials !== acronym) {
-      findings.push({
-        id: "rule-english-expansion-mismatch",
-        kind: "consistency",
-        severity: "warning",
-        title: "약어와 전체 이름 표기를 확인해 주세요",
-        description: `단순 머리글자 기준으로 “${englishName}”과 “${fullName}”(${initials})가 일치하지 않습니다. 합성어 표기 방식의 차이일 수도 있으므로 대표 표기와 전체 이름을 함께 확인해 주세요.`,
-        sources: [],
-      });
-    }
-  }
-  return findings;
+  void term;
+  return [];
 }
 
 export async function reviewTermDraft(term: TermWritePayload, currentSlug?: string, reviewerInstruction?: string): Promise<EditReviewResult> {
   const saved = await loadAiConfig();
   if (!saved.enabled) throw new Error("AI_NOT_ENABLED");
-  const question = [term.nameKo, term.nameEn, term.fullNameKo, term.fullNameEn, term.definitionMd, term.bodyMd?.slice(0, 2_000)]
+  const question = [
+    term.nameKo,
+    term.nameEn,
+    term.fullNameKo,
+    term.fullNameEn,
+    term.domain.join(" "),
+    term.category.join(" "),
+    term.definitionMd,
+    term.bodyMd?.slice(0, 2_000),
+  ]
     .filter(Boolean)
     .join("\n");
   const [grounding, domainOptions, categoryOptions] = await Promise.all([
@@ -191,7 +179,10 @@ export async function reviewTermDraft(term: TermWritePayload, currentSlug?: stri
         "사람이 이미 작성한 정의와 본문도 검토 대상입니다. 내용이 채워져 있다는 이유로 검토를 생략하지 말고, 작성 의도와 조직 고유의 의미를 보존하며 개선하세요.",
         DEFINITION_GUIDELINES,
         "정의를 작성할 근거가 부족하면 추측한 정의를 제안하지 말고, 필요한 정보를 missing finding으로 설명하세요.",
-        "대표 표기가 약어라면 full name의 누락·철자와 정의의 의미가 서로 맞는지 반드시 별도로 확인하세요.",
+        "fullNameEn과 fullNameKo는 선택 필드입니다. 약어와 영문 확장명의 머리글자·문자 대응을 규칙으로 오류 판정하지 말고, 확장명이 비어 있다는 이유만으로 missing finding을 만들지 마세요.",
+        "nameKo는 실제 한글 대표명이 근거 있을 때만 제안하세요. MTO처럼 한국에서도 영문 약어 그대로 쓰는 표기를 nameKo에 복사하지 말고, 공식 국문 표기가 없으면 비워 두세요.",
+        "fullNameKo는 nameKo 자체가 국문 약어·짧은 표기일 때만 제안하세요. nameKo가 ‘검색 증강 생성’처럼 이미 완전한 국문 표현이면 같은 값이나 단순한 변형을 fullNameKo로 반복하지 마세요.",
+        "대표 표기와 domain·category·definitionMd·bodyMd가 의미를 충분히 좁히면 EUV와 반도체처럼 누락된 full name·국문 표기·별칭을 고신뢰 suggestions로 보완하세요. 의미가 여러 개이거나 근거가 약하면 suggestions 대신 무엇이 필요한지 finding으로 적으세요.",
         "glossary는 이 조직에서 승인한 근거입니다. 일반 지식보다 우선하되 근거가 없으면 추측하지 마세요.",
         "반례를 찾지 못했다는 이유만으로 '정확함', '문제없음', '올바름'이라고 단정하지 마세요. 검증 근거가 부족하면 무엇을 확인할 수 없는지 finding으로 밝히세요.",
         "reviewerInstruction은 사용자가 준 검토 관점이지 사실로 확정된 근거가 아닙니다. glossary 및 필드 내용과 대조하면서 기본 검토도 빠뜨리지 마세요.",

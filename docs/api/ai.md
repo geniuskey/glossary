@@ -246,9 +246,11 @@ AI 관계 제안을 승인하거나 거절한다.
 ### `POST /contributions/identity-review`
 
 현재 용어의 대표 영문·국문, 영문·국문 확장명, 별칭·약어·표기 종류를 규칙과 용어집 근거로
-검토한다. 로그인 세션 또는 `write` API Key가 필요하며, `termId`와 현재 `expectedRevision`을
-보낸다. 결과는 `findings`, `suggestions`, `uncertainties`로 반환되고 저장은 승인 전까지
-발생하지 않는다. 같은 용어 리비전의 결과는 재사용하며 `force: true`로 다시 생성할 수 있다.
+검토한다. 약어와 영문 확장명의 머리글자 대응은 규칙으로 판정하지 않는다. `nameKo`는 공식
+국문 표기가 있을 때만, `fullNameKo`는 국문 대표명이 약어일 때만 제안한다. 로그인 세션 또는
+`write` API Key가 필요하며, `termId`와 현재 `expectedRevision`을 보낸다. 결과는 `findings`,
+`suggestions`, `uncertainties`로 반환되고 저장은 승인 전까지 발생하지 않는다. 같은 용어
+리비전의 결과는 재사용하며 `force: true`로 다시 생성할 수 있다.
 
 ```json
 {
