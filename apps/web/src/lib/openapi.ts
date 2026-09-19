@@ -1382,7 +1382,8 @@ export const openApiSpec = {
       },
       post: {
         summary: "용어집 근거 질문과 용어 생성·수정안 작성",
-        description: "질문·등록·수정·회의록 분석 의도를 구분합니다. 근거 답변에는 주장별 인용과 구절·리비전 스냅샷인 grounded를 반환하며, 회의록 분석에는 사용자 원문 M·용어집 G·위키 W 근거를 연결한 meeting을 반환합니다. 같은 도메인 안에서 최대 2회 검색합니다. 등록은 초안, 수정은 적용 전 edit 제안을 반환합니다. 로그인 세션 응답에는 저장된 messages도 포함됩니다.",
+        description: "질문·등록·수정·회의록 분석 의도를 구분합니다. 근거 답변에는 주장별 인용과 구절·리비전 스냅샷인 grounded를 반환하며, 회의록 분석에는 사용자 원문 M·용어집 G·위키 W 근거를 연결한 meeting을 반환합니다. 같은 도메인 안에서 최대 2회 검색합니다. 등록은 초안, 수정은 적용 전 edit 제안을 반환합니다. 로그인 세션 응답에는 저장된 messages도 포함되며, API Key(read) 호출은 대화 내용을 저장하지 않습니다.",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",
           required: ["question"],

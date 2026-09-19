@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
-import { aiConfig, chatConversations, createDb, users } from "@glossary/db";
+import { aiConfig, apiKeys, chatConversations, createDb, users } from "@glossary/db";
+import { generateApiKey } from "../src/lib/auth/api-key.js";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
 
@@ -16,6 +17,7 @@ const { GET, POST, DELETE } = await import("../src/app/api/v1/chat/route.js");
 const db = createDb(process.env.DATABASE_URL_TEST!);
 let originalConfig: typeof aiConfig.$inferSelect | undefined;
 let userId = "";
+const createdKeyIds: string[] = [];
 
 beforeAll(async () => {
   [originalConfig] = await db.select().from(aiConfig).where(eq(aiConfig.id, "default")).limit(1);
@@ -32,6 +34,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.delete(aiConfig).where(eq(aiConfig.id, "default"));
   if (originalConfig) await db.insert(aiConfig).values(originalConfig);
+  for (const id of createdKeyIds) await db.delete(apiKeys).where(eq(apiKeys.id, id));
   if (userId) await db.delete(users).where(eq(users.id, userId));
 });
 
@@ -57,6 +60,26 @@ test("로그인 사용자는 접근할 수 있고 비활성 상태는 명확한 
   const body = await response.json();
   expect(body.error.code).toBe("ai_not_enabled");
   expect(body.error.details.sessionId).toMatch(/^[0-9a-f-]{36}$/);
+});
+
+test("read API 키로 로그인 없이 용어집 챗봇 API에 접근할 수 있다", async () => {
+  currentCookieValue = undefined;
+  const { token, prefix, hash } = generateApiKey();
+  const [key] = await db.insert(apiKeys).values({
+    name: "chat route test",
+    prefix,
+    keyHash: hash,
+    scopes: ["read"],
+  }).returning();
+  createdKeyIds.push(key!.id);
+
+  const response = await POST(new Request("https://glossary.example.com/api/v1/chat", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ question: "IT란?" }),
+  }));
+  expect(response.status).toBe(503);
+  expect((await response.json()).error.code).toBe("ai_not_enabled");
 });
 
 test("질문과 대화 길이·역할을 서버에서 검증한다", async () => {
