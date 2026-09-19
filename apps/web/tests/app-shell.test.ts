@@ -9,8 +9,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 
-test("사이드바 탐색과 상단 검색·생성·계정 영역을 분리한다", () => {
-  const html = renderToStaticMarkup(AppShell({
+test("사이드바 탐색과 상단 검색·생성·계정 영역을 분리한다", async () => {
+  const html = renderToStaticMarkup(await AppShell({
     user: { id: "editor-1", email: "editor@example.com", name: "편집자", role: "editor" },
     title: "시트",
     children: "본문",
@@ -53,8 +53,8 @@ test("설정과 관리자, 도움말 링크는 개인 계정 하위 메뉴에 �
   expect(html).not.toContain('앱 버전 v0.2.1');
 });
 
-test("roomy 본문은 문서 여백을 유지하면서 편집 화면 폭을 넓힌다", () => {
-  const html = renderToStaticMarkup(AppShell({
+test("roomy 본문은 문서 여백을 유지하면서 편집 화면 폭을 넓힌다", async () => {
+  const html = renderToStaticMarkup(await AppShell({
     user: null,
     title: "새 용어",
     roomy: true,
@@ -66,8 +66,8 @@ test("roomy 본문은 문서 여백을 유지하면서 편집 화면 폭을 넓�
   expect(html).not.toContain("max-w-4xl");
 });
 
-test("dense 본문은 작업 화면의 바깥 여백을 줄이고 더 넓게 쓴다", () => {
-  const html = renderToStaticMarkup(AppShell({
+test("dense 본문은 작업 화면의 바깥 여백을 줄이고 더 넓게 쓴다", async () => {
+  const html = renderToStaticMarkup(await AppShell({
     user: null,
     title: "용어 편집",
     dense: true,

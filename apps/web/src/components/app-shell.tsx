@@ -1,17 +1,20 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import type { CurrentUser } from "@/lib/auth/current-user";
 import { cx } from "@/lib/ui/format";
+import { getWorkspaceMenuSettings } from "@/lib/workspace/menu-settings";
+import { isWorkspaceMenuKey } from "@/lib/workspace/menu-settings-values";
 import { AccountMenu } from "./account-menu";
 import { CollapsibleSidebar } from "./collapsible-sidebar";
 import { SearchBox } from "./search-box";
 
 export type NavKey = "contribute" | "field-completion" | "sheet" | "classifications" | "graph" | "chat" | "meetings" | "wiki" | "api" | "import" | "statistics" | "settings" | "admin";
 
-export const APP_NAV_ITEMS: Array<{ key: NavKey; href: string; label: string; hint: string; icon: ReactNode; adminOnly?: true }> = [
+export const APP_NAV_ITEMS: Array<{ key: NavKey; href: string; label: string; hint: string; icon: ReactNode; adminOnly?: true; alwaysOn?: true }> = [
   { key: "contribute", href: "/contribute", label: "함께 정리", hint: "미완성", icon: <IconContribute /> },
   { key: "field-completion", href: "/contribute/fields", label: "필드 보완", hint: "정의 · 분류", icon: <IconFields /> },
-  { key: "sheet", href: "/sheet", label: "시트", hint: "표 편집", icon: <IconGrid /> },
+  { key: "sheet", href: "/sheet", label: "시트", hint: "표 편집", icon: <IconGrid />, alwaysOn: true },
   { key: "classifications", href: "/classifications", label: "분류 체계", hint: "도메인 · 업무", icon: <IconClassification /> },
   { key: "graph", href: "/graph", label: "관계도", hint: "맥락 탐색", icon: <IconGraph /> },
   { key: "chat", href: "/chat", label: "용어 챗봇", hint: "AI 질문", icon: <IconChat /> },
@@ -30,7 +33,7 @@ export const APP_NAV_ITEMS: Array<{ key: NavKey; href: string; label: string; hi
  * `wide`는 용어 표(그리드) 화면처럼 가로를 끝까지 써야 하는 경우다. 본문 폭을
  * 화면마다 제각각 정하면 사이드바와의 간격이 화면마다 달라 보인다.
  */
-export function AppShell({
+export async function AppShell({
   user,
   title,
   current,
@@ -49,6 +52,10 @@ export function AppShell({
   dense?: boolean;
   children: ReactNode;
 }) {
+  const menuSettings = await getWorkspaceMenuSettings();
+  if (current && isWorkspaceMenuKey(current) && !menuSettings[current]) redirect("/");
+  const visibleNavItems = APP_NAV_ITEMS.filter((item) => (item.alwaysOn || (isWorkspaceMenuKey(item.key) && menuSettings[item.key])) && (!item.adminOnly || user?.role === "admin"));
+
   return (
     <div className="min-h-screen lg:flex">
       <a
@@ -73,7 +80,7 @@ export function AppShell({
         )}
         navigation={(
           <nav id="primary-navigation" aria-label="주 메뉴" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto lg:flex-none lg:flex-col lg:items-stretch lg:gap-0.5 lg:px-2">
-            {APP_NAV_ITEMS.filter((item) => !item.adminOnly || user?.role === "admin").map((item) => {
+            {visibleNavItems.map((item) => {
               const active = item.key === current;
               return (
                 <Link

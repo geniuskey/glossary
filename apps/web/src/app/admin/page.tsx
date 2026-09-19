@@ -11,6 +11,7 @@ import { getRagIndexStats } from "@/lib/rag/indexer";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { authMode, oauth2ProxyEnabled, proxyHeaderNames } from "@/lib/auth/sso/proxy-headers";
 import { getHomeContent } from "@/lib/workspace/home-content";
+import { getWorkspaceMenuSettings } from "@/lib/workspace/menu-settings";
 import { getTermQualityOverview, getTermQualitySettings } from "@/lib/workspace/term-quality";
 import { cx } from "@/lib/ui/format";
 import { AiSettingsPanel } from "./ai-settings-panel";
@@ -21,11 +22,13 @@ import { TermQualityPanel } from "./term-quality-panel";
 import { UsersPanel } from "./users-panel";
 import { DataExportPanel } from "./data-export-panel";
 import { SsoSettingsForm } from "@/app/settings/sso/sso-settings-form";
+import { MenuSettingsPanel } from "./menu-settings-panel";
 
 export const metadata = { title: "관리자" };
 
 const ADMIN_TABS = [
   { key: "home", label: "홈 화면" },
+  { key: "menus", label: "메뉴 구성" },
   { key: "quality", label: "콘텐츠 완성도" },
   { key: "ai", label: "AI 연결" },
   { key: "observability", label: "AI 모니터링" },
@@ -47,6 +50,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   let panel: ReactNode;
   if (tab === "home") panel = <HomeContentPanel initialContent={await getHomeContent()} />;
+  else if (tab === "menus") panel = <MenuSettingsPanel initialSettings={await getWorkspaceMenuSettings()} />;
   else if (tab === "quality") {
     const settings = await getTermQualitySettings();
     panel = <TermQualityPanel overview={await getTermQualityOverview(settings)} />;

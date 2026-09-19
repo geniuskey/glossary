@@ -400,6 +400,66 @@ export const openApiSpec = {
         },
       },
     },
+    "/admin/menu-settings": {
+      get: {
+        summary: "사이드바 메뉴 표시 설정 조회",
+        description: "워크스페이스 전체에 적용되는 메뉴 표시 여부를 조회한다. 용어집 시트 메뉴는 항상 활성화된다.",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("{ settings: { ...menu visibility flags } }", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+      patch: {
+        summary: "사이드바 메뉴 표시 설정 수정",
+        description: "워크스페이스 전체의 부가 메뉴 표시 여부를 수정한다. 용어집 시트 메뉴는 끌 수 없다.",
+        security: [{ sessionCookie: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: [
+                  "contribute",
+                  "field-completion",
+                  "sheet",
+                  "classifications",
+                  "graph",
+                  "chat",
+                  "meetings",
+                  "wiki",
+                  "api",
+                  "import",
+                  "statistics",
+                ],
+                additionalProperties: false,
+                properties: {
+                  contribute: { type: "boolean" },
+                  "field-completion": { type: "boolean" },
+                  sheet: { type: "boolean", const: true },
+                  classifications: { type: "boolean" },
+                  graph: { type: "boolean" },
+                  chat: { type: "boolean" },
+                  meetings: { type: "boolean" },
+                  wiki: { type: "boolean" },
+                  api: { type: "boolean" },
+                  import: { type: "boolean" },
+                  statistics: { type: "boolean" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": json("저장된 메뉴 표시 설정", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+    },
     "/admin/term-quality": {
       get: {
         summary: "용어 작성 수준 조회",

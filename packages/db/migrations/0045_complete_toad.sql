@@ -1,0 +1,1 @@
+ALTER TABLE "workspace_settings" ADD COLUMN "menu_settings" jsonb DEFAULT '{}'::jsonb NOT NULL;

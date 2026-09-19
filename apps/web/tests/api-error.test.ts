@@ -30,6 +30,7 @@ import * as ssoProxyCheckRoute from "../src/app/api/v1/sso/proxy-check/route.js"
 import * as adminHomeContentRoute from "../src/app/api/v1/admin/home-content/route.js";
 import * as adminTermExportRoute from "../src/app/api/v1/admin/exports/terms/route.js";
 import * as adminTermQualityRoute from "../src/app/api/v1/admin/term-quality/route.js";
+import * as adminMenuSettingsRoute from "../src/app/api/v1/admin/menu-settings/route.js";
 import * as adminTermDefinitionsRoute from "../src/app/api/v1/admin/term-definitions/route.js";
 import * as adminAiConfigRoute from "../src/app/api/v1/admin/ai-config/route.js";
 import * as adminAiConfigTestRoute from "../src/app/api/v1/admin/ai-config/test/route.js";
@@ -142,6 +143,7 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "sso/proxy-check", mod: ssoProxyCheckRoute, allowed: ["GET"], allow: "GET, HEAD" },
   { name: "admin/home-content", mod: adminHomeContentRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
   { name: "admin/exports/terms", mod: adminTermExportRoute, allowed: ["GET"], allow: "GET, HEAD" },
+  { name: "admin/menu-settings", mod: adminMenuSettingsRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
   { name: "admin/term-quality", mod: adminTermQualityRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "admin/term-definitions", mod: adminTermDefinitionsRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "admin/ai-config", mod: adminAiConfigRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },

@@ -54,6 +54,8 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | GET | [`/wiki/{slug}`](/api/rag#위키-지식) | `read` | 위키 문서 조회 |
 | PATCH | [`/wiki/{slug}`](/api/rag#위키-지식) | `write` | 위키 문서 수정·RAG 색인 예약 |
 | GET | [`/admin/exports/terms`](/api/import#관리자용-전체-스냅샷) | 세션(admin) | 서버 전체 용어집 읽기 전용 스냅샷 다운로드 |
+| GET | `/admin/menu-settings` | 세션(admin) | 사이드바 메뉴 표시 설정 조회 |
+| PATCH | `/admin/menu-settings` | 세션(admin) | 워크스페이스 전체의 부가 메뉴 표시 여부 저장 |
 | GET | [`/admin/term-quality`](/api/ai#콘텐츠-완성도) | 세션(admin) | 콘텐츠 완성도 조회 |
 | POST | [`/admin/term-quality`](/api/ai#콘텐츠-완성도) | 세션(admin) | 최소 길이 변경 영향 미리보기 |
 | PATCH | [`/admin/term-quality`](/api/ai#콘텐츠-완성도) | 세션(admin) | 최소 길이 저장 |
