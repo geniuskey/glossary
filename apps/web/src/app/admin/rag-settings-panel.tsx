@@ -232,7 +232,7 @@ export function RagSettingsPanel({ initialConfig }: { initialConfig: PublicRagCo
           topK: config.topK,
         }),
       });
-      const body = await response.json().catch(() => null) as { config?: PublicRagConfig; queued?: number; error?: { message?: string; details?: { formErrors?: string[] } } } | null;
+      const body = await response.json().catch(() => null) as { config?: PublicRagConfig; queued?: number; queuedMeetings?: number; queuedWikiPages?: number; error?: { message?: string; details?: { formErrors?: string[] } } } | null;
       if (!response.ok || !body?.config) {
         setMessage({ kind: "bad", text: body?.error?.details?.formErrors?.join(" ") || body?.error?.message || `저장하지 못했습니다 (${response.status}).` });
         return;
@@ -245,7 +245,12 @@ export function RagSettingsPanel({ initialConfig }: { initialConfig: PublicRagCo
       setClearRerankerApiKey(false);
       setEmbeddingHeaders(headersOf(body.config.embedding));
       setRerankerHeaders(headersOf(body.config.reranker));
-      setMessage({ kind: "ok", text: `RAG 설정을 저장했습니다. ${body.queued ? `${body.queued.toLocaleString("ko-KR")}개 용어를 재색인 대기열에 넣었습니다.` : ""}`.trim() });
+      const queuedText = [
+        body.queued ? `${body.queued.toLocaleString("ko-KR")}개 용어` : "",
+        body.queuedMeetings ? `${body.queuedMeetings.toLocaleString("ko-KR")}개 회의록` : "",
+        body.queuedWikiPages ? `${body.queuedWikiPages.toLocaleString("ko-KR")}개 위키` : "",
+      ].filter(Boolean).join(", ");
+      setMessage({ kind: "ok", text: `RAG 설정을 저장했습니다. ${queuedText ? `${queuedText}를 재색인 대기열에 넣었습니다.` : ""}`.trim() });
     } catch {
       setMessage({ kind: "bad", text: "네트워크 오류로 저장하지 못했습니다." });
     } finally {
@@ -397,7 +402,8 @@ export function RagSettingsPanel({ initialConfig }: { initialConfig: PublicRagCo
           <div className="flex flex-wrap items-center gap-4 border-b border-line bg-panel-2/50 px-4 py-3">
             <div><p className="text-xs text-ink-3">현재 용어 색인</p><p className="mt-1 font-mono text-lg font-semibold tabular-nums text-ink">{config.stats.indexedTerms.toLocaleString("ko-KR")} / {config.stats.totalTerms.toLocaleString("ko-KR")}개</p></div>
             <div><p className="text-xs text-ink-3">회의록 색인</p><p className="mt-1 font-mono text-lg font-semibold tabular-nums text-ink">{config.stats.indexedMeetings.toLocaleString("ko-KR")} / {config.stats.totalMeetings.toLocaleString("ko-KR")}개</p></div>
-            <div className="text-xs leading-5 text-ink-2">용어 청크 {config.stats.indexedChunks.toLocaleString("ko-KR")}개 · 회의록 청크 {config.stats.meetingIndexedChunks.toLocaleString("ko-KR")}개 · 대기 {config.stats.queued.toLocaleString("ko-KR")}개 · 실패 {config.stats.failed.toLocaleString("ko-KR")}개</div>
+            <div><p className="text-xs text-ink-3">위키 색인</p><p className="mt-1 font-mono text-lg font-semibold tabular-nums text-ink">{config.stats.indexedWikiPages.toLocaleString("ko-KR")} / {config.stats.totalWikiPages.toLocaleString("ko-KR")}개</p></div>
+            <div className="text-xs leading-5 text-ink-2">용어 청크 {config.stats.indexedChunks.toLocaleString("ko-KR")}개 · 회의록 청크 {config.stats.meetingIndexedChunks.toLocaleString("ko-KR")}개 · 위키 청크 {config.stats.wikiIndexedChunks.toLocaleString("ko-KR")}개 · 대기 {config.stats.queued.toLocaleString("ko-KR")}개 · 실패 {config.stats.failed.toLocaleString("ko-KR")}개</div>
             <div className="ml-auto flex flex-wrap gap-2">
               <button type="button" className="btn-ghost btn-sm" disabled={saving || testing || dirty || !config.secretsReadable} onClick={() => void testConnection()}>{testing ? "연결 확인 중…" : "연결 테스트"}</button>
               <button type="button" className="btn-ghost btn-sm" disabled={saving || reindexing || dirty || !config.enabled} onClick={() => void reindex()}>{reindexing ? "대기열 생성 중…" : "전체 재색인"}</button>

@@ -8,7 +8,7 @@ export interface SearchHit extends TermSummary {
   definitionMd: string | null;
   /**
    * 검색어가 실제로 맞은 표기. 표준명과 다를 수 있다("SoC"를 쳐서
-   * System on Chip이 나오는 경우) — 그때 이 값이 `/w/<slug>?from=` 의 근거가
+   * System on Chip이 나오는 경우) — 그때 이 값이 `/g/<slug>?from=` 의 근거가
    * 된다. 어떤 표기 때문에 이 결과가 나왔는지 보여주지 않으면, 검색 결과가
    * 왜 나왔는지 알 수 없는 목록이 된다.
    */

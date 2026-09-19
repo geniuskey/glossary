@@ -10,7 +10,7 @@ import { listDomains } from "@/lib/terms/domains";
 
 export const metadata = { title: "새 용어" };
 
-// R135: 이 화면은 이제 `/new`(최상위)다. 슬러그는 `/w/` 아래에만 있으므로 더는
+// R135: 이 화면은 이제 `/new`(최상위)다. 용어 슬러그는 `/g/` 아래에만 있으므로 더는
 // 같은 네임스페이스에서 부딪히지 않지만, RESERVED_SLUGS의 "new"는 그대로 둔다 —
 // 옛 주소 `/terms/new`가 next.config의 리다이렉트로 이 폼에 오기 때문에, 슬러그가
 // "new"인 용어가 생기면 그 용어의 옛 링크가 폼으로 새어 들어간다.

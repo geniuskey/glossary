@@ -35,14 +35,14 @@ function hit(over: Partial<Suggestion>): Suggestion {
 
 test("termHref: 표준명으로 맞았으면 ?from=을 붙이지 않는다", () => {
   const base = { slug: "soc", nameEn: "System on Chip", nameKo: "시스템 온 칩" };
-  expect(termHref({ ...base, matchedText: "System on Chip" })).toBe("/w/soc");
-  expect(termHref({ ...base, matchedText: "시스템 온 칩" })).toBe("/w/soc");
+  expect(termHref({ ...base, matchedText: "System on Chip" })).toBe("/g/soc");
+  expect(termHref({ ...base, matchedText: "시스템 온 칩" })).toBe("/g/soc");
 });
 
 test("termHref: 다른 표기로 맞았으면 그 표기를 ?from=으로 싣는다", () => {
   const href = termHref({ slug: "soc", nameEn: "System on Chip", nameKo: null, matchedText: "SoC 칩" });
   const url = new URL(href, "http://x");
-  expect(url.pathname).toBe("/w/soc");
+  expect(url.pathname).toBe("/g/soc");
   // 공백·한글이 그대로 실리면 주소가 깨진다.
   expect(url.searchParams.get("from")).toBe("SoC 칩");
 });

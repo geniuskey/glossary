@@ -12,6 +12,9 @@ import {
   meetingDocuments,
   meetingRagDocuments,
   meetingRagIndexQueue,
+  wikiPages,
+  wikiRagDocuments,
+  wikiRagIndexQueue,
 } from "@glossary/db";
 import { scheduleAfterResponse } from "@/lib/after-response";
 import { getDb } from "@/lib/db";
@@ -419,6 +422,7 @@ export async function getRagIndexStats(): Promise<import("./config-values").RagI
   const db = getDb();
   const [total] = await db.select({ count: sql<number>`count(*)::int` }).from(terms).where(sql`${terms.replacedById} is null`);
   const [meetingTotal] = await db.select({ count: sql<number>`count(*)::int` }).from(meetingDocuments).where(eq(meetingDocuments.status, "active"));
+  const [wikiTotal] = await db.select({ count: sql<number>`count(*)::int` }).from(wikiPages).where(eq(wikiPages.status, "published"));
   const [indexed] = await db.select({
     terms: sql<number>`count(distinct ${ragDocuments.termId})::int`,
     chunks: sql<number>`count(*)::int`,
@@ -445,6 +449,19 @@ export async function getRagIndexStats(): Promise<import("./config-values").RagI
       eq(meetingDocuments.status, "active"),
       sql`${meetingRagDocuments.revision} = ${meetingDocuments.revision}`,
     ));
+  const [wikiIndexed] = await db.select({
+    pages: sql<number>`count(distinct ${wikiRagDocuments.wikiPageId})::int`,
+    chunks: sql<number>`count(*)::int`,
+  }).from(wikiRagDocuments)
+    .innerJoin(wikiPages, eq(wikiPages.id, wikiRagDocuments.wikiPageId))
+    .innerJoin(wikiRagIndexQueue, and(
+      eq(wikiRagIndexQueue.wikiPageId, wikiRagDocuments.wikiPageId),
+      eq(wikiRagIndexQueue.revision, wikiRagDocuments.revision),
+      eq(wikiRagIndexQueue.status, "ready"),
+    )).where(and(
+      eq(wikiPages.status, "published"),
+      sql`${wikiRagDocuments.revision} = ${wikiPages.revision}`,
+    ));
   const queueRows = await db.select({ status: ragIndexQueue.status, count: sql<number>`count(*)::int` })
     .from(ragIndexQueue)
     .innerJoin(terms, eq(terms.id, ragIndexQueue.termId))
@@ -455,8 +472,13 @@ export async function getRagIndexStats(): Promise<import("./config-values").RagI
     .innerJoin(meetingDocuments, eq(meetingDocuments.id, meetingRagIndexQueue.meetingDocumentId))
     .where(eq(meetingDocuments.status, "active"))
     .groupBy(meetingRagIndexQueue.status);
+  const wikiQueueRows = await db.select({ status: wikiRagIndexQueue.status, count: sql<number>`count(*)::int` })
+    .from(wikiRagIndexQueue)
+    .innerJoin(wikiPages, eq(wikiPages.id, wikiRagIndexQueue.wikiPageId))
+    .where(eq(wikiPages.status, "published"))
+    .groupBy(wikiRagIndexQueue.status);
   const counts = new Map<string, number>();
-  for (const row of [...queueRows, ...meetingQueueRows]) counts.set(row.status, (counts.get(row.status) ?? 0) + row.count);
+  for (const row of [...queueRows, ...meetingQueueRows, ...wikiQueueRows]) counts.set(row.status, (counts.get(row.status) ?? 0) + row.count);
   const [last] = await db.select({ value: sql<Date | null>`max(${ragDocuments.createdAt})` }).from(ragDocuments)
     .innerJoin(terms, eq(terms.id, ragDocuments.termId))
     .innerJoin(ragIndexQueue, and(
@@ -474,6 +496,9 @@ export async function getRagIndexStats(): Promise<import("./config-values").RagI
     totalMeetings: meetingTotal?.count ?? 0,
     indexedMeetings: meetingIndexed?.meetings ?? 0,
     meetingIndexedChunks: meetingIndexed?.chunks ?? 0,
+    totalWikiPages: wikiTotal?.count ?? 0,
+    indexedWikiPages: wikiIndexed?.pages ?? 0,
+    wikiIndexedChunks: wikiIndexed?.chunks ?? 0,
     queued: counts.get("queued") ?? 0,
     processing: counts.get("processing") ?? 0,
     ready: counts.get("ready") ?? 0,

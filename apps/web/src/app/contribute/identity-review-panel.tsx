@@ -88,7 +88,7 @@ function sourceLinks(sources: readonly IdentityReviewSource[]): React.ReactNode 
     <div className="mt-2 flex flex-wrap items-center gap-1 text-[11px] text-ink-3">
       <span>근거</span>
       {sources.map((source) => (
-        <Link key={source.slug} href={`/w/${source.slug}`} target="_blank" rel="noreferrer" className="break-words rounded bg-panel-2 px-1.5 py-0.5 hover:text-brand">
+        <Link key={source.slug} href={`/g/${source.slug}`} target="_blank" rel="noreferrer" className="break-words rounded bg-panel-2 px-1.5 py-0.5 hover:text-brand">
           {source.title}
         </Link>
       ))}

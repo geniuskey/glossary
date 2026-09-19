@@ -52,6 +52,9 @@ export interface RagIndexStats {
   totalMeetings: number;
   indexedMeetings: number;
   meetingIndexedChunks: number;
+  totalWikiPages: number;
+  indexedWikiPages: number;
+  wikiIndexedChunks: number;
   queued: number;
   processing: number;
   ready: number;

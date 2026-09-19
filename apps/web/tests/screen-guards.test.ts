@@ -221,7 +221,7 @@ test("용어 챗봇은 세션 목록을 제공하고 현재 대화를 URL에 남
   expect(content).toContain('fetch(`/api/v1/chat${query}`, { signal: controller.signal })');
   expect(content).toContain('window.history.pushState(null, "", `/c/${encodeURIComponent(sessionId)}`)');
   expect(content).toContain('window.history.replaceState(null, "", `/c/${encodeURIComponent(returnedSessionId)}`)');
-  expect(content).toContain('href={`/w/${source.slug}`}');
+  expect(content).toContain('href={`/g/${source.slug}`}');
   expect(page).toContain("initialSessionId={id}");
 });
 

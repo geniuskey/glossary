@@ -28,7 +28,7 @@ export default async function TermHistoryPage({ params }: { params: Promise<{ sl
           시트
         </Link>
         <span className="mx-1.5">/</span>
-        <Link href={`/w/${term.slug}`} className="link">
+        <Link href={`/g/${term.slug}`} className="link">
           {displayName(term)}
         </Link>
         <span className="mx-1.5">/</span>

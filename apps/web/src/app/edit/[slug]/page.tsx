@@ -68,7 +68,7 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
         <div className="ml-auto flex gap-1.5">
           {/* R135: 시트에서 용어를 누르면 곧장 이 화면으로 온다(보기 화면을
               거치지 않는다) — 읽기만 하려던 사람이 되돌아갈 문이 있어야 한다. */}
-          <Link href={`/w/${term.slug}`} className="btn-ghost btn-sm">
+          <Link href={`/g/${term.slug}`} className="btn-ghost btn-sm">
             보기
           </Link>
           <Link href={`/history/${term.slug}`} className="btn-ghost btn-sm">

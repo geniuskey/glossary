@@ -41,7 +41,7 @@ function SourceLinks({ sources }: { sources: EditReviewSource[] }) {
     <div className="mt-2 flex flex-wrap items-center gap-1 text-[11px] text-ink-3">
       <span>근거</span>
       {sources.map((source) => (
-        <Link key={source.slug} href={`/w/${source.slug}`} target="_blank" rel="noreferrer" className="rounded bg-panel-2 px-1.5 py-0.5 hover:text-brand">
+        <Link key={source.slug} href={`/g/${source.slug}`} target="_blank" rel="noreferrer" className="rounded bg-panel-2 px-1.5 py-0.5 hover:text-brand">
           {source.title}
         </Link>
       ))}
@@ -228,7 +228,7 @@ export function TermAiReviewPanel({
                 </div>
                 <div className="grid gap-2 lg:grid-cols-2">
                   {review.relations.map((relation) => (
-                    <Link key={relation.id} href={`/w/${relation.targetSlug}`} target="_blank" rel="noreferrer" className="rounded-lg border border-line bg-panel px-3 py-2.5 text-xs hover:border-brand/40">
+                  <Link key={relation.id} href={`/g/${relation.targetSlug}`} target="_blank" rel="noreferrer" className="rounded-lg border border-line bg-panel px-3 py-2.5 text-xs hover:border-brand/40">
                       <span className="font-medium text-ink">{relation.targetName}</span>
                       <span className="ml-2 text-ink-3">{RELATION_LABEL[relation.relationType]} · {relation.confidence}%</span>
                       <span className="mt-1 block leading-5 text-ink-3">{relation.reason}</span>

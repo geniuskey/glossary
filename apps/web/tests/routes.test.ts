@@ -87,7 +87,7 @@ test("R135: app/terms/ 화면 디렉터리는 없다", () => {
 });
 
 // 리다이렉트는 위에서부터 처음 맞는 것 하나만 적용된다 — `/terms/:slug`가
-// `/terms/new`보다 위에 있으면 생성 폼 링크가 `/w/new`로 가 버린다. 각 source를
+// `/terms/new`보다 위에 있으면 생성 폼 링크가 `/new`로 가 버린다. 각 source를
 // 자기 자신으로 조회했을 때 처음 맞는 규칙이 자기 자신인지로 순서를 잠근다.
 function sourceMatcher(source: string): RegExp {
   const pattern = source
@@ -109,7 +109,7 @@ test("R135: 좁은 규칙이 넓은 규칙보다 먼저 온다 (/terms/new가 /t
 
 test("R135 자기검사: 순서가 뒤집힌 표는 위 판정을 통과하지 못한다", () => {
   const flipped = [
-    { source: "/terms/:slug", destination: "/w/:slug" },
+    { source: "/terms/:slug", destination: "/g/:slug" },
     { source: "/terms/new", destination: "/new" },
   ];
   const first = flipped.find((c) => sourceMatcher(c.source).test("/terms/new"));

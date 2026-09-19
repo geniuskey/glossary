@@ -44,7 +44,7 @@ function PairTermCard({ term, label }: { term: DuplicatePairTerm; label: string 
   return (
     <div className="min-w-0 rounded-lg border border-line bg-panel-2 p-3">
       <p className="text-xs font-medium text-ink-3">{label}</p>
-      <Link className="mt-1 block break-words font-semibold link" href={`/w/${encodeURIComponent(term.slug ?? "")}`} target="_blank" rel="noreferrer">
+      <Link className="mt-1 block break-words font-semibold link" href={`/g/${encodeURIComponent(term.slug ?? "")}`} target="_blank" rel="noreferrer">
         {titleOf(term)}
       </Link>
       <p className="mt-1 break-all font-mono text-xs text-ink-3">/{term.slug}</p>

@@ -84,7 +84,7 @@ function EmbedCell({ row, column, links }: { row: TermRow; column: ColumnKey; li
   if (column === "updatedAt") text = new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium" }).format(new Date(row.updatedAt));
 
   if (links && (column === "nameEn" || column === "nameKo" || column === "slug") && text) {
-    return <Link href={`/w/${row.slug}`} target="_blank" rel="noopener noreferrer" className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:text-brand">{text}</Link>;
+    return <Link href={`/g/${row.slug}`} target="_blank" rel="noopener noreferrer" className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:text-brand">{text}</Link>;
   }
   return text || <span aria-label="값 없음" className="text-ink-3">—</span>;
 }

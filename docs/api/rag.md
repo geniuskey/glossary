@@ -5,10 +5,12 @@
 모두 `/api/v1` 기준이다.
 
 RAG 설정과 색인 대기열은 DB에 저장된다. 용어를 등록·수정하거나 분류 체계를 바꾸면 해당
-최신 내용이 대기열에 들어가며, 응답 뒤 백그라운드에서 색인한다. 기존 용어와 저장된
-회의록은 관리자 화면의 **전체 재색인**으로 다시 넣을 수 있다. `chatEnabled`를 켜면 용어
+최신 내용이 대기열에 들어가며, 응답 뒤 백그라운드에서 색인한다. 기존 용어·저장된 회의록·공개
+위키는 관리자 화면의 **전체 재색인**으로 다시 넣을 수 있다. `chatEnabled`를 켜면 용어
 챗봇도 이 색인을 표기·키워드 검색과 함께 사용하는 하이브리드 검색 경로를 선택적으로
-호출한다. 회의록은 용어와 별도 vector 인덱스를 사용하며, 보관된 회의록은 검색에서 제외된다.
+호출한다. 회의록과 위키는 용어와 별도 vector 인덱스를 사용한다. 보관된 회의록과 공개되지 않은 위키는
+검색에서 제외된다. 위키는 용어에 연결된 업무 원칙·프로세스·플레이북을 저장하는 지식
+문서이며, 초안은 검토 전까지 AI의 공식 근거가 되지 않는다.
 
 ## 관리자 설정
 
@@ -87,10 +89,10 @@ OpenAI-compatible 공급자의 `/v1/models`를 조회해 RAG 용도에 맞는 �
 
 ### `POST /admin/rag-config/reindex`
 
-현재 용어와 활성 회의록 전체를 최신 리비전 기준으로 대기열에 넣고 202를 반환한다.
+현재 용어·활성 회의록·공개 위키 전체를 최신 리비전 기준으로 대기열에 넣고 202를 반환한다.
 
 ```json
-{ "ok": true, "queued": 137, "queuedMeetings": 24 }
+{ "ok": true, "queued": 137, "queuedMeetings": 24, "queuedWikiPages": 18 }
 ```
 
 색인 통계의 `queued`, `processing`, `ready`, `failed`로 진행 상태를 확인한다. 공급자
@@ -209,3 +211,41 @@ RAG 검색 API는 용어집과 저장된 회의록 내용을 외부 Embedding/Re
 검색 결과에는 회의록 ID·제목·회의일·revision·원문 청크의 `startOffset`/`endOffset`가
 포함된다. 챗봇은 이 결과를 용어집 근거와 구분해 인용하고, 회의록이 당시 논의의 기록일
 뿐 현재 정책의 자동 승인은 아니라는 점을 답변 지침에 포함한다.
+
+## 위키 지식
+
+### `GET /wiki`
+
+로그인 세션 또는 `read` scope API Key로 위키 목록을 조회한다. `q`, `status`, `domain`,
+`termId`, `page`, `pageSize` 필터를 지원한다. 기본 목록에서는 archived 문서를 제외한다.
+
+### `POST /wiki`
+
+로그인 세션 또는 `write` scope API Key로 업무 지식 문서를 저장한다. `title`과 `content`가
+필수이며, `summary`, `domain`, `termSlugs`, `status`를 선택할 수 있다. `termSlugs`의 첫
+번째 용어는 대표 용어가 된다. slug를 생략하면 제목에서 만들고, 용어 slug와 겹치지 않도록
+자동으로 검사한다.
+
+```json
+{
+  "title": "출시 기준 플레이북",
+  "summary": "베타 출시 전 확인할 기준과 담당 흐름",
+  "domain": ["상품"],
+  "termSlugs": ["release-gate", "beta"],
+  "status": "draft",
+  "content": "## 체크리스트\n\n출시 기준을 확인한다."
+}
+```
+
+### `GET/PATCH /wiki/{slug}`
+
+문서 원문을 조회하거나 수정한다. 수정 때마다 revision과 감사용 snapshot이 남고, published
+문서는 최신 revision으로 RAG 색인이 예약된다. 초안 또는 archived로 바꾸면 기존 위키 청크가
+검색에서 제거된다.
+
+### `POST /rag/wiki/search` — 위키 벡터 검색
+
+로그인 세션 또는 `read` scope API Key가 필요하다. `POST /rag/search`와 같은 `query`, `topK`,
+`domain`, `rerank` 필드를 사용하지만 published 위키 문서만 검색한다. 결과에는 `wikiPageId`,
+`slug`, `revision`, `startOffset`, `endOffset`, `score`가 포함된다. 챗봇 근거에서는 위키
+출처를 `W`로 표시해 용어집 `G`, 회의록 `M`과 구분한다.

@@ -491,7 +491,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
                   {!message.grounded && message.sources && message.sources.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line/70 pt-2" aria-label="답변에 참고한 용어">
                       {message.sources.map((source) => (
-                        <Link key={source.slug} href={`/w/${source.slug}`} className="chip max-w-48 truncate hover:border-brand/40 hover:text-brand" title={source.definition || source.title}>
+                        <Link key={source.slug} href={`/g/${source.slug}`} className="chip max-w-48 truncate hover:border-brand/40 hover:text-brand" title={source.definition || source.title}>
                           {source.title}
                         </Link>
                       ))}

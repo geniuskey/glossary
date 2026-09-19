@@ -9,7 +9,7 @@ export function ChatEditCard({ edit, busy, processing, error, onAction }: {
 }) {
   return <section className="mt-3 rounded-xl border border-brand/30 bg-brand-soft/30 p-3 text-ink" aria-label={`${edit.title} 수정안`}>
     <div className="flex flex-wrap items-center gap-2">
-      <Link href={`/w/${edit.slug}`} className="font-semibold text-brand underline underline-offset-4">{edit.title}</Link>
+      <Link href={`/g/${edit.slug}`} className="font-semibold text-brand underline underline-offset-4">{edit.title}</Link>
       <span className="text-xs text-ink-3">{edit.status === "applied" ? "적용 완료" : edit.status === "cancelled" ? "취소됨" : "수정안 · 확인 필요"}</span>
     </div>
     <p className="mt-2 text-xs text-ink-2">{edit.reason}</p>

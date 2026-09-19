@@ -9,12 +9,14 @@ export interface MeetingInputEvidence {
 
 export interface MeetingCitation {
   id: string;
-  source: "meeting" | "glossary";
+  source: "meeting" | "glossary" | "wiki";
   excerpt: string;
   start?: number;
   title?: string;
   meetingDocumentId?: string;
   meetingDate?: string | null;
+  wikiPageId?: string;
+  wikiSlug?: string;
   termId?: string;
   slug?: string;
   revision?: number;

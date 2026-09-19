@@ -6,7 +6,7 @@ import { AccountMenu } from "./account-menu";
 import { CollapsibleSidebar } from "./collapsible-sidebar";
 import { SearchBox } from "./search-box";
 
-export type NavKey = "contribute" | "field-completion" | "sheet" | "classifications" | "graph" | "chat" | "meetings" | "api" | "import" | "statistics" | "settings" | "admin";
+export type NavKey = "contribute" | "field-completion" | "sheet" | "classifications" | "graph" | "chat" | "meetings" | "wiki" | "api" | "import" | "statistics" | "settings" | "admin";
 
 export const APP_NAV_ITEMS: Array<{ key: NavKey; href: string; label: string; hint: string; icon: ReactNode; adminOnly?: true }> = [
   { key: "contribute", href: "/contribute", label: "함께 정리", hint: "미완성", icon: <IconContribute /> },
@@ -16,6 +16,7 @@ export const APP_NAV_ITEMS: Array<{ key: NavKey; href: string; label: string; hi
   { key: "graph", href: "/graph", label: "관계도", hint: "맥락 탐색", icon: <IconGraph /> },
   { key: "chat", href: "/chat", label: "용어 챗봇", hint: "AI 질문", icon: <IconChat /> },
   { key: "meetings", href: "/meetings", label: "회의록 지식", hint: "조직 기억", icon: <IconMeeting /> },
+  { key: "wiki", href: "/w", label: "위키", hint: "업무 맥락", icon: <IconWiki /> },
   { key: "api", href: "/api", label: "API", hint: "개발자 연동", icon: <IconApi /> },
   { key: "import", href: "/import", label: "가져오기", hint: "엑셀", icon: <IconImport /> },
   { key: "statistics", href: "/statistics", label: "통계", hint: "운영 현황", icon: <IconStatistics />, adminOnly: true },
@@ -205,6 +206,15 @@ function IconMeeting() {
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
       <rect x="2" y="2.25" width="12" height="11.5" rx="1.6" />
       <path d="M5 1.75v2.5M11 1.75v2.5M2.25 6h11.5M5 8.5h2M9 8.5h2M5 11h4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconWiki() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <path d="M2.25 3.25A1.25 1.25 0 0 1 3.5 2h8.75a1.5 1.5 0 0 1 1.5 1.5v9.25a1.25 1.25 0 0 0-1.25-1.25H3.5a1.25 1.25 0 0 0-1.25 1.25V3.25Z" strokeLinejoin="round" />
+      <path d="M4.5 4.5h6M4.5 7h4.25M4.5 9.5h2.75" strokeLinecap="round" />
     </svg>
   );
 }

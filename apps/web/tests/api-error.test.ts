@@ -42,8 +42,11 @@ import * as adminRagConfigTestRoute from "../src/app/api/v1/admin/rag-config/tes
 import * as chatRoute from "../src/app/api/v1/chat/route.js";
 import * as ragSearchRoute from "../src/app/api/v1/rag/search/route.js";
 import * as ragMeetingSearchRoute from "../src/app/api/v1/rag/meetings/search/route.js";
+import * as ragWikiSearchRoute from "../src/app/api/v1/rag/wiki/search/route.js";
 import * as meetingsRoute from "../src/app/api/v1/meetings/route.js";
 import * as meetingRoute from "../src/app/api/v1/meetings/[id]/route.js";
+import * as wikiRoute from "../src/app/api/v1/wiki/route.js";
+import * as wikiSlugRoute from "../src/app/api/v1/wiki/[slug]/route.js";
 import * as chatActionsRoute from "../src/app/api/v1/chat/actions/route.js";
 import * as relationsRoute from "../src/app/api/v1/relations/route.js";
 import * as relationRoute from "../src/app/api/v1/relations/[id]/route.js";
@@ -152,8 +155,11 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "chat", mod: chatRoute, allowed: ["GET", "POST", "PATCH", "DELETE"], allow: "GET, HEAD, POST, PATCH, DELETE" },
   { name: "rag/search", mod: ragSearchRoute, allowed: ["POST"], allow: "POST" },
   { name: "rag/meetings/search", mod: ragMeetingSearchRoute, allowed: ["POST"], allow: "POST" },
+  { name: "rag/wiki/search", mod: ragWikiSearchRoute, allowed: ["POST"], allow: "POST" },
   { name: "meetings", mod: meetingsRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
   { name: "meetings/[id]", mod: meetingRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
+  { name: "wiki", mod: wikiRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
+  { name: "wiki/[slug]", mod: wikiSlugRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
   { name: "contributions/suggestions", mod: contributionSuggestionsRoute, allowed: ["GET", "PATCH", "DELETE"], allow: "GET, HEAD, PATCH, DELETE" },
   { name: "contributions/duplicates", mod: contributionDuplicatesRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "contributions/review-queue", mod: contributionReviewQueueRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },

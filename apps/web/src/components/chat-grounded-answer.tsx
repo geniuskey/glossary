@@ -47,12 +47,14 @@ export function ChatGroundedAnswer({ answer, messageId }: { answer: GroundedChat
       <p className="text-xs font-semibold text-ink">답변에 연결된 근거</p>
       {answer.evidence.map((item, index) => <div key={item.id} id={anchor(index + 1)} tabIndex={-1} className="scroll-mt-4 rounded-lg border border-line bg-panel-2/50 p-2.5 focus:outline focus:outline-2 focus:outline-brand">
         <p className="text-xs font-semibold text-ink">[{index + 1}] {item.title} · {EVIDENCE_FIELD_LABELS[item.field]}</p>
-        <p className="mt-1 text-[11px] text-ink-3">{item.source === "meeting" ? `회의록 리비전 ${item.revision}` : `용어집 리비전 ${item.revision}`} · {new Date(item.updatedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })} (한국 시간){item.meetingDate ? ` · 회의 ${new Date(item.meetingDate).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })}` : ""}</p>
+        <p className="mt-1 text-[11px] text-ink-3">{item.source === "meeting" ? `회의록 리비전 ${item.revision}` : item.source === "wiki" ? `위키 리비전 ${item.revision}` : `용어집 리비전 ${item.revision}`} · {new Date(item.updatedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })} (한국 시간){item.meetingDate ? ` · 회의 ${new Date(item.meetingDate).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })}` : ""}</p>
         <blockquote className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words border-l-2 border-brand/30 pl-2 text-xs leading-5 text-ink-2">{item.excerpt}</blockquote>
         {item.source === "meeting" ? (
           <div className="mt-2 flex flex-wrap gap-3 text-xs"><Link href="/meetings" className="text-brand underline">회의록 지식에서 보기</Link></div>
+        ) : item.source === "wiki" ? (
+          <div className="mt-2 flex flex-wrap gap-3 text-xs"><Link href={`/w/${item.wikiSlug ?? item.slug}`} className="text-brand underline">위키 문서에서 보기</Link></div>
         ) : <div className="mt-2 flex flex-wrap gap-3 text-xs">
-            <Link href={`/w/${item.termId ?? item.slug}`} className="text-brand underline">현재 용어</Link>
+            <Link href={`/g/${item.termId ?? item.slug}`} className="text-brand underline">현재 용어</Link>
             <Link href={`/history/${item.termId ?? item.slug}#revision-${item.revision}`} className="text-brand underline">기준 이력</Link>
             {item.relatedTerm && <Link href={`/history/${item.relatedTerm.termId ?? item.relatedTerm.slug}#revision-${item.relatedTerm.revision}`} className="text-brand underline">{item.relatedTerm.title} · 리비전 {item.relatedTerm.revision}</Link>}
           </div>}

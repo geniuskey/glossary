@@ -1,13 +1,14 @@
 import "server-only";
 
 import { and, arrayContains, desc, eq, inArray, or, sql } from "drizzle-orm";
-import { meetingDocuments, surfaceKeys, termRevisions, terms, termSurfaces } from "@glossary/db";
+import { meetingDocuments, surfaceKeys, termRevisions, terms, termSurfaces, wikiPages } from "@glossary/db";
 import { approvedRelations } from "@/lib/terms/relations";
 import { getDb } from "@/lib/db";
 import { relevantPassages } from "./passages";
 import { loadRagConfig } from "@/lib/rag/config";
 import { searchRag, type RagSearchHit } from "@/lib/rag/search";
 import { searchMeetingRag, type MeetingSearchHit } from "@/lib/rag/meeting-search";
+import { searchWikiRag, type WikiSearchHit } from "@/lib/rag/wiki-search";
 import type { AiRunContext } from "./observability-values";
 import type { ChatEvidence } from "./grounding-values";
 
@@ -59,18 +60,19 @@ function addRank(scores: Map<string, number>, ids: readonly string[], weight: nu
 }
 
 export async function retrieveGlossaryContext(question: string, limit = 12, options: RetrievalOptions = {}): Promise<ChatGrounding> {
-  const vectorResults = options.vectorSearch ? await optionalVectorHits(question, options) : { glossaryHits: [], meetingHits: [] };
-  return getDb().transaction((db) => retrieveSnapshot(db, question, limit, options, vectorResults.glossaryHits, vectorResults.meetingHits), { isolationLevel: "repeatable read", accessMode: "read only" });
+  const vectorResults = options.vectorSearch ? await optionalVectorHits(question, options) : { glossaryHits: [], meetingHits: [], wikiHits: [] };
+  return getDb().transaction((db) => retrieveSnapshot(db, question, limit, options, vectorResults.glossaryHits, vectorResults.meetingHits, vectorResults.wikiHits), { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
-async function optionalVectorHits(question: string, options: RetrievalOptions): Promise<{ glossaryHits: RagSearchHit[]; meetingHits: MeetingSearchHit[] }> {
+async function optionalVectorHits(question: string, options: RetrievalOptions): Promise<{ glossaryHits: RagSearchHit[]; meetingHits: MeetingSearchHit[]; wikiHits: WikiSearchHit[] }> {
   try {
     const config = await loadRagConfig();
-    if (!config.enabled || !config.chatEnabled) return { glossaryHits: [], meetingHits: [] };
+    if (!config.enabled || !config.chatEnabled) return { glossaryHits: [], meetingHits: [], wikiHits: [] };
     const hasActiveMeetings = options.includeMeetingDocuments !== false
       && (await getDb().select({ id: meetingDocuments.id }).from(meetingDocuments).where(eq(meetingDocuments.status, "active")).limit(1)).length > 0;
+    const hasPublishedWiki = (await getDb().select({ id: wikiPages.id }).from(wikiPages).where(eq(wikiPages.status, "published")).limit(1)).length > 0;
     const topK = Math.min(24, Math.max(8, limitForVectorSearch(options)));
-    const [glossaryResult, meetingResult] = await Promise.all([
+    const [glossaryResult, meetingResult, wikiResult] = await Promise.all([
       searchRag(question, {
         topK,
         domain: options.domain,
@@ -85,12 +87,20 @@ async function optionalVectorHits(question: string, options: RetrievalOptions): 
           rerank: config.rerankerEnabled,
           telemetry: options.telemetry,
         }).catch(() => [] as MeetingSearchHit[]),
+      !hasPublishedWiki
+        ? Promise.resolve([] as WikiSearchHit[])
+        : searchWikiRag(question, {
+          topK,
+          domain: options.domain,
+          rerank: config.rerankerEnabled,
+          telemetry: options.telemetry,
+        }).catch(() => [] as WikiSearchHit[]),
     ]);
-    return { glossaryHits: glossaryResult, meetingHits: meetingResult };
+    return { glossaryHits: glossaryResult, meetingHits: meetingResult, wikiHits: wikiResult };
   } catch {
     // The lexical path remains available when an optional vector provider is
     // unavailable. The failed provider call is still visible in AI telemetry.
-    return { glossaryHits: [], meetingHits: [] };
+    return { glossaryHits: [], meetingHits: [], wikiHits: [] };
   }
 }
 
@@ -105,12 +115,13 @@ async function retrieveSnapshot(
   options: RetrievalOptions,
   vectorHits: readonly RagSearchHit[] = [],
   meetingHits: readonly MeetingSearchHit[] = [],
+  wikiHits: readonly WikiSearchHit[] = [],
 ): Promise<ChatGrounding> {
   const key = surfaceKeys(question).normLoose;
   const keywords = retrievalKeywords(question);
   const passageKeywords = retrievalKeywords(options.passageQuery ?? question);
   const domainFilter = and(sql`${terms.replacedById} is null`, options.domain ? arrayContains(terms.domain, [options.domain]) : undefined);
-  if (!key && keywords.length === 0 && vectorHits.length === 0 && meetingHits.length === 0) return { context: "{\"terms\":[],\"relationships\":[],\"meetings\":[]}", sources: [] };
+  if (!key && keywords.length === 0 && vectorHits.length === 0 && meetingHits.length === 0 && wikiHits.length === 0) return { context: "{\"terms\":[],\"relationships\":[],\"meetings\":[],\"wiki\":[]}", sources: [] };
 
   const content = sql<string>`concat_ws(' ', ${terms.nameEn}, ${terms.nameKo}, ${terms.fullNameEn}, ${terms.fullNameKo}, ${terms.definitionMd}, ${terms.bodyMd})`;
   const [surfaceCandidates, contentCandidates] = await Promise.all([
@@ -178,19 +189,42 @@ async function retrieveSnapshot(
     meetingDocumentId: hit.meetingDocumentId,
     meetingDate: hit.meetingDate,
   }));
+  const wikiEvidence: ChatEvidence[] = wikiHits.map((hit) => ({
+    id: `wiki:${hit.wikiPageId}:${hit.revision}:${hit.id}`,
+    slug: hit.slug,
+    title: hit.title,
+    revision: hit.revision,
+    updatedAt: hit.updatedAt,
+    field: "wiki",
+    excerpt: hit.content.slice(0, 1_800),
+    start: hit.startOffset,
+    source: "wiki",
+    wikiPageId: hit.wikiPageId,
+    wikiSlug: hit.slug,
+  }));
+  const meetingEntries = meetingHits.map((hit) => ({
+    id: hit.meetingDocumentId,
+    title: hit.title,
+    meetingDate: hit.meetingDate,
+    source: hit.source,
+    team: hit.team,
+    domain: hit.domain,
+    revision: hit.revision,
+    excerpt: hit.content.slice(0, 1_800),
+  }));
+  const wikiEntries = wikiHits.map((hit) => ({
+    id: hit.wikiPageId,
+    slug: hit.slug,
+    title: hit.title,
+    summary: hit.summary,
+    domain: hit.domain,
+    revision: hit.revision,
+    excerpt: hit.content.slice(0, 1_800),
+  }));
   if (seedIds.length === 0) return {
-    context: JSON.stringify({ terms: [], relationships: [], meetings: meetingHits.map((hit) => ({
-      id: hit.meetingDocumentId,
-      title: hit.title,
-      meetingDate: hit.meetingDate,
-      source: hit.source,
-      team: hit.team,
-      domain: hit.domain,
-      revision: hit.revision,
-      excerpt: hit.content.slice(0, 1_800),
-    })) }),
+    context: JSON.stringify({ terms: [], relationships: [], meetings: meetingEntries, wiki: wikiEntries }),
     sources: [],
-    evidence: meetingEvidence,
+    evidence: [...meetingEvidence, ...wikiEvidence],
   };
 
   const graphSeeds = seedIds.slice(0, 6);
@@ -284,19 +318,9 @@ async function retrieveSnapshot(
       };
     });
 
-  const meetingEntries = meetingHits.map((hit) => ({
-    id: hit.meetingDocumentId,
-    title: hit.title,
-    meetingDate: hit.meetingDate,
-    source: hit.source,
-    team: hit.team,
-    domain: hit.domain,
-    revision: hit.revision,
-    excerpt: hit.content.slice(0, 1_800),
-  }));
   return {
-    context: JSON.stringify({ terms: entries, relationships, meetings: meetingEntries }),
-    evidence: [...evidence, ...meetingEvidence],
+    context: JSON.stringify({ terms: entries, relationships, meetings: meetingEntries, wiki: wikiEntries }),
+    evidence: [...evidence, ...meetingEvidence, ...wikiEvidence],
     sources: termRows.map((term) => ({
       termId: term.id,
       slug: term.slug,

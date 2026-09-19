@@ -11,7 +11,8 @@ import type {
 function citationLabels(evidence: MeetingCitation[]): Map<string, string> {
   let meeting = 0;
   let glossary = 0;
-  return new Map(evidence.map((item) => [item.id, item.source === "meeting" ? `M${++meeting}` : `G${++glossary}`]));
+  let wiki = 0;
+  return new Map(evidence.map((item) => [item.id, item.source === "meeting" ? `M${++meeting}` : item.source === "wiki" ? `W${++wiki}` : `G${++glossary}`]));
 }
 
 function CitationLinks({ evidenceIds, labels, messageId }: { evidenceIds: string[]; labels: Map<string, string>; messageId: number }) {
@@ -49,20 +50,22 @@ function EvidenceBlock({ analysis, labels, messageId }: { analysis: MeetingAnaly
     <div className="mt-2 space-y-2">
       {analysis.evidence.map((item) => {
         const label = labels.get(item.id) ?? "근거";
-        const title = item.source === "meeting" ? `${item.title ? `${item.title} ` : "회의록 "}${label}` : `${label} ${item.title ?? "용어집"}`;
+        const title = item.source === "meeting" ? `${item.title ? `${item.title} ` : "회의록 "}${label}` : item.source === "wiki" ? `${item.title ? `${item.title} ` : "위키 "}${label}` : `${label} ${item.title ?? "용어집"}`;
         return <blockquote key={item.id} id={`chat-${messageId}-meeting-evidence-${label}`} tabIndex={-1} className="scroll-mt-4 rounded-lg border border-line bg-panel-2/50 p-2.5 text-xs focus:outline focus:outline-2 focus:outline-brand">
           <p className="font-semibold text-ink">[{label}] {title}</p>
           {item.source === "glossary" && item.revision !== undefined && <p className="mt-0.5 text-[11px] text-ink-3">리비전 {item.revision} · 용어집 근거</p>}
+          {item.source === "wiki" && item.revision !== undefined && <p className="mt-0.5 text-[11px] text-ink-3">리비전 {item.revision} · 공개 위키 근거</p>}
           {item.source === "meeting" && item.meetingDate && <p className="mt-0.5 text-[11px] text-ink-3">회의일 {new Date(item.meetingDate).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })} · 저장된 회의록 근거</p>}
           <p className="mt-1 whitespace-pre-wrap break-words leading-5 text-ink-2">{item.excerpt}</p>
           {item.source === "glossary" && item.slug && <div className="mt-2 flex flex-wrap gap-3">
-            <Link href={`/w/${item.termId ?? item.slug}`} className="text-brand underline">현재 용어</Link>
+            <Link href={`/g/${item.termId ?? item.slug}`} className="text-brand underline">현재 용어</Link>
             {item.revision !== undefined && <Link href={`/history/${item.termId ?? item.slug}#revision-${item.revision}`} className="text-brand underline">기준 이력</Link>}
           </div>}
+          {item.source === "wiki" && item.wikiSlug && <div className="mt-2 flex flex-wrap gap-3"><Link href={`/w/${item.wikiSlug}`} className="text-brand underline">위키 문서에서 보기</Link></div>}
         </blockquote>;
       })}
     </div>
-    <p className="mt-2 text-[11px] text-ink-3">M은 현재 입력했거나 저장된 회의록, G는 용어집 리비전에서 가져온 근거입니다.</p>
+    <p className="mt-2 text-[11px] text-ink-3">M은 현재 입력했거나 저장된 회의록, W는 공개 위키, G는 용어집 리비전에서 가져온 근거입니다.</p>
   </section>;
 }
 
@@ -78,7 +81,7 @@ export function ChatMeetingAnalysis({ analysis, messageId, onSave, saving, saved
   return <div>
     <div className="rounded-lg border border-brand/20 bg-brand-soft/40 p-2.5 text-xs text-ink-2">
       <p className="font-semibold text-ink">회의록 분석</p>
-      <p className="mt-0.5">회의록 원문과 현재 용어집을 분리해 근거로 사용했습니다. 용어 후보는 자동으로 등록하지 않습니다.</p>
+      <p className="mt-0.5">회의록 원문·용어집·공개 위키를 분리해 근거로 사용했습니다. 용어 후보는 자동으로 등록하지 않습니다.</p>
     </div>
 
     <section className="mt-3" aria-labelledby={`chat-${messageId}-meeting-summary`}>
@@ -116,7 +119,7 @@ export function ChatMeetingAnalysis({ analysis, messageId, onSave, saving, saved
       <h4 id={`chat-${messageId}-meeting-term-matches`} className="text-xs font-semibold text-ink">용어집에서 확인한 용어</h4>
       <ul className="mt-1.5 space-y-1 text-sm leading-6 text-ink-2">
         {analysis.termMatches.map((item) => <li key={item.slug} className="pl-4 before:mr-1 before:content-['•']">
-          <Link href={`/w/${item.slug}`} className="font-medium text-brand underline">{item.title}</Link>: {item.reason}
+          <Link href={`/g/${item.slug}`} className="font-medium text-brand underline">{item.title}</Link>: {item.reason}
           <CitationLinks evidenceIds={item.evidenceIds} labels={labels} messageId={messageId} />
         </li>)}
       </ul>
@@ -129,7 +132,7 @@ export function ChatMeetingAnalysis({ analysis, messageId, onSave, saving, saved
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold text-ink">{item.surface}</span>
             <span className="rounded-full bg-panel px-2 py-0.5 text-[10px] font-semibold text-warn">{item.suggestedAction}</span>
-            {item.existingTerm && <Link href={`/w/${item.existingTerm.slug}`} className="text-brand underline">{item.existingTerm.title} 확인</Link>}
+            {item.existingTerm && <Link href={`/g/${item.existingTerm.slug}`} className="text-brand underline">{item.existingTerm.title} 확인</Link>}
           </div>
           <p className="mt-1">{item.reason}</p>
           <p className="mt-1 text-ink-3">회의 맥락: {item.context}</p>

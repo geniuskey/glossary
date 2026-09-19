@@ -500,16 +500,20 @@ test("R107: app/api/v1/terms/ 밑 정적 세그먼트는 전부 RESERVED_SLUGS�
   }
 });
 
-// R107/R135: 이 테스트가 원래 지키던 `app/terms/`는 이제 없다. 슬러그는
-// `app/w/[slug]` 한 곳에만 살고 그 옆에 정적 형제가 없으므로, 화면 라우트가
-// 슬러그를 가로채는 R86/R92류 충돌은 구조적으로 사라졌다 — 그 사실 자체를
-// 단언해 둔다(누군가 `app/w/` 밑에 정적 세그먼트를 만들면 곧바로 실패한다).
-test("R135: 슬러그는 app/w/[slug]에만 살고, app/w/ 밑에 정적 형제가 없다", () => {
+// R107/R135: 용어 슬러그는 `/g/[slug]`, 위키는 `/w/[slug]`에 산다. `/w/`에는
+// 목록·생성 화면이 함께 있으므로 용어 라우트처럼 정적 형제 없음만 검사할 수는
+// 없다. 대신 두 동적 화면과 위키의 예약된 정적 화면을 모두 존재 검증한다.
+test("R135: 용어는 app/g/[slug], 위키는 app/w/[slug]에 있다", () => {
   const testDir = path.dirname(fileURLToPath(import.meta.url));
+  const gDir = path.join(testDir, "..", "src", "app", "g");
   const wDir = path.join(testDir, "..", "src", "app", "w");
 
-  expect(existsSync(path.join(wDir, "[slug]", "page.tsx"))).toBe(true); // vacuity 가드
-  expect(staticChildDirNames(wDir)).toEqual([]);
+  expect(existsSync(path.join(gDir, "[slug]", "page.tsx"))).toBe(true); // vacuity 가드
+  expect(existsSync(path.join(wDir, "page.tsx"))).toBe(true);
+  expect(existsSync(path.join(wDir, "new", "page.tsx"))).toBe(true);
+  expect(existsSync(path.join(wDir, "[slug]", "page.tsx"))).toBe(true);
+  expect(staticChildDirNames(gDir)).toEqual([]);
+  expect(staticChildDirNames(wDir)).toContain("new");
 });
 
 // 다만 예약어가 필요 없어진 건 아니다. 옛 주소를 살리는 next.config.ts의

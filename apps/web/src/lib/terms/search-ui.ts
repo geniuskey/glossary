@@ -50,7 +50,7 @@ export function termHref(hit: {
   matchedText: string;
 }): string {
   const sameAsName = hit.matchedText === hit.nameEn || hit.matchedText === hit.nameKo;
-  return sameAsName ? `/w/${hit.slug}` : `/w/${hit.slug}?from=${encodeURIComponent(hit.matchedText)}`;
+  return sameAsName ? `/g/${hit.slug}` : `/g/${hit.slug}?from=${encodeURIComponent(hit.matchedText)}`;
 }
 
 /**

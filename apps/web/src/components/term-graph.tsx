@@ -928,13 +928,13 @@ export function TermGraph({
           )}
 
           {activeNode.kind === "term" && activeNode.term ? (
-            <Link href={`/w/${activeNode.term.slug}`} className="mt-3 inline-flex rounded-md bg-brand-soft px-2.5 py-1.5 font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45">상세 보기</Link>
+            <Link href={`/g/${activeNode.term.slug}`} className="mt-3 inline-flex rounded-md bg-brand-soft px-2.5 py-1.5 font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45">상세 보기</Link>
           ) : relatedTerms.length > 0 ? (
             <section className="mt-3" aria-labelledby="term-graph-related-title">
               <h3 id="term-graph-related-title" className="font-medium text-ink">연결된 용어</h3>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {relatedTerms.slice(0, 6).map((node) => (
-                  <Link key={node.key} href={`/w/${node.term!.slug}`} className="max-w-36 truncate rounded-md border border-line px-2 py-1 text-ink-2 hover:border-brand/50 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45">
+                  <Link key={node.key} href={`/g/${node.term!.slug}`} className="max-w-36 truncate rounded-md border border-line px-2 py-1 text-ink-2 hover:border-brand/50 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/45">
                     {node.label}
                   </Link>
                 ))}

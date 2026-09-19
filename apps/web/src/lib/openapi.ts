@@ -144,6 +144,36 @@ export const openApiSpec = {
           },
         ],
       },
+      WikiTermLink: {
+        type: "object",
+        required: ["id", "slug", "title", "role", "domain"],
+        properties: {
+          id: { type: "string", format: "uuid" },
+          slug: { type: "string" },
+          title: { type: "string" },
+          role: { type: "string", enum: ["primary", "related"] },
+          domain: { type: "array", items: { type: "string" } },
+        },
+      },
+      WikiPage: {
+        type: "object",
+        required: ["id", "slug", "title", "summary", "domain", "revision", "status", "terms", "createdAt", "updatedAt"],
+        properties: {
+          id: { type: "string", format: "uuid" },
+          slug: { type: "string" },
+          title: { type: "string" },
+          summary: { type: ["string", "null"] },
+          content: { type: "string" },
+          domain: { type: "array", items: { type: "string" } },
+          revision: { type: "integer", minimum: 1 },
+          status: { type: "string", enum: ["draft", "published", "archived"] },
+          terms: { type: "array", items: { $ref: "#/components/schemas/WikiTermLink" } },
+          createdBy: { type: ["string", "null"], format: "uuid" },
+          updatedBy: { type: ["string", "null"], format: "uuid" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
     },
   },
   paths: {
@@ -1292,7 +1322,7 @@ export const openApiSpec = {
       },
       post: {
         summary: "용어집 근거 질문과 용어 생성·수정안 작성",
-        description: "질문·등록·수정·회의록 분석 의도를 구분합니다. 근거 답변에는 주장별 인용과 구절·리비전 스냅샷인 grounded를 반환하며, 회의록 분석에는 사용자 원문 M 근거와 용어집 G 근거를 연결한 meeting을 반환합니다. 같은 도메인 안에서 최대 2회 검색합니다. 등록은 초안, 수정은 적용 전 edit 제안을 반환합니다. 로그인 세션 응답에는 저장된 messages도 포함됩니다.",
+        description: "질문·등록·수정·회의록 분석 의도를 구분합니다. 근거 답변에는 주장별 인용과 구절·리비전 스냅샷인 grounded를 반환하며, 회의록 분석에는 사용자 원문 M·용어집 G·위키 W 근거를 연결한 meeting을 반환합니다. 같은 도메인 안에서 최대 2회 검색합니다. 등록은 초안, 수정은 적용 전 edit 제안을 반환합니다. 로그인 세션 응답에는 저장된 messages도 포함됩니다.",
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",
           required: ["question"],
@@ -1342,8 +1372,9 @@ export const openApiSpec = {
                 evidence: { type: "array", items: { type: "object", required: ["id", "slug", "title", "revision", "updatedAt", "field", "excerpt"], properties: {
                   id: { type: "string" }, termId: { type: "string", format: "uuid" }, slug: { type: "string" }, title: { type: "string" },
                   revision: { type: "integer", minimum: 0 }, updatedAt: { type: "string", format: "date-time" },
-                  field: { type: "string", enum: ["metadata", "definition", "body", "relationship", "meeting"] },
-                  source: { type: "string", enum: ["glossary", "meeting"] }, meetingDocumentId: { type: "string", format: "uuid" }, meetingDate: { type: ["string", "null"], format: "date-time" },
+                  field: { type: "string", enum: ["metadata", "definition", "body", "relationship", "meeting", "wiki"] },
+                  source: { type: "string", enum: ["glossary", "meeting", "wiki"] }, meetingDocumentId: { type: "string", format: "uuid" }, meetingDate: { type: ["string", "null"], format: "date-time" },
+                  wikiPageId: { type: "string", format: "uuid" }, wikiSlug: { type: "string" },
                   excerpt: { type: "string" }, start: { type: "integer", minimum: 0, description: "원문의 UTF-16 오프셋" }, relatedTerm: { type: "object" },
                 } } },
               } },
@@ -1458,6 +1489,86 @@ export const openApiSpec = {
           "502": errorResponse("rag_provider_error"),
           "503": errorResponse("rag_not_ready"),
         },
+      },
+    },
+    "/rag/wiki/search": {
+      post: {
+        summary: "공개 위키 벡터 검색",
+        description: "현재 published 위키 문서 revision의 pgvector 청크를 Embedding API로 검색하고, 설정된 경우 Reranker로 재정렬한다.",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["query"],
+          additionalProperties: false,
+          properties: {
+            query: { type: "string", minLength: 1, maxLength: 20000 },
+            topK: { type: "integer", minimum: 1, maximum: 50 },
+            domain: { type: ["string", "null"], maxLength: 200 },
+            rerank: { type: "boolean", description: "생략하면 관리자 설정을 따른다." },
+          },
+        } } } },
+        responses: {
+          "200": json("위키 문서 청크와 메타데이터", { type: "object", properties: { query: { type: "string" }, total: { type: "integer" }, items: { type: "array", items: { type: "object" } } } }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "502": errorResponse("rag_provider_error"),
+          "503": errorResponse("rag_not_ready"),
+        },
+      },
+    },
+    "/wiki": {
+      get: {
+        summary: "위키 문서 목록·검색",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        parameters: [
+          { name: "q", in: "query", schema: { type: "string", maxLength: 200 } },
+          { name: "status", in: "query", schema: { type: "string", enum: ["draft", "published", "archived"] } },
+          { name: "domain", in: "query", schema: { type: "string", maxLength: 200 } },
+          { name: "termId", in: "query", schema: { type: "string", format: "uuid" } },
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
+          { name: "pageSize", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
+        ],
+        responses: { "200": json("위키 문서 목록", { type: "object", properties: { items: { type: "array", items: { $ref: "#/components/schemas/WikiPage" } }, total: { type: "integer" }, page: { type: "integer" }, pageSize: { type: "integer" } } }), "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized") },
+      },
+      post: {
+        summary: "위키 문서 생성 및 RAG 색인 예약",
+        description: "위키 문서는 초안 또는 공개 상태로 저장할 수 있으며, published 문서만 RAG 색인 대상이 된다.",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object", required: ["title", "content"], additionalProperties: false,
+          properties: {
+            slug: { type: "string", minLength: 1, maxLength: 120 },
+            title: { type: "string", minLength: 1, maxLength: 240 },
+            summary: { type: ["string", "null"], maxLength: 600 },
+            content: { type: "string", minLength: 1, maxLength: 200000 },
+            domain: { type: "array", maxItems: 20, items: { type: "string", maxLength: 200 } },
+            termSlugs: { type: "array", maxItems: 20, items: { type: "string", maxLength: 120 } },
+            status: { type: "string", enum: ["draft", "published", "archived"] },
+          },
+        } } } },
+        responses: { "201": json("생성된 위키 문서", { type: "object", properties: { page: { allOf: [{ $ref: "#/components/schemas/WikiPage" }, { type: "object", required: ["content"] }] }, indexed: { type: "boolean" } } }), "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "403": errorResponse("forbidden") },
+      },
+    },
+    "/wiki/{slug}": {
+      parameters: [{ name: "slug", in: "path", required: true, schema: { type: "string" } }],
+      get: {
+        summary: "위키 문서 조회",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        responses: { "200": json("위키 문서 원문과 연결 용어", { type: "object", properties: { page: { allOf: [{ $ref: "#/components/schemas/WikiPage" }, { type: "object", required: ["content"] }] } } }), "401": errorResponse("unauthorized"), "404": errorResponse("not_found") },
+      },
+      patch: {
+        summary: "위키 문서 수정 및 RAG 색인 예약",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object", additionalProperties: false,
+          properties: {
+            slug: { type: "string", minLength: 1, maxLength: 120 }, title: { type: "string", minLength: 1, maxLength: 240 },
+            summary: { type: ["string", "null"], maxLength: 600 }, content: { type: "string", minLength: 1, maxLength: 200000 },
+            domain: { type: "array", maxItems: 20, items: { type: "string", maxLength: 200 } },
+            termSlugs: { type: "array", maxItems: 20, items: { type: "string", maxLength: 120 } }, status: { type: "string", enum: ["draft", "published", "archived"] },
+          },
+        } } } },
+        responses: { "200": json("수정된 위키 문서", { type: "object" }), "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "403": errorResponse("forbidden"), "404": errorResponse("not_found") },
       },
     },
     "/meetings": {

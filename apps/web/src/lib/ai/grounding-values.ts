@@ -5,12 +5,14 @@ export interface ChatEvidence {
   title: string;
   revision: number;
   updatedAt: string;
-  field: "metadata" | "definition" | "body" | "relationship" | "meeting";
+  field: "metadata" | "definition" | "body" | "relationship" | "meeting" | "wiki";
   excerpt: string;
   start?: number;
-  source?: "glossary" | "meeting";
+  source?: "glossary" | "meeting" | "wiki";
   meetingDocumentId?: string;
   meetingDate?: string | null;
+  wikiPageId?: string;
+  wikiSlug?: string;
   relatedTerm?: { termId?: string; slug: string; title: string; revision: number };
 }
 
@@ -32,5 +34,5 @@ export interface GroundedChatAnswer {
 }
 
 export const EVIDENCE_FIELD_LABELS: Record<ChatEvidence["field"], string> = {
-  metadata: "표기·분류", definition: "정의", body: "본문", relationship: "승인된 관계", meeting: "회의록",
+  metadata: "표기·분류", definition: "정의", body: "본문", relationship: "승인된 관계", meeting: "회의록", wiki: "위키",
 };

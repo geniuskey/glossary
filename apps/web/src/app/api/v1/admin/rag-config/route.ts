@@ -4,6 +4,7 @@ import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";
 import { getRagIndexStats, queueAllRagTerms, scheduleRagIndexing } from "@/lib/rag/indexer";
 import { queueAllMeetingDocuments, scheduleMeetingRagIndexing } from "@/lib/rag/meeting-indexer";
+import { queueAllWikiPages, scheduleWikiRagIndexing } from "@/lib/rag/wiki-indexer";
 import { loadRagConfig, publicRagConfig, saveRagConfig } from "@/lib/rag/config";
 import { RAG_EMBEDDING_PROVIDERS, RAG_RERANKER_PROVIDERS } from "@/lib/rag/config-values";
 
@@ -58,10 +59,12 @@ export const PATCH = withApiErrors(async (request: Request) => {
   // existing vectors. Queueing is durable; processing happens after the response.
   const queued = result.row.enabled ? await queueAllRagTerms() : 0;
   const queuedMeetings = result.row.enabled ? await queueAllMeetingDocuments() : 0;
+  const queuedWikiPages = result.row.enabled ? await queueAllWikiPages() : 0;
   if (result.row.enabled) {
     scheduleRagIndexing(8);
     scheduleMeetingRagIndexing(8);
+    scheduleWikiRagIndexing(8);
   }
   const stats = await getRagIndexStats();
-  return Response.json({ config: publicRagConfig(result.row, stats), queued, queuedMeetings, vectorDimensions: RAG_VECTOR_DIMENSIONS });
+  return Response.json({ config: publicRagConfig(result.row, stats), queued, queuedMeetings, queuedWikiPages, vectorDimensions: RAG_VECTOR_DIMENSIONS });
 });

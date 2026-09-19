@@ -447,7 +447,7 @@ export function TermForm({
         setWarnings(outcome.warnings);
         setSavedSlug(outcome.term.slug);
       } else {
-        router.push(`/w/${outcome.term.slug}`);
+        router.push(`/g/${outcome.term.slug}`);
         router.refresh();
       }
       return;
@@ -524,7 +524,7 @@ export function TermForm({
             {warnings.map((w) => (
               <li key={`${w.surfaceText}:${w.conflictingSlug}`}>
                 {w.surfaceText} →{" "}
-                <Link href={`/w/${w.conflictingSlug}`} className="underline underline-offset-2">
+                <Link href={`/g/${w.conflictingSlug}`} className="underline underline-offset-2">
                   {w.conflictingSlug}
                 </Link>
               </li>
@@ -940,11 +940,11 @@ export function TermForm({
                 <div className="border-t border-line p-3">
                 <span className="mb-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-ink-2">
                   URL 주소
-                  <HelpTip text={dirty ? "다른 변경사항을 먼저 저장해야 URL을 변경할 수 있습니다." : normalizedSlug && normalizedSlug !== slugDraft ? `실제 주소: /w/${normalizedSlug}` : "글자·숫자와 하이픈으로 정리되어 저장됩니다."} />
+                  <HelpTip text={dirty ? "다른 변경사항을 먼저 저장해야 URL을 변경할 수 있습니다." : normalizedSlug && normalizedSlug !== slugDraft ? `실제 주소: /g/${normalizedSlug}` : "글자·숫자와 하이픈으로 정리되어 저장됩니다."} />
                 </span>
                 <label htmlFor="term-slug" className="sr-only">URL 주소</label>
                 <div className="flex overflow-hidden rounded-lg border border-line bg-panel focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15">
-                  <span className="flex shrink-0 items-center border-r border-line bg-panel-2 px-2.5 text-xs text-ink-3">/w/</span>
+                  <span className="flex shrink-0 items-center border-r border-line bg-panel-2 px-2.5 text-xs text-ink-3">/g/</span>
                   <input
                     id="term-slug"
                     name="slug"
@@ -1031,11 +1031,11 @@ export function TermForm({
                 {deleting ? "삭제 중…" : "삭제"}
               </button>
             )}
-            <Link href={editSlug !== undefined ? `/w/${editSlug}` : "/sheet"} className="btn-quiet">
+            <Link href={editSlug !== undefined ? `/g/${editSlug}` : "/sheet"} className="btn-quiet">
               취소
             </Link>
             {savedSlug ? (
-              <Link href={`/w/${savedSlug}`} className="btn-primary">
+              <Link href={`/g/${savedSlug}`} className="btn-primary">
                 저장됨 → {savedSlug}로 이동
               </Link>
             ) : (

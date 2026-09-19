@@ -9,4 +9,5 @@ export * from "./attachments";
 export * from "./ai";
 export * from "./rag";
 export * from "./meetings";
+export * from "./wiki";
 export * from "./ai-observability";

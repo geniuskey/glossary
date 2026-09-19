@@ -4,7 +4,9 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
-const detailSource = readFileSync(path.join(testDir, "..", "src", "app", "w", "[slug]", "page.tsx"), "utf8");
+// 용어 화면은 `/g/[slug]`에서 공용 컴포넌트를 렌더링한다. `/w/[slug]`는 이제 위키
+// 문서 화면이므로, 용어 상세의 UI 불변식은 실제 구현이 있는 공용 컴포넌트를 읽는다.
+const detailSource = readFileSync(path.join(testDir, "..", "src", "components", "term-detail-page.tsx"), "utf8");
 const searchSource = readFileSync(path.join(testDir, "..", "src", "components", "search-box.tsx"), "utf8");
 
 test("용어 상세는 관련 용어와 현재 맥락의 관계도 진입점을 제공한다", () => {

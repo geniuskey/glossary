@@ -176,7 +176,8 @@ pnpm --filter @glossary/web exec tsx scripts/seed-terms.ts it semiconductor
 | `/signup` | 계정 만들기 (누구나, 역할은 editor 고정) |
 | `/sheet` | 시트 — 표 편집, type/domain/status 필터, 검색, 페이징 |
 | `/new` | 용어 등록 |
-| `/w/[slug]` | 용어 상세 (`?from=<표기>`로 어떤 표기에서 왔는지 표시) |
+| `/g/[slug]` | 용어 상세 (`?from=<표기>`로 어떤 표기에서 왔는지 표시) |
+| `/w/[slug]` | 업무 맥락을 쌓는 위키 문서 상세 |
 | `/edit/[slug]` | 편집 (낙관적 잠금) |
 | `/history/[slug]` | 수정 이력 |
 | `/import` | 엑셀 업로드 → dry-run 리포트 → 반영 |

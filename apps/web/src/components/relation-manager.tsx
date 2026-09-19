@@ -40,7 +40,7 @@ function TermPicker({ label, value, onChange, disabled }: { label: string; value
       {value ? (
         <div className="rounded-lg border border-line bg-panel-2 p-3 text-sm">
           <div className="flex items-start justify-between gap-2">
-            <Link href={`/w/${value.slug}`} className="break-words font-medium text-brand hover:underline">{value.name}</Link>
+            <Link href={`/g/${value.slug}`} className="break-words font-medium text-brand hover:underline">{value.name}</Link>
             <button type="button" disabled={disabled} className="btn-ghost shrink-0 px-2 py-1 text-xs" onClick={() => { onChange(null); setQuery(""); }}>변경</button>
           </div>
           <p className="mt-1 break-words text-xs text-ink-3">{value.domain.join(" · ") || "도메인 없음"}</p>
@@ -175,9 +175,9 @@ export function RelationManager({ selectedTerm, onClearSelection }: { selectedTe
         {!result?.items.length && <p className="py-4 text-sm text-ink-3">조건에 맞는 관계가 없습니다. 필터를 변경하거나 새 관계를 제안해 주세요.</p>}
         {result?.items.map((relation) => <article key={relation.id} className="rounded-lg border border-line p-3">
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <Link className="break-words font-medium text-brand hover:underline" href={`/w/${relation.source.slug}`}>{relation.source.name}</Link>
+                  <Link className="break-words font-medium text-brand hover:underline" href={`/g/${relation.source.slug}`}>{relation.source.name}</Link>
             <span className="rounded bg-panel-2 px-2 py-1 text-xs">→ {RELATION_LABEL[relation.relationType]} →</span>
-            <Link className="break-words font-medium text-brand hover:underline" href={`/w/${relation.target.slug}`}>{relation.target.name}</Link>
+                  <Link className="break-words font-medium text-brand hover:underline" href={`/g/${relation.target.slug}`}>{relation.target.name}</Link>
             <span className="ml-auto text-xs text-ink-3">{RELATION_STATUS_LABEL[relation.status]}{relation.stale ? " · 재검토 필요" : ""}</span>
           </div>
           <p className="mt-2 whitespace-pre-wrap break-words text-sm text-ink-2">{relation.evidenceMd || "근거 없음 — 승인 전에 근거를 작성해 주세요."}</p>

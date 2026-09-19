@@ -1,0 +1,86 @@
+"use client";
+
+import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+
+interface WikiEditorPage {
+  id?: string;
+  slug?: string;
+  title: string;
+  summary: string | null;
+  content?: string;
+  domain: string[];
+  status: "draft" | "published" | "archived";
+  terms: Array<{ slug: string }>;
+}
+
+interface DomainOption { key: string; label: string }
+
+function splitList(value: string): string[] {
+  return [...new Set(value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean))];
+}
+
+export function WikiEditor({ initialPage, domains: domainOptions }: { initialPage: WikiEditorPage | null; domains: DomainOption[] }) {
+  const router = useRouter();
+  const editing = Boolean(initialPage?.id);
+  const [slug, setSlug] = useState(initialPage?.slug ?? "");
+  const [title, setTitle] = useState(initialPage?.title ?? "");
+  const [summary, setSummary] = useState(initialPage?.summary ?? "");
+  const [domainText, setDomainText] = useState(initialPage?.domain.join(", ") ?? "");
+  const [termSlugs, setTermSlugs] = useState(initialPage?.terms.map((term) => term.slug).join(", ") ?? "");
+  const [content, setContent] = useState(initialPage?.content ?? "");
+  const [status, setStatus] = useState<WikiEditorPage["status"]>(initialPage?.status ?? "draft");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (saving || !title.trim() || !content.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const payload = {
+        ...(slug.trim() ? { slug: slug.trim() } : {}),
+        title,
+        summary: summary.trim() || null,
+        content,
+        domain: splitList(domainText),
+        termSlugs: splitList(termSlugs),
+        status,
+      };
+      const response = await fetch(editing ? `/api/v1/wiki/${encodeURIComponent(initialPage!.slug!)}` : "/api/v1/wiki", {
+        method: editing ? "PATCH" : "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = await response.json().catch(() => null) as { page?: { slug: string }; error?: { message?: string; details?: { missingTermSlugs?: string[] } } } | null;
+      if (!response.ok || !body?.page?.slug) {
+        const missing = body?.error?.details?.missingTermSlugs;
+        throw new Error(missing?.length ? `${body?.error?.message ?? "연결된 용어를 확인해 주세요."} (${missing.join(", ")})` : body?.error?.message || `위키 문서를 저장하지 못했습니다 (${response.status}).`);
+      }
+      router.replace(`/w/${body.page.slug}`);
+      router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "위키 문서를 저장하지 못했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <form onSubmit={submit} className="space-y-5">
+    <div className="grid gap-4 sm:grid-cols-2">
+      <label className="block"><span className="label">제목</span><input className="field" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={240} placeholder="예: 실험 설계 원칙" required /></label>
+      <label className="block"><span className="label">주소</span><input className="field font-mono" value={slug} onChange={(event) => setSlug(event.target.value)} maxLength={120} placeholder="비우면 제목으로 자동 생성" /><span className="mt-1 block text-xs text-ink-3">/w/ 아래 주소입니다. 용어와 같은 주소는 자동으로 피합니다.</span></label>
+      <label className="block sm:col-span-2"><span className="label">요약</span><textarea className="field min-h-20 resize-y" value={summary} onChange={(event) => setSummary(event.target.value)} maxLength={600} placeholder="이 문서가 어떤 업무 판단에 도움을 주는지 한두 문장으로 적어 주세요." /></label>
+      <label className="block"><span className="label">도메인</span><input className="field" list="wiki-domain-options" value={domainText} onChange={(event) => setDomainText(event.target.value)} placeholder="예: 상품, 보안" /><datalist id="wiki-domain-options">{domainOptions.map((item) => <option key={item.key} value={item.label} />)}</datalist><span className="mt-1 block text-xs text-ink-3">쉼표 또는 줄바꿈으로 여러 도메인을 구분합니다.</span></label>
+      <label className="block"><span className="label">연결할 용어 슬러그</span><input className="field font-mono" value={termSlugs} onChange={(event) => setTermSlugs(event.target.value)} placeholder="예: experimentation, ab-test" /><span className="mt-1 block text-xs text-ink-3">쉼표로 구분합니다. 첫 번째 용어가 대표 용어입니다.</span></label>
+      <label className="block sm:col-span-2"><span className="label">공개 상태</span><select className="field max-w-xs" value={status} onChange={(event) => setStatus(event.target.value as WikiEditorPage["status"])}><option value="draft">초안 · AI 검색 제외</option><option value="published">공개 · AI 검색 포함</option><option value="archived">보관 · 검색 제외</option></select></label>
+    </div>
+    <label className="block"><span className="label">본문</span><textarea className="field min-h-[28rem] resize-y font-mono text-sm leading-6" value={content} onChange={(event) => setContent(event.target.value)} maxLength={200_000} placeholder="# 업무 원칙\n\n결정 배경과 실제 적용 방법을 마크다운으로 작성하세요." required /></label>
+    {error && <p className="note-danger" role="alert">{error}</p>}
+    <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">
+      <button type="button" className="btn-ghost" onClick={() => router.back()} disabled={saving}>취소</button>
+      <button type="submit" className="btn-primary" disabled={saving || !title.trim() || !content.trim()}>{saving ? "저장 중…" : editing ? "변경 저장" : "위키 문서 만들기"}</button>
+    </div>
+  </form>;
+}
