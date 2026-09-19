@@ -30,6 +30,7 @@ test("사이드바 탐색과 상단 검색·생성·계정 영역을 분리한�
   expect(html).toContain('aria-label="함께 정리 · 미완성"');
   expect(html).toContain('aria-label="분류 체계 · 도메인 · 업무"');
   expect(html).toContain('sidebar-expanded-only hidden whitespace-nowrap lg:inline');
+  expect(html).not.toContain('sidebar-expanded-only ml-auto hidden text-[10px]');
   expect(html).toContain('title="사이드바 접기"');
   expect(html).toContain('sticky top-14 z-[70]');
   expect(html).toContain('lg:grid-cols-[minmax(4rem,1fr)_minmax(0,42rem)_auto]');

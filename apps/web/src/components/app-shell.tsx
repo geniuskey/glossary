@@ -102,7 +102,6 @@ export async function AppShell({
                   </span>
                   <span className="sidebar-expanded-only hidden whitespace-nowrap lg:inline">{item.label}</span>
                   <span className="whitespace-nowrap text-[10px] font-medium lg:hidden">{item.label}</span>
-                  <span className="sidebar-expanded-only ml-auto hidden text-[10px] text-ink-3 lg:block">{item.hint}</span>
                 </Link>
               );
             })}
