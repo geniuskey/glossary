@@ -39,7 +39,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
   const graphTopBar = (
     <>
       <span
-        className="max-w-52 truncate text-[11px] text-ink-3"
+        className="graph-toolbar-count max-w-52 truncate text-[11px] text-ink-3"
         title={semantic
           ? `승인된 의미 관계 ${relations.items.length}개 표시${relations.omitted > 0 ? ` · 연결 ${relations.omitted}개 생략` : ""}`
           : `전체 ${number.format(total)}개 중 ${number.format(terms.length)}개 표시`}
@@ -47,8 +47,8 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
         {semantic ? `관계 ${number.format(relations.items.length)}개` : `${number.format(terms.length)} / ${number.format(total)}개`}
       </span>
       <nav className="flex shrink-0 gap-1.5" aria-label="관계도 보기">
-        <Link href={classificationHref} aria-current={!semantic ? "page" : undefined} className={!semantic ? "btn-primary h-8 px-2.5 text-xs" : "btn-ghost h-8 px-2.5 text-xs"}>분류 관계</Link>
-        <Link href={semanticHref} aria-current={semantic ? "page" : undefined} className={semantic ? "btn-primary h-8 px-2.5 text-xs" : "btn-ghost h-8 px-2.5 text-xs"}>의미 관계</Link>
+        <Link href={classificationHref} aria-current={!semantic ? "page" : undefined} className={!semantic ? "graph-toolbar-view-link btn-primary h-8 px-2.5 text-xs" : "graph-toolbar-view-link btn-ghost h-8 px-2.5 text-xs"}>분류 관계</Link>
+        <Link href={semanticHref} aria-current={semantic ? "page" : undefined} className={semantic ? "graph-toolbar-view-link btn-primary h-8 px-2.5 text-xs" : "graph-toolbar-view-link btn-ghost h-8 px-2.5 text-xs"}>의미 관계</Link>
       </nav>
       <GraphFilterBar
         values={{ domain: domain ?? "", category: category ?? "", topic: topic ?? "" }}

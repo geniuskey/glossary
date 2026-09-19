@@ -325,6 +325,95 @@
 }
 
 @layer components {
+  /* 그래프 툴바는 사이드바를 뺀 실제 콘텐츠 폭으로 필터 표시 방식을
+     결정해야 한다. viewport 기준 breakpoint를 쓰면 같은 창에서도 사이드바
+     접힘 상태에 따라 툴바가 불필요하게 두 줄이 된다. */
+  .graph-toolbar-shell {
+    container: graph-toolbar / inline-size;
+    flex-wrap: nowrap;
+  }
+
+  .graph-toolbar-filters-full {
+    display: none;
+  }
+
+  .graph-toolbar-filters-compact {
+    display: block;
+  }
+
+  .graph-toolbar-control-icon,
+  .graph-toolbar-control-label-compact {
+    display: none;
+  }
+
+  @container graph-toolbar (min-width: 76rem) {
+    .graph-toolbar-filters-full {
+      display: flex;
+    }
+
+    .graph-toolbar-filters-compact {
+      display: none;
+    }
+  }
+
+  @container graph-toolbar (max-width: 40rem) {
+    .graph-toolbar-status,
+    .graph-toolbar-count,
+    .graph-toolbar-control-label-full {
+      display: none;
+    }
+
+    .graph-toolbar-control-label-compact {
+      display: inline;
+    }
+  }
+
+  @container graph-toolbar (max-width: 32rem) {
+    .graph-toolbar-shell {
+      column-gap: 0.375rem;
+      padding: 0.25rem 0.5rem;
+    }
+
+    .graph-toolbar-top-bar {
+      gap: 0.25rem;
+    }
+
+    .graph-toolbar-control,
+    .graph-toolbar-control-zoom,
+    .graph-toolbar-shell .btn-ghost[aria-label="축소"],
+    .graph-toolbar-shell .btn-ghost[aria-label="확대"] {
+      height: 1.75rem;
+      padding: 0;
+    }
+
+    .graph-toolbar-control {
+      display: grid;
+      width: 1.75rem;
+      place-items: center;
+    }
+
+    .graph-toolbar-control-zoom {
+      min-width: 2.25rem;
+      width: 2.25rem;
+    }
+
+    .graph-toolbar-control-icon {
+      display: inline-flex;
+    }
+
+    .graph-toolbar-control-label-compact {
+      display: none;
+    }
+
+    .graph-toolbar-view-link,
+    .graph-toolbar-filter-trigger {
+      height: 1.75rem;
+      padding-left: 0.375rem !important;
+      padding-right: 0.375rem !important;
+      font-size: 0.6875rem;
+    }
+  }
+
   @media (min-width: 1024px) {
     [data-sidebar-collapsed="true"] .sidebar-expanded-only {
       display: none;

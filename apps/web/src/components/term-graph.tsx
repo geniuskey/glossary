@@ -681,7 +681,9 @@ export function TermGraph({
   if (terms.length === 0) {
     return (
       <section className="flex h-full min-h-[480px] flex-col">
-        {topBar && <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-line px-3 py-1.5">{topBar}</div>}
+        {topBar && (
+          <div className="graph-toolbar-shell flex min-w-0 shrink-0 items-center justify-end gap-1.5 border-b border-line px-3 py-1.5">{topBar}</div>
+        )}
         <div className="grid min-h-0 flex-1 place-items-center px-5 py-16 text-center text-sm text-ink-3">조건에 맞는 용어가 없습니다.</div>
       </section>
     );
@@ -689,24 +691,31 @@ export function TermGraph({
 
   return (
     <section className="relative flex h-full min-h-[480px] flex-col overflow-hidden sm:min-h-[560px]">
-      <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line px-3 py-1.5">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
-          <div className="flex min-w-0 items-center gap-2 text-xs">
-            <span className="truncate font-medium text-ink">
-              {activeNode ? `${kindLabel(activeNode.kind)} · ${activeNode.label}` : `${model.nodes.length}개 노드 · ${model.edges.length}개 연결`}
-            </span>
-            <HelpTip text={mode === "semantic" ? "화살표는 출발 용어에서 도착 용어를 향합니다. 노드를 선택하면 오른쪽 상세 패널에서 관계의 종류와 근거를 확인하고 아래 관리 목록에서 검토할 수 있습니다. 키보드: 방향키로 이동, Home 전체 맞춤, Escape로 선택 해제합니다." : "빈 곳을 드래그해 이동하고 휠로 확대·축소합니다. 노드를 드래그해 배치를 바꾸거나 눌러 연결을 강조할 수 있고, 선택한 용어는 오른쪽 상세 패널에서 확인합니다. 키보드: 방향키로 이동, Home 전체 맞춤, Escape로 선택 해제합니다."} />
-          </div>
-          {topBar && <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-1.5">{topBar}</div>}
+      <div className="graph-toolbar-shell relative z-20 flex min-w-0 shrink-0 items-center gap-x-3 border-b border-line px-3 py-1.5">
+        <div className="graph-toolbar-status flex min-w-0 flex-1 items-center gap-2 text-xs">
+          <span className="truncate font-medium text-ink">
+            {activeNode ? `${kindLabel(activeNode.kind)} · ${activeNode.label}` : `${model.nodes.length}개 노드 · ${model.edges.length}개 연결`}
+          </span>
+          <HelpTip text={mode === "semantic" ? "화살표는 출발 용어에서 도착 용어를 향합니다. 노드를 선택하면 오른쪽 상세 패널에서 관계의 종류와 근거를 확인하고 아래 관리 목록에서 검토할 수 있습니다. 키보드: 방향키로 이동, Home 전체 맞춤, Escape로 선택 해제합니다." : "빈 곳을 드래그해 이동하고 휠로 확대·축소합니다. 노드를 드래그해 배치를 바꾸거나 눌러 연결을 강조할 수 있고, 선택한 용어는 오른쪽 상세 패널에서 확인합니다. 키보드: 방향키로 이동, Home 전체 맞춤, Escape로 선택 해제합니다."} />
         </div>
 
+        {topBar && <div className="graph-toolbar-top-bar flex min-w-0 shrink-0 items-center gap-1.5">{topBar}</div>}
+
         <div className="flex shrink-0 items-center gap-0.5">
-          <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={resetLayout}>배치 초기화</button>
-          <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={fitView}>전체 맞춤</button>
+          <button type="button" className="graph-toolbar-control btn-ghost h-8 px-2 text-xs" aria-label="배치 초기화" title="배치 초기화" onClick={resetLayout}>
+            <span className="graph-toolbar-control-icon" aria-hidden><IconReset /></span>
+            <span className="graph-toolbar-control-label-full">배치 초기화</span>
+            <span className="graph-toolbar-control-label-compact">초기화</span>
+          </button>
+          <button type="button" className="graph-toolbar-control btn-ghost h-8 px-2 text-xs" aria-label="전체 맞춤" title="전체 맞춤" onClick={fitView}>
+            <span className="graph-toolbar-control-icon" aria-hidden><IconFit /></span>
+            <span className="graph-toolbar-control-label-full">전체 맞춤</span>
+            <span className="graph-toolbar-control-label-compact">맞춤</span>
+          </button>
           <button type="button" className="btn-ghost grid h-8 w-8 place-items-center p-0" aria-label="축소" onClick={() => updateZoom(view.scale / 1.2)}>
             <IconMinus />
           </button>
-          <button type="button" className="btn-quiet h-8 min-w-12 px-2 text-[11px] tabular-nums" aria-label={`배율 ${zoomLabel}, 기본 배율로 돌아가기`} onClick={resetView}>
+          <button type="button" className="graph-toolbar-control-zoom btn-quiet h-8 min-w-12 px-2 text-[11px] tabular-nums" aria-label={`배율 ${zoomLabel}, 기본 배율로 돌아가기`} title="배율 초기화" onClick={resetView}>
             {zoomLabel}
           </button>
           <button type="button" className="btn-ghost grid h-8 w-8 place-items-center p-0" aria-label="확대" onClick={() => updateZoom(view.scale * 1.2)}>
@@ -1030,4 +1039,12 @@ function IconPlus() {
 
 function IconMinus() {
   return <svg viewBox="0 0 20 20" aria-hidden="true" className="h-3.5 w-3.5"><path d="M4 10h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>;
+}
+
+function IconReset() {
+  return <svg viewBox="0 0 20 20" aria-hidden="true" className="h-3.5 w-3.5"><path d="M4 7.25A6.25 6.25 0 1 1 3.75 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /><path d="M4 3.75v3.5h3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
+function IconFit() {
+  return <svg viewBox="0 0 20 20" aria-hidden="true" className="h-3.5 w-3.5"><path d="M7 3H5.25A2.25 2.25 0 0 0 3 5.25V7M13 3h1.75A2.25 2.25 0 0 1 17 5.25V7M7 17H5.25A2.25 2.25 0 0 1 3 14.75V13M13 17h1.75A2.25 2.25 0 0 0 17 14.75V13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>;
 }
