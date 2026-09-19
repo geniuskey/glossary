@@ -6,6 +6,7 @@ import { AccountMenu } from "@/components/account-menu";
 import { InfoFooter } from "@/components/info-links";
 import { APP_NAV_ITEMS, BrandMark, type NavKey } from "@/components/app-shell";
 import { SearchBox } from "@/components/search-box";
+import { ScrollReveal } from "@/components/scroll-reveal";
 import { DomainBadges, StatusBadge } from "@/components/term-badges";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth/current-user";
 import { needsSetup } from "@/lib/auth/setup";
@@ -162,7 +163,7 @@ function HomeLanding({ facets, homeContent }: { facets: TermFacets; homeContent:
   const domains = facets.domains.slice(0, 6);
   return (
     <main id="main-content" tabIndex={-1} className="relative z-10 mx-auto w-full max-w-7xl px-5 pb-16 sm:px-8 sm:pb-24">
-      <section className="flex items-center justify-center py-12 sm:py-16">
+      <section className="relative flex min-h-[calc(100svh-3.5rem)] items-center justify-center py-12 sm:py-16">
         <div className="w-full max-w-3xl animate-fade-up text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">{homeContent.eyebrow}</p>
           <h1 className="mt-5 text-[clamp(2.35rem,5vw,4rem)] font-semibold leading-[1.12] tracking-[-0.05em] text-ink">
@@ -190,20 +191,36 @@ function HomeLanding({ facets, homeContent }: { facets: TermFacets; homeContent:
               </div>
             </div>
           )}
+          <a href="#home-tasks" aria-label="지금 필요한 작업으로 이동" className="home-scroll-cue mt-10 inline-flex text-ink-3 transition-colors hover:text-brand">
+            <span className="grid h-7 w-7 place-items-center rounded-full border border-line bg-panel/70 text-brand shadow-sm">
+              <IconArrowDown />
+            </span>
+          </a>
         </div>
       </section>
 
-      <section className="mb-8" aria-labelledby="home-tasks">
-        <h2 id="home-tasks" className="text-lg font-semibold text-ink">지금 필요한 작업</h2>
+      <section className="mb-8 scroll-mt-20" aria-labelledby="home-tasks">
+        <ScrollReveal>
+          <h2 id="home-tasks" className="text-lg font-semibold text-ink">지금 필요한 작업</h2>
+        </ScrollReveal>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <TaskLink href="/sheet" title="용어 찾아 쓰기" body="전체 목록에서 뜻과 표기를 확인하고, 필요한 범위의 시트를 공유하세요." />
-          <TaskLink href="/contribute" title="부족한 설명 보완하기" body="정리 대기 용어에 정의와 사용 맥락을 보태세요. 수정 이력을 함께 확인할 수 있습니다." />
-          <TaskLink href="/import" title="기존 용어 모으기" body="엑셀 목록을 미리 검사하고 가져와 팀의 용어집을 시작하세요." />
+          <ScrollReveal delay={80}>
+            <TaskLink href="/sheet" title="용어 찾아 쓰기" body="전체 목록에서 뜻과 표기를 확인하고, 필요한 범위의 시트를 공유하세요." />
+          </ScrollReveal>
+          <ScrollReveal delay={170}>
+            <TaskLink href="/contribute" title="부족한 설명 보완하기" body="정리 대기 용어에 정의와 사용 맥락을 보태세요. 수정 이력을 함께 확인할 수 있습니다." />
+          </ScrollReveal>
+          <ScrollReveal delay={260}>
+            <TaskLink href="/import" title="기존 용어 모으기" body="엑셀 목록을 미리 검사하고 가져와 팀의 용어집을 시작하세요." />
+          </ScrollReveal>
         </div>
-        <p className="mt-3 text-xs leading-6 text-ink-3">기준 충족은 설정된 작성 요건을 채웠다는 뜻입니다. 내용의 정확성이나 조직의 공식 승인을 보증하지 않습니다.</p>
+        <ScrollReveal delay={330}>
+          <p className="mt-3 text-xs leading-6 text-ink-3">기준 충족은 설정된 작성 요건을 채웠다는 뜻입니다. 내용의 정확성이나 조직의 공식 승인을 보증하지 않습니다.</p>
+        </ScrollReveal>
       </section>
 
-      <section className="grid items-center gap-10 rounded-[1.75rem] border border-line bg-panel/75 p-6 shadow-[0_24px_80px_-55px_rgb(38_32_99_/_0.28)] backdrop-blur sm:p-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
+      <ScrollReveal>
+        <section className="grid items-center gap-10 rounded-[1.75rem] border border-line bg-panel/75 p-6 shadow-[0_24px_80px_-55px_rgb(38_32_99_/_0.28)] backdrop-blur sm:p-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
         <ConceptMap />
         <div>
           <p className="text-xs font-semibold tracking-[0.16em] text-brand">하나의 개념, 여러 표기</p>
@@ -220,9 +237,11 @@ function HomeLanding({ facets, homeContent }: { facets: TermFacets; homeContent:
             </div>
           )}
         </div>
-      </section>
+        </section>
+      </ScrollReveal>
 
-      <section className="mt-8 rounded-[1.75rem] border border-line/80 bg-panel/65 p-6 backdrop-blur sm:p-9">
+      <ScrollReveal delay={100}>
+        <section className="mt-8 rounded-[1.75rem] border border-line/80 bg-panel/65 p-6 backdrop-blur sm:p-9">
         <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div><p className="text-xs font-semibold tracking-[0.16em] text-brand">함께 만드는 용어집</p><h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-ink sm:text-3xl">알고 있는 한 단어가, 모두의 기준이 됩니다.</h2></div>
           <div className="flex flex-wrap gap-2 self-start md:self-auto">
@@ -235,7 +254,8 @@ function HomeLanding({ facets, homeContent }: { facets: TermFacets; homeContent:
           <JourneyCard number="02" title="맥락을 보태고" body="이름과 한줄 정의, 실제로 쓰는 표현을 편하게 적어요." icon={<IconPen />} />
           <JourneyCard number="03" title="함께 다듬어요" body="수정 이력이 남으니 부담 없이 더 좋은 표현을 제안해요." icon={<IconPeople />} />
         </div>
-      </section>
+        </section>
+      </ScrollReveal>
     </main>
   );
 }
@@ -303,6 +323,7 @@ function Results({ q, hits }: { q: string; hits: SearchHit[] }) {
 function HomeBackdrop() { return <div className="pointer-events-none absolute inset-0" aria-hidden><div className="absolute -left-40 top-24 h-[28rem] w-[28rem] rounded-full bg-brand/10 blur-[110px]" /><div className="absolute -right-32 top-0 h-[30rem] w-[30rem] rounded-full bg-accent/10 blur-[120px]" /><div className="home-grid absolute inset-x-0 top-0 h-[46rem] opacity-50" /></div>; }
 function IconPlus() { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden><path d="M8 3v10M3 8h10" strokeLinecap="round" /></svg>; }
 function IconArrow() { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><path d="M3 8h9M9 4.5 12.5 8 9 11.5" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
+function IconArrowDown() { return <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><path d="M8 3v9M4.5 8.5 8 12l3.5-3.5" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
 function IconSearch() { return <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><circle cx="7.5" cy="7.5" r="4.5" /><path d="m11 11 3.5 3.5" strokeLinecap="round" /></svg>; }
 function IconPen() { return <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><path d="m11.3 3.2 3.5 3.5-8.7 8.7-3.9.4.4-3.9 8.7-8.7Z" strokeLinejoin="round" /><path d="m9.8 4.7 3.5 3.5" /></svg>; }
 function IconPeople() { return <svg width="19" height="19" viewBox="0 0 19 19" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><circle cx="7" cy="6" r="2.5" /><path d="M2.5 15c.3-3 1.8-4.5 4.5-4.5s4.2 1.5 4.5 4.5" strokeLinecap="round" /><path d="M12.5 4.5a2.4 2.4 0 0 1 0 4.7M13 11c2.1.2 3.2 1.5 3.5 4" strokeLinecap="round" /></svg>; }
