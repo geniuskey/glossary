@@ -50,6 +50,7 @@ export default defineConfig({
           { text: "협업과 관계도", link: "/guide/collaboration" },
           { text: "함께 정리", link: "/guide/contribute" },
           { text: "AI 활용과 챗봇", link: "/guide/ai" },
+          { text: "에이전트 고도화 전략", link: "/guide/agent-strategy" },
         ],
       },
       {

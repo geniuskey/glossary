@@ -9,6 +9,9 @@ import {
   termRevisions,
   termSurfaces,
   terms,
+  meetingDocuments,
+  meetingRagDocuments,
+  meetingRagIndexQueue,
 } from "@glossary/db";
 import { scheduleAfterResponse } from "@/lib/after-response";
 import { getDb } from "@/lib/db";
@@ -415,6 +418,7 @@ export async function processRagIndexQueue(limit = 8): Promise<number> {
 export async function getRagIndexStats(): Promise<import("./config-values").RagIndexStats> {
   const db = getDb();
   const [total] = await db.select({ count: sql<number>`count(*)::int` }).from(terms).where(sql`${terms.replacedById} is null`);
+  const [meetingTotal] = await db.select({ count: sql<number>`count(*)::int` }).from(meetingDocuments).where(eq(meetingDocuments.status, "active"));
   const [indexed] = await db.select({
     terms: sql<number>`count(distinct ${ragDocuments.termId})::int`,
     chunks: sql<number>`count(*)::int`,
@@ -428,12 +432,31 @@ export async function getRagIndexStats(): Promise<import("./config-values").RagI
       sql`${terms.replacedById} is null`,
       sql`${ragDocuments.revision} = (select coalesce(max(tr.revision_number), 0) from term_revisions tr where tr.term_id = ${terms.id})`,
     ));
+  const [meetingIndexed] = await db.select({
+    meetings: sql<number>`count(distinct ${meetingRagDocuments.meetingDocumentId})::int`,
+    chunks: sql<number>`count(*)::int`,
+  }).from(meetingRagDocuments)
+    .innerJoin(meetingDocuments, eq(meetingDocuments.id, meetingRagDocuments.meetingDocumentId))
+    .innerJoin(meetingRagIndexQueue, and(
+      eq(meetingRagIndexQueue.meetingDocumentId, meetingRagDocuments.meetingDocumentId),
+      eq(meetingRagIndexQueue.revision, meetingRagDocuments.revision),
+      eq(meetingRagIndexQueue.status, "ready"),
+    )).where(and(
+      eq(meetingDocuments.status, "active"),
+      sql`${meetingRagDocuments.revision} = ${meetingDocuments.revision}`,
+    ));
   const queueRows = await db.select({ status: ragIndexQueue.status, count: sql<number>`count(*)::int` })
     .from(ragIndexQueue)
     .innerJoin(terms, eq(terms.id, ragIndexQueue.termId))
     .where(sql`${terms.replacedById} is null`)
     .groupBy(ragIndexQueue.status);
-  const counts = new Map(queueRows.map((row) => [row.status, row.count]));
+  const meetingQueueRows = await db.select({ status: meetingRagIndexQueue.status, count: sql<number>`count(*)::int` })
+    .from(meetingRagIndexQueue)
+    .innerJoin(meetingDocuments, eq(meetingDocuments.id, meetingRagIndexQueue.meetingDocumentId))
+    .where(eq(meetingDocuments.status, "active"))
+    .groupBy(meetingRagIndexQueue.status);
+  const counts = new Map<string, number>();
+  for (const row of [...queueRows, ...meetingQueueRows]) counts.set(row.status, (counts.get(row.status) ?? 0) + row.count);
   const [last] = await db.select({ value: sql<Date | null>`max(${ragDocuments.createdAt})` }).from(ragDocuments)
     .innerJoin(terms, eq(terms.id, ragDocuments.termId))
     .innerJoin(ragIndexQueue, and(
@@ -448,6 +471,9 @@ export async function getRagIndexStats(): Promise<import("./config-values").RagI
     totalTerms: total?.count ?? 0,
     indexedTerms: indexed?.terms ?? 0,
     indexedChunks: indexed?.chunks ?? 0,
+    totalMeetings: meetingTotal?.count ?? 0,
+    indexedMeetings: meetingIndexed?.meetings ?? 0,
+    meetingIndexedChunks: meetingIndexed?.chunks ?? 0,
     queued: counts.get("queued") ?? 0,
     processing: counts.get("processing") ?? 0,
     ready: counts.get("ready") ?? 0,

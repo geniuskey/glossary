@@ -2,6 +2,13 @@ import Link from "next/link";
 import { MarkdownContent } from "./markdown-content";
 import { EVIDENCE_FIELD_LABELS, type GroundedChatAnswer } from "@/lib/ai/grounding-values";
 
+function CitationLinks({ evidenceIds, numbers, messageId }: { evidenceIds: string[]; numbers: Map<string, number>; messageId: number }) {
+  return <>{[...new Set(evidenceIds)].map((id) => {
+    const number = numbers.get(id);
+    return number ? <a key={id} href={`#chat-${messageId}-evidence-${number}`} className="rounded px-1.5 font-semibold text-brand underline underline-offset-2 hover:bg-brand-soft" aria-label={`근거 ${number} 보기`}>[{number}]</a> : null;
+  })}</>;
+}
+
 export function ChatGroundedAnswer({ answer, messageId }: { answer: GroundedChatAnswer; messageId: number }) {
   const numbers = new Map(answer.evidence.map((item, index) => [item.id, index + 1]));
   const anchor = (index: number) => `chat-${messageId}-evidence-${index}`;
@@ -17,6 +24,17 @@ export function ChatGroundedAnswer({ answer, messageId }: { answer: GroundedChat
         </div>
       </div>)}
     </div>
+    {answer.insights?.length > 0 && <section className="mt-3 rounded-lg border border-brand/20 bg-brand-soft/35 p-2.5" aria-label="도메인 관점">
+      <p className="text-xs font-semibold text-ink">도메인 관점</p>
+      <ul className="mt-1.5 space-y-2 text-xs leading-5 text-ink-2">
+        {answer.insights.map((insight, index) => <li key={`${insight.title}-${index}`}>
+          <p><span className="font-semibold text-ink">{insight.title}</span>: {insight.text} <span className="text-ink-3">({insight.confidence})</span>
+            <span className="ml-1"><CitationLinks evidenceIds={insight.evidenceIds} numbers={numbers} messageId={messageId} /></span>
+          </p>
+          {insight.discussionQuestion && <p className="mt-0.5 text-ink-3">토론 질문: {insight.discussionQuestion}</p>}
+        </li>)}
+      </ul>
+    </section>}
     {answer.uncertainties.length > 0 && <div className="mt-3 rounded-lg border border-warn/25 bg-warn-soft p-2.5">
       <p className="text-xs font-semibold text-ink">확인할 사항</p>
       <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-ink-2">{answer.uncertainties.map((item, index) => <li key={index}>{item}</li>)}</ul>
@@ -29,13 +47,15 @@ export function ChatGroundedAnswer({ answer, messageId }: { answer: GroundedChat
       <p className="text-xs font-semibold text-ink">답변에 연결된 근거</p>
       {answer.evidence.map((item, index) => <div key={item.id} id={anchor(index + 1)} tabIndex={-1} className="scroll-mt-4 rounded-lg border border-line bg-panel-2/50 p-2.5 focus:outline focus:outline-2 focus:outline-brand">
         <p className="text-xs font-semibold text-ink">[{index + 1}] {item.title} · {EVIDENCE_FIELD_LABELS[item.field]}</p>
-        <p className="mt-1 text-[11px] text-ink-3">리비전 {item.revision} · {new Date(item.updatedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })} (한국 시간)</p>
+        <p className="mt-1 text-[11px] text-ink-3">{item.source === "meeting" ? `회의록 리비전 ${item.revision}` : `용어집 리비전 ${item.revision}`} · {new Date(item.updatedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })} (한국 시간){item.meetingDate ? ` · 회의 ${new Date(item.meetingDate).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })}` : ""}</p>
         <blockquote className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words border-l-2 border-brand/30 pl-2 text-xs leading-5 text-ink-2">{item.excerpt}</blockquote>
-        <div className="mt-2 flex flex-wrap gap-3 text-xs">
-          <Link href={`/w/${item.termId ?? item.slug}`} className="text-brand underline">현재 용어</Link>
-          <Link href={`/history/${item.termId ?? item.slug}#revision-${item.revision}`} className="text-brand underline">기준 이력</Link>
-          {item.relatedTerm && <Link href={`/history/${item.relatedTerm.termId ?? item.relatedTerm.slug}#revision-${item.relatedTerm.revision}`} className="text-brand underline">{item.relatedTerm.title} · 리비전 {item.relatedTerm.revision}</Link>}
-        </div>
+        {item.source === "meeting" ? (
+          <div className="mt-2 flex flex-wrap gap-3 text-xs"><Link href="/meetings" className="text-brand underline">회의록 지식에서 보기</Link></div>
+        ) : <div className="mt-2 flex flex-wrap gap-3 text-xs">
+            <Link href={`/w/${item.termId ?? item.slug}`} className="text-brand underline">현재 용어</Link>
+            <Link href={`/history/${item.termId ?? item.slug}#revision-${item.revision}`} className="text-brand underline">기준 이력</Link>
+            {item.relatedTerm && <Link href={`/history/${item.relatedTerm.termId ?? item.relatedTerm.slug}#revision-${item.relatedTerm.revision}`} className="text-brand underline">{item.relatedTerm.title} · 리비전 {item.relatedTerm.revision}</Link>}
+          </div>}
       </div>)}
       <p className="text-[11px] text-ink-3">답변 당시의 구절을 보관합니다. 인용 연결은 내용의 정확성이나 공식 승인을 뜻하지 않습니다.</p>
     </section>}

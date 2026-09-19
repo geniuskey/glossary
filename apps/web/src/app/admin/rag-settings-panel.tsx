@@ -395,8 +395,9 @@ export function RagSettingsPanel({ initialConfig }: { initialConfig: PublicRagCo
 
         <div className="card overflow-hidden">
           <div className="flex flex-wrap items-center gap-4 border-b border-line bg-panel-2/50 px-4 py-3">
-            <div><p className="text-xs text-ink-3">현재 색인</p><p className="mt-1 font-mono text-lg font-semibold tabular-nums text-ink">{config.stats.indexedTerms.toLocaleString("ko-KR")} / {config.stats.totalTerms.toLocaleString("ko-KR")}개 용어</p></div>
-            <div className="text-xs leading-5 text-ink-2">청크 {config.stats.indexedChunks.toLocaleString("ko-KR")}개 · 대기 {config.stats.queued.toLocaleString("ko-KR")}개 · 실패 {config.stats.failed.toLocaleString("ko-KR")}개</div>
+            <div><p className="text-xs text-ink-3">현재 용어 색인</p><p className="mt-1 font-mono text-lg font-semibold tabular-nums text-ink">{config.stats.indexedTerms.toLocaleString("ko-KR")} / {config.stats.totalTerms.toLocaleString("ko-KR")}개</p></div>
+            <div><p className="text-xs text-ink-3">회의록 색인</p><p className="mt-1 font-mono text-lg font-semibold tabular-nums text-ink">{config.stats.indexedMeetings.toLocaleString("ko-KR")} / {config.stats.totalMeetings.toLocaleString("ko-KR")}개</p></div>
+            <div className="text-xs leading-5 text-ink-2">용어 청크 {config.stats.indexedChunks.toLocaleString("ko-KR")}개 · 회의록 청크 {config.stats.meetingIndexedChunks.toLocaleString("ko-KR")}개 · 대기 {config.stats.queued.toLocaleString("ko-KR")}개 · 실패 {config.stats.failed.toLocaleString("ko-KR")}개</div>
             <div className="ml-auto flex flex-wrap gap-2">
               <button type="button" className="btn-ghost btn-sm" disabled={saving || testing || dirty || !config.secretsReadable} onClick={() => void testConnection()}>{testing ? "연결 확인 중…" : "연결 테스트"}</button>
               <button type="button" className="btn-ghost btn-sm" disabled={saving || reindexing || dirty || !config.enabled} onClick={() => void reindex()}>{reindexing ? "대기열 생성 중…" : "전체 재색인"}</button>

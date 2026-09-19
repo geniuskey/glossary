@@ -295,6 +295,13 @@
       "when": 1789742945126,
       "tag": "0041_boring_thunderbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1789746024526,
+      "tag": "0042_red_major_mapleleaf",
+      "breakpoints": true
     }
   ]
 }

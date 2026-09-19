@@ -396,24 +396,49 @@ AI 검토를 완료하지 못하면 409를 반환한다.
 근거 답변에는 `grounded`가 포함된다.
 
 - `claims`: `{ text, evidenceIds }` 목록. 각 주장에 연결한 근거 ID
-- `evidence`: 실제 인용한 `{ id, termId, slug, title, revision, updatedAt, field, excerpt, start? }` 목록
+- `insights`: 비교·표준화·의사결정 질문에서만 채워질 수 있는 `{ title, text, evidenceIds,
+  confidence, discussionQuestion }` 목록. 근거 기반 영향·트레이드오프·위험·기회와 다음 토론
+  질문을 담으며, 일반 정의 질문에서는 빈 배열이다.
+- `evidence`: 실제 인용한 `{ id, termId, slug, title, revision, updatedAt, field, excerpt, start?, source?, meetingDocumentId?, meetingDate? }` 목록
 - `uncertainties`: 부족하거나 추가 확인이 필요한 내용
 - `searchedQueries`: 실제 사용한 검색어, 최대 2개
 - `domain`: 해당 응답의 검색 범위 또는 `null`
 
-`field`는 `metadata`, `definition`, `body`, `relationship`이다. 관계 근거에는 대상 용어의
+`field`는 `metadata`, `definition`, `body`, `relationship`, `meeting`이다. 관계 근거에는 대상 용어의
 `relatedTerm: { termId, slug, title, revision }`도 포함된다. `start`는 원문 문자열의 UTF-16
 오프셋이다. `answer`는 인용 번호를 포함한 텍스트이며 번호는 `grounded.evidence` 순서와 대응한다.
 `sources`는 근거 답변에서 실제 인용한 용어만 포함하고 리비전·수정 시점을 함께 반환한다.
 인용 ID 검사는 문장의 사실성이나 근거의 논리적 타당성 검증을 의미하지 않는다.
+
+회의록·회의 메모 분석 요청에는 `meeting`이 추가된다. 모델이 반환한 구조화 결과는 서버가
+실제 입력과 검색 결과의 ID인지 검증한 뒤 저장한다.
+
+- `summary`, `topics`, `decisions`, `risks`, `openQuestions`: `{ text, evidenceIds }` 목록
+- `actionItems`: `{ text, owner, dueDate, status, evidenceIds }` 목록. 없는 값은 `null` 또는
+  `unclear`로 둔다.
+- `insights`: `{ title, text, kind, confidence, discussionQuestion, evidenceIds }` 목록
+- `termMatches`: 현재 용어집과 연결된 `{ slug, title, reason, evidenceIds }` 목록
+- `termCandidates`: `{ surface, context, reason, suggestedAction, existingTerm, evidenceIds }`
+  목록. 자동 등록·수정은 하지 않는다.
+- `evidence`: `source`가 `meeting`이면 사용자가 제공한 회의록 구절, `glossary`이면 용어집
+  리비전 구절이다. 회의록 근거 ID는 `M1`, `M2`, 용어집 근거 ID는 `G1`, `G2`로 화면에 표시한다.
+- `uncertainties`: 원문이나 용어집으로 확인할 수 없는 내용
+
+`meeting`의 M 근거는 현재 입력 또는 저장된 회의 자료를 의미하며 공식 회의록·승인을 뜻하지 않는다. G 근거는
+기존 `grounded`와 같은 리비전 스냅샷 정책을 따른다. `GET /chat` 재조회와 `PATCH /chat`에서도
+회의 분석·근거는 서버가 보관한 값을 사용하므로 클라이언트가 요약이나 인용을 덮어쓸 수 없다.
+
+회의록 원문을 장기 지식으로 남기려면 `POST /meetings`를 명시적으로 호출한다. 웹 챗봇 카드의
+**회의록으로 저장** 버튼도 이 API를 사용하며, 저장하지 않은 붙여넣기 원문은 다음 검색의
+영구 근거가 되지 않는다.
 
 RAG 설정에서 **챗봇의 하이브리드 검색 보조**를 켜면 이 답변 생성 전에 Embedding 검색을
 시도하고 표기·키워드 검색과 결합한다. 벡터 검색이 실패하면 챗봇은 기존 검색 결과로
 계속 답하며, 자세한 벡터 결과 자체가 필요하면 [RAG 검색 API](/api/rag)의 `POST /rag/search`
 를 사용한다.
 
-`GET /chat`은 도메인 선택용 `domains` 목록을 함께 반환한다. 메시지의 `searchDomain`과
-`grounded`를 저장하므로 재조회해도 당시 범위와 구절이 유지된다.
+`GET /chat`은 도메인 선택용 `domains` 목록을 함께 반환한다. 메시지의 `searchDomain`,
+`grounded`, `meeting`을 저장하므로 재조회해도 당시 범위와 구절이 유지된다.
 
 웹 화면의 확인 버튼은 각 draft를 기존 `POST /terms`에 다음 정책으로 전달한다.
 
@@ -440,7 +465,7 @@ RAG 설정에서 **챗봇의 하이브리드 검색 보조**를 켜면 이 답�
 결과를 반환한다. 용어가 변경되어 기준 리비전이 다르면 409 `revision_conflict`를 반환한다.
 용어 변경·리비전·완료 기록은 함께 커밋되며, 일부 저장에 실패하면 함께 롤백된다.
 
-`PATCH /chat`으로는 서버가 작성한 `edit` 제안·실행 상태나 `grounded` 답변·구절·출처를 변경할 수 없다.
+`PATCH /chat`으로는 서버가 작성한 `edit` 제안·실행 상태나 `grounded`·`meeting` 답변·구절·출처를 변경할 수 없다.
 
 용어집을 Embedding API와 pgvector로 검색하는 별도 API는 [RAG 검색 API](/api/rag)에서 설명한다.
 

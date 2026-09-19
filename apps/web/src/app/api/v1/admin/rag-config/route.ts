@@ -3,6 +3,7 @@ import { RAG_VECTOR_DIMENSIONS } from "@glossary/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";
 import { getRagIndexStats, queueAllRagTerms, scheduleRagIndexing } from "@/lib/rag/indexer";
+import { queueAllMeetingDocuments, scheduleMeetingRagIndexing } from "@/lib/rag/meeting-indexer";
 import { loadRagConfig, publicRagConfig, saveRagConfig } from "@/lib/rag/config";
 import { RAG_EMBEDDING_PROVIDERS, RAG_RERANKER_PROVIDERS } from "@/lib/rag/config-values";
 
@@ -56,7 +57,11 @@ export const PATCH = withApiErrors(async (request: Request) => {
   // Embedding model, endpoint, chunking, and metadata changes all invalidate
   // existing vectors. Queueing is durable; processing happens after the response.
   const queued = result.row.enabled ? await queueAllRagTerms() : 0;
-  if (result.row.enabled) scheduleRagIndexing(8);
+  const queuedMeetings = result.row.enabled ? await queueAllMeetingDocuments() : 0;
+  if (result.row.enabled) {
+    scheduleRagIndexing(8);
+    scheduleMeetingRagIndexing(8);
+  }
   const stats = await getRagIndexStats();
-  return Response.json({ config: publicRagConfig(result.row, stats), queued, vectorDimensions: RAG_VECTOR_DIMENSIONS });
+  return Response.json({ config: publicRagConfig(result.row, stats), queued, queuedMeetings, vectorDimensions: RAG_VECTOR_DIMENSIONS });
 });

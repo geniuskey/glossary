@@ -49,6 +49,9 @@ export interface RagIndexStats {
   totalTerms: number;
   indexedTerms: number;
   indexedChunks: number;
+  totalMeetings: number;
+  indexedMeetings: number;
+  meetingIndexedChunks: number;
   queued: number;
   processing: number;
   ready: number;

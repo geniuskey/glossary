@@ -1292,7 +1292,7 @@ export const openApiSpec = {
       },
       post: {
         summary: "용어집 근거 질문과 용어 생성·수정안 작성",
-        description: "질문·등록·수정 의도를 구분합니다. 근거 답변에는 주장별 인용과 구절·리비전 스냅샷인 grounded를 반환하며, 같은 도메인 안에서 최대 2회 검색합니다. 등록은 초안, 수정은 적용 전 edit 제안을 반환합니다. 로그인 세션 응답에는 저장된 messages도 포함됩니다.",
+        description: "질문·등록·수정·회의록 분석 의도를 구분합니다. 근거 답변에는 주장별 인용과 구절·리비전 스냅샷인 grounded를 반환하며, 회의록 분석에는 사용자 원문 M 근거와 용어집 G 근거를 연결한 meeting을 반환합니다. 같은 도메인 안에서 최대 2회 검색합니다. 등록은 초안, 수정은 적용 전 edit 제안을 반환합니다. 로그인 세션 응답에는 저장된 messages도 포함됩니다.",
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",
           required: ["question"],
@@ -1324,12 +1324,17 @@ export const openApiSpec = {
           },
         } } } },
         responses: {
-          "200": json("근거 답변 또는 teaching/teachingBatch/edit 제안. edit는 로그인 세션에서만 적용 가능", {
+          "200": json("근거 답변 또는 teaching/teachingBatch/edit/meeting 결과. edit는 로그인 세션에서만 적용 가능", {
             type: "object", properties: {
               answer: { type: "string" },
-              grounded: { type: "object", required: ["claims", "uncertainties", "evidence", "searchedQueries", "domain"], properties: {
+              meeting: { type: "object", description: "회의 요약·결정·액션·리스크·인사이트와 M/G 근거. 서버가 근거 ID를 검증한다." },
+              grounded: { type: "object", required: ["claims", "insights", "uncertainties", "evidence", "searchedQueries", "domain"], properties: {
                 claims: { type: "array", items: { type: "object", required: ["text", "evidenceIds"], properties: {
                   text: { type: "string" }, evidenceIds: { type: "array", minItems: 1, items: { type: "string" } },
+                } } },
+                insights: { type: "array", maxItems: 8, items: { type: "object", required: ["title", "text", "evidenceIds", "confidence", "discussionQuestion"], properties: {
+                  title: { type: "string" }, text: { type: "string" }, evidenceIds: { type: "array", minItems: 1, items: { type: "string" } },
+                  confidence: { type: "string", enum: ["high", "medium", "low"] }, discussionQuestion: { type: ["string", "null"] },
                 } } },
                 uncertainties: { type: "array", items: { type: "string" } },
                 searchedQueries: { type: "array", maxItems: 2, items: { type: "string" } },
@@ -1337,7 +1342,8 @@ export const openApiSpec = {
                 evidence: { type: "array", items: { type: "object", required: ["id", "slug", "title", "revision", "updatedAt", "field", "excerpt"], properties: {
                   id: { type: "string" }, termId: { type: "string", format: "uuid" }, slug: { type: "string" }, title: { type: "string" },
                   revision: { type: "integer", minimum: 0 }, updatedAt: { type: "string", format: "date-time" },
-                  field: { type: "string", enum: ["metadata", "definition", "body", "relationship"] },
+                  field: { type: "string", enum: ["metadata", "definition", "body", "relationship", "meeting"] },
+                  source: { type: "string", enum: ["glossary", "meeting"] }, meetingDocumentId: { type: "string", format: "uuid" }, meetingDate: { type: ["string", "null"], format: "date-time" },
                   excerpt: { type: "string" }, start: { type: "integer", minimum: 0, description: "원문의 UTF-16 오프셋" }, relatedTerm: { type: "object" },
                 } } },
               } },
@@ -1352,7 +1358,7 @@ export const openApiSpec = {
       },
       patch: {
         summary: "용어 초안 작업이 반영된 대화 메시지 저장",
-        description: "서버에 저장된 edit 수정안·실행 상태와 grounded 답변·구절·출처는 변경할 수 없습니다. 기존 메시지가 누락되면 409를 반환합니다.",
+        description: "서버에 저장된 edit 수정안·실행 상태와 grounded/meeting 답변·구절·출처는 변경할 수 없습니다. 기존 메시지가 누락되면 409를 반환합니다.",
         security: [{ sessionCookie: [] }],
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",
@@ -1424,6 +1430,87 @@ export const openApiSpec = {
           "502": errorResponse("rag_provider_error"),
           "503": errorResponse("rag_not_ready"),
         },
+      },
+    },
+    "/rag/meetings/search": {
+      post: {
+        summary: "저장된 회의록 벡터 검색",
+        description: "현재 활성 회의록 revision의 pgvector 청크를 Embedding API로 검색하고, 설정된 경우 Reranker로 재정렬한다.",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["query"],
+          additionalProperties: false,
+          properties: {
+            query: { type: "string", minLength: 1, maxLength: 20000 },
+            topK: { type: "integer", minimum: 1, maximum: 50 },
+            domain: { type: ["string", "null"], maxLength: 200 },
+            team: { type: ["string", "null"], maxLength: 200 },
+            from: { type: ["string", "null"], format: "date-time" },
+            to: { type: ["string", "null"], format: "date-time" },
+            rerank: { type: "boolean", description: "생략하면 관리자 설정을 따른다." },
+          },
+        } } } },
+        responses: {
+          "200": json("회의록 청크 검색 결과", { type: "object", properties: { query: { type: "string" }, total: { type: "integer" }, items: { type: "array", items: { type: "object" } } } }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "502": errorResponse("rag_provider_error"),
+          "503": errorResponse("rag_not_ready"),
+        },
+      },
+    },
+    "/meetings": {
+      get: {
+        summary: "저장된 회의록 목록",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        parameters: [
+          { name: "q", in: "query", schema: { type: "string", maxLength: 200 } },
+          { name: "status", in: "query", schema: { type: "string", enum: ["active", "archived"] } },
+          { name: "domain", in: "query", schema: { type: "string", maxLength: 200 } },
+          { name: "team", in: "query", schema: { type: "string", maxLength: 200 } },
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
+          { name: "pageSize", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
+        ],
+        responses: { "200": json("회의록 메타데이터 목록", { type: "object" }), "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized") },
+      },
+      post: {
+        summary: "회의록 저장 및 RAG 색인 예약",
+        description: "원문은 revision 1로 저장되고 Embedding 색인 대기열에 들어간다. 자동 저장하지 않으며 명시적 write 권한이 필요하다.",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object", required: ["title", "content"], additionalProperties: false,
+          properties: {
+            title: { type: "string", minLength: 1, maxLength: 240 },
+            meetingDate: { type: ["string", "null"], format: "date-time" },
+            source: { type: "string", maxLength: 200 }, team: { type: "string", maxLength: 200 },
+            domain: { type: "array", maxItems: 20, items: { type: "string", maxLength: 200 } },
+            content: { type: "string", minLength: 1, maxLength: 200000 },
+          },
+        } } } },
+        responses: { "201": json("저장된 회의록", { type: "object" }), "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "403": errorResponse("forbidden") },
+      },
+    },
+    "/meetings/{id}": {
+      parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+      get: {
+        summary: "회의록 원문 조회",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        responses: { "200": json("회의록 원문과 메타데이터", { type: "object" }), "401": errorResponse("unauthorized"), "404": errorResponse("not_found") },
+      },
+      patch: {
+        summary: "회의록 수정 또는 보관",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object", additionalProperties: false,
+          properties: {
+            title: { type: "string", minLength: 1, maxLength: 240 }, meetingDate: { type: ["string", "null"], format: "date-time" },
+            source: { type: "string", maxLength: 200 }, team: { type: "string", maxLength: 200 },
+            domain: { type: "array", maxItems: 20, items: { type: "string", maxLength: 200 } },
+            content: { type: "string", minLength: 1, maxLength: 200000 }, status: { type: "string", enum: ["active", "archived"] },
+          },
+        } } } },
+        responses: { "200": json("수정된 회의록", { type: "object" }), "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "403": errorResponse("forbidden"), "404": errorResponse("not_found") },
       },
     },
     "/terms": {

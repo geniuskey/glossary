@@ -8,4 +8,5 @@ export * from "./workspace";
 export * from "./attachments";
 export * from "./ai";
 export * from "./rag";
+export * from "./meetings";
 export * from "./ai-observability";

@@ -5,9 +5,10 @@
 모두 `/api/v1` 기준이다.
 
 RAG 설정과 색인 대기열은 DB에 저장된다. 용어를 등록·수정하거나 분류 체계를 바꾸면 해당
-최신 내용이 대기열에 들어가며, 응답 뒤 백그라운드에서 색인한다. 기존 용어는 관리자 화면의
-**전체 재색인**으로 다시 넣을 수 있다. `chatEnabled`를 켜면 용어 챗봇도 이 색인을
-표기·키워드 검색과 함께 사용하는 하이브리드 검색 경로를 선택적으로 호출한다.
+최신 내용이 대기열에 들어가며, 응답 뒤 백그라운드에서 색인한다. 기존 용어와 저장된
+회의록은 관리자 화면의 **전체 재색인**으로 다시 넣을 수 있다. `chatEnabled`를 켜면 용어
+챗봇도 이 색인을 표기·키워드 검색과 함께 사용하는 하이브리드 검색 경로를 선택적으로
+호출한다. 회의록은 용어와 별도 vector 인덱스를 사용하며, 보관된 회의록은 검색에서 제외된다.
 
 ## 관리자 설정
 
@@ -86,10 +87,10 @@ OpenAI-compatible 공급자의 `/v1/models`를 조회해 RAG 용도에 맞는 �
 
 ### `POST /admin/rag-config/reindex`
 
-현재 용어 전체를 최신 리비전 기준으로 대기열에 넣고 202를 반환한다.
+현재 용어와 활성 회의록 전체를 최신 리비전 기준으로 대기열에 넣고 202를 반환한다.
 
 ```json
-{ "ok": true, "queued": 137 }
+{ "ok": true, "queued": 137, "queuedMeetings": 24 }
 ```
 
 색인 통계의 `queued`, `processing`, `ready`, `failed`로 진행 상태를 확인한다. 공급자
@@ -162,6 +163,49 @@ curl -s \
 | 502 | `rag_provider_error` | Embedding/Reranker 서버 연결·인증·응답 문제 |
 | 503 | `rag_not_ready` | RAG가 꺼져 있거나 저장된 비밀값을 읽을 수 없음 |
 
-RAG 검색 API는 용어집 내용을 외부 Embedding/Reranker 공급자에 전송할 수 있다. 사내 정책에
-맞는 공급자나 사내 OpenAI-compatible 서버를 선택하고, 운영 환경에서는 반드시 TLS URL과
-고정된 `GLOSSARY_ENCRYPTION_KEY`를 사용한다.
+RAG 검색 API는 용어집과 저장된 회의록 내용을 외부 Embedding/Reranker 공급자에 전송할 수
+있다. 사내 정책에 맞는 공급자나 사내 OpenAI-compatible 서버를 선택하고, 운영 환경에서는
+반드시 TLS URL과 고정된 `GLOSSARY_ENCRYPTION_KEY`를 사용한다.
+
+## 회의록 지식
+
+### `POST /meetings`
+
+로그인 세션 또는 `write` scope API Key로 회의록을 명시적으로 저장한다. `content`는 최대
+200,000자이며, `title`, `meetingDate`, `source`, `team`, `domain` 메타데이터를 함께 저장할
+수 있다. 저장 직후에는 원문만 확정되고 Embedding 색인은 durable queue에서 비동기로 진행된다.
+
+```json
+{
+  "title": "2026 Q3 상품 회의",
+  "meetingDate": "2026-09-18T02:00:00.000Z",
+  "source": "Notion",
+  "team": "상품팀",
+  "domain": ["Product"],
+  "content": "결정: ...\n액션 아이템: ..."
+}
+```
+
+`GET /meetings`는 활성 회의록 메타데이터를 조회하며 `status=archived`로 보관 목록도 볼 수
+있다. `GET /meetings/{id}`는 원문을 반환하고, `PATCH /meetings/{id}`는 메타데이터·원문을
+새 revision으로 저장하거나 `status: "archived"`로 보관한다. 삭제 대신 보관을 사용해 당시
+의사결정의 감사 근거를 남긴다.
+
+### `POST /rag/meetings/search`
+
+로그인 세션 또는 `read` scope API Key가 필요하다. 현재 활성 회의록 revision의 청크를
+검색하며 `domain`, `team`, `from`, `to`, `topK`, `rerank` 필터를 지원한다.
+
+```json
+{
+  "query": "지난 분기에 합의한 출시 기준과 담당자는 무엇인가?",
+  "topK": 5,
+  "domain": "Product",
+  "from": "2026-07-01T00:00:00.000Z",
+  "to": "2026-09-30T23:59:59.999Z"
+}
+```
+
+검색 결과에는 회의록 ID·제목·회의일·revision·원문 청크의 `startOffset`/`endOffset`가
+포함된다. 챗봇은 이 결과를 용어집 근거와 구분해 인용하고, 회의록이 당시 논의의 기록일
+뿐 현재 정책의 자동 승인은 아니라는 점을 답변 지침에 포함한다.

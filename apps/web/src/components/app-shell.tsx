@@ -6,7 +6,7 @@ import { AccountMenu } from "./account-menu";
 import { CollapsibleSidebar } from "./collapsible-sidebar";
 import { SearchBox } from "./search-box";
 
-export type NavKey = "contribute" | "field-completion" | "sheet" | "classifications" | "graph" | "chat" | "api" | "import" | "statistics" | "settings" | "admin";
+export type NavKey = "contribute" | "field-completion" | "sheet" | "classifications" | "graph" | "chat" | "meetings" | "api" | "import" | "statistics" | "settings" | "admin";
 
 export const APP_NAV_ITEMS: Array<{ key: NavKey; href: string; label: string; hint: string; icon: ReactNode; adminOnly?: true }> = [
   { key: "contribute", href: "/contribute", label: "함께 정리", hint: "미완성", icon: <IconContribute /> },
@@ -15,6 +15,7 @@ export const APP_NAV_ITEMS: Array<{ key: NavKey; href: string; label: string; hi
   { key: "classifications", href: "/classifications", label: "분류 체계", hint: "도메인 · 업무", icon: <IconClassification /> },
   { key: "graph", href: "/graph", label: "관계도", hint: "맥락 탐색", icon: <IconGraph /> },
   { key: "chat", href: "/chat", label: "용어 챗봇", hint: "AI 질문", icon: <IconChat /> },
+  { key: "meetings", href: "/meetings", label: "회의록 지식", hint: "조직 기억", icon: <IconMeeting /> },
   { key: "api", href: "/api", label: "API", hint: "개발자 연동", icon: <IconApi /> },
   { key: "import", href: "/import", label: "가져오기", hint: "엑셀", icon: <IconImport /> },
   { key: "statistics", href: "/statistics", label: "통계", hint: "운영 현황", icon: <IconStatistics />, adminOnly: true },
@@ -195,6 +196,15 @@ function IconChat() {
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
       <path d="M2 3.75A1.75 1.75 0 0 1 3.75 2h8.5A1.75 1.75 0 0 1 14 3.75v5.5A1.75 1.75 0 0 1 12.25 11H7l-3.5 2.75V11.1A1.75 1.75 0 0 1 2 9.25v-5.5Z" strokeLinejoin="round" />
       <path d="M5 6.5h6M5 8.5h3.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconMeeting() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <rect x="2" y="2.25" width="12" height="11.5" rx="1.6" />
+      <path d="M5 1.75v2.5M11 1.75v2.5M2.25 6h11.5M5 8.5h2M9 8.5h2M5 11h4" strokeLinecap="round" />
     </svg>
   );
 }

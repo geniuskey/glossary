@@ -1,12 +1,13 @@
 import "server-only";
 
 import { and, arrayContains, desc, eq, inArray, or, sql } from "drizzle-orm";
-import { surfaceKeys, termRevisions, terms, termSurfaces } from "@glossary/db";
+import { meetingDocuments, surfaceKeys, termRevisions, terms, termSurfaces } from "@glossary/db";
 import { approvedRelations } from "@/lib/terms/relations";
 import { getDb } from "@/lib/db";
 import { relevantPassages } from "./passages";
 import { loadRagConfig } from "@/lib/rag/config";
 import { searchRag, type RagSearchHit } from "@/lib/rag/search";
+import { searchMeetingRag, type MeetingSearchHit } from "@/lib/rag/meeting-search";
 import type { AiRunContext } from "./observability-values";
 import type { ChatEvidence } from "./grounding-values";
 
@@ -26,7 +27,13 @@ export interface ChatGrounding {
   evidence?: ChatEvidence[];
 }
 
-export interface RetrievalOptions { domain?: string; passageQuery?: string; vectorSearch?: boolean; telemetry?: AiRunContext }
+export interface RetrievalOptions {
+  domain?: string;
+  passageQuery?: string;
+  vectorSearch?: boolean;
+  includeMeetingDocuments?: boolean;
+  telemetry?: AiRunContext;
+}
 
 const STOP_WORDS = new Set([
   "대해", "대한", "무엇", "뭐야", "알려", "설명", "설명해", "어떤", "관련", "용어", "에서", "으로", "하는", "줘", "the", "what", "about", "explain",
@@ -52,24 +59,38 @@ function addRank(scores: Map<string, number>, ids: readonly string[], weight: nu
 }
 
 export async function retrieveGlossaryContext(question: string, limit = 12, options: RetrievalOptions = {}): Promise<ChatGrounding> {
-  const vectorHits = options.vectorSearch ? await optionalVectorHits(question, options) : [];
-  return getDb().transaction((db) => retrieveSnapshot(db, question, limit, options, vectorHits), { isolationLevel: "repeatable read", accessMode: "read only" });
+  const vectorResults = options.vectorSearch ? await optionalVectorHits(question, options) : { glossaryHits: [], meetingHits: [] };
+  return getDb().transaction((db) => retrieveSnapshot(db, question, limit, options, vectorResults.glossaryHits, vectorResults.meetingHits), { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
-async function optionalVectorHits(question: string, options: RetrievalOptions): Promise<RagSearchHit[]> {
+async function optionalVectorHits(question: string, options: RetrievalOptions): Promise<{ glossaryHits: RagSearchHit[]; meetingHits: MeetingSearchHit[] }> {
   try {
     const config = await loadRagConfig();
-    if (!config.enabled || !config.chatEnabled) return [];
-    return await searchRag(question, {
-      topK: Math.min(24, Math.max(8, limitForVectorSearch(options))),
-      domain: options.domain,
-      rerank: config.rerankerEnabled,
-      telemetry: options.telemetry,
-    });
+    if (!config.enabled || !config.chatEnabled) return { glossaryHits: [], meetingHits: [] };
+    const hasActiveMeetings = options.includeMeetingDocuments !== false
+      && (await getDb().select({ id: meetingDocuments.id }).from(meetingDocuments).where(eq(meetingDocuments.status, "active")).limit(1)).length > 0;
+    const topK = Math.min(24, Math.max(8, limitForVectorSearch(options)));
+    const [glossaryResult, meetingResult] = await Promise.all([
+      searchRag(question, {
+        topK,
+        domain: options.domain,
+        rerank: config.rerankerEnabled,
+        telemetry: options.telemetry,
+      }).catch(() => [] as RagSearchHit[]),
+      !hasActiveMeetings
+        ? Promise.resolve([] as MeetingSearchHit[])
+        : searchMeetingRag(question, {
+          topK,
+          domain: options.domain,
+          rerank: config.rerankerEnabled,
+          telemetry: options.telemetry,
+        }).catch(() => [] as MeetingSearchHit[]),
+    ]);
+    return { glossaryHits: glossaryResult, meetingHits: meetingResult };
   } catch {
     // The lexical path remains available when an optional vector provider is
     // unavailable. The failed provider call is still visible in AI telemetry.
-    return [];
+    return { glossaryHits: [], meetingHits: [] };
   }
 }
 
@@ -83,12 +104,13 @@ async function retrieveSnapshot(
   limit: number,
   options: RetrievalOptions,
   vectorHits: readonly RagSearchHit[] = [],
+  meetingHits: readonly MeetingSearchHit[] = [],
 ): Promise<ChatGrounding> {
   const key = surfaceKeys(question).normLoose;
   const keywords = retrievalKeywords(question);
   const passageKeywords = retrievalKeywords(options.passageQuery ?? question);
   const domainFilter = and(sql`${terms.replacedById} is null`, options.domain ? arrayContains(terms.domain, [options.domain]) : undefined);
-  if (!key && keywords.length === 0 && vectorHits.length === 0) return { context: "{\"terms\":[],\"relationships\":[]}", sources: [] };
+  if (!key && keywords.length === 0 && vectorHits.length === 0 && meetingHits.length === 0) return { context: "{\"terms\":[],\"relationships\":[],\"meetings\":[]}", sources: [] };
 
   const content = sql<string>`concat_ws(' ', ${terms.nameEn}, ${terms.nameKo}, ${terms.fullNameEn}, ${terms.fullNameKo}, ${terms.definitionMd}, ${terms.bodyMd})`;
   const [surfaceCandidates, contentCandidates] = await Promise.all([
@@ -143,7 +165,33 @@ async function retrieveSnapshot(
   // merely because it produced more chunks.
   addRank(scores, [...new Set(vectorHits.map((row) => row.termId))], 1.5);
   const seedIds = [...scores.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id);
-  if (seedIds.length === 0) return { context: "{\"terms\":[],\"relationships\":[]}", sources: [] };
+  const meetingEvidence: ChatEvidence[] = meetingHits.map((hit) => ({
+    id: `meeting:${hit.meetingDocumentId}:${hit.revision}:${hit.id}`,
+    slug: `meeting:${hit.meetingDocumentId}`,
+    title: hit.title,
+    revision: hit.revision,
+    updatedAt: hit.updatedAt,
+    field: "meeting",
+    excerpt: hit.content.slice(0, 1_800),
+    start: hit.startOffset,
+    source: "meeting",
+    meetingDocumentId: hit.meetingDocumentId,
+    meetingDate: hit.meetingDate,
+  }));
+  if (seedIds.length === 0) return {
+    context: JSON.stringify({ terms: [], relationships: [], meetings: meetingHits.map((hit) => ({
+      id: hit.meetingDocumentId,
+      title: hit.title,
+      meetingDate: hit.meetingDate,
+      source: hit.source,
+      team: hit.team,
+      domain: hit.domain,
+      revision: hit.revision,
+      excerpt: hit.content.slice(0, 1_800),
+    })) }),
+    sources: [],
+    evidence: meetingEvidence,
+  };
 
   const graphSeeds = seedIds.slice(0, 6);
   const relationshipRows = await approvedRelations(db, graphSeeds);
@@ -236,9 +284,19 @@ async function retrieveSnapshot(
       };
     });
 
+  const meetingEntries = meetingHits.map((hit) => ({
+    id: hit.meetingDocumentId,
+    title: hit.title,
+    meetingDate: hit.meetingDate,
+    source: hit.source,
+    team: hit.team,
+    domain: hit.domain,
+    revision: hit.revision,
+    excerpt: hit.content.slice(0, 1_800),
+  }));
   return {
-    context: JSON.stringify({ terms: entries, relationships }),
-    evidence,
+    context: JSON.stringify({ terms: entries, relationships, meetings: meetingEntries }),
+    evidence: [...evidence, ...meetingEvidence],
     sources: termRows.map((term) => ({
       termId: term.id,
       slug: term.slug,

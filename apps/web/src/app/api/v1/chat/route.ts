@@ -202,6 +202,7 @@ export const POST = withApiErrors(async (request: Request) => {
         teachingBatch: result.teachingBatch,
         edit: result.edit,
         grounded: result.grounded,
+        meeting: result.meeting,
         searchDomain: parsed.data.domain ?? null,
       };
       const appended = await appendChatMessage(conversationId, auth.user.id, assistantMessage);
@@ -245,8 +246,8 @@ export const PATCH = withApiErrors(async (request: Request) => {
     // Proposals and cited answer snapshots are server-owned, including their text and sources.
     const messages = incoming.map((message) => {
       const stored = existing.find((item) => item.id === message.id);
-      return { ...message, edit: stored?.edit, grounded: stored?.grounded, searchDomain: stored?.searchDomain,
-        ...(stored?.grounded ? { role: stored.role, content: stored.content, sources: stored.sources } : {}) };
+      return { ...message, edit: stored?.edit, grounded: stored?.grounded, meeting: stored?.meeting, searchDomain: stored?.searchDomain,
+        ...(stored?.grounded || stored?.meeting ? { role: stored.role, content: stored.content, sources: stored.sources } : {}) };
     });
     await tx.update(chatConversations).set({ messages, updatedAt: new Date() }).where(owned);
     return Response.json({ ok: true });

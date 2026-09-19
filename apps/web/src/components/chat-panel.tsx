@@ -7,7 +7,9 @@ import { HelpTip } from "./help-tip";
 import { MarkdownContent } from "./markdown-content";
 import { ChatEditCard } from "./chat-edit-card";
 import { ChatGroundedAnswer } from "./chat-grounded-answer";
+import { ChatMeetingAnalysis } from "./chat-meeting-analysis";
 import type { GroundedChatAnswer } from "@/lib/ai/grounding-values";
+import type { MeetingAnalysis } from "@/lib/ai/meeting-values";
 import type { ChatEditProposal } from "@/lib/ai/chat-edit-values";
 import {
   teachingDraftHasMeaning,
@@ -22,7 +24,7 @@ interface Source { slug: string; title: string; definition: string | null; statu
 interface Teaching { draft: TermTeachingDraft; ready: boolean }
 type Message = StoredChatMessage;
 
-const EXAMPLES = ["IT와 SW는 무엇을 뜻해?", "T/O라는 새 용어를 등록하고 싶어", "AE의 정의를 수정하고 싶어", "AE에 자동노출이라는 별칭을 추가해줘"];
+const EXAMPLES = ["IT와 SW는 무엇을 뜻해?", "회의록을 붙여넣고 결정사항과 액션 아이템을 정리해줘", "T/O라는 새 용어를 등록하고 싶어", "AE의 정의를 수정하고 싶어", "AE에 자동노출이라는 별칭을 추가해줘"];
 
 function isLargePastedMessage(content: string): boolean {
   return content.length > 500 || content.split(/\r?\n/).length > 5;
@@ -47,11 +49,13 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
   const [draftError, setDraftError] = useState<{ id: number; text: string } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editError, setEditError] = useState<{ id: string; text: string } | null>(null);
+  const [savingMeetingId, setSavingMeetingId] = useState<number | null>(null);
+  const [meetingSaveState, setMeetingSaveState] = useState<Record<number, { saved: boolean; error: string | null }>>({});
   const endRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<Message[]>([]);
   const routeSessionRef = useRef(routeSessionId);
   routeSessionRef.current = routeSessionId;
-  const busy = sending || deleting || creatingDraftId !== null || editingId !== null;
+  const busy = sending || deleting || creatingDraftId !== null || editingId !== null || savingMeetingId !== null;
   let nextId = messages.reduce((max, message) => Math.max(max, message.id), 0) + 1;
 
   useEffect(() => {
@@ -163,7 +167,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ question: text, history, domain: searchDomain || null, teachingDraft: activeTeachingDraft(), ...(currentSessionId ? { sessionId: currentSessionId } : {}) }),
       });
-      const body = await response.json().catch(() => null) as { sessionId?: string; answer?: string; messages?: Message[]; grounded?: GroundedChatAnswer; edit?: ChatEditProposal; sources?: Source[]; teaching?: Teaching; teachingBatch?: TermTeachingBatch; error?: { message?: string; details?: { sessionId?: string } } } | null;
+      const body = await response.json().catch(() => null) as { sessionId?: string; answer?: string; messages?: Message[]; grounded?: GroundedChatAnswer; meeting?: MeetingAnalysis; edit?: ChatEditProposal; sources?: Source[]; teaching?: Teaching; teachingBatch?: TermTeachingBatch; error?: { message?: string; details?: { sessionId?: string } } } | null;
       if (routeSessionRef.current !== submittedSessionId) return;
       const returnedSessionId = body?.sessionId || body?.error?.details?.sessionId;
       if (!currentSessionId && returnedSessionId) {
@@ -252,6 +256,36 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
     } catch (error) {
       if (routeSessionRef.current === submittedSession) setEditError({ id: edit.id, text: error instanceof Error && !(error instanceof TypeError) ? error.message : "연결을 확인하고 다시 시도해 주세요. 이미 적용된 수정은 중복 실행되지 않습니다." });
     } finally { setEditingId(null); }
+  }
+
+  async function saveMeeting(messageId: number) {
+    if (busy || historyLoading) return;
+    const source = [...messagesRef.current]
+      .slice(0, messagesRef.current.findIndex((message) => message.id === messageId))
+      .reverse()
+      .find((message) => message.role === "user");
+    if (!source) {
+      setMeetingSaveState((current) => ({ ...current, [messageId]: { saved: false, error: "저장할 회의록 원문을 찾지 못했습니다." } }));
+      return;
+    }
+    setSavingMeetingId(messageId);
+    setMeetingSaveState((current) => ({ ...current, [messageId]: { saved: false, error: null } }));
+    try {
+      const firstLine = source.content.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? "회의록";
+      const title = firstLine.replace(/^#+\s*/, "").slice(0, 160) || "회의록";
+      const response = await fetch("/api/v1/meetings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title, source: "용어 챗봇", domain: searchDomain ? [searchDomain] : [], content: source.content }),
+      });
+      const body = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+      if (!response.ok) throw new Error(body?.error?.message || `회의록을 저장하지 못했습니다 (${response.status}).`);
+      if (routeSessionRef.current === routeSessionId) setMeetingSaveState((current) => ({ ...current, [messageId]: { saved: true, error: null } }));
+    } catch (error) {
+      if (routeSessionRef.current === routeSessionId) setMeetingSaveState((current) => ({ ...current, [messageId]: { saved: false, error: error instanceof Error ? error.message : "회의록을 저장하지 못했습니다." } }));
+    } finally {
+      setSavingMeetingId(null);
+    }
   }
 
   async function createTermFromDraft(messageId: number, draft: TermTeachingDraft) {
@@ -447,7 +481,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
                   message.role === "user" ? "rounded-br-md bg-brand text-brand-on" : message.failed ? "rounded-bl-md border border-danger/30 bg-danger-soft text-danger" : "rounded-bl-md border border-line bg-panel text-ink",
                 )}>
                   {message.role === "assistant"
-                    ? message.grounded ? <ChatGroundedAnswer answer={message.grounded} messageId={message.id} /> : <MarkdownContent className="break-words text-sm leading-6">{message.content}</MarkdownContent>
+                    ? message.grounded ? <ChatGroundedAnswer answer={message.grounded} messageId={message.id} /> : message.meeting ? <ChatMeetingAnalysis analysis={message.meeting} messageId={message.id} onSave={() => void saveMeeting(message.id)} saving={savingMeetingId === message.id} saved={meetingSaveState[message.id]?.saved} saveError={meetingSaveState[message.id]?.error} /> : <MarkdownContent className="break-words text-sm leading-6">{message.content}</MarkdownContent>
                     : isLargePastedMessage(message.content) ? (
                       <details>
                         <summary className="cursor-pointer text-sm font-medium">붙여넣은 내용 · {message.content.split(/\r?\n/).filter(Boolean).length}줄</summary>

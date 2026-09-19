@@ -1,6 +1,7 @@
 import type { TermTeachingBatch, TermTeachingDraft } from "./teaching-values";
 import type { ChatEditProposal } from "./chat-edit-values";
 import type { GroundedChatAnswer } from "./grounding-values";
+import type { MeetingAnalysis } from "./meeting-values";
 
 export interface StoredChatSource {
   termId?: string;
@@ -23,6 +24,7 @@ export interface StoredChatMessage {
   failed?: boolean;
   edit?: ChatEditProposal;
   grounded?: GroundedChatAnswer;
+  meeting?: MeetingAnalysis;
   searchDomain?: string | null;
 }
 

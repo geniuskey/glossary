@@ -41,6 +41,9 @@ import * as adminRagConfigReindexRoute from "../src/app/api/v1/admin/rag-config/
 import * as adminRagConfigTestRoute from "../src/app/api/v1/admin/rag-config/test/route.js";
 import * as chatRoute from "../src/app/api/v1/chat/route.js";
 import * as ragSearchRoute from "../src/app/api/v1/rag/search/route.js";
+import * as ragMeetingSearchRoute from "../src/app/api/v1/rag/meetings/search/route.js";
+import * as meetingsRoute from "../src/app/api/v1/meetings/route.js";
+import * as meetingRoute from "../src/app/api/v1/meetings/[id]/route.js";
 import * as chatActionsRoute from "../src/app/api/v1/chat/actions/route.js";
 import * as relationsRoute from "../src/app/api/v1/relations/route.js";
 import * as relationRoute from "../src/app/api/v1/relations/[id]/route.js";
@@ -148,6 +151,9 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "admin/rag-config/test", mod: adminRagConfigTestRoute, allowed: ["POST"], allow: "POST" },
   { name: "chat", mod: chatRoute, allowed: ["GET", "POST", "PATCH", "DELETE"], allow: "GET, HEAD, POST, PATCH, DELETE" },
   { name: "rag/search", mod: ragSearchRoute, allowed: ["POST"], allow: "POST" },
+  { name: "rag/meetings/search", mod: ragMeetingSearchRoute, allowed: ["POST"], allow: "POST" },
+  { name: "meetings", mod: meetingsRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
+  { name: "meetings/[id]", mod: meetingRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
   { name: "contributions/suggestions", mod: contributionSuggestionsRoute, allowed: ["GET", "PATCH", "DELETE"], allow: "GET, HEAD, PATCH, DELETE" },
   { name: "contributions/duplicates", mod: contributionDuplicatesRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "contributions/review-queue", mod: contributionReviewQueueRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },

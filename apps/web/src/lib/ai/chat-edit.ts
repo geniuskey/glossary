@@ -19,7 +19,7 @@ import { parseAiJson } from "./json";
 export const readAiJson = parseAiJson;
 
 const intentSchema = z.object({
-  intent: z.enum(["ask", "create", "edit", "unsupported"]),
+  intent: z.enum(["ask", "create", "edit", "meeting", "unsupported"]),
   query: z.string().trim().min(1).max(500),
 }).strict();
 
@@ -27,7 +27,7 @@ export async function classifyChatIntent(config: AiRuntimeConfig, question: stri
   const raw = await completeAi(config, [
     { role: "system", content: [
       "용어집 요청의 의도만 분류하세요. JSON {intent, query}를 반환하세요.",
-      "intent: ask=질문/검색/설명, create=명시적인 신규 등록 요청, edit=기존 용어의 정의/이름/별칭/도메인/업무 분류/주제 변경 요청, unsupported=삭제/병합/관계 변경 실행 요청.",
+      "intent: ask=질문/검색/설명, create=명시적인 신규 등록 요청, edit=기존 용어의 정의/이름/별칭/도메인/업무 분류/주제 변경 요청, meeting=회의록·회의 메모를 요약하고 결정·액션·리스크·용어 연결·도메인 인사이트를 분석하는 요청, unsupported=삭제/병합/관계 변경 실행 요청.",
       "query는 대상 용어 이름과 도메인을 포함한 검색어입니다. 대명사는 대화 맥락으로 해소하되 대상이 불명확하면 원 질문을 사용하세요.",
       "질문만 했거나 검색에 실패했다고 create로 분류하지 마세요. 등록안 작성 중의 정보 제공은 create입니다. 수정안에 대한 추가 변경은 edit입니다.",
       "질문 없이 용어집 표나 목록만 붙여넣은 입력은 create로 분류하세요. 기존 용어를 편집하는 중 붙여넣은 본문은 edit입니다.",
