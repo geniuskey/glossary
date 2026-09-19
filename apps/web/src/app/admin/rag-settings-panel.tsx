@@ -298,7 +298,7 @@ export function RagSettingsPanel({ initialConfig }: { initialConfig: PublicRagCo
     <section aria-labelledby="rag-settings-heading">
       <header className="mb-4">
         <div className="flex items-center gap-2">
-          <h2 id="rag-settings-heading" className="text-base font-semibold text-ink">RAG 검색</h2>
+          <h2 id="rag-settings-heading" className="text-base font-semibold text-ink">검색 인프라</h2>
           <HelpTip text="용어집 내용을 청크로 나누어 pgvector에 저장하고, 질문을 같은 Embedding 공간으로 변환해 검색합니다. API 키와 header 값은 관리자 화면에 다시 표시하지 않습니다." />
         </div>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-2">

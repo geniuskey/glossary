@@ -53,7 +53,7 @@ GLOSSARY_ENCRYPTION_KEY=replace-with-a-long-random-encryption-key
 `openssl rand -base64 48` 등으로 별도 생성하고 비밀 저장소에 백업한다. 이 값은 DB
 백업에 들어가지 않으며, 배포 후 값을 바꾸거나 잃으면 저장된 AI 비밀값을 읽을 수 없다.
 복구 리허설에도 운영과 같은 값을 별도로 주입해야 한다. 연결 자체는 관리자 패널의
-**AI 연결**과 **RAG 검색** 탭에서 각각 설정·시험한다. `Connected`는 모델 목록 조회가
+**AI 연결**과 **검색 인프라** 탭에서 각각 설정·시험한다. `Connected`는 모델 목록 조회가
 아니라 실제 요청까지 성공했다는 뜻이다. 공급자가 모델을 폐기하면 목록에는 남아 있어도
 생성·Embedding 요청이 실패할 수 있으므로 연결 시험 메시지에 따라 다른 모델을 선택한다.
 
@@ -65,7 +65,7 @@ PostgreSQL은 `pgvector/pgvector:pg16` 이미지가 필요하다. 새 설치는
 확장과 RAG 테이블을 추가한다. 마이그레이션 전에 백업을 남긴다.
 
 용어 등록·수정이 성공하면 최신 리비전이 `rag_index_queue`에 먼저 기록되고 응답 뒤
-Embedding 요청이 실행된다. 관리자 패널의 **RAG 검색**에서 다음 상태를 확인할 수 있다.
+Embedding 요청이 실행된다. 관리자 패널의 **검색 인프라**에서 다음 상태를 확인할 수 있다.
 
 - `indexedTerms / totalTerms`: 현재 리비전까지 색인된 용어 수
 - `queued`, `processing`: 아직 처리되지 않았거나 처리 중인 대기열
@@ -86,7 +86,7 @@ docker compose -f docker-compose.prod.yml exec postgres psql -U glossary -d glos
 
 ### AI 실행 모니터링
 
-관리자 패널의 **AI 모니터링** 탭 또는 `GET /api/v1/admin/ai-observability?hours=24`에서
+관리자 패널의 **AI 운영** 탭 또는 `GET /api/v1/admin/ai-observability?hours=24`에서
 LLM·Embedding·Reranker의 호출 수, 성공률, P95 지연, 토큰 사용량, 작업·모델별 실패를
 확인한다. 같은 챗봇 요청에서 발생한 의도 분류·벡터 검색·답변 호출은 trace ID로 묶이며,
 프롬프트·답변 원문과 비밀값은 저장하지 않는다. `running`이 장시간 남으면 프로세스 중단으로

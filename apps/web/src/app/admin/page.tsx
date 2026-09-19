@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
@@ -13,7 +12,6 @@ import { authMode, oauth2ProxyEnabled, proxyHeaderNames } from "@/lib/auth/sso/p
 import { getHomeContent } from "@/lib/workspace/home-content";
 import { getWorkspaceMenuSettings } from "@/lib/workspace/menu-settings";
 import { getTermQualityOverview, getTermQualitySettings } from "@/lib/workspace/term-quality";
-import { cx } from "@/lib/ui/format";
 import { AiSettingsPanel } from "./ai-settings-panel";
 import { AiObservabilityPanel } from "./ai-observability-panel";
 import { RagSettingsPanel } from "./rag-settings-panel";
@@ -23,21 +21,14 @@ import { UsersPanel } from "./users-panel";
 import { DataExportPanel } from "./data-export-panel";
 import { SsoSettingsForm } from "@/app/settings/sso/sso-settings-form";
 import { MenuSettingsPanel } from "./menu-settings-panel";
+import { AdminOverviewPanel } from "./admin-overview-panel";
+import { ADMIN_NAV_GROUPS, AdminNavigation, type AdminTab } from "./admin-navigation";
 
 export const metadata = { title: "관리자" };
 
-const ADMIN_TABS = [
-  { key: "home", label: "홈 화면" },
-  { key: "menus", label: "메뉴 구성" },
-  { key: "quality", label: "콘텐츠 완성도" },
-  { key: "ai", label: "AI 연결" },
-  { key: "observability", label: "AI 모니터링" },
-  { key: "rag", label: "RAG 검색" },
-  { key: "data", label: "데이터" },
-  { key: "sso", label: "로그인 · SSO" },
-  { key: "users", label: "사용자" },
-] as const;
-type AdminTab = (typeof ADMIN_TABS)[number]["key"];
+function isAdminTab(value: string | undefined): value is AdminTab {
+  return value === "overview" || ADMIN_NAV_GROUPS.some((group) => group.items.some((item) => item.key === value));
+}
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await getCurrentUser();
@@ -46,10 +37,31 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   const rawTab = (await searchParams).tab;
   const requestedTab = Array.isArray(rawTab) ? rawTab[0] : rawTab;
-  const tab: AdminTab = ADMIN_TABS.some((item) => item.key === requestedTab) ? requestedTab as AdminTab : "home";
+  const tab: AdminTab = isAdminTab(requestedTab) ? requestedTab : "overview";
 
   let panel: ReactNode;
-  if (tab === "home") panel = <HomeContentPanel initialContent={await getHomeContent()} />;
+  if (tab === "overview") {
+    const [menuSettings, qualitySettings, aiConfig, ragConfig, ragStats, managedUsers] = await Promise.all([
+      getWorkspaceMenuSettings(),
+      getTermQualitySettings(),
+      loadAiConfig(),
+      loadRagConfig(),
+      getRagIndexStats(),
+      listManagedUsers(),
+    ]);
+    panel = <AdminOverviewPanel
+      menuSettings={menuSettings}
+      quality={await getTermQualityOverview(qualitySettings)}
+      ai={publicAiConfig(aiConfig)}
+      rag={publicRagConfig(ragConfig, ragStats)}
+      users={{
+        total: managedUsers.length,
+        admins: managedUsers.filter((item) => item.role === "admin").length,
+        activeSessions: managedUsers.reduce((sum, item) => sum + item.activeSessions, 0),
+      }}
+    />;
+  }
+  else if (tab === "home") panel = <HomeContentPanel initialContent={await getHomeContent()} />;
   else if (tab === "menus") panel = <MenuSettingsPanel initialSettings={await getWorkspaceMenuSettings()} />;
   else if (tab === "quality") {
     const settings = await getTermQualitySettings();
@@ -101,27 +113,17 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   else panel = <UsersPanel initialUsers={await listManagedUsers()} viewerId={user.id} />;
 
   return (
-    <AppShell user={user} title="관리자 패널" current="admin" roomy>
-      <header className="mb-6">
-        <p className="text-xl font-semibold tracking-tight lg:hidden">관리자 패널</p>
-        <nav className="mt-4 flex overflow-x-auto border-b border-line" aria-label="관리자 하위 메뉴">
-          {ADMIN_TABS.map((item) => (
-            <Link
-              key={item.key}
-              href={item.key === "home" ? "/admin" : `/admin?tab=${item.key}`}
-              aria-current={tab === item.key ? "page" : undefined}
-              className={cx(
-                "relative -mb-px shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition",
-                tab === item.key ? "border-brand text-brand" : "border-transparent text-ink-3 hover:text-ink",
-              )}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+    <AppShell user={user} title="관리자" current="admin" roomy>
+      <header className="mb-7">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">Admin workspace</p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">관리자</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-2">서비스 구성, AI·검색, 조직 접근과 데이터를 한곳에서 관리합니다.</p>
       </header>
 
-      {panel}
+      <div className="lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8">
+        <AdminNavigation current={tab} />
+        <div className="min-w-0">{panel}</div>
+      </div>
     </AppShell>
   );
 }

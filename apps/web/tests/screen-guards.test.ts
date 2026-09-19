@@ -121,15 +121,21 @@ test("관리자 화면은 사용자 목록을 읽기 전에 관리자 역할을 
   expect(userQuery).toBeGreaterThan(roleGuard);
 });
 
-test("관리자 화면은 홈·콘텐츠 완성도·AI·RAG·SSO·사용자를 탭으로 분리한다", () => {
+test("관리자 화면은 운영 개요와 기능 그룹별 메뉴로 정리한다", () => {
   const content = stripComments(readFileSync(path.join(appDir, "admin", "page.tsx"), "utf8"));
-  expect(content).toContain('aria-label="관리자 하위 메뉴"');
-  expect(content).toContain('{ key: "home", label: "홈 화면" }');
-  expect(content).toContain('{ key: "quality", label: "콘텐츠 완성도" }');
-  expect(content).toContain('{ key: "ai", label: "AI 연결" }');
-  expect(content).toContain('{ key: "rag", label: "RAG 검색" }');
-  expect(content).toContain('{ key: "sso", label: "로그인 · SSO" }');
-  expect(content).toContain('{ key: "users", label: "사용자" }');
+  const navigation = stripComments(readFileSync(path.join(appDir, "admin", "admin-navigation.tsx"), "utf8"));
+  expect(navigation).toContain('aria-label="관리자 하위 메뉴"');
+  expect(navigation).toContain('label: "서비스 구성"');
+  expect(navigation).toContain('label: "AI · 검색"');
+  expect(navigation).toContain('label: "조직 · 접근"');
+  expect(navigation).toContain('label: "데이터"');
+  expect(navigation).toContain('key: "home"');
+  expect(navigation).toContain('key: "quality"');
+  expect(navigation).toContain('key: "ai"');
+  expect(navigation).toContain('key: "rag"');
+  expect(navigation).toContain('key: "sso"');
+  expect(navigation).toContain('key: "users"');
+  expect(content).toContain('tab === "overview"');
   expect(content).toContain('else if (tab === "quality")');
   expect(content).toContain('else if (tab === "ai")');
   expect(content).toContain('else if (tab === "rag")');

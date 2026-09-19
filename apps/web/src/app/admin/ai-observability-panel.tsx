@@ -102,7 +102,7 @@ export function AiObservabilityPanel({ initialSnapshot, initialQueues, initialRe
     <section aria-labelledby="ai-observability-heading">
       <header className="mb-6 flex flex-wrap items-start gap-3">
         <div className="mr-auto">
-          <h2 id="ai-observability-heading" className="text-lg font-semibold tracking-tight text-ink">AI 모니터링</h2>
+          <h2 id="ai-observability-heading" className="text-lg font-semibold tracking-tight text-ink">AI 운영</h2>
           <p className="mt-1.5 max-w-3xl text-sm leading-6 text-ink-2">최근 {windowLabel(hours)}의 LLM·Embedding·Reranker 실행 상태를 확인합니다. 프롬프트와 답변 원문은 저장하지 않습니다.</p>
         </div>
         <div className="flex items-center gap-2">

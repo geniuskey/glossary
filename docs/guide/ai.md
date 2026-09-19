@@ -130,7 +130,7 @@ Confluence를 기준으로 관리하며, 분석 카드에서 전체 원문을 Gl
 
 ## RAG 벡터 검색
 
-관리자 패널의 **RAG 검색** 탭에서 용어집 내용을 Embedding API로 벡터화해 PostgreSQL의
+관리자 패널의 **검색 인프라** 탭에서 용어집 내용을 Embedding API로 벡터화해 PostgreSQL의
 `pgvector`에 저장할 수 있다. 대표 표기·풀네임·추가 표기·분류·주제·상태와 정의·본문이
 청크로 나뉘며, 용어 등록·수정·병합·되돌리기 뒤 최신 리비전이 색인 대기열에 들어간다.
 
@@ -162,7 +162,7 @@ Embedding은 OpenAI-compatible `/embeddings`와 Gemini `batchEmbedContents` 형�
 
 ## AI 실행 모니터링
 
-관리자 패널의 **AI 모니터링** 탭에서는 최근 24시간의 LLM·Embedding·Reranker 호출 수,
+관리자 패널의 **AI 운영** 탭에서는 최근 24시간의 LLM·Embedding·Reranker 호출 수,
 성공률, 평균·P95 지연, 토큰 사용량, 작업·모델별 실패와 RAG·AI 작업 상태를 확인한다.
 호출마다 같은 trace ID를 묶어 챗봇 한 번의 의도 분류·검색·답변 흐름을 구분하지만, 프롬프트·
 답변 원문·API Key는 저장하지 않는다. 프로세스가 중단되어 `running`으로 남은 실행은 다음

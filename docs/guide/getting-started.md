@@ -197,12 +197,15 @@ pnpm --filter @glossary/web exec tsx scripts/seed-terms.ts it semiconductor
 | `/contribute/fields?field=definition` | 필드 보완: 한줄 정의 — 본문 근거와 LLM 제안 표 |
 | `/contribute/fields?field=domain` | 필드 보완: 도메인 — 도메인이 비어 있는 용어 분류 |
 | `/contribute/fields?field=category` | 필드 보완: 업무 분류 — 업무 분류가 비어 있는 용어 분류 |
+| `/admin` | 운영 개요와 관리자 설정 메뉴 (관리자 전용) |
+| `/admin?tab=home` | 홈 콘텐츠 문구 설정 |
+| `/admin?tab=menus` | 사용자 사이드바 메뉴 표시 설정 |
 | `/admin?tab=quality` | 콘텐츠 완성도 기준과 충족 현황 |
 | `/admin?tab=ai` | AI 공급자·모델·자동 검토 설정 |
-| `/admin?tab=rag` | Embedding·Reranker·벡터 색인 설정 |
+| `/admin?tab=rag` | 검색 인프라 — Embedding·Reranker·벡터 색인 설정 |
+| `/admin?tab=observability` | AI 운영 — 호출·큐·실패 현황 |
 | `/admin?tab=data` | 서버 전체 용어집 읽기 전용 스냅샷 다운로드 (관리자 전용) |
 | `/admin?tab=sso` | 관리자 패널의 SSO 연결 탭 (`/settings/sso`는 이 주소로 이동) |
-| `/admin` | 홈 문구, 업무 분류 목록과 사용자·세션 관리 (관리자 전용) |
 
 옛 주소(`/terms`, `/terms/new`, `/terms/[slug]`, `/terms/[slug]/edit`,
 `/terms/[slug]/history`)는 `next.config.ts`의 308 리다이렉트로 전부 새 주소에
