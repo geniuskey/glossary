@@ -13,7 +13,7 @@ const patchSchema = z.object({
 }).strict();
 
 export const PATCH = withApiErrors(async (request: Request, context: { params: Promise<{ key: string }> }) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "업무 분류 이름이 올바르지 않습니다.", 400, parsed.error.flatten());

@@ -40,9 +40,19 @@ jobs:
           DATABASE_URL=postgres://glossary:glossary@localhost:5434/glossary_test pnpm --filter @glossary/db db:migrate
 
       - run: pnpm typecheck
+      - run: pnpm lint
       - run: pnpm test
+      - run: pnpm test:coverage
       - run: pnpm build
       - run: pnpm docs:build
+
+      - name: Install Chromium for browser smoke test
+        run: pnpm --filter @glossary/web exec playwright install --with-deps chromium
+
+      - name: Browser smoke test
+        env:
+          DATABASE_URL: postgres://glossary:glossary@localhost:5434/glossary_test
+        run: pnpm --filter @glossary/web test:e2e
 
       - name: Stop PostgreSQL
         if: always()

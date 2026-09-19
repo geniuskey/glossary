@@ -259,6 +259,8 @@ export async function createWikiPage(input: WikiPageInput, authorId: string | nu
       status: prepared.status ?? "draft",
       createdBy: authorId,
       updatedBy: authorId,
+      reviewedBy: prepared.status === "published" ? authorId : null,
+      reviewedAt: prepared.status === "published" ? new Date() : null,
     }).returning();
     if (!created) throw new Error("위키 문서를 저장하지 못했습니다.");
     if (prepared.termIds.length > 0) {
@@ -325,6 +327,8 @@ export async function updateWikiPage(id: string, patch: WikiPagePatch, authorId:
       status: next.status,
       updatedBy: authorId,
       updatedAt: new Date(),
+      reviewedBy: next.status === "published" ? authorId : null,
+      reviewedAt: next.status === "published" ? new Date() : null,
     }).where(eq(wikiPages.id, id)).returning();
     if (!updated) return null;
     if (contentChanged) {

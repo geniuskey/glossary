@@ -2,6 +2,7 @@ import { z } from "zod/v3";
 import { apiError, methodStubs, requireUuid, withApiErrors } from "@/lib/api-error";
 import { changeManagedUserRole } from "@/lib/admin/users";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";
+import { recordAuditEvent } from "@/lib/audit";
 
 const ALLOWED_METHODS = ["PATCH"];
 const { GET, POST, PUT, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -11,7 +12,7 @@ const patchSchema = z.object({ role: z.enum(["admin", "editor"]) }).strict();
 
 export const PATCH = withApiErrors(
   async (request: Request, context: { params: Promise<{ id: string }> }) => {
-    const admin = await requireAdminUser();
+    const admin = await requireAdminUser(request);
     if (isResponse(admin)) return admin;
 
     const { id: rawId } = await context.params;
@@ -37,6 +38,13 @@ export const PATCH = withApiErrors(
       return apiError("operation_conflict", "현재 로그인한 관리자의 역할은 변경할 수 없습니다.", 409);
     }
 
+    await recordAuditEvent({
+      action: "admin.user_role_changed",
+      targetType: "user",
+      targetId: id,
+      actor: { userId: admin.id },
+      metadata: { role: parsed.data.role },
+    });
     return Response.json({ ok: true });
   },
 );

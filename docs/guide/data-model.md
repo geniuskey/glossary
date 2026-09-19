@@ -186,9 +186,9 @@ AI가 찾은 관계는 바로 검색 그래프에 넣지 않고 `proposed`로 �
 2. **별도 리포트** — `pg_trgm` 유사도 기반 "잠재 중복" 목록. 병합은
    `merge(source → target)`으로 surface를 이관하고 옛 slug는 리다이렉트로 남긴다(M3).
 
-## 아직 없는 테이블
+## 보조 데이터
 
-설계에는 있지만 M1 범위 밖이라 아직 만들지 않았다.
-
-- **UnregisteredCandidate** — 미등록 후보 누적 (M2).
-- **Attachment / AttachmentRef** — WebP로 변환한 content-addressed 첨부 이미지. 현재 본문 참조는 `AttachmentRef`로 동기화되며 이미지 실체는 이력 보존을 위해 자동 삭제하지 않는다.
+- **Attachment / AttachmentRef** — WebP로 변환한 content-addressed 첨부 이미지. 현재 본문 참조는
+  `AttachmentRef`로 동기화되며, 보존 기간이 지난 미참조 실체만 워커가 정리한다. 리비전
+  스냅샷에서 참조되는 첨부는 보존한다.
+- **UnregisteredCandidate** — 미등록 후보 누적은 아직 M2 범위다.

@@ -136,8 +136,8 @@ POST /api/v1/account/sso-refresh
 POST /api/v1/auth/logout
 ```
 
-GET이 아니라 POST다. CSRF 방어가 `SameSite=Lax` 쿠키 하나뿐이라 상태를 바꾸는 GET을
-만들면 그 방어가 즉시 무너진다.
+GET이 아니라 POST다. 상태 변경 요청은 `Origin` 또는 `Referer`가 허용된 출처와
+일치해야 하며, `SameSite=Lax` 쿠키도 함께 사용한다. 상태를 바꾸는 GET은 만들지 않는다.
 
 ## SSO (OpenID Connect / OAuth 2.0)
 

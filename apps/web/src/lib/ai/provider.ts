@@ -1,5 +1,3 @@
-import "server-only";
-
 import { isIP } from "node:net";
 import { lookup } from "node:dns/promises";
 import type { StoredAiHeader } from "./config";

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { chatConversations } from "@glossary/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
-import { isResponse, requireAuth } from "@/lib/auth/require";
+import { isResponse, requireAuth, requireSessionUser } from "@/lib/auth/require";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { answerGlossaryQuestion } from "@/lib/ai/chat";
 import { AiProviderError } from "@/lib/ai/provider";
@@ -13,6 +13,7 @@ import { getDb } from "@/lib/db";
 import { appendChatMessage } from "@/lib/ai/chat-messages";
 import { termInputBaseSchema } from "@/lib/terms/schema";
 import { domainsExist, listDomains } from "@/lib/terms/domains";
+import { consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const ALLOWED_METHODS = ["GET", "POST", "PATCH", "DELETE"];
 const { PUT, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -117,29 +118,15 @@ export const GET = withApiErrors(async (request: Request) => {
   return Response.json(body);
 });
 
-const rateLimits = new Map<string, { count: number; resetAt: number }>();
-function allowRequest(key: string): boolean {
-  const now = Date.now();
-  if (rateLimits.size > 10_000) {
-    for (const [entryKey, entry] of rateLimits) {
-      if (entry.resetAt <= now) rateLimits.delete(entryKey);
-    }
-  }
-  const current = rateLimits.get(key);
-  if (!current || current.resetAt <= now) {
-    rateLimits.set(key, { count: 1, resetAt: now + 60_000 });
-    return true;
-  }
-  if (current.count >= 20) return false;
-  current.count += 1;
-  return true;
-}
-
 export const POST = withApiErrors(async (request: Request) => {
   const auth = await requireAuth(request, "read");
   if (isResponse(auth)) return auth;
   const key = auth.kind === "user" ? `user:${auth.user.id}` : `key:${auth.keyId}`;
-  if (!allowRequest(key)) return apiError("rate_limited", "잠시 후 다시 질문해 주세요.", 429);
+  const limited = rateLimitResponse(
+    await consumeRateLimit(`chat:${key}`, 20, 60_000),
+    "잠시 후 다시 질문해 주세요.",
+  );
+  if (limited) return limited;
 
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "질문과 대화 내용을 확인해 주세요.", 400, parsed.error.flatten());
@@ -229,8 +216,8 @@ export const POST = withApiErrors(async (request: Request) => {
 });
 
 export const PATCH = withApiErrors(async (request: Request) => {
-  const user = await getCurrentUser();
-  if (!user) return apiError("unauthorized", "로그인이 필요합니다.", 401);
+  const user = await requireSessionUser(request);
+  if (isResponse(user)) return user;
   const parsed = replaceMessagesSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "저장할 대화 기록을 확인해 주세요.", 400, parsed.error.flatten());
 
@@ -255,8 +242,8 @@ export const PATCH = withApiErrors(async (request: Request) => {
 });
 
 export const DELETE = withApiErrors(async (request: Request) => {
-  const user = await getCurrentUser();
-  if (!user) return apiError("unauthorized", "로그인이 필요합니다.", 401);
+  const user = await requireSessionUser(request);
+  if (isResponse(user)) return user;
   const sessionId = new URL(request.url).searchParams.get("session");
   if (!sessionId || !z.string().uuid().safeParse(sessionId).success) {
     return apiError("not_found", "대화 세션을 찾을 수 없습니다.", 404);

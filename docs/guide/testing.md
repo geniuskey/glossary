@@ -46,7 +46,8 @@ DB에 붙는 패키지는 `fileParallelism: false`다 — 테스트가 같은 �
 - **`apps/web/tests/openapi.test.ts`** — `app/api/v1/` 밑의 모든 라우트가 OpenAPI 스펙에
   있고 HTTP 메서드까지 일치하는지 검사한다. 라우트를 추가하고 스펙을 안 고치면 깨진다.
 - **`apps/web/tests/screen-guards.test.ts`** — 상태를 바꾸는 GET 핸들러가 생기지 않게
-  막는다. CSRF 방어가 `SameSite=Lax` 쿠키 하나뿐이라 이 규칙이 무너지면 방어가 없어진다.
+  막는다. CSRF 방어는 출처 검증과 `SameSite=Lax` 쿠키를 함께 사용하므로 이 규칙을
+  유지해야 한다.
 
 ## jsdom은 쓰지 않는다
 

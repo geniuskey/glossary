@@ -21,14 +21,14 @@ const menuSettingsSchema = z.object({
   statistics: z.boolean(),
 }).strict();
 
-export const GET = withApiErrors(async () => {
-  const admin = await requireAdminUser();
+export const GET = withApiErrors(async (request: Request = new Request("http://internal")) => {
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   return Response.json({ settings: await getWorkspaceMenuSettings() });
 });
 
 export const PATCH = withApiErrors(async (request: Request) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   const parsed = menuSettingsSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "메뉴 설정을 확인해 주세요.", 400, parsed.error.flatten());

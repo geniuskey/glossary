@@ -1,9 +1,11 @@
 import { z } from "zod/v3";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
+import { recordAuditEvent } from "@/lib/audit";
 import { registerUser } from "@/lib/auth/register";
 import { createSession, isSecureRequest, purgeExpiredSessions, sessionCookie } from "@/lib/auth/session";
 import { needsSetup } from "@/lib/auth/setup";
 import { loadPasswordLoginEnabled } from "@/lib/auth/sso/config";
+import { clientAddress, consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const bodySchema = z.object({
   email: z.string().trim().email().max(254),
@@ -32,6 +34,16 @@ export const POST = withApiErrors(async (request: Request) => {
     return apiError("validation_failed", "이메일과 8자 이상의 비밀번호가 필요합니다.", 400, parsed.error.flatten());
   }
 
+  const [emailLimit, addressLimit] = await Promise.all([
+    consumeRateLimit(`auth:register:email:${parsed.data.email.trim().toLowerCase()}`, 5, 60 * 60_000),
+    consumeRateLimit(`auth:register:address:${clientAddress(request)}`, 20, 60 * 60_000),
+  ]);
+  const limited = rateLimitResponse(
+    emailLimit.allowed ? addressLimit : emailLimit,
+    "가입 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+  );
+  if (limited) return limited;
+
   const result = await registerUser({
     email: parsed.data.email,
     name: parsed.data.name ?? parsed.data.email,
@@ -49,6 +61,7 @@ export const POST = withApiErrors(async (request: Request) => {
   // 가입 직후 바로 들어간다 — 방금 만든 계정으로 다시 로그인 폼을 채우게 하지 않는다.
   await purgeExpiredSessions();
   const session = await createSession(result.user.id);
+  await recordAuditEvent({ action: "auth.register_success", targetType: "user", targetId: result.user.id, actor: { userId: result.user.id } });
   const res = Response.json({ user: result.user });
   res.headers.append("set-cookie", sessionCookie(session.token, session.expiresAt, isSecureRequest(request)));
   return res;

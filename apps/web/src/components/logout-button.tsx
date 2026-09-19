@@ -5,8 +5,8 @@ import { useState } from "react";
 import { performLogout } from "@/lib/auth/logout";
 
 // R95(보안 불변식): 로그아웃은 상태를 바꾸는 동작이다. 이 사이트의 CSRF 방어는
-// SameSite=Lax 쿠키 하나뿐이라, `<Link href="/api/v1/auth/logout">` 같은 GET
-// 요청으로 만들면 그 방어가 즉시 무력화된다. `/api/v1/auth/logout`은 이미
+// Origin/Referer 검증과 SameSite=Lax 쿠키를 사용하므로, `<Link href="/api/v1/auth/logout">`
+// 같은 GET 요청으로 만들면 그 방어를 우회할 수 있다. `/api/v1/auth/logout`은 이미
 // POST로 구현돼 있으므로(session 쿠키를 지운다), performLogout(lib/auth/logout.ts)이
 // 그 POST를 fetch로 부르고 응답을 확인한 뒤에만 로그인 화면으로 이동한다
 // (F7 — 응답을 확인하지 않으면 5xx에서도 로그인 화면으로 넘어가면서 세션

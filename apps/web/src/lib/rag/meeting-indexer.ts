@@ -1,9 +1,6 @@
-import "server-only";
-
 import { createHash, randomUUID } from "node:crypto";
 import { and, asc, eq, lt, sql, type InferSelectModel } from "drizzle-orm";
 import { meetingDocuments, meetingRagDocuments, meetingRagIndexQueue, ragConfig, RAG_VECTOR_DIMENSIONS } from "@glossary/db";
-import { scheduleAfterResponse } from "@/lib/after-response";
 import { getDb } from "@/lib/db";
 import { AiProviderError } from "@/lib/ai/provider";
 import { loadRagConfig, runtimeEmbeddingConfig, type RagDatabase } from "./config";
@@ -11,7 +8,6 @@ import { embedTexts } from "./provider";
 import type { AiRunContext } from "@/lib/ai/observability-values";
 
 const MAX_EMBEDDING_BATCH = 96;
-const MAX_BACKGROUND_BATCHES = 128;
 const ERROR_MAX_LENGTH = 1_000;
 
 type MeetingDocument = InferSelectModel<typeof meetingDocuments>;
@@ -130,13 +126,7 @@ export async function queueMeetingIndex(database: RagDatabase, meetingDocumentId
 }
 
 export function scheduleMeetingRagIndexing(limit = 4): void {
-  scheduleAfterResponse(async () => {
-    const batchSize = Math.max(1, Math.min(32, Math.floor(limit)));
-    for (let batch = 0; batch < MAX_BACKGROUND_BATCHES; batch += 1) {
-      const attempted = await processMeetingRagIndexQueue(batchSize);
-      if (attempted < batchSize) break;
-    }
-  });
+  void limit;
 }
 
 /** Embedding 설정이 바뀌었을 때 활성 회의록도 같은 모델로 다시 색인한다. */

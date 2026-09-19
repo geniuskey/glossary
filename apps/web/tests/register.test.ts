@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
-import { createDb, users } from "@glossary/db";
+import { createDb, rateLimitBuckets, users } from "@glossary/db";
 import { POST as registerPost } from "../src/app/api/v1/auth/register/route.js";
 import { POST as loginPost } from "../src/app/api/v1/auth/login/route.js";
 import { hashPassword } from "../src/lib/auth/password.js";
@@ -17,6 +17,7 @@ afterEach(() => {
 // 테스트 DB는 다른 파일이 자기 사용자를 지우고 나가므로 비어 있을 수 있어,
 // 여기서 관리자 한 명을 먼저 심어 "설정이 끝난 설치"를 만든다.
 beforeAll(async () => {
+  await db.delete(rateLimitBuckets).where(eq(rateLimitBuckets.key, "auth:register:address:direct"));
   const [row] = await db
     .insert(users)
     .values({

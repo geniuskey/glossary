@@ -3,6 +3,7 @@ import { z } from "zod/v3";
 import { terms, wikiPageStatusEnum } from "@glossary/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAuth } from "@/lib/auth/require";
+import { recordAuditEvent } from "@/lib/audit";
 import { getDb } from "@/lib/db";
 import { slugify } from "@/lib/terms/slug";
 import {
@@ -80,6 +81,9 @@ export const POST = withApiErrors(async (request: Request) => {
   if (isResponse(auth)) return auth;
   const parsed = createSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "위키 문서 입력을 확인해 주세요.", 400, parsed.error.flatten());
+  if (parsed.data.status !== "draft" && (auth.kind !== "user" || auth.user.role !== "admin")) {
+    return apiError("forbidden", "위키 문서 공개·보관은 관리자 승인 후에만 가능합니다.", 403);
+  }
   const termIds = await resolveTermIds(parsed.data.termSlugs);
   if (isResponse(termIds)) return termIds;
   const created = await createWikiPage({
@@ -92,5 +96,12 @@ export const POST = withApiErrors(async (request: Request) => {
     termIds,
     status: parsed.data.status,
   }, auth.kind === "user" ? auth.user.id : null, auth.kind === "key" ? auth.keyId : null);
+  await recordAuditEvent({
+    action: parsed.data.status === "published" ? "wiki.publish" : "wiki.create",
+    targetType: "wiki_page",
+    targetId: created.id,
+    actor: auth.kind === "user" ? { userId: auth.user.id } : { keyId: auth.keyId },
+    metadata: { status: parsed.data.status },
+  });
   return Response.json({ page: toWikiPageWire(created, true), indexed: false }, { status: 201 });
 });

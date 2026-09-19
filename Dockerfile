@@ -55,6 +55,14 @@ EXPOSE 3000
 ENV PORT=3000 HOSTNAME=0.0.0.0
 CMD ["node", "apps/web/server.js"]
 
+# ---- durable RAG worker ----
+# The worker uses the same source and locked dependencies as the matching web
+# image, but has its own process lifecycle and never runs embedding work in a
+# request/response process.
+FROM builder AS worker
+ENV NODE_ENV=production
+CMD ["pnpm", "--filter", "@glossary/web", "exec", "tsx", "scripts/rag-worker.ts"]
+
 # ---- 마이그레이션 / 시딩 ----
 # migrator는 웹 앱을 실행하지 않으므로 builder 전체를 상속하지 않는다.
 # DB 패키지와 그 workspace 의존성만 설치해 Next.js/Turbo/웹 소스와 빌드 캐시가

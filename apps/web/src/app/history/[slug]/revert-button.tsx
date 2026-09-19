@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { performRevert } from "@/lib/terms/revert-request";
 
 // R95(보안 불변식): 되돌리기는 쓰기다. `<Link href="/api/...">`나 form action으로
-// 만들면 GET 한 번으로 남의 용어를 되돌릴 수 있게 되어 SameSite=Lax 쿠키뿐인
-// 이 사이트의 CSRF 방어가 뚫린다 — LogoutButton과 같은 이유로 fetch POST를 쓴다.
+// 만들면 GET 한 번으로 남의 용어를 되돌릴 수 있게 되어 출처 검증과 SameSite=Lax
+// 쿠키를 사용하는 이 사이트의 CSRF 방어가 뚫린다 — fetch POST를 쓴다.
 export function RevertButton({
   slug,
   revisionNumber,

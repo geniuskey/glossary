@@ -1,19 +1,20 @@
 import { and, eq } from "drizzle-orm";
 import { apiKeys } from "@glossary/db";
+import { recordAuditEvent } from "@/lib/audit";
 import { getDb } from "@/lib/db";
 import { apiError, methodStubs, requireUuid, withApiErrors } from "@/lib/api-error";
-import { getCurrentUser } from "@/lib/auth/current-user";
+import { isResponse, requireSessionUser } from "@/lib/auth/require";
 
 // R26: 유출된 키를 무력화하는 유일한 경로. 상태를 바꾸므로 DELETE여야 한다
-// (GET으로 만들면 SameSite=Lax 쿠키 하나뿐인 CSRF 방어를 즉시 뚫는 취약점이 된다).
+// (GET으로 만들면 Origin/Referer 검증과 SameSite=Lax 쿠키를 우회하는 취약점이 된다).
 const ALLOWED_METHODS = ["DELETE"];
 const { GET, POST, PUT, PATCH, OPTIONS } = methodStubs(ALLOWED_METHODS);
 export { GET, POST, PUT, PATCH, OPTIONS };
 
 export const DELETE = withApiErrors(
-  async (_request: Request, context: { params: Promise<{ id: string }> }) => {
-    const user = await getCurrentUser();
-    if (!user) return apiError("unauthorized", "로그인이 필요합니다.", 401);
+  async (request: Request, context: { params: Promise<{ id: string }> }) => {
+    const user = await requireSessionUser(request);
+    if (isResponse(user)) return user;
 
     const { id: rawId } = await context.params;
     // R38: 형식이 잘못된 id는 DB까지 가지 않고 여기서 "찾을 수 없음"으로 답한다.
@@ -36,6 +37,12 @@ export const DELETE = withApiErrors(
         eq(apiKeys.id, id),
         eq(apiKeys.createdBy, user.id),
       ));
+      await recordAuditEvent({
+        action: "api_key.revoked",
+        targetType: "api_key",
+        targetId: id,
+        actor: { userId: user.id },
+      });
     }
 
     return Response.json({ ok: true });

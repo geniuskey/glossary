@@ -21,7 +21,7 @@ const requestSchema = z.object({
 }).strict();
 
 export const POST = withApiErrors(async (request: Request) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "모델 목록 연결 정보를 확인해 주세요.", 400, parsed.error.flatten());

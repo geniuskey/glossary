@@ -1,8 +1,10 @@
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod/v3";
 import { apiKeys } from "@glossary/db";
+import { recordAuditEvent } from "@/lib/audit";
 import { getDb } from "@/lib/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
+import { isResponse, requireSessionUser } from "@/lib/auth/require";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { generateApiKey } from "@/lib/auth/api-key";
 
@@ -37,8 +39,8 @@ export const GET = withApiErrors(async () => {
 
 // 평문 토큰은 이 응답에서만 나온다. 이후로는 해시만 남으므로 복구할 수 없다.
 export const POST = withApiErrors(async (request: Request) => {
-  const user = await getCurrentUser();
-  if (!user) return apiError("unauthorized", "로그인이 필요합니다.", 401);
+  const user = await requireSessionUser(request);
+  if (isResponse(user)) return user;
 
   const parsed = createSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -53,6 +55,13 @@ export const POST = withApiErrors(async (request: Request) => {
     .insert(apiKeys)
     .values({ name: parsed.data.name, prefix, keyHash: hash, scopes: parsed.data.scopes, createdBy: user.id })
     .returning({ id: apiKeys.id, name: apiKeys.name, prefix: apiKeys.prefix, scopes: apiKeys.scopes });
+  await recordAuditEvent({
+    action: "api_key.created",
+    targetType: "api_key",
+    targetId: row!.id,
+    actor: { userId: user.id },
+    metadata: { scopes: parsed.data.scopes },
+  });
 
   return Response.json({ key: row, token }, { status: 201 });
 });

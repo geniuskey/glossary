@@ -15,7 +15,7 @@ const patchSchema = z.object({
 }).strict().refine((value) => value.label !== undefined || value.color !== undefined, "변경할 값이 필요합니다.");
 
 export const PATCH = withApiErrors(async (request: Request, context: { params: Promise<{ key: string }> }) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "도메인 변경 값이 올바르지 않습니다.", 400, parsed.error.flatten());

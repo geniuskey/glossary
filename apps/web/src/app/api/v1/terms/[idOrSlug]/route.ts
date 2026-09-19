@@ -1,4 +1,5 @@
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
+import { recordAuditEvent } from "@/lib/audit";
 import { scheduleAfterResponse } from "@/lib/after-response";
 import { isResponse, requireAuth } from "@/lib/auth/require";
 import { getTermByIdOrSlug, type TermDetailResponse } from "@/lib/terms/query";
@@ -99,6 +100,13 @@ export const PATCH = withApiErrors(
     // 위 분기를 빠뜨리면 여기서 컴파일 오류가 난다 — 그렇지 않으면 내부 판별자가
     // 200 성공 응답으로 클라이언트에 그대로 새어 나간다(리뷰가 실측한 회귀).
     const ok: UpdateTermSuccess = result;
+    await recordAuditEvent({
+      action: "term.update",
+      targetType: "term",
+      targetId: ok.term.id,
+      actor: auth.kind === "user" ? { userId: auth.user.id } : { keyId: auth.keyId },
+      metadata: { status: ok.term.status },
+    });
     scheduleAfterResponse(() => prepareAutoReview(ok.term.id));
     scheduleRagIndexing(1);
     // R77(F9) — 해소됨(R112, Task 13): POST/PATCH 양쪽을 wire.ts의
@@ -129,6 +137,12 @@ export const DELETE = withApiErrors(
     if (!existing) return apiError("term_not_found", "용어를 찾을 수 없습니다.", 404);
 
     await deleteTerm(existing.id);
+    await recordAuditEvent({
+      action: "term.delete",
+      targetType: "term",
+      targetId: existing.id,
+      actor: { userId: auth.user.id },
+    });
     return new Response(null, { status: 204 });
   },
 );

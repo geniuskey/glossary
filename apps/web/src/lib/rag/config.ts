@@ -1,5 +1,3 @@
-import "server-only";
-
 import { eq, type InferSelectModel } from "drizzle-orm";
 import { ragConfig } from "@glossary/db";
 import { getDb } from "@/lib/db";

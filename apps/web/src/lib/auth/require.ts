@@ -3,6 +3,7 @@ import { and, eq, isNull, or, gt } from "drizzle-orm";
 import { apiKeys } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { apiError } from "@/lib/api-error";
+import { enforceCsrf } from "./csrf";
 import { getCurrentUser, type CurrentUser } from "./current-user";
 import { hashApiKey, parseApiKey, type Scope } from "./api-key";
 
@@ -64,6 +65,8 @@ export async function requireAuth(request: Request, scope: Scope): Promise<AuthR
 
   const user = await getCurrentUser();
   if (!user) return apiError("unauthorized", "로그인이 필요합니다.", 401);
+  const csrf = enforceCsrf(request);
+  if (csrf) return csrf;
   return { kind: "user", user };
 }
 
@@ -72,10 +75,21 @@ export async function requireAuth(request: Request, scope: Scope): Promise<AuthR
  * SSO 설정 창구는 IdP 클라이언트 시크릿을 다루므로, 어딘가에 적혀 돌아다닐 수 있는
  * 키가 아니라 그 자리에 로그인한 사람만 열 수 있어야 한다.
  */
-export async function requireAdminUser(): Promise<CurrentUser | Response> {
+export async function requireAdminUser(request?: Request): Promise<CurrentUser | Response> {
   const user = await getCurrentUser();
   if (!user) return apiError("unauthorized", "로그인이 필요합니다.", 401);
+  const csrf = request ? enforceCsrf(request) : null;
+  if (csrf) return csrf;
   if (user.role !== "admin") return apiError("forbidden", "관리자만 사용할 수 있습니다.", 403);
+  return user;
+}
+
+/** Cookie-session authentication for routes that do not accept API keys. */
+export async function requireSessionUser(request: Request): Promise<CurrentUser | Response> {
+  const user = await getCurrentUser();
+  if (!user) return apiError("unauthorized", "로그인이 필요합니다.", 401);
+  const csrf = enforceCsrf(request);
+  if (csrf) return csrf;
   return user;
 }
 

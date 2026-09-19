@@ -87,7 +87,6 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
       controller.abort();
     };
   // connectionFingerprint is an intentional scalar snapshot of connection inputs.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectionFingerprint, shouldAutoLoadModels]);
 
   useEffect(() => {
@@ -96,7 +95,6 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
     autoVerifyStarted.current = true;
     void verifyConnection(false);
   // 저장된 설정은 이 화면을 열 때 한 번만 실제 생성 요청으로 확인한다.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function update<K extends keyof Pick<PublicAiConfig, "enabled" | "autoReviewEnabled" | "provider" | "baseUrl" | "model">>(key: K, value: PublicAiConfig[K]) {

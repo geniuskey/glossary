@@ -1,5 +1,6 @@
 import { z } from "zod/v3";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
+import { recordAuditEvent } from "@/lib/audit";
 import { scheduleAfterResponse } from "@/lib/after-response";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";
 import { loadAiConfig, publicAiConfig, saveAiConfig } from "@/lib/ai/config";
@@ -25,14 +26,14 @@ const patchSchema = z.object({
   }).strict()).max(20),
 }).strict();
 
-export const GET = withApiErrors(async () => {
-  const admin = await requireAdminUser();
+export const GET = withApiErrors(async (request: Request = new Request("http://internal")) => {
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   return Response.json({ config: publicAiConfig(await loadAiConfig()) });
 });
 
 export const PATCH = withApiErrors(async (request: Request) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "AI 연결 설정을 확인해 주세요.", 400, parsed.error.flatten());
@@ -44,5 +45,12 @@ export const PATCH = withApiErrors(async (request: Request) => {
       await prepareAutoReviews(queue.items.map((term) => term.id));
     });
   }
+  await recordAuditEvent({
+    action: "admin.ai_config_updated",
+    targetType: "ai_config",
+    targetId: result.row.id,
+    actor: { userId: admin.id },
+    metadata: { enabled: result.row.enabled, autoReviewEnabled: result.row.autoReviewEnabled, provider: result.row.provider, model: result.row.model },
+  });
   return Response.json({ config: publicAiConfig(result.row) });
 });

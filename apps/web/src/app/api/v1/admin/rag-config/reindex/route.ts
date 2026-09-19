@@ -9,8 +9,8 @@ const ALLOWED_METHODS = ["POST"];
 const { GET, PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
 export { GET, PUT, PATCH, DELETE, OPTIONS };
 
-export const POST = withApiErrors(async () => {
-  const admin = await requireAdminUser();
+export const POST = withApiErrors(async (request: Request) => {
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   const config = await loadRagConfig();
   if (!config.enabled) return apiError("rag_not_ready", "RAG 검색을 먼저 활성화해 주세요.", 503);
@@ -20,8 +20,8 @@ export const POST = withApiErrors(async () => {
   scheduleRagIndexing(8);
   scheduleMeetingRagIndexing(8);
   scheduleWikiRagIndexing(8);
-  // In a normal Next request the scheduled worker continues after the response.
-  // A small synchronous pass also gives an operator immediate feedback in local runs.
+  // In production the dedicated worker drains the durable queues. A small
+  // synchronous pass gives tests immediate feedback without changing that boundary.
   if (process.env.NODE_ENV === "test") await processRagIndexQueue(1);
   if (process.env.NODE_ENV === "test") await processMeetingRagIndexQueue(1);
   if (process.env.NODE_ENV === "test") await processWikiRagIndexQueue(1);

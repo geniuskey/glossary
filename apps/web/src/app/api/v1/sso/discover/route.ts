@@ -21,7 +21,7 @@ const bodySchema = z.object({
  * 로그인한 편집자 누구나 부를 수 있으면 사내망 스캐너가 된다.
  */
 export const POST = withApiErrors(async (request: Request) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));

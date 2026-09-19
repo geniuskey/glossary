@@ -14,14 +14,14 @@ const contentSchema = z.object({
   description: z.string().trim().min(1).max(HOME_CONTENT_LIMITS.description),
 }).strict();
 
-export const GET = withApiErrors(async () => {
-  const admin = await requireAdminUser();
+export const GET = withApiErrors(async (request: Request = new Request("http://internal")) => {
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   return Response.json({ settings: await getHomeContent() });
 });
 
 export const PATCH = withApiErrors(async (request: Request) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
 
   const parsed = contentSchema.safeParse(await request.json().catch(() => null));

@@ -202,7 +202,6 @@ export function RagSettingsPanel({ initialConfig }: { initialConfig: PublicRagCo
       }
     };
   // modelConnectionFingerprint intentionally captures the connection inputs used by loadModels.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modelConnectionFingerprint, embeddingCanLoadModels, rerankerCanLoadModels, embeddingHasConnectionInput, rerankerHasConnectionInput]);
 
   async function save() {

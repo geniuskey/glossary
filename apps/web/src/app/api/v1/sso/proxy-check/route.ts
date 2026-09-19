@@ -9,7 +9,7 @@ export { POST, PUT, PATCH, DELETE, OPTIONS };
 
 /** 관리자 자신의 요청에 실제로 도착한 헤더만 검사한다. 저장된 예시값은 쓰지 않는다. */
 export const GET = withApiErrors(async (request: Request) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
 
   const cfg = await loadSsoConfig();

@@ -10,20 +10,20 @@ const ALLOWED_METHODS = ["GET", "POST", "PATCH"];
 const { PUT, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
 export { PUT, DELETE, OPTIONS };
 
-export const GET = withApiErrors(async () => {
-  const admin = await requireAdminUser();
+export const GET = withApiErrors(async (request: Request = new Request("http://internal")) => {
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   return listDefinitionReviewResponse(admin.id);
 });
 
 export const POST = withApiErrors(async (request: Request) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   return generateDefinitionResponse(request, admin.id);
 });
 
 export const PATCH = withApiErrors(async (request: Request) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   return approveDefinitionResponse(request, admin.id, null);
 });

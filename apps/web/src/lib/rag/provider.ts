@@ -1,5 +1,3 @@
-import "server-only";
-
 import { assertSafeAiEndpoint, AiProviderError, readResponseText } from "@/lib/ai/provider";
 import { beginAiRun, finishAiRun, providerErrorCode } from "@/lib/ai/telemetry";
 import type { AiRunContext } from "@/lib/ai/observability-values";

@@ -16,7 +16,7 @@ const querySchema = z.object({
 }).strict();
 
 export const GET = withApiErrors(async (request: Request) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   const parsed = querySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams.entries()));
   if (!parsed.success) return apiError("validation_failed", "조회 기간은 1~720시간이어야 합니다.", 400);

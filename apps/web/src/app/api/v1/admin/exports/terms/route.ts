@@ -6,8 +6,8 @@ const ALLOWED_METHODS = ["GET"];
 const { POST, PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
 export { POST, PUT, PATCH, DELETE, OPTIONS };
 
-export const GET = withApiErrors(async () => {
-  const admin = await requireAdminUser();
+export const GET = withApiErrors(async (request: Request = new Request("http://internal")) => {
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
 
   const snapshot = await buildGlossarySnapshot();

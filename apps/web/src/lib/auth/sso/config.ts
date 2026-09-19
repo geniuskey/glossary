@@ -3,6 +3,7 @@ import { ssoConfig } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { initialPasswordLoginEnabled } from "@/lib/auth/policy";
 import { oauth2ProxyDefaultSelected, oauth2ProxyEnabled } from "./proxy-headers";
+import { fetchSso, readSsoJson } from "./http";
 
 export type SsoConfig = InferSelectModel<typeof ssoConfig>;
 export const SSO_PROTOCOLS = ["oidc", "oauth2"] as const;
@@ -210,7 +211,7 @@ export function readDiscovery(doc: unknown): Discovered | null {
 }
 
 export async function discoverSso(issuer: string, protocol: SsoProtocol): Promise<Discovered | null> {
-  const res = await fetch(discoveryUrl(issuer, protocol), { headers: { accept: "application/json" } });
+  const res = await fetchSso(discoveryUrl(issuer, protocol), { headers: { accept: "application/json" } });
   if (!res.ok) return null;
-  return readDiscovery(await res.json().catch(() => null));
+  return readDiscovery(await readSsoJson(res));
 }

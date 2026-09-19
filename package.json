@@ -16,13 +16,20 @@
   },
   "scripts": {
     "build": "turbo run build",
+    "lint": "pnpm --filter @glossary/web lint",
     "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage --filter=@glossary/web",
     "typecheck": "turbo run typecheck",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
   },
   "devDependencies": {
+    "@babel/eslint-parser": "^7",
+    "@babel/preset-react": "^7",
+    "@babel/preset-typescript": "^7",
+    "@eslint/js": "^9",
+    "eslint": "^9",
     "turbo": "^2.10.12",
     "typescript": "^7.0.2",
     "vite": "^8",

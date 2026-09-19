@@ -55,6 +55,8 @@ services:
       NODE_ENV: production
       GLOSSARY_EMBED_ANCESTORS: ${GLOSSARY_EMBED_ANCESTORS:-}
       GLOSSARY_ENCRYPTION_KEY: ${GLOSSARY_ENCRYPTION_KEY:-}
+      GLOSSARY_ALLOWED_ORIGINS: ${GLOSSARY_ALLOWED_ORIGINS:?GLOSSARY_ALLOWED_ORIGINS is required}
+      GLOSSARY_TRUST_PROXY_HEADERS: ${GLOSSARY_TRUST_PROXY_HEADERS:-false}
       OAUTH2_PROXY_ENABLED: ${OAUTH2_PROXY_ENABLED:-false}
       # 0.1.6 이전 배포의 무중단 설정 전환용. 새 배포에서는 사용하지 않는다.
       AUTH_MODE: ${AUTH_MODE:-}
@@ -68,7 +70,26 @@ services:
       OAUTH2_PROXY_GROUPS_HEADER: ${OAUTH2_PROXY_GROUPS_HEADER:-X-Forwarded-Groups}
       OAUTH2_SUBJECT_FIELD: ${OAUTH2_SUBJECT_FIELD:-}
     ports:
-      - "${GLOSSARY_PORT:-3000}:3000"
+      - "127.0.0.1:${GLOSSARY_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+
+  rag-worker:
+    image: ${GLOSSARY_WORKER_IMAGE:?GLOSSARY_WORKER_IMAGE is required}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://glossary:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/glossary
+      NODE_ENV: production
+      GLOSSARY_ENCRYPTION_KEY: ${GLOSSARY_ENCRYPTION_KEY:-}
+      GLOSSARY_RAG_WORKER_BATCH: ${GLOSSARY_RAG_WORKER_BATCH:-8}
+      GLOSSARY_RAG_WORKER_IDLE_MS: ${GLOSSARY_RAG_WORKER_IDLE_MS:-2000}
+      GLOSSARY_RAG_WORKER_BUSY_MS: ${GLOSSARY_RAG_WORKER_BUSY_MS:-100}
+      GLOSSARY_AI_RUN_RETENTION_DAYS: ${GLOSSARY_AI_RUN_RETENTION_DAYS:-180}
+      GLOSSARY_AUDIT_RETENTION_DAYS: ${GLOSSARY_AUDIT_RETENTION_DAYS:-365}
+      GLOSSARY_ATTACHMENT_RETENTION_DAYS: ${GLOSSARY_ATTACHMENT_RETENTION_DAYS:-30}
     depends_on:
       postgres:
         condition: service_healthy

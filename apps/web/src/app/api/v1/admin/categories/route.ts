@@ -34,7 +34,7 @@ export const POST = withApiErrors(async (request: Request) => {
 });
 
 export const PATCH = withApiErrors(async (request: Request) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   const parsed = reorderSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "업무 분류 순서가 올바르지 않습니다.", 400, parsed.error.flatten());

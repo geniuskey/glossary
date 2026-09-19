@@ -9,8 +9,8 @@ const ALLOWED_METHODS = ["POST"];
 const { GET, PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
 export { GET, PUT, PATCH, DELETE, OPTIONS };
 
-export const POST = withApiErrors(async () => {
-  const admin = await requireAdminUser();
+export const POST = withApiErrors(async (request: Request) => {
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   const config = await loadRagConfig();
   try {

@@ -21,7 +21,7 @@ function splitList(value: string): string[] {
   return [...new Set(value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean))];
 }
 
-export function WikiEditor({ initialPage, domains: domainOptions }: { initialPage: WikiEditorPage | null; domains: DomainOption[] }) {
+export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: { initialPage: WikiEditorPage | null; domains: DomainOption[]; canPublish: boolean }) {
   const router = useRouter();
   const editing = Boolean(initialPage?.id);
   const [slug, setSlug] = useState(initialPage?.slug ?? "");
@@ -31,7 +31,7 @@ export function WikiEditor({ initialPage, domains: domainOptions }: { initialPag
   const [domainText, setDomainText] = useState(initialPage?.domain.join(", ") ?? "");
   const [termSlugs, setTermSlugs] = useState(initialPage?.terms.map((term) => term.slug).join(", ") ?? "");
   const [content, setContent] = useState(initialPage?.content ?? "");
-  const [status, setStatus] = useState<WikiEditorPage["status"]>(initialPage?.status ?? "draft");
+  const [status, setStatus] = useState<WikiEditorPage["status"]>(canPublish ? (initialPage?.status ?? "draft") : "draft");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,7 +78,7 @@ export function WikiEditor({ initialPage, domains: domainOptions }: { initialPag
       <label className="block sm:col-span-2"><span className="label">원문 출처 URL</span><input className="field font-mono text-sm" type="url" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} maxLength={2_000} placeholder="예: https://company.atlassian.net/wiki/spaces/TEAM/pages/…" /><span className="mt-1 block text-xs text-ink-3">Confluence 등 원문을 관리하는 곳의 링크입니다. 위키에는 검토한 결과만 남기고 원문은 이 주소에서 확인합니다.</span></label>
       <label className="block"><span className="label">도메인</span><input className="field" list="wiki-domain-options" value={domainText} onChange={(event) => setDomainText(event.target.value)} placeholder="예: 상품, 보안" /><datalist id="wiki-domain-options">{domainOptions.map((item) => <option key={item.key} value={item.label} />)}</datalist><span className="mt-1 block text-xs text-ink-3">쉼표 또는 줄바꿈으로 여러 도메인을 구분합니다.</span></label>
       <label className="block"><span className="label">연결할 용어 슬러그</span><input className="field font-mono" value={termSlugs} onChange={(event) => setTermSlugs(event.target.value)} placeholder="예: experimentation, ab-test" /><span className="mt-1 block text-xs text-ink-3">쉼표로 구분합니다. 첫 번째 용어가 대표 용어입니다.</span></label>
-      <label className="block sm:col-span-2"><span className="label">공개 상태</span><select className="field max-w-xs" value={status} onChange={(event) => setStatus(event.target.value as WikiEditorPage["status"])}><option value="draft">초안 · AI 검색 제외</option><option value="published">공개 · AI 검색 포함</option><option value="archived">보관 · 검색 제외</option></select></label>
+      <label className="block sm:col-span-2"><span className="label">공개 상태</span><select className="field max-w-xs" value={status} onChange={(event) => setStatus(event.target.value as WikiEditorPage["status"])}><option value="draft">초안 · AI 검색 제외</option>{canPublish && <><option value="published">공개 · AI 검색 포함</option><option value="archived">보관 · 검색 제외</option></>}</select>{!canPublish && <span className="mt-1 block text-xs text-ink-3">공개·보관 전환은 관리자 검토 후 처리됩니다.</span>}</label>
     </div>
     <label className="block"><span className="label">본문</span><textarea className="field min-h-[28rem] resize-y font-mono text-sm leading-6" value={content} onChange={(event) => setContent(event.target.value)} maxLength={200_000} placeholder="# 업무 원칙\n\n결정 배경과 실제 적용 방법을 마크다운으로 작성하세요." required /></label>
     {error && <p className="note-danger" role="alert">{error}</p>}

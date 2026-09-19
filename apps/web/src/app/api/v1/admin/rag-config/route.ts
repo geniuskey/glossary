@@ -1,6 +1,7 @@
 import { z } from "zod/v3";
 import { RAG_VECTOR_DIMENSIONS } from "@glossary/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
+import { recordAuditEvent } from "@/lib/audit";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";
 import { getRagIndexStats, queueAllRagTerms, scheduleRagIndexing } from "@/lib/rag/indexer";
 import { queueAllMeetingDocuments, scheduleMeetingRagIndexing } from "@/lib/rag/meeting-indexer";
@@ -39,15 +40,15 @@ const patchSchema = z.object({
   topK: z.number().int().min(1).max(50),
 }).strict();
 
-export const GET = withApiErrors(async () => {
-  const admin = await requireAdminUser();
+export const GET = withApiErrors(async (request: Request = new Request("http://internal")) => {
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   const [config, stats] = await Promise.all([loadRagConfig(), getRagIndexStats()]);
   return Response.json({ config: publicRagConfig(config, stats), vectorDimensions: RAG_VECTOR_DIMENSIONS });
 });
 
 export const PATCH = withApiErrors(async (request: Request) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "RAG 검색 설정을 확인해 주세요.", 400, parsed.error.flatten());
@@ -56,7 +57,7 @@ export const PATCH = withApiErrors(async (request: Request) => {
   if (!result.ok) return apiError("validation_failed", result.problems[0] ?? "RAG 검색 설정을 확인해 주세요.", 400, { formErrors: result.problems });
 
   // Embedding model, endpoint, chunking, and metadata changes all invalidate
-  // existing vectors. Queueing is durable; processing happens after the response.
+  // existing vectors. Queueing is durable; the dedicated worker drains it.
   const queued = result.row.enabled ? await queueAllRagTerms() : 0;
   const queuedMeetings = result.row.enabled ? await queueAllMeetingDocuments() : 0;
   const queuedWikiPages = result.row.enabled ? await queueAllWikiPages() : 0;
@@ -66,5 +67,12 @@ export const PATCH = withApiErrors(async (request: Request) => {
     scheduleWikiRagIndexing(8);
   }
   const stats = await getRagIndexStats();
+  await recordAuditEvent({
+    action: "admin.rag_config_updated",
+    targetType: "rag_config",
+    targetId: result.row.id,
+    actor: { userId: admin.id },
+    metadata: { enabled: result.row.enabled, embeddingProvider: result.row.embeddingProvider, embeddingModel: result.row.embeddingModel, queued, queuedMeetings, queuedWikiPages },
+  });
   return Response.json({ config: publicRagConfig(result.row, stats), queued, queuedMeetings, queuedWikiPages, vectorDimensions: RAG_VECTOR_DIMENSIONS });
 });

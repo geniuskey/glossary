@@ -320,7 +320,8 @@ export const openApiSpec = {
       },
     },
     "/auth/logout": {
-      // 상태를 바꾸므로 POST다. GET으로 만들면 SameSite=Lax 하나뿐인 CSRF 방어가 무너진다.
+      // 상태를 바꾸므로 POST다. GET으로 만들면 출처 검증과 SameSite=Lax 쿠키를
+      // 사용하는 CSRF 방어가 무너진다.
       post: {
         summary: "세션 폐기",
         responses: { "200": json("쿠키를 만료시킨다", { type: "object" }) },

@@ -1,5 +1,3 @@
-import "server-only";
-
 import { createHash, randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, lt, sql, type InferSelectModel } from "drizzle-orm";
 import {
@@ -16,7 +14,6 @@ import {
   wikiRagDocuments,
   wikiRagIndexQueue,
 } from "@glossary/db";
-import { scheduleAfterResponse } from "@/lib/after-response";
 import { getDb } from "@/lib/db";
 import { AiProviderError } from "@/lib/ai/provider";
 import { loadRagConfig, runtimeEmbeddingConfig, type RagDatabase } from "./config";
@@ -25,7 +22,6 @@ import { RAG_VECTOR_DIMENSIONS } from "@glossary/db";
 import type { AiRunContext } from "@/lib/ai/observability-values";
 
 const MAX_EMBEDDING_BATCH = 96;
-const MAX_BACKGROUND_BATCHES = 128;
 const ERROR_MAX_LENGTH = 1_000;
 
 type RagTerm = InferSelectModel<typeof terms>;
@@ -171,19 +167,13 @@ export async function queueRagIndex(
   });
 }
 
-/** Call this after any route that changed a term; Next runs it after the response. */
-export function scheduleRagIndexing(limit = 8): void {
-  scheduleAfterResponse(async () => {
-    const batchSize = Math.max(1, Math.min(32, Math.floor(limit)));
-    // A full reindex can enqueue more terms than one request-sized batch. Drain
-    // the durable queue in bounded batches so a normal save does not leave the
-    // rest of the glossary waiting for an unrelated future write. Failed jobs
-    // move to `failed`, so they do not make this loop retry a bad provider call.
-    for (let batch = 0; batch < MAX_BACKGROUND_BATCHES; batch += 1) {
-      const attempted = await processRagIndexQueue(batchSize);
-      if (attempted < batchSize) break;
-    }
-  });
+/**
+ * Queue writes are durable. A dedicated worker polls them, so a web request
+ * never owns embedding work after its response has been sent.
+ */
+export function scheduleRagIndexing(_limit = 8): void {
+  // Kept as a compatibility shim for existing mutation paths. The enqueue
+  // already happened in the transaction; the worker is responsible for drain.
 }
 
 /** Requeues every non-merged term. Used after changing the embedding model/settings. */

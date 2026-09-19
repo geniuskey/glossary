@@ -257,7 +257,8 @@ Content-Type: application/json
 
 ::: tip 왜 GET이 아닌가
 되돌리기는 쓰기다. 링크(`GET`)로 만들면 "이 링크 눌러봐" 한 줄로 남의 용어를 되돌릴 수
-있게 되어, `SameSite=Lax` 쿠키뿐인 이 사이트의 CSRF 방어가 그대로 뚫린다.
+있게 되어, 출처 검증과 `SameSite=Lax` 쿠키를 사용하는 이 사이트의 CSRF 방어가
+그대로 뚫린다.
 :::
 
 ## 배치 조회 lookup

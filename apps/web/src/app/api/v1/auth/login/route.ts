@@ -3,10 +3,12 @@ import { z } from "zod/v3";
 import { users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
+import { recordAuditEvent } from "@/lib/audit";
 import { DUMMY_PASSWORD_HASH, verifyPassword } from "@/lib/auth/password";
 import { normalizeEmail } from "@/lib/auth/register";
 import { loadPasswordLoginEnabled } from "@/lib/auth/sso/config";
 import { createSession, isSecureRequest, purgeExpiredSessions, sessionCookie } from "@/lib/auth/session";
+import { clientAddress, consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const bodySchema = z.object({
   email: z.string().trim().email().max(254),
@@ -26,6 +28,17 @@ export const POST = withApiErrors(async (request: Request) => {
     return apiError("validation_failed", "이메일과 비밀번호가 필요합니다.", 400, parsed.error.flatten());
   }
 
+  const email = normalizeEmail(parsed.data.email);
+  const [emailLimit, addressLimit] = await Promise.all([
+    consumeRateLimit(`auth:login:email:${email}`, 10, 15 * 60_000),
+    consumeRateLimit(`auth:login:address:${clientAddress(request)}`, 50, 15 * 60_000),
+  ]);
+  const limited = rateLimitResponse(
+    emailLimit.allowed ? addressLimit : emailLimit,
+    "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+  );
+  if (limited) return limited;
+
   // R131: 대소문자를 구분하지 않고 찾는다. 개방 가입에서는 "Kim@Example.com"으로
   // 가입해 놓고 다음 날 소문자로 치는 일이 흔한데, 원문 일치로만 찾으면 그 사람은
   // 자기 계정을 영영 못 찾고 "비밀번호가 틀렸다"는 말만 듣는다. 유일성은
@@ -39,11 +52,13 @@ export const POST = withApiErrors(async (request: Request) => {
   // "계정 없음" 경로가 scrypt를 통째로 건너뛰어 응답 시간으로 계정 존재 여부가 샌다.
   const ok = await verifyPassword(parsed.data.password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
   if (!user || !ok) {
+    await recordAuditEvent({ action: "auth.login_failed", targetType: "auth", metadata: { reason: "invalid_credentials" } });
     return apiError("unauthorized", "이메일 또는 비밀번호가 올바르지 않습니다.", 401);
   }
 
   await purgeExpiredSessions();
   const session = await createSession(user.id);
+  await recordAuditEvent({ action: "auth.login_success", targetType: "user", targetId: user.id, actor: { userId: user.id } });
   const res = Response.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
   res.headers.append("set-cookie", sessionCookie(session.token, session.expiresAt, isSecureRequest(request)));
   return res;

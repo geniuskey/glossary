@@ -49,7 +49,7 @@ const patchSchema = z
   .strict();
 
 export const GET = withApiErrors(async (request: Request) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
 
   const cfg = await loadSsoConfig();
@@ -59,7 +59,7 @@ export const GET = withApiErrors(async (request: Request) => {
 });
 
 export const PUT = withApiErrors(async (request: Request) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
 
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));

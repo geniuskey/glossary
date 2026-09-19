@@ -1,5 +1,6 @@
 import { termStatusEnum } from "@glossary/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
+import { recordAuditEvent } from "@/lib/audit";
 import { scheduleAfterResponse } from "@/lib/after-response";
 import { requireAuth, isResponse } from "@/lib/auth/require";
 import { termInputSchema } from "@/lib/terms/schema";
@@ -155,6 +156,13 @@ export const POST = withApiErrors(async (request: Request) => {
   // 남기려면 authorKeyId를 별도로 넘겨야 한다.
   const authorKeyId = auth.kind === "key" ? auth.keyId : null;
   const { term, surfaces, warnings } = await createTerm(parsed.data, authorId, authorKeyId);
+  await recordAuditEvent({
+    action: "term.create",
+    targetType: "term",
+    targetId: term.id,
+    actor: auth.kind === "user" ? { userId: auth.user.id } : { keyId: auth.keyId },
+    metadata: { status: term.status },
+  });
   scheduleAfterResponse(() => prepareAutoReview(term.id));
   scheduleRagIndexing(1);
 

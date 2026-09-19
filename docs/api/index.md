@@ -172,14 +172,15 @@ allow: GET, HEAD, POST
 
 ## 상태를 바꾸는 GET은 만들지 않는다
 
-CSRF 방어가 현재 `SameSite=Lax` 쿠키 하나뿐이라, 상태 변경은 반드시 POST/PATCH/DELETE다.
+CSRF 방어는 상태 변경 요청의 `Origin` 또는 `Referer`를 허용 출처와 비교하고
+`SameSite=Lax` 쿠키를 함께 사용한다. 따라서 상태 변경은 반드시 POST/PATCH/DELETE다.
 로그아웃이 GET이 아니라 POST인 이유가 이것이다.
 `apps/web/tests/screen-guards.test.ts`가 이 규칙을 강제한다.
 
 ## HTTPS
 
 기본 Compose 구성은 평문 HTTP다. 세션 쿠키는 HTTPS 요청에서 `Secure`가 자동으로 붙는다.
-판정은 `apps/web/src/lib/auth/session.ts`의 `isSecureRequest`가 담당하며,
-`X-Forwarded-Proto`의 첫 값을 우선하고 헤더가 없으면 요청 URL의 프로토콜을 사용한다.
-리버스 프록시는 이 헤더를 실제 외부 프로토콜로 덮어써야 한다.
+판정은 `apps/web/src/lib/auth/session.ts`의 `isSecureRequest`가 담당한다.
+운영에서 프록시 헤더를 신뢰하려면 `GLOSSARY_TRUST_PROXY_HEADERS=true`를 설정하고,
+리버스 프록시는 `X-Forwarded-Proto`를 실제 외부 프로토콜로 덮어써야 한다.
 구성 전제는 [운영 안내서](/operations#네트워크와-인증-—-알고-넘어가야-할-것)를 참고한다.

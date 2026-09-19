@@ -1,14 +1,15 @@
 import { apiError, methodStubs, requireUuid, withApiErrors } from "@/lib/api-error";
 import { revokeManagedUserSessions } from "@/lib/admin/users";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";
+import { recordAuditEvent } from "@/lib/audit";
 
 const ALLOWED_METHODS = ["DELETE"];
 const { GET, POST, PUT, PATCH, OPTIONS } = methodStubs(ALLOWED_METHODS);
 export { GET, POST, PUT, PATCH, OPTIONS };
 
 export const DELETE = withApiErrors(
-  async (_request: Request, context: { params: Promise<{ id: string }> }) => {
-    const admin = await requireAdminUser();
+  async (request: Request, context: { params: Promise<{ id: string }> }) => {
+    const admin = await requireAdminUser(request);
     if (isResponse(admin)) return admin;
 
     const { id: rawId } = await context.params;
@@ -26,6 +27,13 @@ export const DELETE = withApiErrors(
       return apiError("operation_conflict", "현재 로그인한 세션은 여기서 종료할 수 없습니다. 로그아웃을 사용하세요.", 409);
     }
 
+    await recordAuditEvent({
+      action: "admin.user_sessions_revoked",
+      targetType: "user",
+      targetId: id,
+      actor: { userId: admin.id },
+      metadata: { revoked: result.revoked },
+    });
     return Response.json({ ok: true, revoked: result.revoked });
   },
 );

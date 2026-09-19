@@ -1,9 +1,6 @@
-import "server-only";
-
 import { createHash, randomUUID } from "node:crypto";
 import { and, asc, eq, lt, sql, type InferSelectModel } from "drizzle-orm";
 import { ragConfig, RAG_VECTOR_DIMENSIONS, terms, wikiPageTerms, wikiPages, wikiRagDocuments, wikiRagIndexQueue } from "@glossary/db";
-import { scheduleAfterResponse } from "@/lib/after-response";
 import { AiProviderError } from "@/lib/ai/provider";
 import type { AiRunContext } from "@/lib/ai/observability-values";
 import { getDb } from "@/lib/db";
@@ -11,7 +8,6 @@ import { loadRagConfig, runtimeEmbeddingConfig, type RagDatabase } from "./confi
 import { embedTexts } from "./provider";
 
 const MAX_EMBEDDING_BATCH = 96;
-const MAX_BACKGROUND_BATCHES = 128;
 const ERROR_MAX_LENGTH = 1_000;
 
 type WikiPage = InferSelectModel<typeof wikiPages>;
@@ -125,13 +121,7 @@ export async function queueWikiIndex(database: RagDatabase, wikiPageId: string, 
 }
 
 export function scheduleWikiRagIndexing(limit = 4): void {
-  scheduleAfterResponse(async () => {
-    const batchSize = Math.max(1, Math.min(32, Math.floor(limit)));
-    for (let batch = 0; batch < MAX_BACKGROUND_BATCHES; batch += 1) {
-      const attempted = await processWikiRagIndexQueue(batchSize);
-      if (attempted < batchSize) break;
-    }
-  });
+  void limit;
 }
 
 /** Embedding 설정이 바뀌었을 때 공개 위키만 다시 색인한다. */

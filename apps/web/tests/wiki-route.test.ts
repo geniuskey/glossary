@@ -74,6 +74,14 @@ test("위키 API는 연결 용어와 함께 생성·조회·수정·검색을 �
   expect(detailResponse.status).toBe(200);
   await expect(detailResponse.json()).resolves.toMatchObject({ page: { content: expect.stringContaining("베타"), terms: [expect.objectContaining({ slug: termSlug })] } });
 
+  const editorPublishResponse = await patchWiki(new Request("https://glossary.example.com/api/v1/wiki/slug", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ content: "## 결정\n베타 운영을 확정한다.", status: "published" }),
+  }), { params: Promise.resolve({ slug }) });
+  expect(editorPublishResponse.status).toBe(403);
+
+  identity.user = { id: userId, role: "admin" };
   const updatedResponse = await patchWiki(new Request("https://glossary.example.com/api/v1/wiki/slug", {
     method: "PATCH",
     headers: { "content-type": "application/json" },

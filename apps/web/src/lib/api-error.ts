@@ -13,6 +13,7 @@ export type ApiErrorCode =
   | "email_taken"
   | "payload_too_large"
   | "rate_limited"
+  | "csrf_failed"
   | "ai_not_enabled"
   | "ai_provider_error"
   | "ai_config_error"

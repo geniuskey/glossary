@@ -13,15 +13,15 @@ const settingsSchema = z.object({
   bodyMinChars: z.number().int().min(TERM_QUALITY_LIMITS.min).max(TERM_QUALITY_LIMITS.max),
 }).strict();
 
-export const GET = withApiErrors(async () => {
-  const admin = await requireAdminUser();
+export const GET = withApiErrors(async (request: Request = new Request("http://internal")) => {
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   const settings = await getTermQualitySettings();
   return Response.json({ settings, overview: await getTermQualityOverview(settings) });
 });
 
 export const POST = withApiErrors(async (request: Request) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
   const parsed = settingsSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "작성 수준 값을 확인해 주세요.", 400, parsed.error.flatten());
@@ -29,7 +29,7 @@ export const POST = withApiErrors(async (request: Request) => {
 });
 
 export const PATCH = withApiErrors(async (request: Request) => {
-  const admin = await requireAdminUser();
+  const admin = await requireAdminUser(request);
   if (isResponse(admin)) return admin;
 
   const parsed = settingsSchema.safeParse(await request.json().catch(() => null));

@@ -170,7 +170,6 @@ export function DuplicateReviewPanel({
     autoInspectDone.current = true;
     void inspectSlug(initialQuery);
   // The URL query is an explicit request to inspect one term; it should run once.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQuery]);
 
   async function decide(decision: DuplicateDecision) {

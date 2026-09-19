@@ -5,6 +5,7 @@ import { validateIdTokenClaims } from "./claims";
 import type { SsoConfig } from "./config";
 import type { SsoProtocol } from "./config";
 import { sanitizeSsoValue } from "./diagnostics";
+import { fetchSso, readSsoJson } from "./http";
 
 /**
  * R132: 인가 코드 흐름(Authorization Code + PKCE)의 배선. 브라우저를 IdP로 보내고
@@ -95,10 +96,20 @@ export function clearFlowCookie(): string {
 export function resolveBaseUrl(request: Request, cfg: Pick<SsoConfig, "baseUrl">): string {
   if (cfg.baseUrl.trim()) return cfg.baseUrl.trim().replace(/\/+$/, "");
 
+  const configuredOrigin = process.env.GLOSSARY_BASE_URL?.trim() || process.env.GLOSSARY_ALLOWED_ORIGINS?.split(",")[0]?.trim();
+  if (configuredOrigin) {
+    try { return new URL(configuredOrigin).origin; } catch { /* fall through to request URL */ }
+  }
+
+  const trustForwarded = process.env.NODE_ENV !== "production" || process.env.GLOSSARY_TRUST_PROXY_HEADERS === "true";
   const headers = request.headers;
-  const host = headers.get("x-forwarded-host") ?? headers.get("host");
-  if (host) {
-    const proto = headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || new URL(request.url).protocol.replace(":", "");
+  const host = trustForwarded
+    ? headers.get("x-forwarded-host") ?? headers.get("host")
+    : headers.get("host");
+  if (host && (trustForwarded || host === new URL(request.url).host)) {
+    const proto = trustForwarded
+      ? headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || new URL(request.url).protocol.replace(":", "")
+      : new URL(request.url).protocol.replace(":", "");
     return `${proto}://${host}`.replace(/\/+$/, "");
   }
   return new URL(request.url).origin;
@@ -158,8 +169,13 @@ export async function exchangeCode(
     body.set("client_secret", cfg.clientSecret);
   }
 
-  const res = await fetch(cfg.tokenEndpoint, { method: "POST", headers, body });
-  const payload: unknown = await res.json().catch(() => null);
+  let res: Response;
+  try {
+    res = await fetchSso(cfg.tokenEndpoint, { method: "POST", headers, body });
+  } catch {
+    return { ok: false, detail: "token endpoint 요청이 시간 초과되었거나 연결되지 않았습니다." };
+  }
+  const payload: unknown = await readSsoJson(res);
   if (!res.ok || !payload || typeof payload !== "object") {
     // 본문에는 시크릿이 없다(에러 코드와 설명뿐). 운영자가 원인을 볼 수 있게 그대로 남긴다.
     return { ok: false, detail: `token ${res.status} ${JSON.stringify(sanitizeSsoValue(payload))}` };
@@ -180,11 +196,16 @@ export async function exchangeCode(
 export type UserinfoResult = { ok: true; claims: Claims } | { ok: false; detail: string };
 
 export async function fetchUserinfo(userinfoEndpoint: string, accessToken: string): Promise<UserinfoResult> {
-  const res = await fetch(userinfoEndpoint, {
-    headers: { authorization: `Bearer ${accessToken}`, accept: "application/json" },
-  });
+  let res: Response;
+  try {
+    res = await fetchSso(userinfoEndpoint, {
+      headers: { authorization: `Bearer ${accessToken}`, accept: "application/json" },
+    });
+  } catch {
+    return { ok: false, detail: "userinfo endpoint 요청이 시간 초과되었거나 연결되지 않았습니다." };
+  }
   const contentType = res.headers.get("content-type") ?? "";
-  const payload: unknown = await res.json().catch(() => null);
+  const payload: unknown = await readSsoJson(res);
   if (!res.ok) return { ok: false, detail: `userinfo ${res.status} ${JSON.stringify(sanitizeSsoValue(payload))}` };
   if (!contentType.toLowerCase().includes("application/json")) {
     return { ok: false, detail: `userinfo ${res.status} content-type=${contentType || "없음"}` };

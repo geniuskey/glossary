@@ -26,7 +26,6 @@ const components: Components = {
       return <span className="text-sm text-danger">외부 이미지는 표시하지 않습니다: {alt || String(src ?? "")}</span>;
     }
     // 첨부 API가 원본 크기를 응답하므로 여기서는 문서 폭만 제한한다.
-    // eslint-disable-next-line @next/next/no-img-element
     return <img {...props} src={src} alt={alt ?? ""} loading="lazy" className="my-4 max-h-[70vh] max-w-full rounded-lg border border-line" />;
   },
   table({ children }) {

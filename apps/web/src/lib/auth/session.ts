@@ -7,9 +7,12 @@ export const SESSION_COOKIE = "glossary_session";
 const TTL_MS = 1000 * 60 * 60 * 24 * 14;
 export const SESSION_TTL_SECONDS = TTL_MS / 1000;
 
-/** 프록시가 알려 준 원래 프로토콜을 우선하고, 없으면 요청 URL을 쓴다. */
+/** 명시적으로 신뢰한 프록시만 원래 프로토콜을 전달할 수 있다. */
 export function isSecureRequest(request: Request): boolean {
-  const forwarded = request.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim().toLowerCase();
+  const trustForwarded = process.env.NODE_ENV !== "production" || process.env.GLOSSARY_TRUST_PROXY_HEADERS === "true";
+  const forwarded = trustForwarded
+    ? request.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim().toLowerCase()
+    : undefined;
   return forwarded ? forwarded === "https" : new URL(request.url).protocol === "https:";
 }
 
