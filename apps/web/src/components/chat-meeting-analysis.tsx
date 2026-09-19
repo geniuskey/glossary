@@ -55,7 +55,7 @@ function EvidenceBlock({ analysis, labels, messageId }: { analysis: MeetingAnaly
           <p className="font-semibold text-ink">[{label}] {title}</p>
           {item.source === "glossary" && item.revision !== undefined && <p className="mt-0.5 text-[11px] text-ink-3">리비전 {item.revision} · 용어집 근거</p>}
           {item.source === "wiki" && item.revision !== undefined && <p className="mt-0.5 text-[11px] text-ink-3">리비전 {item.revision} · 공개 위키 근거</p>}
-          {item.source === "meeting" && item.meetingDate && <p className="mt-0.5 text-[11px] text-ink-3">회의일 {new Date(item.meetingDate).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })} · 저장된 회의록 근거</p>}
+          {item.source === "meeting" && item.meetingDate && <p className="mt-0.5 text-[11px] text-ink-3">회의일 {new Date(item.meetingDate).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })} · 기존 회의 자료 근거</p>}
           <p className="mt-1 whitespace-pre-wrap break-words leading-5 text-ink-2">{item.excerpt}</p>
           {item.source === "glossary" && item.slug && <div className="mt-2 flex flex-wrap gap-3">
             <Link href={`/g/${item.termId ?? item.slug}`} className="text-brand underline">현재 용어</Link>
@@ -65,17 +65,13 @@ function EvidenceBlock({ analysis, labels, messageId }: { analysis: MeetingAnaly
         </blockquote>;
       })}
     </div>
-    <p className="mt-2 text-[11px] text-ink-3">M은 현재 입력했거나 저장된 회의록, W는 공개 위키, G는 용어집 리비전에서 가져온 근거입니다.</p>
+    <p className="mt-2 text-[11px] text-ink-3">M은 분석에 제공한 회의록, W는 공개 위키, G는 용어집 리비전에서 가져온 근거입니다. 회의록 원문은 Confluence에서 관리하세요.</p>
   </section>;
 }
 
-export function ChatMeetingAnalysis({ analysis, messageId, onSave, saving, saved, saveError }: {
+export function ChatMeetingAnalysis({ analysis, messageId }: {
   analysis: MeetingAnalysis;
   messageId: number;
-  onSave?: () => void;
-  saving?: boolean;
-  saved?: boolean;
-  saveError?: string | null;
 }) {
   const labels = citationLabels(analysis.evidence);
   return <div>
@@ -146,10 +142,10 @@ export function ChatMeetingAnalysis({ analysis, messageId, onSave, saving, saved
       <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-ink-2">{analysis.uncertainties.map((item, index) => <li key={index}>{item}</li>)}</ul>
     </section>}
     <EvidenceBlock analysis={analysis} labels={labels} messageId={messageId} />
-    {onSave && <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-line pt-3">
-      {saveError && <p className="mr-auto text-xs text-danger" role="alert">{saveError}</p>}
-      {saved ? <p className="mr-auto text-xs text-ok" role="status">회의록을 장기 지식으로 저장했습니다.</p> : <p className="mr-auto text-[11px] text-ink-3">저장하면 다음 질문에서 과거 결정·액션의 근거로 검색됩니다.</p>}
-      <button type="button" className="btn-primary btn-sm" onClick={onSave} disabled={saving || saved}>{saving ? "저장 중…" : saved ? "저장 완료" : "회의록으로 저장"}</button>
-    </div>}
+    <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-line pt-3">
+      <p className="mr-auto text-[11px] text-ink-3">원문은 Confluence에 두고, 이 분석에서 재사용할 지식만 승격하세요.</p>
+      <Link href="/w/new?from=meeting" className="btn-primary btn-sm">위키 초안 만들기</Link>
+      <Link href="/new" className="btn-ghost btn-sm">용어 등록</Link>
+    </div>
   </div>;
 }

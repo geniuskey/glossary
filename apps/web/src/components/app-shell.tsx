@@ -15,7 +15,7 @@ export const APP_NAV_ITEMS: Array<{ key: NavKey; href: string; label: string; hi
   { key: "classifications", href: "/classifications", label: "분류 체계", hint: "도메인 · 업무", icon: <IconClassification /> },
   { key: "graph", href: "/graph", label: "관계도", hint: "맥락 탐색", icon: <IconGraph /> },
   { key: "chat", href: "/chat", label: "용어 챗봇", hint: "AI 질문", icon: <IconChat /> },
-  { key: "meetings", href: "/meetings", label: "회의록 지식", hint: "조직 기억", icon: <IconMeeting /> },
+  { key: "meetings", href: "/meetings", label: "회의 지식", hint: "Confluence 출처", icon: <IconMeeting /> },
   { key: "wiki", href: "/w", label: "위키", hint: "업무 맥락", icon: <IconWiki /> },
   { key: "api", href: "/api", label: "API", hint: "개발자 연동", icon: <IconApi /> },
   { key: "import", href: "/import", label: "가져오기", hint: "엑셀", icon: <IconImport /> },

@@ -53,6 +53,7 @@ test("위키 API는 연결 용어와 함께 생성·조회·수정·검색을 �
       slug,
       title: "상품 운영 위키",
       summary: "운영 기준",
+      sourceUrl: "https://confluence.example.com/pages/123",
       content: "## 결정\n베타 운영을 진행한다.",
       domain: ["상품"],
       termSlugs: [termSlug],
@@ -62,7 +63,7 @@ test("위키 API는 연결 용어와 함께 생성·조회·수정·검색을 �
   expect(createdResponse.status).toBe(201);
   const createdBody = await createdResponse.json() as { page: { id: string; slug: string; revision: number; content: string; status: string; terms: Array<{ slug: string; role: string }> } };
   wikiIds.push(createdBody.page.id);
-  expect(createdBody.page).toMatchObject({ slug, revision: 1, content: expect.stringContaining("베타"), status: "draft" });
+  expect(createdBody.page).toMatchObject({ slug, revision: 1, sourceUrl: "https://confluence.example.com/pages/123", content: expect.stringContaining("베타"), status: "draft" });
   expect(createdBody.page.terms).toEqual([{ id: expect.any(String), slug: termSlug, title: "Wiki Route Term", role: "primary", domain: ["QA"] }]);
 
   const listResponse = await listWiki(new Request(`https://glossary.example.com/api/v1/wiki?q=${slug}&status=draft`));

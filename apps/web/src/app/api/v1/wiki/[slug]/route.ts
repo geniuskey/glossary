@@ -22,6 +22,7 @@ const patchSchema = z.object({
   slug: wikiSlugSchema.optional(),
   title: z.string().trim().min(1).max(240).optional(),
   summary: z.string().trim().max(600).nullable().optional(),
+  sourceUrl: z.string().trim().max(2_000).refine((value) => /^https?:\/\//i.test(value), "출처 URL은 http 또는 https 주소여야 합니다.").nullable().optional(),
   content: z.string().trim().min(1).max(MAX_WIKI_CONTENT_LENGTH).optional(),
   domain: z.array(z.string().trim().min(1).max(200)).max(20).optional(),
   termSlugs: z.array(z.string().trim().min(1).max(120)).max(20).optional(),

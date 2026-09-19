@@ -43,12 +43,12 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | POST | [`/admin/rag-config/test`](/api/rag#post-adminrag-config-test) | 세션(admin) | Embedding·Reranker 연결 시험 |
 | POST | [`/admin/rag-config/reindex`](/api/rag#post-adminrag-config-reindex) | 세션(admin) | 전체 용어·회의록·위키 재색인 대기열 생성 |
 | POST | [`/rag/search`](/api/rag#벡터-검색) | `read` | pgvector 용어집 검색 |
-| POST | [`/rag/meetings/search`](/api/rag#post-ragmeetingssearch) | `read` | 저장된 회의록 pgvector 검색 |
+| POST | [`/rag/meetings/search`](/api/rag#post-ragmeetingssearch) | `read` | 기존 회의 자료 pgvector 검색 |
 | POST | [`/rag/wiki/search`](/api/rag#위키-벡터-검색) | `read` | 공개 위키 pgvector 검색 |
-| GET | [`/meetings`](/api/rag#회의록-지식) | `read` | 저장된 회의록 목록 |
-| POST | [`/meetings`](/api/rag#post-meetings) | `write` | 회의록 저장·RAG 색인 예약 |
-| GET | [`/meetings/{id}`](/api/rag#meetingsid) | `read` | 회의록 원문 조회 |
-| PATCH | [`/meetings/{id}`](/api/rag#meetingsid) | `write` | 회의록 수정·보관 |
+| GET | [`/meetings`](/api/rag#회의-자료-검색-호환-api) | `read` | 기존 회의 자료 목록 |
+| POST | [`/meetings`](/api/rag#post-meetings) | `write` | 기존 연동 호환용 회의 자료 저장 |
+| GET | [`/meetings/{id}`](/api/rag#meetingsid) | `read` | 기존 회의 자료 원문 조회 |
+| PATCH | [`/meetings/{id}`](/api/rag#meetingsid) | `write` | 기존 회의 자료 수정·보관 |
 | GET | [`/wiki`](/api/rag#위키-지식) | `read` | 위키 문서 목록·검색 |
 | POST | [`/wiki`](/api/rag#위키-지식) | `write` | 위키 문서 생성·RAG 색인 예약 |
 | GET | [`/wiki/{slug}`](/api/rag#위키-지식) | `read` | 위키 문서 조회 |

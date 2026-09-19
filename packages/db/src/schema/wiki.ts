@@ -37,6 +37,8 @@ export const wikiPages = pgTable(
     slug: text("slug").notNull(),
     title: text("title").notNull(),
     summary: text("summary"),
+    /** Confluence 등 원문을 관리하는 외부 출처. 위키 본문과 분리해 최신 원문을 추적한다. */
+    sourceUrl: text("source_url"),
     content: text("content").notNull(),
     contentHash: text("content_hash").notNull(),
     domain: text("domain").array().notNull().default([]),

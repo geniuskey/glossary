@@ -162,7 +162,7 @@ export const openApiSpec = {
           id: { type: "string", format: "uuid" },
           slug: { type: "string" },
           title: { type: "string" },
-          summary: { type: ["string", "null"] },
+          summary: { type: ["string", "null"] }, sourceUrl: { type: ["string", "null"], format: "uri", maxLength: 2000 },
           content: { type: "string" },
           domain: { type: "array", items: { type: "string" } },
           revision: { type: "integer", minimum: 1 },
@@ -1465,7 +1465,7 @@ export const openApiSpec = {
     },
     "/rag/meetings/search": {
       post: {
-        summary: "저장된 회의록 벡터 검색",
+        summary: "기존 회의 자료 벡터 검색",
         description: "현재 활성 회의록 revision의 pgvector 청크를 Embedding API로 검색하고, 설정된 경우 Reranker로 재정렬한다.",
         security: [{ sessionCookie: [] }, { apiKey: [] }],
         requestBody: { required: true, content: { "application/json": { schema: {
@@ -1540,6 +1540,7 @@ export const openApiSpec = {
             slug: { type: "string", minLength: 1, maxLength: 120 },
             title: { type: "string", minLength: 1, maxLength: 240 },
             summary: { type: ["string", "null"], maxLength: 600 },
+            sourceUrl: { type: ["string", "null"], format: "uri", maxLength: 2000 },
             content: { type: "string", minLength: 1, maxLength: 200000 },
             domain: { type: "array", maxItems: 20, items: { type: "string", maxLength: 200 } },
             termSlugs: { type: "array", maxItems: 20, items: { type: "string", maxLength: 120 } },
@@ -1563,7 +1564,7 @@ export const openApiSpec = {
           type: "object", additionalProperties: false,
           properties: {
             slug: { type: "string", minLength: 1, maxLength: 120 }, title: { type: "string", minLength: 1, maxLength: 240 },
-            summary: { type: ["string", "null"], maxLength: 600 }, content: { type: "string", minLength: 1, maxLength: 200000 },
+            summary: { type: ["string", "null"], maxLength: 600 }, sourceUrl: { type: ["string", "null"], format: "uri", maxLength: 2000 }, content: { type: "string", minLength: 1, maxLength: 200000 },
             domain: { type: "array", maxItems: 20, items: { type: "string", maxLength: 200 } },
             termSlugs: { type: "array", maxItems: 20, items: { type: "string", maxLength: 120 } }, status: { type: "string", enum: ["draft", "published", "archived"] },
           },
@@ -1573,7 +1574,7 @@ export const openApiSpec = {
     },
     "/meetings": {
       get: {
-        summary: "저장된 회의록 목록",
+        summary: "기존 회의 자료 목록",
         security: [{ sessionCookie: [] }, { apiKey: [] }],
         parameters: [
           { name: "q", in: "query", schema: { type: "string", maxLength: 200 } },
@@ -1586,7 +1587,7 @@ export const openApiSpec = {
         responses: { "200": json("회의록 메타데이터 목록", { type: "object" }), "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized") },
       },
       post: {
-        summary: "회의록 저장 및 RAG 색인 예약",
+        summary: "기존 연동 호환용 회의 자료 저장 및 RAG 색인 예약",
         description: "원문은 revision 1로 저장되고 Embedding 색인 대기열에 들어간다. 자동 저장하지 않으며 명시적 write 권한이 필요하다.",
         security: [{ sessionCookie: [] }, { apiKey: [] }],
         requestBody: { required: true, content: { "application/json": { schema: {
@@ -1599,18 +1600,18 @@ export const openApiSpec = {
             content: { type: "string", minLength: 1, maxLength: 200000 },
           },
         } } } },
-        responses: { "201": json("저장된 회의록", { type: "object" }), "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "403": errorResponse("forbidden") },
+        responses: { "201": json("저장된 기존 회의 자료", { type: "object" }), "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "403": errorResponse("forbidden") },
       },
     },
     "/meetings/{id}": {
       parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
       get: {
-        summary: "회의록 원문 조회",
+        summary: "기존 회의 자료 원문 조회",
         security: [{ sessionCookie: [] }, { apiKey: [] }],
         responses: { "200": json("회의록 원문과 메타데이터", { type: "object" }), "401": errorResponse("unauthorized"), "404": errorResponse("not_found") },
       },
       patch: {
-        summary: "회의록 수정 또는 보관",
+        summary: "기존 회의 자료 수정 또는 보관",
         security: [{ sessionCookie: [] }, { apiKey: [] }],
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object", additionalProperties: false,

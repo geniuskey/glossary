@@ -65,7 +65,7 @@ function hashContent(value: string): string {
 }
 
 export function buildWikiRagChunks(
-  page: Pick<WikiPage, "id" | "slug" | "title" | "summary" | "domain" | "content" | "revision"> & { termTitles?: string[] },
+  page: Pick<WikiPage, "id" | "slug" | "title" | "summary" | "domain" | "content" | "revision"> & { sourceUrl?: string | null; termTitles?: string[] },
   config: Pick<WikiConfigRow, "chunkSize" | "chunkOverlap">,
 ): WikiRagChunk[] {
   const fullPrefix = [
@@ -91,6 +91,7 @@ export function buildWikiRagChunks(
         slug: page.slug,
         title: page.title,
         summary: page.summary,
+        sourceUrl: page.sourceUrl,
         domain: page.domain,
         termTitles: page.termTitles ?? [],
         revision: page.revision,

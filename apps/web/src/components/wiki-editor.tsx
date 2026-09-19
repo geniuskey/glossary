@@ -8,6 +8,7 @@ interface WikiEditorPage {
   slug?: string;
   title: string;
   summary: string | null;
+  sourceUrl?: string | null;
   content?: string;
   domain: string[];
   status: "draft" | "published" | "archived";
@@ -26,6 +27,7 @@ export function WikiEditor({ initialPage, domains: domainOptions }: { initialPag
   const [slug, setSlug] = useState(initialPage?.slug ?? "");
   const [title, setTitle] = useState(initialPage?.title ?? "");
   const [summary, setSummary] = useState(initialPage?.summary ?? "");
+  const [sourceUrl, setSourceUrl] = useState(initialPage?.sourceUrl ?? "");
   const [domainText, setDomainText] = useState(initialPage?.domain.join(", ") ?? "");
   const [termSlugs, setTermSlugs] = useState(initialPage?.terms.map((term) => term.slug).join(", ") ?? "");
   const [content, setContent] = useState(initialPage?.content ?? "");
@@ -43,6 +45,7 @@ export function WikiEditor({ initialPage, domains: domainOptions }: { initialPag
         ...(slug.trim() ? { slug: slug.trim() } : {}),
         title,
         summary: summary.trim() || null,
+        sourceUrl: sourceUrl.trim() || null,
         content,
         domain: splitList(domainText),
         termSlugs: splitList(termSlugs),
@@ -72,6 +75,7 @@ export function WikiEditor({ initialPage, domains: domainOptions }: { initialPag
       <label className="block"><span className="label">제목</span><input className="field" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={240} placeholder="예: 실험 설계 원칙" required /></label>
       <label className="block"><span className="label">주소</span><input className="field font-mono" value={slug} onChange={(event) => setSlug(event.target.value)} maxLength={120} placeholder="비우면 제목으로 자동 생성" /><span className="mt-1 block text-xs text-ink-3">/w/ 아래 주소입니다. 용어와 같은 주소는 자동으로 피합니다.</span></label>
       <label className="block sm:col-span-2"><span className="label">요약</span><textarea className="field min-h-20 resize-y" value={summary} onChange={(event) => setSummary(event.target.value)} maxLength={600} placeholder="이 문서가 어떤 업무 판단에 도움을 주는지 한두 문장으로 적어 주세요." /></label>
+      <label className="block sm:col-span-2"><span className="label">원문 출처 URL</span><input className="field font-mono text-sm" type="url" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} maxLength={2_000} placeholder="예: https://company.atlassian.net/wiki/spaces/TEAM/pages/…" /><span className="mt-1 block text-xs text-ink-3">Confluence 등 원문을 관리하는 곳의 링크입니다. 위키에는 검토한 결과만 남기고 원문은 이 주소에서 확인합니다.</span></label>
       <label className="block"><span className="label">도메인</span><input className="field" list="wiki-domain-options" value={domainText} onChange={(event) => setDomainText(event.target.value)} placeholder="예: 상품, 보안" /><datalist id="wiki-domain-options">{domainOptions.map((item) => <option key={item.key} value={item.label} />)}</datalist><span className="mt-1 block text-xs text-ink-3">쉼표 또는 줄바꿈으로 여러 도메인을 구분합니다.</span></label>
       <label className="block"><span className="label">연결할 용어 슬러그</span><input className="field font-mono" value={termSlugs} onChange={(event) => setTermSlugs(event.target.value)} placeholder="예: experimentation, ab-test" /><span className="mt-1 block text-xs text-ink-3">쉼표로 구분합니다. 첫 번째 용어가 대표 용어입니다.</span></label>
       <label className="block sm:col-span-2"><span className="label">공개 상태</span><select className="field max-w-xs" value={status} onChange={(event) => setStatus(event.target.value as WikiEditorPage["status"])}><option value="draft">초안 · AI 검색 제외</option><option value="published">공개 · AI 검색 포함</option><option value="archived">보관 · 검색 제외</option></select></label>

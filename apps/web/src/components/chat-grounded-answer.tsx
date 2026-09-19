@@ -50,7 +50,7 @@ export function ChatGroundedAnswer({ answer, messageId }: { answer: GroundedChat
         <p className="mt-1 text-[11px] text-ink-3">{item.source === "meeting" ? `회의록 리비전 ${item.revision}` : item.source === "wiki" ? `위키 리비전 ${item.revision}` : `용어집 리비전 ${item.revision}`} · {new Date(item.updatedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })} (한국 시간){item.meetingDate ? ` · 회의 ${new Date(item.meetingDate).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })}` : ""}</p>
         <blockquote className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words border-l-2 border-brand/30 pl-2 text-xs leading-5 text-ink-2">{item.excerpt}</blockquote>
         {item.source === "meeting" ? (
-          <div className="mt-2 flex flex-wrap gap-3 text-xs"><Link href="/meetings" className="text-brand underline">회의록 지식에서 보기</Link></div>
+          <div className="mt-2 flex flex-wrap gap-3 text-xs"><Link href="/meetings" className="text-brand underline">회의 지식 인박스에서 보기</Link></div>
         ) : item.source === "wiki" ? (
           <div className="mt-2 flex flex-wrap gap-3 text-xs"><Link href={`/w/${item.wikiSlug ?? item.slug}`} className="text-brand underline">위키 문서에서 보기</Link></div>
         ) : <div className="mt-2 flex flex-wrap gap-3 text-xs">

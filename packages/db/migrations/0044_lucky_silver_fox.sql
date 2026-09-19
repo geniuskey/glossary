@@ -1,0 +1,1 @@
+ALTER TABLE "wiki_pages" ADD COLUMN "source_url" text;

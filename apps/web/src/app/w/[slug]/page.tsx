@@ -50,6 +50,7 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
             </span>
             {page.domain.map((domain) => <span key={domain} className="rounded-full bg-brand-soft px-2.5 py-1 text-brand">{domain}</span>)}
           </div>
+          {page.sourceUrl && <p className="mt-4 text-xs text-ink-3">원문 출처: <a href={page.sourceUrl} target="_blank" rel="noreferrer" className="link break-all">Confluence 원문 열기</a></p>}
         </header>
 
         {page.terms.length > 0 && <section className="mt-5" aria-labelledby="wiki-terms-heading">

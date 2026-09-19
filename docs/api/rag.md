@@ -165,17 +165,18 @@ curl -s \
 | 502 | `rag_provider_error` | Embedding/Reranker 서버 연결·인증·응답 문제 |
 | 503 | `rag_not_ready` | RAG가 꺼져 있거나 저장된 비밀값을 읽을 수 없음 |
 
-RAG 검색 API는 용어집과 저장된 회의록 내용을 외부 Embedding/Reranker 공급자에 전송할 수
+RAG 검색 API는 용어집과 기존 회의 자료 내용을 외부 Embedding/Reranker 공급자에 전송할 수
 있다. 사내 정책에 맞는 공급자나 사내 OpenAI-compatible 서버를 선택하고, 운영 환경에서는
 반드시 TLS URL과 고정된 `GLOSSARY_ENCRYPTION_KEY`를 사용한다.
 
-## 회의록 지식
+## 회의 자료 검색 (호환 API)
 
 ### `POST /meetings`
 
-로그인 세션 또는 `write` scope API Key로 회의록을 명시적으로 저장한다. `content`는 최대
-200,000자이며, `title`, `meetingDate`, `source`, `team`, `domain` 메타데이터를 함께 저장할
-수 있다. 저장 직후에는 원문만 확정되고 Embedding 색인은 durable queue에서 비동기로 진행된다.
+이 API는 이전 버전에서 저장한 회의 자료와 외부 연동의 호환성을 위해 유지한다. 현재 웹 UI는
+Confluence 원문을 다시 저장하지 않는다. 새 연동을 만들 때도 회의록 원문은 Confluence에 두고,
+Glossary에는 검토된 지식만 위키·용어집으로 승격하는 흐름을 권장한다. 기존 호출은 `content` 최대
+200,000자와 `title`, `meetingDate`, `source`, `team`, `domain` 메타데이터를 지원한다.
 
 ```json
 {
@@ -188,10 +189,9 @@ RAG 검색 API는 용어집과 저장된 회의록 내용을 외부 Embedding/Re
 }
 ```
 
-`GET /meetings`는 활성 회의록 메타데이터를 조회하며 `status=archived`로 보관 목록도 볼 수
-있다. `GET /meetings/{id}`는 원문을 반환하고, `PATCH /meetings/{id}`는 메타데이터·원문을
-새 revision으로 저장하거나 `status: "archived"`로 보관한다. 삭제 대신 보관을 사용해 당시
-의사결정의 감사 근거를 남긴다.
+`GET /meetings`는 기존에 저장된 활성 회의 자료를 조회하며 `status=archived`로 보관 목록도
+볼 수 있다. `GET /meetings/{id}`는 기존 자료 원문을 반환한다. 현재 `/meetings` 화면에서는
+이를 읽기 전용 레거시 자료로 보여 주고 새 원문 저장·수정을 제공하지 않는다.
 
 ### `POST /rag/meetings/search`
 
@@ -222,7 +222,8 @@ RAG 검색 API는 용어집과 저장된 회의록 내용을 외부 Embedding/Re
 ### `POST /wiki`
 
 로그인 세션 또는 `write` scope API Key로 업무 지식 문서를 저장한다. `title`과 `content`가
-필수이며, `summary`, `domain`, `termSlugs`, `status`를 선택할 수 있다. `termSlugs`의 첫
+필수이며, `summary`, `sourceUrl`, `domain`, `termSlugs`, `status`를 선택할 수 있다. `sourceUrl`은
+Confluence 등 원문을 관리하는 http/https 주소다. `termSlugs`의 첫
 번째 용어는 대표 용어가 된다. slug를 생략하면 제목에서 만들고, 용어 slug와 겹치지 않도록
 자동으로 검사한다.
 
@@ -230,6 +231,7 @@ RAG 검색 API는 용어집과 저장된 회의록 내용을 외부 Embedding/Re
 {
   "title": "출시 기준 플레이북",
   "summary": "베타 출시 전 확인할 기준과 담당 흐름",
+  "sourceUrl": "https://confluence.example.com/pages/123",
   "domain": ["상품"],
   "termSlugs": ["release-gate", "beta"],
   "status": "draft",

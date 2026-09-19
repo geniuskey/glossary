@@ -49,13 +49,11 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
   const [draftError, setDraftError] = useState<{ id: number; text: string } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editError, setEditError] = useState<{ id: string; text: string } | null>(null);
-  const [savingMeetingId, setSavingMeetingId] = useState<number | null>(null);
-  const [meetingSaveState, setMeetingSaveState] = useState<Record<number, { saved: boolean; error: string | null }>>({});
   const endRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<Message[]>([]);
   const routeSessionRef = useRef(routeSessionId);
   routeSessionRef.current = routeSessionId;
-  const busy = sending || deleting || creatingDraftId !== null || editingId !== null || savingMeetingId !== null;
+  const busy = sending || deleting || creatingDraftId !== null || editingId !== null;
   let nextId = messages.reduce((max, message) => Math.max(max, message.id), 0) + 1;
 
   useEffect(() => {
@@ -258,36 +256,6 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
     } finally { setEditingId(null); }
   }
 
-  async function saveMeeting(messageId: number) {
-    if (busy || historyLoading) return;
-    const source = [...messagesRef.current]
-      .slice(0, messagesRef.current.findIndex((message) => message.id === messageId))
-      .reverse()
-      .find((message) => message.role === "user");
-    if (!source) {
-      setMeetingSaveState((current) => ({ ...current, [messageId]: { saved: false, error: "저장할 회의록 원문을 찾지 못했습니다." } }));
-      return;
-    }
-    setSavingMeetingId(messageId);
-    setMeetingSaveState((current) => ({ ...current, [messageId]: { saved: false, error: null } }));
-    try {
-      const firstLine = source.content.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? "회의록";
-      const title = firstLine.replace(/^#+\s*/, "").slice(0, 160) || "회의록";
-      const response = await fetch("/api/v1/meetings", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title, source: "용어 챗봇", domain: searchDomain ? [searchDomain] : [], content: source.content }),
-      });
-      const body = await response.json().catch(() => null) as { error?: { message?: string } } | null;
-      if (!response.ok) throw new Error(body?.error?.message || `회의록을 저장하지 못했습니다 (${response.status}).`);
-      if (routeSessionRef.current === routeSessionId) setMeetingSaveState((current) => ({ ...current, [messageId]: { saved: true, error: null } }));
-    } catch (error) {
-      if (routeSessionRef.current === routeSessionId) setMeetingSaveState((current) => ({ ...current, [messageId]: { saved: false, error: error instanceof Error ? error.message : "회의록을 저장하지 못했습니다." } }));
-    } finally {
-      setSavingMeetingId(null);
-    }
-  }
-
   async function createTermFromDraft(messageId: number, draft: TermTeachingDraft) {
     if (busy || historyLoading) return;
     const sourceMessages = messagesRef.current;
@@ -481,7 +449,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
                   message.role === "user" ? "rounded-br-md bg-brand text-brand-on" : message.failed ? "rounded-bl-md border border-danger/30 bg-danger-soft text-danger" : "rounded-bl-md border border-line bg-panel text-ink",
                 )}>
                   {message.role === "assistant"
-                    ? message.grounded ? <ChatGroundedAnswer answer={message.grounded} messageId={message.id} /> : message.meeting ? <ChatMeetingAnalysis analysis={message.meeting} messageId={message.id} onSave={() => void saveMeeting(message.id)} saving={savingMeetingId === message.id} saved={meetingSaveState[message.id]?.saved} saveError={meetingSaveState[message.id]?.error} /> : <MarkdownContent className="break-words text-sm leading-6">{message.content}</MarkdownContent>
+                    ? message.grounded ? <ChatGroundedAnswer answer={message.grounded} messageId={message.id} /> : message.meeting ? <ChatMeetingAnalysis analysis={message.meeting} messageId={message.id} /> : <MarkdownContent className="break-words text-sm leading-6">{message.content}</MarkdownContent>
                     : isLargePastedMessage(message.content) ? (
                       <details>
                         <summary className="cursor-pointer text-sm font-medium">붙여넣은 내용 · {message.content.split(/\r?\n/).filter(Boolean).length}줄</summary>

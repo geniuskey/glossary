@@ -12,6 +12,7 @@ const MAX_SUMMARY_LENGTH = 600;
 const MAX_SLUG_LENGTH = 120;
 const MAX_DOMAIN_LENGTH = 200;
 const MAX_TERM_LINKS = 20;
+const MAX_SOURCE_URL_LENGTH = 2_000;
 export const MAX_WIKI_CONTENT_LENGTH = 200_000;
 const RESERVED_WIKI_SLUGS = new Set(["new", "page"]);
 
@@ -34,6 +35,7 @@ export interface WikiPageInput {
   slug?: string;
   title: string;
   summary: string | null;
+  sourceUrl?: string | null;
   content: string;
   domain: string[];
   termIds: string[];
@@ -44,6 +46,7 @@ export interface WikiPagePatch {
   slug?: string;
   title?: string;
   summary?: string | null;
+  sourceUrl?: string | null;
   content?: string;
   domain?: string[];
   termIds?: string[];
@@ -68,10 +71,25 @@ function normalizedSummary(value: string | null | undefined): string | null {
   return result ? result : null;
 }
 
-function hashContent(input: Pick<WikiPageInput, "title" | "summary" | "content" | "domain" | "termIds">): string {
+function normalizedSourceUrl(value: string | null | undefined): string | null {
+  const result = value === null || value === undefined ? "" : value.trim();
+  return result ? result : null;
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function hashContent(input: Pick<WikiPageInput, "title" | "summary" | "sourceUrl" | "content" | "domain" | "termIds">): string {
   return createHash("sha256").update(JSON.stringify({
     title: input.title,
     summary: input.summary,
+    sourceUrl: input.sourceUrl,
     content: input.content,
     domain: input.domain,
     termIds: input.termIds,
@@ -91,6 +109,7 @@ function validateSlug(slug: string): void {
 function validateInput(input: WikiPageInput): void {
   if (!input.title.trim() || input.title.length > MAX_TITLE_LENGTH) throw new Error("위키 제목을 확인해 주세요.");
   if (input.summary && input.summary.length > MAX_SUMMARY_LENGTH) throw new Error("위키 요약은 600자 이하여야 합니다.");
+  if (input.sourceUrl && (input.sourceUrl.length > MAX_SOURCE_URL_LENGTH || !isHttpUrl(input.sourceUrl))) throw new Error("위키 출처 URL은 http 또는 https 주소여야 합니다.");
   if (!input.content.trim() || input.content.length > MAX_WIKI_CONTENT_LENGTH) throw new Error("위키 본문은 1자 이상 200,000자 이하여야 합니다.");
   if (input.domain.length > 20 || input.domain.some((value) => value.length > MAX_DOMAIN_LENGTH)) throw new Error("위키 도메인을 확인해 주세요.");
   if (input.termIds.length > MAX_TERM_LINKS) throw new Error("연결할 용어는 20개 이하여야 합니다.");
@@ -103,6 +122,7 @@ function normalizeInput(input: WikiPageInput): WikiPageInput {
     slug: input.slug === undefined ? undefined : slugify(normalized(input.slug)),
     title: normalized(input.title),
     summary: normalizedSummary(input.summary),
+    sourceUrl: normalizedSourceUrl(input.sourceUrl),
     content: input.content.replace(/\r\n?/g, "\n").trim(),
     domain: [...new Set(input.domain.map(normalized).filter(Boolean))],
     termIds: [...new Set(input.termIds)],
@@ -115,6 +135,7 @@ function normalizePatch(patch: WikiPagePatch): WikiPagePatch {
     ...(patch.slug !== undefined ? { slug: slugify(normalized(patch.slug)) } : {}),
     ...(patch.title !== undefined ? { title: normalized(patch.title) } : {}),
     ...(patch.summary !== undefined ? { summary: normalizedSummary(patch.summary) } : {}),
+    ...(patch.sourceUrl !== undefined ? { sourceUrl: normalizedSourceUrl(patch.sourceUrl) } : {}),
     ...(patch.content !== undefined ? { content: patch.content.replace(/\r\n?/g, "\n").trim() } : {}),
     ...(patch.domain !== undefined ? { domain: [...new Set(patch.domain.map(normalized).filter(Boolean))] } : {}),
     ...(patch.termIds !== undefined ? { termIds: [...new Set(patch.termIds)] } : {}),
@@ -208,6 +229,7 @@ function snapshotOf(page: WikiPage, termIds: string[]) {
       slug: page.slug,
       title: page.title,
       summary: page.summary,
+      sourceUrl: page.sourceUrl,
       content: page.content,
       contentHash: page.contentHash,
       domain: page.domain,
@@ -229,6 +251,7 @@ export async function createWikiPage(input: WikiPageInput, authorId: string | nu
       slug,
       title: prepared.title,
       summary: prepared.summary,
+      sourceUrl: prepared.sourceUrl,
       content: prepared.content,
       contentHash: hashContent(prepared),
       domain: prepared.domain,
@@ -279,13 +302,14 @@ export async function updateWikiPage(id: string, patch: WikiPagePatch, authorId:
       slug: normalizedPatch.slug ?? current.slug,
       title: normalizedPatch.title ?? current.title,
       summary: normalizedPatch.summary === undefined ? current.summary : normalizedPatch.summary,
+      sourceUrl: normalizedPatch.sourceUrl === undefined ? current.sourceUrl : normalizedPatch.sourceUrl,
       content: normalizedPatch.content ?? current.content,
       domain: normalizedPatch.domain ?? current.domain,
       termIds: normalizedPatch.termIds ?? currentTerms.map((row) => row.termId),
       status: normalizedPatch.status ?? current.status,
     };
     validateInput(next);
-    const contentChanged = next.slug !== current.slug || next.title !== current.title || next.summary !== current.summary
+    const contentChanged = next.slug !== current.slug || next.title !== current.title || next.summary !== current.summary || next.sourceUrl !== current.sourceUrl
       || next.content !== current.content || JSON.stringify(next.domain) !== JSON.stringify(current.domain)
       || JSON.stringify(next.termIds) !== JSON.stringify(currentTerms.map((row) => row.termId));
     const revision = contentChanged ? current.revision + 1 : current.revision;
@@ -293,6 +317,7 @@ export async function updateWikiPage(id: string, patch: WikiPagePatch, authorId:
       slug: next.slug,
       title: next.title,
       summary: next.summary,
+      sourceUrl: next.sourceUrl,
       content: next.content,
       contentHash: hashContent(next),
       domain: next.domain,
@@ -334,6 +359,7 @@ export function toWikiPageWire(page: WikiPageWithTerms, includeContent = false) 
     slug: page.slug,
     title: page.title,
     summary: page.summary,
+    sourceUrl: page.sourceUrl,
     ...(includeContent ? { content: page.content } : {}),
     domain: page.domain,
     revision: page.revision,
