@@ -52,6 +52,7 @@ Glossary는 특정 조직·팀·제품군이 사용하는 용어집을 관리하
 
 ## 다음 단계
 
+- [제품 화면 둘러보기](/guide/screenshots) — 홈, 시트, 협업, 문서 검증, AI 화면을 이미지로 확인
 - [시작하기](/guide/getting-started) — 로컬 개발 환경 구성
 - [아키텍처](/guide/architecture) — 패키지 구조와 의존 방향
 - [데이터 모델](/guide/data-model) — Term과 Surface의 분리

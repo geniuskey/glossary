@@ -45,6 +45,7 @@ export default defineConfig({
         text: "사용 가이드",
         items: [
           { text: "소개", link: "/guide/" },
+          { text: "제품 화면 둘러보기", link: "/guide/screenshots" },
           { text: "제품 도움말", link: "/help" },
           { text: "데이터 모델", link: "/guide/data-model" },
           { text: "협업과 관계도", link: "/guide/collaboration" },
