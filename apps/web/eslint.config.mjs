@@ -13,7 +13,7 @@ export default [
         requireConfigFile: false,
         babelOptions: {
           presets: [
-            ["@babel/preset-typescript", { allExtensions: true, isTSX: true }],
+            "@babel/preset-typescript",
             ["@babel/preset-react", { runtime: "automatic" }],
           ],
         },
@@ -26,6 +26,7 @@ export default [
       "no-unused-vars": "off",
       "no-control-regex": "off",
       "no-useless-escape": "off",
+      "no-useless-assignment": "off",
     },
   },
 ];
