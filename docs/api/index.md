@@ -45,6 +45,12 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | POST | [`/rag/search`](/api/rag#벡터-검색) | `read` | pgvector 용어집 검색 |
 | POST | [`/rag/meetings/search`](/api/rag#post-ragmeetingssearch) | `read` | 기존 회의 자료 pgvector 검색 |
 | POST | [`/rag/wiki/search`](/api/rag#위키-벡터-검색) | `read` | 공개 위키 pgvector 검색 |
+| GET | [`/lexicon`](/api/validation#lexicon-snapshot) | `read` | 검증용 용어 표기 스냅샷 (ETag 지원) |
+| POST | [`/validate`](/api/validation#validate-document) | `validate` | 문서 하나의 용어 사용 검증 |
+| POST | [`/validate/batch`](/api/validation#validate-batch) | `validate` | 여러 문서의 용어 사용 일괄 검증 |
+| GET | [`/candidates`](/api/validation#candidates) | `read` | 문서 검증에서 발견한 미등록 후보 목록 |
+| POST | [`/candidates/{id}/dismiss`](/api/validation#candidates) | `write` | 미등록 후보 무시 |
+| POST | [`/candidates/{id}/promote`](/api/validation#candidates) | `write` | 미등록 후보를 용어로 등록 |
 | GET | [`/meetings`](/api/rag#회의-자료-검색-호환-api) | `read` | 기존 회의 자료 목록 |
 | POST | [`/meetings`](/api/rag#post-meetings) | `write` | 기존 연동 호환용 회의 자료 저장 |
 | GET | [`/meetings/{id}`](/api/rag#meetingsid) | `read` | 기존 회의 자료 원문 조회 |

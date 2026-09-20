@@ -37,7 +37,7 @@ jobs:
       - name: Migrate databases
         run: |
           DATABASE_URL=postgres://glossary:glossary@localhost:5434/glossary pnpm --filter @glossary/db db:migrate
-          DATABASE_URL=postgres://glossary:glossary@localhost:5434/glossary_test pnpm --filter @glossary/db db:migrate
+          pnpm --filter @glossary/db db:migrate:test
 
       - run: pnpm typecheck
       - run: pnpm lint
@@ -49,9 +49,7 @@ jobs:
       - name: Install Chromium for browser smoke test
         run: pnpm --filter @glossary/web exec playwright install --with-deps chromium
 
-      - name: Browser smoke test
-        env:
-          DATABASE_URL: postgres://glossary:glossary@localhost:5434/glossary_test
+      - name: Browser user journey
         run: pnpm --filter @glossary/web test:e2e
 
       - name: Stop PostgreSQL

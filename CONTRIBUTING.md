@@ -47,10 +47,13 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm docs:build
+pnpm --filter @glossary/web test:e2e
 ```
 
 DB 없이 빠르게 확인하려면 `pnpm --filter @glossary/engine test`를 먼저 실행할 수 있습니다.
-DB 테스트 방법은 [테스트 문서](https://geniuskey.github.io/glossary/guide/testing)를 참고하세요.
+E2E를 처음 실행하거나 스키마가 바뀌었다면 먼저
+`pnpm --filter @glossary/db db:migrate:test`를 실행합니다. DB 테스트 방법은
+[테스트 문서](https://geniuskey.github.io/glossary/guide/testing)를 참고하세요.
 
 ## Pull Request
 

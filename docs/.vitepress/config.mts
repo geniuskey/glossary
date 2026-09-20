@@ -73,6 +73,7 @@ export default defineConfig({
           { text: "첨부 이미지", link: "/api/attachments" },
           { text: "AI 연결과 챗봇", link: "/api/ai" },
           { text: "RAG 검색", link: "/api/rag" },
+          { text: "문서 검증", link: "/api/validation" },
         ],
       },
       {

@@ -7,6 +7,7 @@ pnpm test                             # 전체
 pnpm --filter @glossary/engine test    # 정규화 엔진 (DB 불필요)
 pnpm --filter @glossary/db test        # DB 통합 (Postgres 필요)
 pnpm --filter @glossary/web test       # API·화면 (Postgres 필요)
+pnpm --filter @glossary/web test:e2e   # 실제 Chromium 사용자 흐름
 ```
 
 ## 테스트 DB는 분리되어 있다
@@ -26,6 +27,15 @@ process.env.DATABASE_URL = testUrl;
 
 `glossary_test` DB는 `scripts/init-db.sql`이 Postgres 초기화 시점에 만든다.
 DB에 붙는 패키지는 `fileParallelism: false`다 — 테스트가 같은 테이블을 건드린다.
+
+스키마 변경 뒤 또는 처음 E2E를 실행하기 전에는 테스트 DB에 마이그레이션을 적용하고
+프로덕션 빌드를 만든다. 두 명령 모두 운영·개발 DB가 아니라 `DATABASE_URL_TEST`만 사용한다.
+
+```bash
+pnpm --filter @glossary/db db:migrate:test
+pnpm build
+pnpm --filter @glossary/web test:e2e
+```
 
 ## 어디에 무게를 싣나
 
@@ -55,5 +65,14 @@ DB에 붙는 패키지는 `fileParallelism: false`다 — 테스트가 같은 �
 반환된 React 엘리먼트 트리(순수 객체)를 검사한다. JSX 변환은 `apps/web/vitest.config.ts`의 automatic 런타임 설정을 따른다.
 classic 변환이면 JSX가 `React.createElement` 참조 오류를 낼 수 있다.
 
-E2E(Playwright)는 M2 이후 핵심 흐름 넷을 대상으로 붙인다:
-용어 등록 → 별칭으로 검색 → 문서 검증 → 이력 롤백.
+E2E(Playwright)는 `/login` 또는 `/setup` 진입점 스모크와 다음 핵심 사용자 흐름을 실제
+Chromium에서 확인한다.
+
+1. 관리자 로그인
+2. 용어와 별칭 등록
+3. 별칭으로 검색해 같은 용어 상세에 도달
+4. 문서 점검에서 미등록 후보 수집
+5. 정의 수정 후 이전 리비전으로 되돌리기
+
+E2E 서버는 3200번 포트에서 별도로 뜨고 `DATABASE_URL_TEST`만 사용한다. 실행 중인 개발
+서버를 재사용하지 않으며, 테스트가 만든 사용자·용어·후보는 테스트 전후에 정리한다.

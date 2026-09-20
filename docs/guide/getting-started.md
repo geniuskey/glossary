@@ -12,7 +12,8 @@
 corepack enable
 ```
 
-예제 명령은 Bash 기준이다. Windows에서는 Git Bash 또는 WSL을 사용한다.
+예제 명령은 Bash 기준이다. Windows에서는 Git Bash 또는 WSL을 사용한다. PowerShell을
+사용한다면 아래 환경 파일 복사 명령만 `Copy-Item .env.example .env`로 바꾼다.
 
 ## 1. 저장소와 의존성 준비
 
@@ -38,7 +39,7 @@ cp .env.example .env
 | `INITIAL_ADMIN_EMAIL` | SSO로 최초 생성할 관리자 이메일. 대소문자를 구분하지 않음 |
 | `SSO_LOGIN_URL` | oauth2-proxy 로그인 진입점 재정의. 비우면 `/oauth2/start?rd=%2F` |
 | `GLOSSARY_ENCRYPTION_KEY` | AI·RAG API Key와 custom header 암호화 키. AI 또는 RAG 연결을 쓰면 32자 이상 고정값 필요 |
-| `GLOSSARY_ALLOWED_ORIGINS` | 운영 프록시 뒤 쿠키 변경 요청을 허용할 공개 HTTPS origin. 예: `https://glossary.example.com` |
+| `GLOSSARY_ALLOWED_ORIGINS` | 로컬에서는 비워 두고, 운영 프록시 뒤에서는 쿠키 변경 요청을 허용할 실제 공개 HTTPS origin을 지정. 예: `https://glossary.example.com` |
 | `GLOSSARY_TRUST_PROXY_HEADERS` | TLS 프록시가 덮어쓴 `X-Forwarded-*`를 신뢰할 때만 `true` |
 | `GLOSSARY_CONFLUENCE_MEETINGS_URL` | `/meetings`에서 열 회의록 허브의 Confluence URL. 선택 사항 |
 
@@ -118,6 +119,12 @@ unset ADMIN_PASSWORD
 `/signup`에서 계정을 만들고 바로 편집할 수 있다. 만들어지는 계정은 언제나 `editor`이고,
 `admin`은 위의 최초 설정과 `seed-admin.ts`로만 생긴다(용어 삭제는 `admin`만 한다).
 
+::: warning
+공개 가입은 비밀번호 로그인이 켜져 있는 동안 열려 있다. 사내 사용자가 자유롭게 참여하는
+운영 방식이 아니라면 첫 관리자 생성 직후 **관리자 패널 → 로그인 · SSO**에서 회사 계정
+로그인을 설정하고 비밀번호 로그인을 끈다.
+:::
+
 로그인을 요구하는 이유는 권한을 나누기 위해서가 아니라 **수정 이력에 이름을 남기기**
 위해서다. 승인 절차가 없는 대신 모든 수정이 이력에 남고 언제든 되돌릴 수 있다.
 
@@ -157,6 +164,20 @@ pnpm --filter @glossary/web exec tsx scripts/seed-terms.ts it semiconductor
 용어는 도메인(`일반` / `IT` / `반도체`)이 붙은 채 **사용**(`active`) 상태로 들어간다.
 통째로 지우려면 목록에서 해당 도메인으로 거르면 된다. 작성자는 가장 먼저 만들어진
 관리자 계정으로 기록되며, 관리자가 아직 없으면 작성자 없이 들어간다.
+
+## 8. 설치 후 10분 확인
+
+설치가 끝났는지만 보는 대신 제품의 핵심 흐름을 한 번 통과한다.
+
+1. `/setup`에서 첫 관리자 계정을 만든다.
+2. 위 시드 명령으로 예시 용어를 넣고 `/sheet`에서 한·영 표기, 별칭과 도메인을 확인한다.
+3. 홈에서 약어나 별칭을 검색해 같은 용어 상세로 이동하는지 확인한다.
+4. `/new`에서 조직에서 실제로 쓰는 용어 하나를 등록한다.
+5. `/check`에 짧은 마크다운 문서를 붙여 넣고 비표준 표기와 미등록 후보를 확인한다.
+6. 미등록 후보 하나를 용어로 등록하거나 무시한 뒤 문서를 다시 점검한다.
+
+여기까지 동작하면 앱·DB·인증·검색·검증 엔진의 기본 경로가 모두 준비된 것이다. AI와
+RAG 연결은 이 흐름에 필요하지 않으며, 기본 사용을 확인한 뒤 선택해서 설정한다.
 
 ## 자주 쓰는 명령
 

@@ -68,6 +68,12 @@ import * as adminUserRoute from "../src/app/api/v1/admin/users/[id]/route.js";
 import * as adminUserSessionsRoute from "../src/app/api/v1/admin/users/[id]/sessions/route.js";
 import * as attachmentsRoute from "../src/app/api/v1/attachments/route.js";
 import * as attachmentRoute from "../src/app/api/v1/attachments/[sha256]/route.js";
+import * as candidatesRoute from "../src/app/api/v1/candidates/route.js";
+import * as candidateDismissRoute from "../src/app/api/v1/candidates/[id]/dismiss/route.js";
+import * as candidatePromoteRoute from "../src/app/api/v1/candidates/[id]/promote/route.js";
+import * as lexiconRoute from "../src/app/api/v1/lexicon/route.js";
+import * as validateRoute from "../src/app/api/v1/validate/route.js";
+import * as validateBatchRoute from "../src/app/api/v1/validate/batch/route.js";
 
 // 라우트 모듈은 실제 핸들러(GET/POST/...)마다 서로 다른 인자 개수를 요구하므로
 // (예: DELETE는 (request, context)) 여기서는 이름으로 임의 접근한 뒤 405 스텁/
@@ -178,6 +184,12 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "admin/users/[id]/sessions", mod: adminUserSessionsRoute, allowed: ["DELETE"], allow: "DELETE" },
   { name: "attachments", mod: attachmentsRoute, allowed: ["POST"], allow: "POST" },
   { name: "attachments/[sha256]", mod: attachmentRoute, allowed: ["GET"], allow: "GET, HEAD" },
+  { name: "candidates", mod: candidatesRoute, allowed: ["GET"], allow: "GET, HEAD" },
+  { name: "candidates/[id]/dismiss", mod: candidateDismissRoute, allowed: ["POST"], allow: "POST" },
+  { name: "candidates/[id]/promote", mod: candidatePromoteRoute, allowed: ["POST"], allow: "POST" },
+  { name: "lexicon", mod: lexiconRoute, allowed: ["GET"], allow: "GET, HEAD" },
+  { name: "validate", mod: validateRoute, allowed: ["POST"], allow: "POST" },
+  { name: "validate/batch", mod: validateBatchRoute, allowed: ["POST"], allow: "POST" },
 ];
 
 test("에러 응답이 규약 형태를 지킨다", async () => {

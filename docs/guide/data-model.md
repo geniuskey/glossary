@@ -191,4 +191,5 @@ AI가 찾은 관계는 바로 검색 그래프에 넣지 않고 `proposed`로 �
 - **Attachment / AttachmentRef** — WebP로 변환한 content-addressed 첨부 이미지. 현재 본문 참조는
   `AttachmentRef`로 동기화되며, 보존 기간이 지난 미참조 실체만 워커가 정리한다. 리비전
   스냅샷에서 참조되는 첨부는 보존한다.
-- **UnregisteredCandidate** — 미등록 후보 누적은 아직 M2 범위다.
+- **UnregisteredCandidate** — 문서 검증에서 발견한 표기를 정규화 키별로 누적한다. 발생 횟수,
+  샘플 문맥, 마지막 출처를 보존하고 `open → dismissed | promoted` 상태로 사람의 결정을 기록한다.

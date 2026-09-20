@@ -8,5 +8,5 @@
     "plugins": [{ "name": "next" }],
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src/**/*", "tests/**/*", "next-env.d.ts", ".next/types/**/*.ts"]
+  "include": ["src/**/*", "tests/**/*", "e2e/**/*", "playwright.config.ts", "next-env.d.ts", ".next/types/**/*.ts"]
 }

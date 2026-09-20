@@ -5,6 +5,7 @@ import { users } from "./auth";
 /** 사이드바에서 관리자가 표시 여부를 조정할 수 있는 부가 메뉴. 시트는 항상 표시한다. */
 export const workspaceMenuKeys = [
   "contribute",
+  "check",
   "field-completion",
   "sheet",
   "classifications",

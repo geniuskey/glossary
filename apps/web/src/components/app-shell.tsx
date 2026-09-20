@@ -9,10 +9,11 @@ import { AccountMenu } from "./account-menu";
 import { CollapsibleSidebar } from "./collapsible-sidebar";
 import { SearchBox } from "./search-box";
 
-export type NavKey = "contribute" | "field-completion" | "sheet" | "classifications" | "graph" | "chat" | "meetings" | "wiki" | "api" | "import" | "statistics" | "settings" | "admin";
+export type NavKey = "contribute" | "check" | "field-completion" | "sheet" | "classifications" | "graph" | "chat" | "meetings" | "wiki" | "api" | "import" | "statistics" | "settings" | "admin";
 
 export const APP_NAV_ITEMS: Array<{ key: NavKey; href: string; label: string; hint: string; icon: ReactNode; adminOnly?: true; alwaysOn?: true }> = [
   { key: "contribute", href: "/contribute", label: "함께 정리", hint: "미완성", icon: <IconContribute /> },
+  { key: "check", href: "/check", label: "문서 점검", hint: "미등록 후보", icon: <IconCheck /> },
   { key: "field-completion", href: "/contribute/fields", label: "필드 보완", hint: "정의 · 분류", icon: <IconFields /> },
   { key: "sheet", href: "/sheet", label: "시트", hint: "표 편집", icon: <IconGrid />, alwaysOn: true },
   { key: "classifications", href: "/classifications", label: "분류 체계", hint: "도메인 · 업무", icon: <IconClassification /> },
@@ -258,6 +259,15 @@ function IconContribute() {
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
       <path d="M2.25 4.25h7.5M2.25 8h5.5M2.25 11.75h4" strokeLinecap="round" />
       <path d="m10.2 10.7 3.45-3.45 1.1 1.1-3.45 3.45-1.65.55z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconCheck() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <rect x="3" y="2.5" width="10" height="11" rx="1.2" />
+      <path d="m5.25 7.9 1.55 1.55 3.95-4.1M5.25 11.5h5.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

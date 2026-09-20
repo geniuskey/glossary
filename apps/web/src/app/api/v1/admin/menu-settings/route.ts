@@ -9,6 +9,7 @@ export { POST, PUT, DELETE, OPTIONS };
 
 const menuSettingsSchema = z.object({
   contribute: z.boolean(),
+  check: z.boolean(),
   "field-completion": z.boolean(),
   sheet: z.literal(true),
   classifications: z.boolean(),

@@ -12,6 +12,7 @@ export interface WorkspaceMenuOption {
 
 export const WORKSPACE_MENU_OPTIONS: readonly WorkspaceMenuOption[] = [
   { key: "contribute", label: "함께 정리", description: "미완성 용어를 찾아 채우는 작업 공간" },
+  { key: "check", label: "문서 점검", description: "문서에서 발견한 미등록 후보를 검토" },
   { key: "field-completion", label: "필드 보완", description: "정의·분류가 비어 있는 용어를 보완" },
   { key: "sheet", label: "시트", description: "용어집의 기본 표 편집 화면", alwaysOn: true },
   { key: "classifications", label: "분류 체계", description: "도메인·업무 분류를 관리" },
@@ -26,6 +27,7 @@ export const WORKSPACE_MENU_OPTIONS: readonly WorkspaceMenuOption[] = [
 
 export const DEFAULT_WORKSPACE_MENU_SETTINGS: Record<WorkspaceMenuKey, boolean> = {
   contribute: true,
+  check: true,
   "field-completion": true,
   sheet: true,
   classifications: true,

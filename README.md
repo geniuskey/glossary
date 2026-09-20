@@ -6,7 +6,7 @@
 
 특정 조직·팀·제품군이 실제로 사용하는 용어를 함께 정리하는 **셀프호스팅 용어집 관리
 플랫폼**. 엑셀과 컨플루언스에 흩어진 용어를 단일 사전으로 모으고, AI-Lint 같은 도구가
-표기 목록을 API로 조회할 수 있게 만든다. 문서 본문을 분석하는 검증 엔진은 후속 계획이다.
+표기 목록을 API로 조회하고 문서 본문을 검증한다. 발견한 미등록 후보는 사람이 검토해 다시 용어집으로 환류할 수 있다.
 
 **문서: https://geniuskey.github.io/glossary/**
 
@@ -80,7 +80,8 @@ AI 호출 품질과 비용을 점검할 수 있도록 관리자 화면에서 호
 
 ## 빠른 시작 (로컬 개발)
 
-아래는 Bash 기준이다. Windows에서는 Git Bash 또는 WSL을 사용한다. 이미지로 설치할
+아래는 Bash 기준이다. Windows에서는 Git Bash 또는 WSL을 사용한다. PowerShell에서는
+`cp .env.example .env` 대신 `Copy-Item .env.example .env`를 사용한다. 이미지로 설치할
 운영자는 [Docker Hub 설치 안내](./DOCKERHUB.md)를 따른다. 이미지 실행에는 Node.js·pnpm이 필요 없다.
 
 ```bash
@@ -103,6 +104,11 @@ oauth2-proxy 기반 SSO 전용 설치는 최초 부팅 전에 `.env`에 `OAUTH2_
 SSO 로그인을 자동 시작한다. 이후 실제 로그인 방식은 **관리자 패널 → 로그인 · SSO**에서 관리한다. 자세한 설정은
 [SSO 연결](https://geniuskey.github.io/glossary/guide/sso)을 참고한다.
 
+> [!IMPORTANT]
+> 비밀번호 로그인이 켜져 있으면 첫 관리자 생성 후 `/signup`에서 누구나 `editor` 계정을
+> 만들 수 있다. 사내 공개 가입을 원하지 않으면 **관리자 패널 → 로그인 · SSO**에서
+> 비밀번호 로그인을 끄고 회사 계정 로그인을 설정한다.
+
 개발용 Postgres는 호스트 **5434** 포트에 뜬다. 자세한 절차는
 [시작하기](https://geniuskey.github.io/glossary/guide/getting-started)를 본다.
 
@@ -116,6 +122,16 @@ API Key를 입력하면 모델 목록을 불러오며, `Connected`는 선택 모
 > [!WARNING]
 > 개발 머신에서 `docker-compose.prod.yml`로 `up`하지 마라. 두 파일이 같은 볼륨 이름
 > (`glossary_pgdata`)을 쓴다.
+
+### 설치 후 10분 확인
+
+1. `http://localhost:3000/setup`에서 첫 관리자 계정을 만든다.
+2. 터미널에서 `pnpm --filter @glossary/web exec tsx scripts/seed-terms.ts all`로 예시 용어를 넣는다.
+3. `/sheet`에서 한·영 표기와 별칭·도메인이 한 개념에 묶이는 방식을 확인한다.
+4. 홈에서 약어나 별칭을 검색해 같은 용어 상세로 도달하는지 확인한다.
+5. `/check`에 짧은 문서를 붙여 넣고 비표준 표기와 미등록 후보를 점검한다.
+
+이 흐름이 동작하면 설치·DB·로그인·검색·검증 엔진의 기본 경로가 모두 준비된 것이다.
 
 ## 시트 공유와 Confluence 임베드
 
@@ -138,7 +154,7 @@ iframe이 열린다. 여러 출처는 쉼표로 구분한다. 임베드도 로�
 ```
 apps/web/          Next.js 16 App Router — UI + API 라우트 + zod 스키마 + OpenAPI 스펙
 packages/db/       Drizzle 스키마 + 마이그레이션 + 쿼리
-packages/engine/   순수 TS — 표기 정규화 (M2에서 매칭·규칙 엔진 확장)
+packages/engine/   순수 TS — 표기 정규화·문서 매칭·검증 규칙
 docs/              VitePress 문서 사이트
 scripts/           init-db.sql, backup.sh, restore.sh
 ```
@@ -159,6 +175,8 @@ scripts/           init-db.sql, backup.sh, restore.sh
 | `pnpm typecheck` | 전체 타입 검사 |
 | `pnpm docs:dev` | 문서 사이트 로컬 실행 |
 | `pnpm docs:build` | 문서 정적 빌드 (`docs/.vitepress/dist`) |
+| `pnpm --filter @glossary/db db:migrate:test` | 테스트 DB에 최신 마이그레이션 적용 |
+| `pnpm --filter @glossary/web test:e2e` | 빌드된 앱의 핵심 브라우저 사용자 흐름 검사 |
 
 `packages/db`와 `apps/web` 테스트는 실제 Postgres에 붙는다. `DATABASE_URL_TEST`가
 없으면 시작 자체를 거부한다 — 테스트는 개발 DB에 붙지 않는다.
@@ -236,7 +254,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 - **M1 사전 코어** — 구현됨. DB 스키마, 정규화, 인증·API Key, 용어 CRUD, 검색,
   중복 경고, 엑셀 임포트(dry-run), 프로덕션 Docker, 백업·복구.
-- **M2 검증 엔진 — 계획**: 문서 본문 검증, `/validate`, `/lexicon`, 미등록 후보 수집은 아직 제공하지 않는다.
+- **M2 검증 엔진 — 진행 중**: `packages/engine`의 문서 검증 코어, `/validate`, `/validate/batch`, `/lexicon`, `/check`와 후보 등록·무시 흐름이 구현됨. CI 연동은 남아 있다.
 - **M3 위키 완성도** — CodeMirror Markdown 편집·GFM 미리보기, 이미지 붙여넣기·WebP 첨부,
   Mermaid·수식 렌더링, 리비전 조회/revert는 구현됨. diff 화면, 위키 링크·역참조, 병합 UI는 남음.
 

@@ -174,6 +174,62 @@ export const openApiSpec = {
           updatedAt: { type: "string", format: "date-time" },
         },
       },
+      LexiconEntry: {
+        type: "object",
+        required: ["termId", "slug", "text", "kind", "replacement"],
+        properties: {
+          termId: { type: "string", format: "uuid" },
+          slug: { type: "string" },
+          text: { type: "string" },
+          kind: { type: "string", enum: ["canonical", "abbreviation", "full_name", "alias", "discouraged", "forbidden"] },
+          replacement: {
+            type: ["object", "null"],
+            properties: { text: { type: "string" }, slug: { type: "string" } },
+          },
+        },
+      },
+      ValidationFinding: {
+        type: "object",
+        required: ["rule", "severity", "span", "matchedText", "message"],
+        properties: {
+          rule: { type: "string", enum: ["forbidden", "non_standard", "ambiguous", "unregistered"] },
+          severity: { type: "string", enum: ["error", "warning", "info"] },
+          span: {
+            type: "object",
+            required: ["start", "end", "line", "col", "endLine", "endCol"],
+            properties: {
+              start: { type: "integer", minimum: 0 }, end: { type: "integer", minimum: 0 },
+              line: { type: "integer", minimum: 1 }, col: { type: "integer", minimum: 1 },
+              endLine: { type: "integer", minimum: 1 }, endCol: { type: "integer", minimum: 1 },
+            },
+          },
+          matchedText: { type: "string" },
+          termId: { type: "string", format: "uuid" },
+          slug: { type: "string" },
+          surfaceKind: { type: "string" },
+          message: { type: "string" },
+          suggestions: { type: "array", items: { type: "object" } },
+          candidates: { type: "array", items: { $ref: "#/components/schemas/LexiconEntry" } },
+        },
+      },
+      UnregisteredCandidate: {
+        type: "object",
+        required: ["id", "text", "status", "occurrenceCount", "firstSeenAt", "lastSeenAt"],
+        properties: {
+          id: { type: "string", format: "uuid" },
+          text: { type: "string" },
+          status: { type: "string", enum: ["open", "dismissed", "promoted"] },
+          occurrenceCount: { type: "integer", minimum: 1 },
+          sampleContext: { type: ["string", "null"] },
+          source: { type: ["string", "null"], description: "검증 요청자가 전달한 문서 이름·출처·CI 경로" },
+          firstSeenAt: { type: "string", format: "date-time" },
+          lastSeenAt: { type: "string", format: "date-time" },
+          lexiconVersion: { type: ["string", "null"] },
+          promotedTermId: { type: ["string", "null"], format: "uuid" },
+          reviewedAt: { type: ["string", "null"], format: "date-time" },
+          decisionNote: { type: ["string", "null"] },
+        },
+      },
     },
   },
   paths: {
@@ -1685,6 +1741,130 @@ export const openApiSpec = {
           },
         } } } },
         responses: { "200": json("수정된 회의록", { type: "object" }), "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "403": errorResponse("forbidden"), "404": errorResponse("not_found") },
+      },
+    },
+    "/lexicon": {
+      get: {
+        summary: "검증용 공개 용어 사전 스냅샷",
+        description: "ETag가 유지되는 동안 304를 반환합니다. 초안과 병합된 용어는 제외합니다.",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        responses: {
+          "200": json("용어 표기 스냅샷", {
+            type: "object",
+            required: ["lexiconVersion", "entries", "total"],
+            properties: {
+              lexiconVersion: { type: "string" },
+              entries: { type: "array", items: { $ref: "#/components/schemas/LexiconEntry" } },
+              total: { type: "integer" },
+            },
+          }),
+          "304": { description: "If-None-Match와 동일한 사전 버전" },
+          "401": errorResponse("unauthorized"),
+        },
+      },
+    },
+    "/validate": {
+      post: {
+        summary: "문서 본문의 용어 사용을 검증",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object", required: ["content"], additionalProperties: false,
+          properties: {
+            content: { type: "string", maxLength: 1000000 },
+            format: { type: "string", enum: ["markdown", "plain"], default: "markdown" },
+            path: { type: "string", maxLength: 500 },
+            options: {
+              type: "object", additionalProperties: false,
+              properties: {
+                minSeverity: { type: "string", enum: ["error", "warning", "info"], default: "info" },
+                extractUnregistered: { type: "boolean", default: true },
+                collectCandidates: { type: "boolean", default: false, description: "미등록 후보를 검토 목록에 누적" },
+                ignoredCandidates: { type: "array", items: { type: "string", maxLength: 120 }, maxItems: 1000 },
+              },
+            },
+          },
+        } } } },
+        responses: {
+          "200": json("문서 검증 결과", { type: "object", properties: {
+            lexiconVersion: { type: "string" }, path: { type: ["string", "null"] }, stats: { type: "object" },
+            findings: { type: "array", items: { $ref: "#/components/schemas/ValidationFinding" } },
+          } }),
+          "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "403": errorResponse("forbidden"),
+        },
+      },
+    },
+    "/validate/batch": {
+      post: {
+        summary: "여러 문서를 한 번에 검증",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object", required: ["documents"], additionalProperties: false,
+          properties: {
+            documents: { type: "array", minItems: 1, maxItems: 100, items: { type: "object", required: ["content"], properties: {
+              content: { type: "string", maxLength: 1000000 }, format: { type: "string", enum: ["markdown", "plain"] }, path: { type: "string", maxLength: 500 },
+            } } },
+            options: {
+              type: "object", additionalProperties: false,
+              properties: {
+                minSeverity: { type: "string", enum: ["error", "warning", "info"], default: "info" },
+                extractUnregistered: { type: "boolean", default: true },
+                collectCandidates: { type: "boolean", default: false, description: "미등록 후보를 검토 목록에 누적" },
+                ignoredCandidates: { type: "array", items: { type: "string", maxLength: 120 }, maxItems: 1000 },
+              },
+            },
+          },
+        } } } },
+        responses: {
+          "200": json("일괄 문서 검증 결과", { type: "object", properties: {
+            lexiconVersion: { type: "string" }, results: { type: "array", items: { type: "object" } },
+          } }),
+          "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "403": errorResponse("forbidden"),
+        },
+      },
+    },
+    "/candidates": {
+      get: {
+        summary: "문서 검증에서 발견한 미등록 후보 목록",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        parameters: [
+          { name: "q", in: "query", schema: { type: "string", maxLength: 120 } },
+          { name: "status", in: "query", schema: { type: "string", enum: ["open", "dismissed", "promoted"] } },
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1, default: 1 } },
+          { name: "pageSize", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 30 } },
+        ],
+        responses: {
+          "200": json("미등록 후보 목록", { type: "object", properties: {
+            items: { type: "array", items: { $ref: "#/components/schemas/UnregisteredCandidate" } },
+            total: { type: "integer" }, page: { type: "integer" }, pageSize: { type: "integer" },
+          } }),
+          "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"),
+        },
+      },
+    },
+    "/candidates/{id}/dismiss": {
+      post: {
+        summary: "미등록 후보를 무시 처리",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        requestBody: { content: { "application/json": { schema: {
+          type: "object", additionalProperties: false, properties: { note: { type: "string", maxLength: 500 } },
+        } } } },
+        responses: {
+          "200": json("처리된 후보", { $ref: "#/components/schemas/UnregisteredCandidate" }),
+          "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "404": errorResponse("not_found"), "409": errorResponse("operation_conflict"),
+        },
+      },
+    },
+    "/candidates/{id}/promote": {
+      post: {
+        summary: "미등록 후보를 용어로 등록",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", description: "용어 생성 API와 같은 입력" } } } },
+        responses: {
+          "201": json("등록된 용어와 후보", { type: "object" }),
+          "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "404": errorResponse("not_found"), "409": errorResponse("operation_conflict"),
+        },
       },
     },
     "/terms": {

@@ -9,10 +9,11 @@ surface 기반 검색 + `pg_trgm`, 등록 시 중복 경고, 엑셀 임포트(dr
 이 시점에 기존 엑셀·컨플루언스를 옮기고 실사용을 시작할 수 있다. 가장 먼저 놓는 이유가
 이것이다. 실제 데이터가 들어와야 이후 기능의 튜닝이 가능하다.
 
-## M2 — 검증 엔진 + 연동 · 계획
+## M2 — 검증 엔진 + 연동 · 진행 중
 
-`packages/engine` 전체, `POST /validate`, `POST /validate/batch`, `GET /lexicon`,
-`/check` 화면, 미등록 후보 수집과 `/candidates` 처리 화면.
+`packages/engine`의 문서 검증 코어, `POST /validate`, `POST /validate/batch`,
+`GET /lexicon`, 미등록 후보 수집, `/check` 화면, 후보 등록·무시 API는 구현됐다.
+CI 연동과 실제 사내 문서 기반 후보 노이즈 튜닝은 남아 있다.
 
 AI-Lint 연동이 여기서 완성된다.
 

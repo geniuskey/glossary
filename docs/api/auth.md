@@ -276,9 +276,9 @@ API가 아니다. oauth2-proxy가 실제 활성 모드이면 관리자 자신도
 
 | scope | 허용 |
 |---|---|
-| `read` | `GET /terms`, `GET /terms/{idOrSlug}`, `GET .../revisions`, `POST /terms/lookup`, `GET /terms/suggest` |
-| `write` | `POST /terms`, `PATCH /terms/{idOrSlug}`, `POST /import` |
-| `validate` | (M2) `POST /validate`, `POST /validate/batch` |
+| `read` | `GET /terms`, `GET /terms/{idOrSlug}`, `GET .../revisions`, `POST /terms/lookup`, `GET /terms/suggest`, `GET /candidates` |
+| `write` | `POST /terms`, `PATCH /terms/{idOrSlug}`, `POST /import`, `POST /candidates/{id}/dismiss`, `POST /candidates/{id}/promote` |
+| `validate` | `POST /validate`, `POST /validate/batch` |
 
 요구 scope가 없으면 403 `forbidden`이다.
 
