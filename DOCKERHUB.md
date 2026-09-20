@@ -1,14 +1,14 @@
 # Glossary on Docker Hub
 
-> **Development preview — `0.2.1`**
+> **Release — `0.3.0`**
 >
-> Glossary is under active development. Use this release for evaluation and internal pilots,
-> use the matching `0.2.1` and `0.2.1-migrator` tags, and keep tested database backups before upgrading.
+> Use the matching `0.3.0`, `0.3.0-migrator`, and `0.3.0-worker` tags, and keep a tested
+> database backup before upgrading.
 >
-> **개발 미리보기 — `0.2.1`**
+> **릴리스 — `0.3.0`**
 >
-> 현재 활발히 개발 중인 초기 버전입니다. 기능 검토와 사내 파일럿 용도로 사용하고,
-> 앱은 `0.2.1`, 마이그레이터는 `0.2.1-migrator`로 고정한 뒤 업그레이드 전 백업을 보관하세요.
+> 앱은 `0.3.0`, 마이그레이터는 `0.3.0-migrator`, RAG 워커는 `0.3.0-worker`로
+> 고정하고 업그레이드 전 백업을 보관하세요.
 
 ## Short description
 
@@ -55,35 +55,40 @@ A future release may allow another native language to be selected alongside Engl
 - Admin-configurable Embedding API and optional Reranker API, with a durable glossary RAG index
 
 The `read`-scope lookup API accepts 1–500 notation strings (1–500 characters each).
-Clients must extract those strings themselves. Full-document validation (`/validate`), lexicon
-snapshots (`/lexicon`), and automatic unregistered-term collection are planned features.
+Clients can fetch an ETag-versioned lexicon snapshot from `/lexicon`, validate a document with
+`/validate` or `/validate/batch` using the `validate` API-key scope, and review unregistered
+term candidates through `/candidates`. The `/check` page provides the same workflow in the UI;
+candidates can be promoted into the glossary or dismissed.
 
 `draft` means “needs completion,” not private data. “Meets criteria” is a content check,
 not an approval or guarantee of correctness.
 
 ## Images and tags
 
-The web application and migrator are published separately in the same repository:
+The web application, migrator, and durable RAG worker are published separately in the same repository:
 
 | Tag | Purpose |
 |---|---|
-| `0.2.1` | Version-pinned web application (recommended) |
-| `0.2.1-migrator` | Matching database migrations (recommended) |
+| `0.3.0` | Version-pinned web application (recommended) |
+| `0.3.0-migrator` | Matching database migrations (recommended) |
+| `0.3.0-worker` | Matching durable RAG and cleanup worker (recommended) |
 | `latest` | Most recently published web application |
 | `latest-migrator` | Migrations matching `latest` |
+| `latest-worker` | Worker matching `latest` |
 
-For production, pin both images to the same version instead of using `latest`.
+For production, pin all three images to the same version instead of using `latest`.
 
-사내 서버에서 명시적으로 받으려면 두 태그를 함께 pull합니다.
+사내 서버에서 명시적으로 받으려면 세 태그를 함께 pull합니다.
 
 ```bash
-docker pull euiyun/glossary:0.2.1
-docker pull euiyun/glossary:0.2.1-migrator
+docker pull euiyun/glossary:0.3.0
+docker pull euiyun/glossary:0.3.0-migrator
+docker pull euiyun/glossary:0.3.0-worker
 ```
 
 ## Quick start with Docker Compose
 
-Requires Docker Engine with the Compose plugin. The published `0.2.1` app image is
+Requires Docker Engine with the Compose plugin. The published `0.3.0` images are
 `linux/amd64`; native ARM64 support is not advertised for this tag. Node.js and pnpm
 are not needed on the host. Commands below use Bash (Git Bash or WSL on Windows).
 
@@ -91,14 +96,14 @@ Download the pull-based Compose file and its environment template:
 
 ```bash
 mkdir glossary && cd glossary
-curl -LO https://raw.githubusercontent.com/geniuskey/glossary/v0.2.1/docker-compose.hub.yml
-curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.2.1/.env.dockerhub.example -o .env
+curl -LO https://raw.githubusercontent.com/geniuskey/glossary/v0.3.0/docker-compose.hub.yml
+curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.0/.env.dockerhub.example -o .env
 ```
 
-Edit `.env` before starting: use the `0.2.1` / `0.2.1-migrator` pair, replace
+Edit `.env` before starting: use the `0.3.0` / `0.3.0-migrator` / `0.3.0-worker` set, replace
 `POSTGRES_PASSWORD` with a long URL-safe value, and replace `GLOSSARY_ENCRYPTION_KEY`
 with a separate fixed random secret of at least 32 characters if using AI or RAG.
-The examples download templates from `v0.2.1` so they match the documented release.
+The examples download templates from `v0.3.0` so they match the documented release.
 For example, generate a password with `openssl rand -hex 32` and an encryption key with
 `openssl rand -base64 48`, then copy the respective outputs into `.env`.
 
@@ -131,8 +136,9 @@ docker compose --env-file .env -f docker-compose.hub.yml ps
 
 | Variable | Description |
 |---|---|
-| `GLOSSARY_IMAGE` | Web image, for example `euiyun/glossary:0.2.1` |
-| `GLOSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/glossary:0.2.1-migrator` |
+| `GLOSSARY_IMAGE` | Web image, for example `euiyun/glossary:0.3.0` |
+| `GLOSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/glossary:0.3.0-migrator` |
+| `GLOSSARY_WORKER_IMAGE` | Matching durable RAG and cleanup worker, for example `euiyun/glossary:0.3.0-worker` |
 | `GLOSSARY_PORT` | Host port; defaults to `3000` |
 | `POSTGRES_PASSWORD` | Internal PostgreSQL password; use URL-safe characters |
 | `GLOSSARY_ENCRYPTION_KEY` | Fixed secret of at least 32 characters for AI/RAG API keys and custom headers; back up separately |
@@ -184,7 +190,7 @@ Windows에서는 Docker Desktop과 Git Bash 또는 WSL을 사용하세요.
 
    ```bash
    mkdir -p scripts backups
-   curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.2.1/scripts/backup.sh -o scripts/backup.sh
+   curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.0/scripts/backup.sh -o scripts/backup.sh
    COMPOSE_FILE=docker-compose.hub.yml BACKUP_DIR=./backups bash scripts/backup.sh
    ```
 
@@ -208,7 +214,7 @@ Prepare the restore script from the installation directory in Bash:
 
 ```bash
 mkdir -p scripts
-curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.2.1/scripts/restore.sh -o scripts/restore.sh
+curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.0/scripts/restore.sh -o scripts/restore.sh
 export COMPOSE_FILE=docker-compose.hub.yml
 # Replace the filename with the backup produced above.
 bash scripts/restore.sh --rehearse ./backups/glossary-YYYYMMDD-HHMMSS.dump
@@ -224,7 +230,7 @@ Upgrades run database migrations; changing only the image tag back is not a data
 - Put a TLS reverse proxy in front of Glossary before using it beyond a protected internal network.
 - The supplied Compose file exposes plain HTTP on all host interfaces. For TLS termination, overwrite `X-Forwarded-Proto` with the actual external protocol; HTTPS requests get `Secure` session cookies automatically. Restrict direct access to the app port when using trusted proxy headers.
 - Back up with `pg_dump` or the supplied backup script and rehearse restoration before production use.
-- Keep the application and migrator tags on exactly the same version.
+- Keep the application, migrator, and worker tags on exactly the same version.
 - The `/setup` endpoint is open only while there are no users; the first person to complete it becomes the administrator.
 
 For startup problems, inspect:

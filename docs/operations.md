@@ -6,21 +6,20 @@
 
 ## Docker Hub 이미지로 기동
 
-[Docker Hub의 `euiyun/glossary`](https://hub.docker.com/r/euiyun/glossary)는 웹 앱과
-DB 마이그레이터를 한 저장소의 별도 태그로 배포한다. 서버에는 소스 코드가 필요 없고
+[Docker Hub의 `euiyun/glossary`](https://hub.docker.com/r/euiyun/glossary)는 웹 앱,
+DB 마이그레이터, RAG 워커를 한 저장소의 별도 태그로 배포한다. 서버에는 소스 코드가 필요 없고
 `docker-compose.hub.yml`과 환경 파일만 있으면 된다.
 
-> 현재 배포판은 **`0.2.1` 개발 미리보기**다. 기능 검토와 사내 파일럿에 사용하고,
-> 업그레이드 전에는 반드시 DB 백업과 복구를 검증한다. 앱과 마이그레이터는 항상 같은
-> 버전 조합으로 고정한다.
+> 현재 배포판은 **`0.3.0`**이다. 업그레이드 전에는 반드시 DB 백업과 복구를 검증하고,
+> 앱·마이그레이터·RAG 워커를 항상 같은 버전 조합으로 고정한다.
 
 | 이미지 | 고정 태그 | 용도 |
 |---|---|---|
-| `euiyun/glossary` | `0.2.1` | Glossary 웹 애플리케이션 |
-| `euiyun/glossary` | `0.2.1-migrator` | 앱 기동 전에 실행하는 DB 마이그레이션 |
-| `euiyun/glossary` | `0.2.1-worker` | durable RAG 큐와 보존 정리 워커 |
+| `euiyun/glossary` | `0.3.0` | Glossary 웹 애플리케이션 |
+| `euiyun/glossary` | `0.3.0-migrator` | 앱 기동 전에 실행하는 DB 마이그레이션 |
+| `euiyun/glossary` | `0.3.0-worker` | durable RAG 큐와 보존 정리 워커 |
 
-`latest`와 `latest-migrator`도 제공하지만, 예고 없이 다음 개발 버전을 가리킬 수 있으므로
+`latest`, `latest-migrator`, `latest-worker`도 제공하지만, 예고 없이 다음 개발 버전을 가리킬 수 있으므로
 재현 가능한 배포에는 버전 태그를 사용한다.
 
 ```bash
@@ -32,11 +31,12 @@ docker compose --env-file .env -f docker-compose.hub.yml pull
 docker compose --env-file .env -f docker-compose.hub.yml up -d
 ```
 
-운영에서는 `latest` 대신 아래처럼 앱과 마이그레이터를 같은 버전으로 고정한다.
+운영에서는 `latest` 대신 아래처럼 앱·마이그레이터·RAG 워커를 같은 버전으로 고정한다.
 
 ```dotenv
-GLOSSARY_IMAGE=euiyun/glossary:0.2.1
-GLOSSARY_MIGRATOR_IMAGE=euiyun/glossary:0.2.1-migrator
+GLOSSARY_IMAGE=euiyun/glossary:0.3.0
+GLOSSARY_MIGRATOR_IMAGE=euiyun/glossary:0.3.0-migrator
+GLOSSARY_WORKER_IMAGE=euiyun/glossary:0.3.0-worker
 ```
 
 `database-init`이 `pg_trgm`·`vector` 확장을 준비하고, `migrator`가 성공한 뒤에만 `app`이
@@ -206,7 +206,7 @@ unset ADMIN_PASSWORD
 
    ```bash
    mkdir -p scripts backups
-   curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.2.1/scripts/backup.sh -o scripts/backup.sh
+   curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.0/scripts/backup.sh -o scripts/backup.sh
    ```
 
 3. 백업을 실행한다.

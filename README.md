@@ -201,7 +201,7 @@ API 키는 로그인 후 **설정 → API 키**에서 발급하고 위 조회에
 
 ## Docker Hub 이미지 배포
 
-Docker Hub에는 웹 앱과 마이그레이터를 같은 저장소의 서로 다른 태그로 올린다.
+Docker Hub에는 웹 앱, 마이그레이터, RAG 워커를 같은 저장소의 서로 다른 태그로 올린다.
 설치 절차는 [Docker Hub 안내](./DOCKERHUB.md)에 있고, 아래 빌드·push는 이미지 배포자용이다.
 `VERSION`은 실제로 배포할 새 버전으로 바꾼다.
 
@@ -210,23 +210,27 @@ Docker Hub에는 웹 앱과 마이그레이터를 같은 저장소의 서로 다
 
 ```bash
 IMAGE=euiyun/glossary
-VERSION=0.2.1
+VERSION=0.3.0
 
 docker build --build-arg APP_VERSION="$VERSION" --target app -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
 docker build --build-arg APP_VERSION="$VERSION" --target migrator -t "$IMAGE:$VERSION-migrator" -t "$IMAGE:latest-migrator" .
+docker build --build-arg APP_VERSION="$VERSION" --target worker -t "$IMAGE:$VERSION-worker" -t "$IMAGE:latest-worker" .
 
 docker push "$IMAGE:$VERSION"
 docker push "$IMAGE:$VERSION-migrator"
+docker push "$IMAGE:$VERSION-worker"
 docker push "$IMAGE:latest"
 docker push "$IMAGE:latest-migrator"
+docker push "$IMAGE:latest-worker"
 ```
 
 사내 서버에서는 소스 빌드 없이 `docker-compose.hub.yml`을 사용한다. 운영에서는
-`latest`보다 앱·마이그레이터 양쪽을 같은 버전으로 고정하는 편이 안전하다.
+`latest`보다 앱·마이그레이터·RAG 워커를 모두 같은 버전으로 고정하는 편이 안전하다.
 
 ```bash
-docker pull euiyun/glossary:0.2.1
-docker pull euiyun/glossary:0.2.1-migrator
+docker pull euiyun/glossary:0.3.0
+docker pull euiyun/glossary:0.3.0-migrator
+docker pull euiyun/glossary:0.3.0-worker
 ```
 
 ```bash
@@ -254,7 +258,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 - **M1 사전 코어** — 구현됨. DB 스키마, 정규화, 인증·API Key, 용어 CRUD, 검색,
   중복 경고, 엑셀 임포트(dry-run), 프로덕션 Docker, 백업·복구.
-- **M2 검증 엔진 — 진행 중**: `packages/engine`의 문서 검증 코어, `/validate`, `/validate/batch`, `/lexicon`, `/check`와 후보 등록·무시 흐름이 구현됨. CI 연동은 남아 있다.
+- **M2 검증 엔진 — 구현됨**: `packages/engine`의 문서 검증 코어, `/validate`, `/validate/batch`, `/lexicon`, `/check`와 후보 등록·무시 흐름이 구현됨. CI 연동은 남아 있다.
 - **M3 위키 완성도** — CodeMirror Markdown 편집·GFM 미리보기, 이미지 붙여넣기·WebP 첨부,
   Mermaid·수식 렌더링, 리비전 조회/revert는 구현됨. diff 화면, 위키 링크·역참조, 병합 UI는 남음.
 

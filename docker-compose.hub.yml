@@ -1,6 +1,6 @@
 # Docker Hub에서 미리 빌드된 이미지를 pull해 사내에 배포하는 스택.
 # 소스 코드나 scripts/init-db.sql이 없어도 동작하도록 pg_trgm·vector 초기화를 별도
-# 일회성 컨테이너가 맡는다. 앱과 migrator는 같은 저장소의 서로 다른 태그다.
+# 일회성 컨테이너가 맡는다. 앱·migrator·RAG worker는 같은 저장소의 서로 다른 태그다.
 
 services:
   postgres:

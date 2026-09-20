@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+다음 릴리스의 변경 사항은 이 섹션에 기록한다.
+
+## 0.3.0 — 2026-09-20
+
 - 로그인부터 용어·별칭 등록, 문서 점검, 리비전 되돌리기까지의 브라우저 E2E를 테스트 DB와 격리해 검증
 - 빠른 시작용 환경 예제에서 로컬 브라우저의 변경 요청이 CSRF 검사에 막히지 않도록 기본 origin을 비우고 운영 설정 안내를 분리
 - RAG 설정에서 OpenAI-compatible `/v1` Reranker와 `/v1/models` 기반 Embedding·Reranker 모델 선택, 공용 Base URL을 지원
