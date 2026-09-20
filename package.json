@@ -18,7 +18,7 @@
     "build": "turbo run build",
     "lint": "pnpm --filter @glossary/web lint",
     "test": "turbo run test",
-    "test:coverage": "turbo run test:coverage --filter=@glossary/web",
+    "test:coverage": "pnpm --filter @glossary/web test:coverage",
     "typecheck": "turbo run typecheck",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
