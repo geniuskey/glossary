@@ -41,6 +41,7 @@ cp .env.example .env
 | `GLOSSARY_ENCRYPTION_KEY` | AI·RAG API Key와 custom header 암호화 키. AI 또는 RAG 연결을 쓰면 32자 이상 고정값 필요 |
 | `GLOSSARY_ALLOWED_ORIGINS` | 로컬에서는 비워 두고, 운영 프록시 뒤에서는 쿠키 변경 요청을 허용할 실제 공개 HTTPS origin을 지정. 예: `https://glossary.example.com` |
 | `GLOSSARY_TRUST_PROXY_HEADERS` | TLS 프록시가 덮어쓴 `X-Forwarded-*`를 신뢰할 때만 `true` |
+| `GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS` | 사설망에 있는 사내 AI·RAG 서버 호스트를 쉼표로 구분. 비우면 사설망 주소는 차단, `*`는 전부 허용 |
 | `GLOSSARY_CONFLUENCE_MEETINGS_URL` | `/meetings`에서 열 회의록 허브의 Confluence URL. 선택 사항 |
 
 oauth2-proxy 배포의 헤더명·nginx 덮어쓰기·계정 연결 설정은 [SSO 연결](/guide/sso)을
