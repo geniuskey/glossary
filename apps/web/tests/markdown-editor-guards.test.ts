@@ -39,6 +39,31 @@ test("Markdown 입력 영역에는 접근 가능한 이름이 있다", () => {
   expect(source).toContain('"aria-describedby": describedBy');
 });
 
+test("에디터 설정 변경은 인스턴스를 재생성하지 않고 compartment로 갱신한다", () => {
+  expect(editorSource).toContain("new Compartment()");
+  expect(editorSource).toContain("readOnlyCompartmentRef.current.reconfigure");
+  expect(editorSource).toContain("attributesCompartmentRef.current.reconfigure");
+  expect(editorSource).toContain("}, [compact, livePreview, resizable]);");
+});
+
+test("Markdown 최대 길이는 입력 단계에서 제한하고 도달 상태를 알린다", () => {
+  expect(editorSource).toContain("EditorState.changeFilter.of");
+  expect(editorSource).toContain("transaction.newDoc.length <= limit");
+  expect(editorSource).toContain('value.length >= maxLength ? " · 최대 글자 수" : ""');
+  expect(editorSource).toContain('aria-live="polite"');
+});
+
+test("비동기 이미지 업로드는 원래 삽입 위치의 marker를 치환한다", () => {
+  expect(editorSource).toContain("glossary-image-upload-");
+  expect(editorSource).toContain("replaceUploadMarker(marker");
+  expect(editorSource).toContain("await Promise.all(files.map");
+  expect(editorSource).not.toContain('snippets.join("\\n")');
+});
+
+test("CodeMirror 포커스에는 눈에 보이는 대체 포커스 표시가 있다", () => {
+  expect(editorSource).toContain('"&.cm-focused": { boxShadow:');
+});
+
 test("카드에 포함된 Markdown 편집기는 자체 카드 테두리를 제거할 수 있다", () => {
   expect(source).toContain("embedded = false");
   expect(source).toContain('!embedded && "rounded-xl border border-line"');
@@ -206,6 +231,32 @@ test("표는 Markdown 한 줄 대신 셀 입력과 키보드 이동을 제공한
   expect(tableSource).toContain("draftRef.current.headers.map(() => \"\")");
   expect(livePreviewSource).toContain('event.target.closest("[data-live-table-control], [data-live-table-cell], [data-live-preview-control]")');
   expect(livePreviewSource).toContain('if (this.kind === "table")');
+});
+
+test("표 행과 열은 키보드로도 순서를 바꿀 수 있다", () => {
+  expect(tableSource).toContain("handleColumnKeyDown");
+  expect(tableSource).toContain("handleRowKeyDown");
+  expect(tableSource).toContain('aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"');
+  expect(tableSource).toContain('aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"');
+});
+
+test("표 셀 우클릭 메뉴에서 행과 열을 삭제할 수 있다", () => {
+  expect(tableSource).toContain('role="menu"');
+  expect(tableSource).toContain('aria-label="표 편집 메뉴"');
+  expect(tableSource).toContain("openContextMenuFromPointer");
+  expect(tableSource).toContain("openContextMenuFromKeyboard");
+  expect(tableSource).toContain('event.key !== "ContextMenu"');
+  expect(tableSource).toContain('event.shiftKey && event.key === "F10"');
+  expect(tableSource).toContain("deleteRow(contextMenu.rowIndex!)");
+  expect(tableSource).toContain("deleteColumn(contextMenu.columnIndex!)");
+  expect(tableSource).toContain("current.headers.length <= 2");
+  expect(tableSource).toContain("행 삭제");
+  expect(tableSource).toContain("열 삭제");
+});
+
+test("같은 줄의 커서 이동은 라이브 프리뷰 전체를 다시 계산하지 않는다", () => {
+  expect(livePreviewSource).toContain("selectionLineKey(transaction.startState) !== selectionLineKey(transaction.state)");
+  expect(livePreviewSource).toContain("replacementSpans");
 });
 
 test("표 블록은 커서가 들어가도 Markdown 원문으로 전환되지 않는다", () => {

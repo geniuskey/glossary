@@ -4,11 +4,13 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MarkdownContent } from "@/components/markdown-content";
 import { LivePreviewTable } from "@/components/markdown-live-table";
-import { isInternalAttachmentUrl } from "@/lib/markdown/images";
+import { internalAttachmentDimensions, isInternalAttachmentUrl } from "@/lib/markdown/images";
 
 type DecoratedRange = Range<Decoration>;
+interface ReplacementSpan { from: number; to: number }
 
 const HIDDEN_MARKUP = Decoration.replace({});
+const replacementSpans = new WeakMap<DecoratedRange[], ReplacementSpan[]>();
 
 class LivePreviewTextWidget extends WidgetType {
   constructor(private readonly text: string, private readonly className: string) {
@@ -49,6 +51,11 @@ class LivePreviewImageWidget extends WidgetType {
     image.className = "cm-live-preview-image";
     image.src = this.source;
     image.alt = this.alt;
+    const dimensions = internalAttachmentDimensions(this.source);
+    if (dimensions) {
+      image.width = dimensions.width;
+      image.height = dimensions.height;
+    }
     image.loading = "lazy";
     image.decoding = "async";
     image.draggable = false;
@@ -251,23 +258,47 @@ function addRange(ranges: DecoratedRange[], from: number, to: number, decoration
 }
 
 function hasReplacement(ranges: DecoratedRange[], from: number, to: number): boolean {
-  return ranges.some((range) => range.value.spec.widget !== undefined || range.value === HIDDEN_MARKUP)
-    && ranges.some((range) => range.from < to && from < range.to && (range.value.spec.widget !== undefined || range.value === HIDDEN_MARKUP));
+  const spans = replacementSpans.get(ranges);
+  if (!spans?.length) return false;
+  let low = 0;
+  let high = spans.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (spans[middle]!.from < from) low = middle + 1;
+    else high = middle;
+  }
+  return (low > 0 && spans[low - 1]!.to > from) || (low < spans.length && spans[low]!.from < to);
+}
+
+function trackReplacement(ranges: DecoratedRange[], from: number, to: number) {
+  const spans = replacementSpans.get(ranges) ?? [];
+  let low = 0;
+  let high = spans.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (spans[middle]!.from < from) low = middle + 1;
+    else high = middle;
+  }
+  spans.splice(low, 0, { from, to });
+  replacementSpans.set(ranges, spans);
 }
 
 function hide(ranges: DecoratedRange[], from: number, to: number) {
   if (to <= from || hasReplacement(ranges, from, to)) return;
   addRange(ranges, from, to, HIDDEN_MARKUP);
+  trackReplacement(ranges, from, to);
 }
 
 function replace(ranges: DecoratedRange[], from: number, to: number, text: string, className: string) {
   if (to <= from || hasReplacement(ranges, from, to)) return;
   addRange(ranges, from, to, Decoration.replace({ widget: new LivePreviewTextWidget(text, className) }));
+  trackReplacement(ranges, from, to);
 }
 
 function replaceImage(ranges: DecoratedRange[], from: number, to: number, source: string, alt: string) {
   if (to <= from || hasReplacement(ranges, from, to)) return;
   addRange(ranges, from, to, Decoration.replace({ widget: new LivePreviewImageWidget(source, alt) }));
+  trackReplacement(ranges, from, to);
 }
 
 function mark(ranges: DecoratedRange[], from: number, to: number, decoration: DecoratedRange["value"]) {
@@ -300,6 +331,7 @@ function replaceBlock(
     block: true,
     widget: new LivePreviewBlockWidget(blockSource(state, start, end), kind, isTrailingBlock),
   }));
+  trackReplacement(ranges, from, to);
 }
 
 function findFenceEnd(state: EditorState, start: number, fence: RegExpExecArray): number | null {
@@ -496,10 +528,16 @@ export function buildLivePreviewDecorations(state: EditorState): DecorationSet {
   return builder.finish();
 }
 
+function selectionLineKey(state: EditorState): string {
+  return state.selection.ranges
+    .map((range) => `${state.doc.lineAt(range.from).number}:${state.doc.lineAt(range.to).number}:${range.empty ? "cursor" : "selection"}`)
+    .join("|");
+}
+
 const livePreviewDecorations = StateField.define<DecorationSet>({
   create: (state) => buildLivePreviewDecorations(state),
   update: (decorations, transaction) => (
-    transaction.docChanged || transaction.selection
+    transaction.docChanged || (transaction.selection && selectionLineKey(transaction.startState) !== selectionLineKey(transaction.state))
       ? buildLivePreviewDecorations(transaction.state)
       : decorations
   ),

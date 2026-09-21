@@ -45,3 +45,13 @@ test("내부 첨부 이미지를 Markdown 콘텐츠로 렌더링한다", () => {
   expect(html).toContain(`src="/api/v1/attachments/${hash}"`);
   expect(html).toContain('alt="도표"');
 });
+
+test("크기 메타데이터가 있는 첨부 이미지는 렌더링 공간을 미리 확보한다", () => {
+  const hash = "c".repeat(64);
+  const html = renderToStaticMarkup(createElement(MarkdownContent, {
+    children: `![도표](/api/v1/attachments/${hash}?width=1200&height=800)`,
+  }));
+
+  expect(html).toContain('width="1200"');
+  expect(html).toContain('height="800"');
+});

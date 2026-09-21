@@ -167,6 +167,10 @@ export function TermForm({
   }), [form, pendingSurfaceValues, surfaceBatchKind]);
   const formSnapshot = useMemo(() => JSON.stringify(buildTermPayload(formWithPendingSurfaces)), [formWithPendingSurfaces]);
   const dirty = formSnapshot !== initialSnapshotRef.current;
+  const latestSubmittedFormRef = useRef(formWithPendingSurfaces);
+  const latestDirtyRef = useRef(dirty);
+  latestSubmittedFormRef.current = formWithPendingSurfaces;
+  latestDirtyRef.current = dirty;
   const normalizedSlug = slugify(slugDraft);
   const slugChanged = editSlug !== undefined && normalizedSlug !== editSlug;
   const slugDraftIssue = slugValidationMessage(normalizedSlug);
@@ -191,7 +195,10 @@ export function TermForm({
       managementDetailsRef.current!.open = true;
     }
     const firstField = Object.keys(fieldErrors)[0];
-    const control = firstField ? document.querySelector<HTMLElement>(`[name="${CSS.escape(firstField)}"]`) : null;
+    const escapedField = firstField ? CSS.escape(firstField) : null;
+    const control = escapedField
+      ? document.querySelector<HTMLElement>(`[name="${escapedField}"], [data-field-name="${escapedField}"]`)
+      : null;
     (control ?? errorSummaryRef.current)?.focus();
   }, [fieldErrors]);
 
@@ -391,6 +398,7 @@ export function TermForm({
     // submit 이벤트가 다시 뜰 수 있는 경로를 여기서도 막는다.
     if (locked) return;
     if (imageUploading) return;
+    if (editSlug !== undefined && !latestDirtyRef.current) return;
 
     setSaving(true);
     setErrorMessage(null);
@@ -398,7 +406,7 @@ export function TermForm({
     setFieldErrors(null);
     setConflict(null);
 
-    const submittedForm = formWithPendingSurfaces;
+    const submittedForm = latestSubmittedFormRef.current;
     const payload = buildTermPayload(submittedForm, expectedRevision);
     // dirty 비교용 스냅샷에는 요청 경합용 expectedRevision을 넣지 않는다.
     const submittedSnapshot = JSON.stringify(buildTermPayload(submittedForm));
@@ -478,6 +486,13 @@ export function TermForm({
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement && activeElement.matches("[data-live-table-cell]")) {
+      activeElement.blur();
+      // 표 셀은 포커스가 빠질 때 Markdown 원문을 확정한다. 다음 프레임까지
+      // 기다려 최신 원문이 ref에 반영된 뒤 제출해야 마지막 입력이 빠지지 않는다.
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    }
     await submitForm();
   }
 
@@ -994,6 +1009,7 @@ export function TermForm({
         />
         <div className={cx(compact && "flex min-h-0 flex-1 flex-col")}>
           <MarkdownEditor
+            name="bodyMd"
             label="용어 본문"
             describedBy={errorsFor("bodyMd") ? "bodyMd-error" : undefined}
             invalid={Boolean(errorsFor("bodyMd"))}
@@ -1039,7 +1055,7 @@ export function TermForm({
                 저장됨 → {savedSlug}로 이동
               </Link>
             ) : (
-              <button type="submit" disabled={saving || imageUploading} className="btn-primary">
+              <button type="submit" disabled={saving || imageUploading || (editSlug !== undefined && !dirty)} className="btn-primary">
                 {imageUploading ? "이미지 변환 중…" : saving ? "저장 중…" : editSlug === undefined ? "용어 저장" : "변경사항 저장"}
               </button>
             )}

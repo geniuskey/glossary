@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type DragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent, type FocusEvent as ReactFocusEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
 
 export interface LiveTableModel {
   headers: string[];
@@ -12,6 +12,12 @@ type DropPosition = "before" | "after";
 interface DropTarget {
   index: number;
   position: DropPosition;
+}
+interface TableContextMenu {
+  rowIndex?: number;
+  columnIndex?: number;
+  x: number;
+  y: number;
 }
 
 function splitTableRow(line: string): string[] {
@@ -115,11 +121,14 @@ export function LivePreviewTable({ source, onChange }: { source: string; onChang
   const [dropColumn, setDropColumn] = useState<DropTarget | null>(null);
   const [draggedRow, setDraggedRow] = useState<number | null>(null);
   const [dropRow, setDropRow] = useState<DropTarget | null>(null);
+  const [contextMenu, setContextMenu] = useState<TableContextMenu | null>(null);
   const emptyModel: LiveTableModel = { headers: [], alignments: [], rows: [] };
   const [draft, setDraft] = useState<LiveTableModel>(model ?? emptyModel);
   const draftRef = useRef<LiveTableModel>(model ?? emptyModel);
   const dirtyRef = useRef(false);
   const cellRefs = useRef(new Map<string, HTMLInputElement>());
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const contextTriggerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!model) return;
@@ -127,6 +136,33 @@ export function LivePreviewTable({ source, onChange }: { source: string; onChang
     dirtyRef.current = false;
     setDraft(model);
   }, [source]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const frame = requestAnimationFrame(() => contextMenuRef.current?.querySelector<HTMLElement>("[role=menuitem]:not([disabled])")?.focus());
+    const closeFromOutside = (event: PointerEvent) => {
+      if (contextMenuRef.current?.contains(event.target as Node)) return;
+      setContextMenu(null);
+    };
+    const closeFromKeyboard = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setContextMenu(null);
+      requestAnimationFrame(() => contextTriggerRef.current?.focus());
+    };
+    const closeFromViewport = () => setContextMenu(null);
+    document.addEventListener("pointerdown", closeFromOutside, true);
+    document.addEventListener("keydown", closeFromKeyboard);
+    window.addEventListener("resize", closeFromViewport);
+    window.addEventListener("scroll", closeFromViewport, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("pointerdown", closeFromOutside, true);
+      document.removeEventListener("keydown", closeFromKeyboard);
+      window.removeEventListener("resize", closeFromViewport);
+      window.removeEventListener("scroll", closeFromViewport, true);
+    };
+  }, [contextMenu]);
 
   if (!model) return <pre className="cm-live-table-fallback"><code>{source}</code></pre>;
   const table = draft;
@@ -193,6 +229,7 @@ export function LivePreviewTable({ source, onChange }: { source: string; onChang
   }
 
   function handleCellKeyDown(event: ReactKeyboardEvent<HTMLInputElement>, rowIndex: number, columnIndex: number) {
+    if (openContextMenuFromKeyboard(event, { rowIndex: rowIndex < 0 ? undefined : rowIndex, columnIndex })) return;
     if (event.key !== "Tab" && event.key !== "Enter") return;
     const columnCount = draftRef.current.headers.length;
     if (columnCount === 0) return;
@@ -212,6 +249,49 @@ export function LivePreviewTable({ source, onChange }: { source: string; onChang
     event.preventDefault();
     const nextCell = cellFromIndex(nextIndex, columnCount);
     focusCell(nextCell.rowIndex, nextCell.columnIndex);
+  }
+
+  function openContextMenu(target: Omit<TableContextMenu, "x" | "y">, x: number, y: number, trigger: HTMLElement) {
+    contextTriggerRef.current = trigger;
+    setContextMenu({
+      ...target,
+      x: Math.max(8, Math.min(x, window.innerWidth - 184)),
+      y: Math.max(8, Math.min(y, window.innerHeight - 112)),
+    });
+  }
+
+  function openContextMenuFromPointer(event: ReactMouseEvent<HTMLElement>, target: Omit<TableContextMenu, "x" | "y">) {
+    event.preventDefault();
+    event.stopPropagation();
+    openContextMenu(target, event.clientX, event.clientY, event.currentTarget);
+  }
+
+  function openContextMenuFromKeyboard(event: ReactKeyboardEvent<HTMLElement>, target: Omit<TableContextMenu, "x" | "y">): boolean {
+    if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    const bounds = event.currentTarget.getBoundingClientRect();
+    openContextMenu(target, bounds.left + Math.min(bounds.width, 24), bounds.top + Math.min(bounds.height, 24), event.currentTarget);
+    return true;
+  }
+
+  function deleteColumn(index: number) {
+    const current = draftRef.current;
+    if (current.headers.length <= 2) return;
+    setContextMenu(null);
+    contextTriggerRef.current = null;
+    apply({
+      headers: current.headers.filter((_, columnIndex) => columnIndex !== index),
+      alignments: current.alignments.filter((_, columnIndex) => columnIndex !== index),
+      rows: current.rows.map((row) => row.filter((_, columnIndex) => columnIndex !== index)),
+    });
+  }
+
+  function deleteRow(index: number) {
+    const current = draftRef.current;
+    setContextMenu(null);
+    contextTriggerRef.current = null;
+    apply({ ...current, rows: current.rows.filter((_, rowIndex) => rowIndex !== index) });
   }
 
   function handleTableBlur(event: ReactFocusEvent<HTMLDivElement>) {
@@ -238,6 +318,16 @@ export function LivePreviewTable({ source, onChange }: { source: string; onChang
     setDropColumn(null);
   }
 
+  function handleColumnKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>, index: number) {
+    if (openContextMenuFromKeyboard(event, { columnIndex: index })) return;
+    if (!event.altKey || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+    const target = index + (event.key === "ArrowLeft" ? -1 : 1);
+    if (target < 0 || target >= draftRef.current.headers.length) return;
+    event.preventDefault();
+    event.stopPropagation();
+    apply(moveColumn(draftRef.current, index, target));
+  }
+
   function handleRowDragStart(event: DragEvent<HTMLButtonElement>, index: number) {
     event.stopPropagation();
     event.dataTransfer.effectAllowed = "move";
@@ -254,6 +344,16 @@ export function LivePreviewTable({ source, onChange }: { source: string; onChang
     }
     setDraggedRow(null);
     setDropRow(null);
+  }
+
+  function handleRowKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>, index: number) {
+    if (openContextMenuFromKeyboard(event, { rowIndex: index })) return;
+    if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
+    const target = index + (event.key === "ArrowUp" ? -1 : 1);
+    if (target < 0 || target >= draftRef.current.rows.length) return;
+    event.preventDefault();
+    event.stopPropagation();
+    apply(moveRow(draftRef.current, index, target));
   }
 
   function addRow() {
@@ -297,9 +397,12 @@ export function LivePreviewTable({ source, onChange }: { source: string; onChang
                     data-live-table-control="true"
                     className="cm-live-table-column-handle"
                     aria-label={`${header || `열 ${index + 1}`} 열 순서 변경`}
-                    title="드래그해서 열 순서 변경"
+                    aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+                    title="드래그하거나 Alt+←/→로 열 순서 변경"
                     onDragStart={(event) => handleColumnDragStart(event, index)}
                     onDragEnd={() => { setDraggedColumn(null); setDropColumn(null); }}
+                    onKeyDown={(event) => handleColumnKeyDown(event, index)}
+                    onContextMenu={(event) => openContextMenuFromPointer(event, { columnIndex: index })}
                   >
                     ⠿
                   </button>
@@ -311,6 +414,7 @@ export function LivePreviewTable({ source, onChange }: { source: string; onChang
                     value={header}
                     onChange={(event) => updateCell(-1, index, event.currentTarget.value)}
                     onKeyDown={(event) => handleCellKeyDown(event, -1, index)}
+                    onContextMenu={(event) => openContextMenuFromPointer(event, { columnIndex: index })}
                     ref={(element) => registerCell(-1, index, element)}
                     placeholder={`열 ${index + 1}`}
                   />
@@ -339,9 +443,12 @@ export function LivePreviewTable({ source, onChange }: { source: string; onChang
                     data-live-table-control="true"
                     className={`cm-live-table-row-handle${draggedRow === rowIndex ? " cm-live-table-row-handle-active" : ""}`}
                     aria-label={`${rowIndex + 1}번째 행 순서 변경`}
-                    title="드래그해서 행 순서 변경"
+                    aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                    title="드래그하거나 Alt+↑/↓로 행 순서 변경"
                     onDragStart={(event) => handleRowDragStart(event, rowIndex)}
                     onDragEnd={() => { setDraggedRow(null); setDropRow(null); }}
+                    onKeyDown={(event) => handleRowKeyDown(event, rowIndex)}
+                    onContextMenu={(event) => openContextMenuFromPointer(event, { rowIndex })}
                   >
                     ⠿
                   </button>
@@ -359,6 +466,7 @@ export function LivePreviewTable({ source, onChange }: { source: string; onChang
                       value={cell}
                       onChange={(event) => updateCell(rowIndex, cellIndex, event.currentTarget.value)}
                       onKeyDown={(event) => handleCellKeyDown(event, rowIndex, cellIndex)}
+                      onContextMenu={(event) => openContextMenuFromPointer(event, { rowIndex, columnIndex: cellIndex })}
                       ref={(element) => registerCell(rowIndex, cellIndex, element)}
                       placeholder="내용"
                     />
@@ -389,6 +497,39 @@ export function LivePreviewTable({ source, onChange }: { source: string; onChang
       >
         +
       </button>
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          role="menu"
+          aria-label="표 편집 메뉴"
+          data-live-table-control="true"
+          className="fixed z-[120] min-w-44 rounded-lg border border-line bg-panel p-1 shadow-pop"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          {contextMenu.rowIndex !== undefined && (
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-danger hover:bg-danger-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40"
+              onClick={() => deleteRow(contextMenu.rowIndex!)}
+            >
+              행 삭제
+            </button>
+          )}
+          {contextMenu.columnIndex !== undefined && (
+            <button
+              type="button"
+              role="menuitem"
+              aria-disabled={table.headers.length <= 2}
+              className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-danger hover:bg-danger-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40 aria-disabled:cursor-not-allowed aria-disabled:text-ink-3 aria-disabled:hover:bg-transparent"
+              title={table.headers.length <= 2 ? "Markdown 표에는 열이 최소 2개 필요합니다" : undefined}
+              onClick={() => deleteColumn(contextMenu.columnIndex!)}
+            >
+              {table.headers.length <= 2 ? "열 삭제 불가 · 최소 2개" : "열 삭제"}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

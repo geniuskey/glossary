@@ -137,7 +137,7 @@ test("정리 상태는 상단에 읽기 전용으로 표시하고 저장 동작�
 });
 
 test("저장은 상태를 보내지 않고 서버가 돌려준 자동 판정을 화면에 반영한다", () => {
-  expect(code).toContain('const submittedForm = formWithPendingSurfaces');
+  expect(code).toContain('const submittedForm = latestSubmittedFormRef.current');
   expect(code).toContain('const submittedSnapshot = JSON.stringify(buildTermPayload(submittedForm))');
   expect(code).toContain('initialSnapshotRef.current = submittedSnapshot');
   expect(code).toContain('setForm((current) => ({ ...current, status: outcome.term.status! }))');
@@ -187,6 +187,22 @@ test("추가 표기의 한 번에 추가 도구는 입력·종류·버튼을 한
   expect(code).toContain('className="field h-8 min-w-0 flex-1 py-0"');
   expect(code).toContain('className="field h-8 py-0 sm:w-32"');
   expect(code).not.toContain('<textarea\n                  id="surface-batch"');
+});
+
+test("수정 화면은 변경이 없을 때 불필요한 리비전을 만들지 않는다", () => {
+  expect(code).toContain("if (editSlug !== undefined && !latestDirtyRef.current) return;");
+  expect(code).toContain("disabled={saving || imageUploading || (editSlug !== undefined && !dirty)}");
+});
+
+test("본문 검증 오류는 CodeMirror 입력 영역으로 포커스할 수 있다", () => {
+  expect(code).toContain('name="bodyMd"');
+  expect(code).toContain('[data-field-name="${escapedField}"]');
+});
+
+test("표 셀의 마지막 입력을 확정한 뒤 최신 폼 상태를 저장한다", () => {
+  expect(code).toContain('activeElement.matches("[data-live-table-cell]")');
+  expect(code).toContain("latestSubmittedFormRef.current");
+  expect(code).toContain("window.requestAnimationFrame");
 });
 
 test("접힌 추가 표기 영역도 기존 표기를 배지로 미리 보여준다", () => {

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { basicSetup, EditorView } from "codemirror";
 import { markdown } from "@codemirror/lang-markdown";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { livePreviewExtension } from "@/lib/markdown/live-preview";
 import { cx } from "@/lib/ui/format";
 import {
@@ -19,10 +19,13 @@ import { MarkdownContent } from "./markdown-content";
 
 interface UploadResponse {
   url: string;
+  width: number;
+  height: number;
   originalFilename: string;
 }
 
 interface MarkdownEditorProps {
+  name?: string;
   label?: string;
   describedBy?: string;
   invalid?: boolean;
@@ -48,6 +51,21 @@ function imageAlt(file: File): string {
 }
 
 type MarkdownCommand = (source: string, from: number, to: number) => MarkdownEdit;
+
+function maxLengthExtension(limit: number | undefined) {
+  return limit === undefined
+    ? []
+    : EditorState.changeFilter.of((transaction) => !transaction.docChanged || transaction.newDoc.length <= limit);
+}
+
+function editorContentAttributes(label: string, name: string | undefined, describedBy: string | undefined, invalid: boolean) {
+  return EditorView.contentAttributes.of({
+    "aria-label": label,
+    ...(name ? { "data-field-name": name } : {}),
+    ...(describedBy ? { "aria-describedby": describedBy } : {}),
+    ...(invalid ? { "aria-invalid": "true" } : {}),
+  });
+}
 
 function applyCommand(view: EditorView, command: MarkdownCommand) {
   const source = view.state.doc.toString();
@@ -80,6 +98,7 @@ function handleMarkdownShortcut(event: KeyboardEvent, view: EditorView): boolean
 }
 
 export function MarkdownEditor({
+  name,
   label = "Markdown 본문",
   describedBy,
   invalid = false,
@@ -98,6 +117,10 @@ export function MarkdownEditor({
   const viewRef = useRef<EditorView | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const onChangeRef = useRef(onChange);
+  const readOnlyCompartmentRef = useRef(new Compartment());
+  const attributesCompartmentRef = useRef(new Compartment());
+  const maxLengthCompartmentRef = useRef(new Compartment());
+  const uploadSequenceRef = useRef(0);
   const [uploadCount, setUploadCount] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [mode, setMode] = useState<"edit" | "preview">("edit");
@@ -168,27 +191,54 @@ export function MarkdownEditor({
     applyCommand(view, command);
   }
 
+  function replaceUploadMarker(marker: string, replacement: string) {
+    const view = viewRef.current;
+    if (!view) return false;
+    const source = view.state.doc.toString();
+    const from = source.indexOf(marker);
+    if (from < 0) return false;
+    if (maxLength !== undefined && source.length - marker.length + replacement.length > maxLength) {
+      view.dispatch({ changes: { from, to: from + marker.length, insert: "" } });
+      setUploadError(`이미지를 넣으면 최대 ${maxLength.toLocaleString()}자를 초과합니다.`);
+      return false;
+    }
+    view.dispatch({ changes: { from, to: from + marker.length, insert: replacement } });
+    return true;
+  }
+
   async function upload(files: File[]) {
     if (disabled || files.length === 0) return;
     setUploadError(null);
+    const markers = files.map(() => `<!-- glossary-image-upload-${Date.now()}-${uploadSequenceRef.current++} -->`);
+    const markerBlock = `\n${markers.join("\n")}\n`;
+    const view = viewRef.current;
+    if (!view) return;
+    const selection = view.state.selection.main;
+    const nextLength = view.state.doc.length - (selection.to - selection.from) + markerBlock.length;
+    if (maxLength !== undefined && nextLength > maxLength) {
+      setUploadError(`이미지를 넣으면 최대 ${maxLength.toLocaleString()}자를 초과합니다.`);
+      return;
+    }
     setUploadCount((count) => count + files.length);
+    insertText(markerBlock);
 
-    const snippets: string[] = [];
-    for (const file of files) {
+    await Promise.all(files.map(async (file, index) => {
+      const marker = markers[index]!;
       try {
         const body = new FormData();
         body.set("file", file);
         const response = await fetch("/api/v1/attachments", { method: "POST", body });
         const result = await response.json().catch(() => null) as (UploadResponse & { error?: { message?: string } }) | null;
         if (!response.ok || !result?.url) throw new Error(result?.error?.message || "이미지를 업로드하지 못했습니다.");
-        snippets.push(`![${imageAlt(file)}](${result.url})`);
+        const sizedUrl = `${result.url}?width=${result.width}&height=${result.height}`;
+        replaceUploadMarker(marker, `![${imageAlt(file)}](${sizedUrl})`);
       } catch (error) {
+        replaceUploadMarker(marker, "");
         setUploadError(error instanceof Error ? error.message : "이미지를 업로드하지 못했습니다.");
       } finally {
         setUploadCount((count) => count - 1);
       }
-    }
-    if (snippets.length > 0) insertText(`\n${snippets.join("\n")}\n`);
+    }));
   }
 
   useEffect(() => {
@@ -201,12 +251,9 @@ export function MarkdownEditor({
           basicSetup,
           markdown(),
           EditorView.lineWrapping,
-          EditorView.contentAttributes.of({
-            "aria-label": label,
-            ...(describedBy ? { "aria-describedby": describedBy } : {}),
-            ...(invalid ? { "aria-invalid": "true" } : {}),
-          }),
-          EditorState.readOnly.of(disabled),
+          attributesCompartmentRef.current.of(editorContentAttributes(label, name, describedBy, invalid)),
+          readOnlyCompartmentRef.current.of(EditorState.readOnly.of(disabled)),
+          maxLengthCompartmentRef.current.of(maxLengthExtension(maxLength)),
           livePreview ? livePreviewExtension : [],
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChangeRef.current(update.state.doc.toString());
@@ -310,7 +357,7 @@ export function MarkdownEditor({
             ".cm-gutters": { backgroundColor: "rgb(var(--panel-2))", color: "rgb(var(--ink-3))", border: "none" },
             ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "rgb(var(--brand) / 0.06)" },
             ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { backgroundColor: "rgb(var(--selection) / 0.2)" },
-            "&.cm-focused": { outline: "none" },
+            "&.cm-focused": { boxShadow: "inset 0 0 0 2px rgb(var(--brand) / 0.45)", outline: "none" },
           }),
         ],
       }),
@@ -320,8 +367,25 @@ export function MarkdownEditor({
       view.destroy();
       viewRef.current = null;
     };
-    // disabled 변경 시 인스턴스를 다시 만들어 readOnly 상태까지 정확히 반영한다.
-  }, [compact, describedBy, disabled, invalid, label, livePreview, resizable]);
+  }, [compact, livePreview, resizable]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({ effects: readOnlyCompartmentRef.current.reconfigure(EditorState.readOnly.of(disabled)) });
+  }, [disabled]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({ effects: attributesCompartmentRef.current.reconfigure(editorContentAttributes(label, name, describedBy, invalid)) });
+  }, [describedBy, invalid, label, name]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({ effects: maxLengthCompartmentRef.current.reconfigure(maxLengthExtension(maxLength)) });
+  }, [maxLength]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -448,7 +512,15 @@ export function MarkdownEditor({
           </div>
         </div>
       )}
-      {maxLength !== undefined && <div className="shrink-0 border-t border-line px-3 py-1.5 text-right text-[11px] text-ink-3">{value.length.toLocaleString()} / {maxLength.toLocaleString()}</div>}
+      {maxLength !== undefined && (
+        <div
+          className={cx("shrink-0 border-t border-line px-3 py-1.5 text-right text-[11px] tabular-nums", value.length >= maxLength ? "text-danger" : "text-ink-3")}
+          role="status"
+          aria-live="polite"
+        >
+          {value.length.toLocaleString()} / {maxLength.toLocaleString()}{value.length >= maxLength ? " · 최대 글자 수" : ""}
+        </div>
+      )}
     </div>
   );
 }
