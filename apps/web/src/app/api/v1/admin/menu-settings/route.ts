@@ -1,4 +1,5 @@
 import { z } from "zod/v3";
+import { workspaceMenuKeys } from "@glossary/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";
 import { getWorkspaceMenuSettings, saveWorkspaceMenuSettings } from "@/lib/workspace/menu-settings";
@@ -20,6 +21,10 @@ const menuSettingsSchema = z.object({
   api: z.boolean(),
   import: z.boolean(),
   statistics: z.boolean(),
+  order: z.array(z.enum(workspaceMenuKeys)).length(workspaceMenuKeys.length).refine(
+    (value) => new Set(value).size === workspaceMenuKeys.length,
+    "메뉴 순서에는 모든 메뉴가 한 번씩 포함되어야 합니다.",
+  ),
 }).strict();
 
 export const GET = withApiErrors(async (request: Request = new Request("http://internal")) => {

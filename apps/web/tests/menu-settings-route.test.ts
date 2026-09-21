@@ -68,7 +68,10 @@ test("설정 행이 없으면 모든 기존 메뉴를 기본으로 표시한다"
 
 test("관리자는 부가 메뉴를 끄고 다시 읽을 수 있다", async () => {
   await loginAs("admin");
-  const settings = { ...DEFAULT_WORKSPACE_MENU_SETTINGS, meetings: false, wiki: false, chat: false };
+  const order = [...DEFAULT_WORKSPACE_MENU_SETTINGS.order];
+  const [statistics] = order.splice(order.indexOf("statistics"), 1);
+  order.unshift(statistics!);
+  const settings = { ...DEFAULT_WORKSPACE_MENU_SETTINGS, meetings: false, wiki: false, chat: false, order };
   const saved = await PATCH(patchRequest(settings));
   expect(saved.status).toBe(200);
   expect((await saved.json()).settings).toEqual(settings);
@@ -79,4 +82,5 @@ test("기본 시트는 끌 수 없고 알 수 없는 필드를 받지 않는다"
   await loginAs("admin");
   expect((await PATCH(patchRequest({ ...DEFAULT_WORKSPACE_MENU_SETTINGS, sheet: false }))).status).toBe(400);
   expect((await PATCH(patchRequest({ ...DEFAULT_WORKSPACE_MENU_SETTINGS, extra: false }))).status).toBe(400);
+  expect((await PATCH(patchRequest({ ...DEFAULT_WORKSPACE_MENU_SETTINGS, order: ["sheet", "sheet"] }))).status).toBe(400);
 });

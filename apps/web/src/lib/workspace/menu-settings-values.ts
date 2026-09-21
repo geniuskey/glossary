@@ -1,6 +1,8 @@
 import type { WorkspaceMenuKey } from "@glossary/db";
 
-export type ResolvedWorkspaceMenuSettings = Record<WorkspaceMenuKey, boolean>;
+export type ResolvedWorkspaceMenuSettings = Record<WorkspaceMenuKey, boolean> & {
+  order: WorkspaceMenuKey[];
+};
 
 export interface WorkspaceMenuOption {
   key: WorkspaceMenuKey;
@@ -25,7 +27,24 @@ export const WORKSPACE_MENU_OPTIONS: readonly WorkspaceMenuOption[] = [
   { key: "statistics", label: "통계", description: "관리자용 운영 현황", adminOnly: true },
 ];
 
-export const DEFAULT_WORKSPACE_MENU_SETTINGS: Record<WorkspaceMenuKey, boolean> = {
+// 구현 파일의 배열 배치와 무관하게, 사용자가 자주 쓰는 핵심 화면에서
+// 정리·탐색·지식·연동·관리 도구로 이어지는 기본 탐색 흐름을 고정한다.
+export const DEFAULT_WORKSPACE_MENU_ORDER: WorkspaceMenuKey[] = [
+  "sheet",
+  "contribute",
+  "field-completion",
+  "check",
+  "classifications",
+  "graph",
+  "wiki",
+  "meetings",
+  "chat",
+  "import",
+  "api",
+  "statistics",
+];
+
+export const DEFAULT_WORKSPACE_MENU_SETTINGS: ResolvedWorkspaceMenuSettings = {
   contribute: true,
   check: true,
   "field-completion": true,
@@ -38,8 +57,32 @@ export const DEFAULT_WORKSPACE_MENU_SETTINGS: Record<WorkspaceMenuKey, boolean> 
   api: true,
   import: true,
   statistics: true,
+  order: DEFAULT_WORKSPACE_MENU_ORDER,
 };
 
 export function isWorkspaceMenuKey(value: string): value is WorkspaceMenuKey {
   return WORKSPACE_MENU_OPTIONS.some((item) => item.key === value);
+}
+
+export function normalizeWorkspaceMenuOrder(value: readonly string[] | null | undefined): WorkspaceMenuKey[] {
+  const unique = new Set<WorkspaceMenuKey>();
+  for (const key of value ?? []) {
+    if (isWorkspaceMenuKey(key)) unique.add(key);
+  }
+  for (const key of DEFAULT_WORKSPACE_MENU_ORDER) unique.add(key);
+  return [...unique];
+}
+
+export function moveWorkspaceMenu(
+  order: readonly WorkspaceMenuKey[],
+  draggedKey: WorkspaceMenuKey,
+  targetKey: WorkspaceMenuKey,
+  position: "before" | "after",
+): WorkspaceMenuKey[] {
+  if (draggedKey === targetKey) return [...order];
+  const next = order.filter((key) => key !== draggedKey);
+  const targetIndex = next.indexOf(targetKey);
+  if (targetIndex < 0) return [...order];
+  next.splice(targetIndex + (position === "after" ? 1 : 0), 0, draggedKey);
+  return next;
 }

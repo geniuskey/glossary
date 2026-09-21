@@ -19,7 +19,9 @@ export const workspaceMenuKeys = [
 ] as const;
 
 export type WorkspaceMenuKey = (typeof workspaceMenuKeys)[number];
-export type WorkspaceMenuSettings = Partial<Record<WorkspaceMenuKey, boolean>>;
+export type WorkspaceMenuSettings = Partial<Record<WorkspaceMenuKey, boolean>> & {
+  order?: WorkspaceMenuKey[];
+};
 
 /**
  * 설치 단위 전체에 적용되는 표시 설정. 홈 첫 화면 문구와 구성원 표시 정책을

@@ -5,10 +5,15 @@ import { workspaceSettings, type WorkspaceMenuSettings } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { DEFAULT_HOME_CONTENT } from "./home-content-values";
 import { DEFAULT_TERM_QUALITY } from "./term-quality-values";
-import { DEFAULT_WORKSPACE_MENU_SETTINGS, type ResolvedWorkspaceMenuSettings } from "./menu-settings-values";
+import { DEFAULT_WORKSPACE_MENU_SETTINGS, normalizeWorkspaceMenuOrder, type ResolvedWorkspaceMenuSettings } from "./menu-settings-values";
 
 function resolveMenuSettings(value: WorkspaceMenuSettings | null | undefined): ResolvedWorkspaceMenuSettings {
-  return { ...DEFAULT_WORKSPACE_MENU_SETTINGS, ...(value ?? {}) };
+  const { order, ...visibility } = value ?? {};
+  return {
+    ...DEFAULT_WORKSPACE_MENU_SETTINGS,
+    ...visibility,
+    order: normalizeWorkspaceMenuOrder(order),
+  };
 }
 
 export async function getWorkspaceMenuSettings(): Promise<ResolvedWorkspaceMenuSettings> {

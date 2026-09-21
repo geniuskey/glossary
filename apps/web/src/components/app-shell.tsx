@@ -55,7 +55,14 @@ export async function AppShell({
 }) {
   const menuSettings = await getWorkspaceMenuSettings();
   if (current && isWorkspaceMenuKey(current) && !menuSettings[current]) redirect("/");
-  const visibleNavItems = APP_NAV_ITEMS.filter((item) => (item.alwaysOn || (isWorkspaceMenuKey(item.key) && menuSettings[item.key])) && (!item.adminOnly || user?.role === "admin"));
+  const menuOrder = new Map(menuSettings.order.map((key, index) => [key, index]));
+  const visibleNavItems = APP_NAV_ITEMS
+    .filter((item) => (item.alwaysOn || (isWorkspaceMenuKey(item.key) && menuSettings[item.key])) && (!item.adminOnly || user?.role === "admin"))
+    .sort((left, right) => {
+      const leftIndex = isWorkspaceMenuKey(left.key) ? menuOrder.get(left.key) : undefined;
+      const rightIndex = isWorkspaceMenuKey(right.key) ? menuOrder.get(right.key) : undefined;
+      return (leftIndex ?? Number.MAX_SAFE_INTEGER) - (rightIndex ?? Number.MAX_SAFE_INTEGER);
+    });
 
   return (
     <div className="min-h-screen lg:flex">
