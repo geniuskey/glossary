@@ -32,6 +32,16 @@ ARG APP_VERSION
 ENV NEXT_PUBLIC_APP_VERSION=${APP_VERSION}
 COPY . .
 RUN pnpm turbo run build --filter=@glossary/web
+# The worker only needs the RAG/retention dependency graph. Bundle it here so
+# its runtime image does not carry the whole pnpm store, Next build output, or
+# tsx/typescript/devDependencies from the builder image.
+RUN pnpm exec esbuild apps/web/scripts/rag-worker.ts \
+      --bundle \
+      --platform=node \
+      --format=esm \
+      --target=node22 \
+      --minify \
+      --outfile=/app/worker-dist/rag-worker.mjs
 
 # ---- 운영 런타임 ----
 FROM base AS runner
@@ -58,10 +68,15 @@ CMD ["node", "apps/web/server.js"]
 # ---- durable RAG worker ----
 # The worker uses the same source and locked dependencies as the matching web
 # image, but has its own process lifecycle and never runs embedding work in a
-# request/response process.
-FROM builder AS worker
+# request/response process. It runs as a single bundled file so the worker
+# image contains neither the monorepo nor the build-time dependency tree.
+FROM node:22-alpine AS worker
 ENV NODE_ENV=production
-CMD ["pnpm", "--filter", "@glossary/web", "exec", "tsx", "scripts/rag-worker.ts"]
+WORKDIR /app
+RUN addgroup -g 1001 -S nodejs && adduser -S -u 1001 -G nodejs nextjs
+COPY --from=builder --chown=nextjs:nodejs /app/worker-dist/rag-worker.mjs ./rag-worker.mjs
+USER nextjs
+CMD ["node", "rag-worker.mjs"]
 
 # ---- 마이그레이션 / 시딩 ----
 # migrator는 웹 앱을 실행하지 않으므로 builder 전체를 상속하지 않는다.

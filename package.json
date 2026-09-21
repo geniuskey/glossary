@@ -30,6 +30,7 @@
     "@babel/preset-typescript": "^8",
     "@eslint/js": "^10",
     "eslint": "^10",
+    "esbuild": "^0.28.2",
     "turbo": "^2.10.13",
     "typescript": "^7.0.2",
     "vite": "^8",
