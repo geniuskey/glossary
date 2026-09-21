@@ -1,13 +1,13 @@
 # Glossary on Docker Hub
 
-> **Release — `0.3.0`**
+> **Release — `0.3.1`**
 >
-> Use the matching `0.3.0`, `0.3.0-migrator`, and `0.3.0-worker` tags, and keep a tested
+> Use the matching `0.3.1`, `0.3.1-migrator`, and `0.3.1-worker` tags, and keep a tested
 > database backup before upgrading.
 >
-> **릴리스 — `0.3.0`**
+> **릴리스 — `0.3.1`**
 >
-> 앱은 `0.3.0`, 마이그레이터는 `0.3.0-migrator`, RAG 워커는 `0.3.0-worker`로
+> 앱은 `0.3.1`, 마이그레이터는 `0.3.1-migrator`, RAG 워커는 `0.3.1-worker`로
 > 고정하고 업그레이드 전 백업을 보관하세요.
 
 ## Short description
@@ -69,9 +69,9 @@ The web application, migrator, and durable RAG worker are published separately i
 
 | Tag | Purpose |
 |---|---|
-| `0.3.0` | Version-pinned web application (recommended) |
-| `0.3.0-migrator` | Matching database migrations (recommended) |
-| `0.3.0-worker` | Matching durable RAG and cleanup worker (recommended) |
+| `0.3.1` | Version-pinned web application (recommended) |
+| `0.3.1-migrator` | Matching database migrations (recommended) |
+| `0.3.1-worker` | Matching durable RAG and cleanup worker (recommended) |
 | `latest` | Most recently published web application |
 | `latest-migrator` | Migrations matching `latest` |
 | `latest-worker` | Worker matching `latest` |
@@ -81,14 +81,14 @@ For production, pin all three images to the same version instead of using `lates
 사내 서버에서 명시적으로 받으려면 세 태그를 함께 pull합니다.
 
 ```bash
-docker pull euiyun/glossary:0.3.0
-docker pull euiyun/glossary:0.3.0-migrator
-docker pull euiyun/glossary:0.3.0-worker
+docker pull euiyun/glossary:0.3.1
+docker pull euiyun/glossary:0.3.1-migrator
+docker pull euiyun/glossary:0.3.1-worker
 ```
 
 ## Quick start with Docker Compose
 
-Requires Docker Engine with the Compose plugin. The published `0.3.0` images are
+Requires Docker Engine with the Compose plugin. The published `0.3.1` images are
 `linux/amd64`; native ARM64 support is not advertised for this tag. Node.js and pnpm
 are not needed on the host. Commands below use Bash (Git Bash or WSL on Windows).
 
@@ -96,14 +96,14 @@ Download the pull-based Compose file and its environment template:
 
 ```bash
 mkdir glossary && cd glossary
-curl -LO https://raw.githubusercontent.com/geniuskey/glossary/v0.3.0/docker-compose.hub.yml
-curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.0/.env.dockerhub.example -o .env
+curl -LO https://raw.githubusercontent.com/geniuskey/glossary/v0.3.1/docker-compose.hub.yml
+curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.1/.env.dockerhub.example -o .env
 ```
 
-Edit `.env` before starting: use the `0.3.0` / `0.3.0-migrator` / `0.3.0-worker` set, replace
+Edit `.env` before starting: use the `0.3.1` / `0.3.1-migrator` / `0.3.1-worker` set, replace
 `POSTGRES_PASSWORD` with a long URL-safe value, and replace `GLOSSARY_ENCRYPTION_KEY`
 with a separate fixed random secret of at least 32 characters if using AI or RAG.
-The examples download templates from `v0.3.0` so they match the documented release.
+The examples download templates from `v0.3.1` so they match the documented release.
 For example, generate a password with `openssl rand -hex 32` and an encryption key with
 `openssl rand -base64 48`, then copy the respective outputs into `.env`.
 
@@ -119,12 +119,15 @@ docker compose --env-file .env -f docker-compose.hub.yml pull
 docker compose --env-file .env -f docker-compose.hub.yml up -d
 ```
 
-Open `http://<server-address>:3000` (`http://localhost:3000` on the Docker host). With default password login, the first visitor is redirected to `/setup` to create the initial administrator account. Complete this immediately after deployment.
+Open `http://localhost:3000` on the Docker host. The supplied Compose file binds the app to
+loopback only; use a TLS reverse proxy for remote access. With default password login, the first
+visitor is redirected to `/setup` to create the initial administrator account. Complete this
+immediately after deployment.
 
 `database-init` prepares `pg_trgm` and `vector`; `migrator` must finish successfully before `app` starts.
 One-time services exiting with code 0 is expected.
 
-데이터는 `glossary_hub_pgdata` Docker 볼륨에 보존됩니다. 새 버전으로 올릴 때는 두 이미지 태그를 같은 버전으로 바꾼 뒤 `pull`과 `up -d`를 다시 실행합니다.
+데이터는 `glossary_hub_pgdata` Docker 볼륨에 보존됩니다. 새 버전으로 올릴 때는 세 이미지 태그를 같은 버전으로 바꾼 뒤 `pull`과 `up -d`를 다시 실행합니다.
 
 ```bash
 docker compose --env-file .env -f docker-compose.hub.yml pull
@@ -136,12 +139,23 @@ docker compose --env-file .env -f docker-compose.hub.yml ps
 
 | Variable | Description |
 |---|---|
-| `GLOSSARY_IMAGE` | Web image, for example `euiyun/glossary:0.3.0` |
-| `GLOSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/glossary:0.3.0-migrator` |
-| `GLOSSARY_WORKER_IMAGE` | Matching durable RAG and cleanup worker, for example `euiyun/glossary:0.3.0-worker` |
+| `GLOSSARY_IMAGE` | Web image, for example `euiyun/glossary:0.3.1` |
+| `GLOSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/glossary:0.3.1-migrator` |
+| `GLOSSARY_WORKER_IMAGE` | Matching durable RAG and cleanup worker, for example `euiyun/glossary:0.3.1-worker` |
 | `GLOSSARY_PORT` | Host port; defaults to `3000` |
 | `POSTGRES_PASSWORD` | Internal PostgreSQL password; use URL-safe characters |
 | `GLOSSARY_ENCRYPTION_KEY` | Fixed secret of at least 32 characters for AI/RAG API keys and custom headers; back up separately |
+| `GLOSSARY_ALLOWED_ORIGINS` | Comma-separated public HTTPS origins allowed to make browser state-changing requests |
+| `GLOSSARY_BASE_URL` | Optional public base URL used for direct OIDC/OAuth2 redirect URIs; defaults to the first allowed origin |
+| `GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS` | Optional comma-separated private-network AI/RAG hosts; link-local addresses remain blocked |
+| `GLOSSARY_CONFLUENCE_MEETINGS_URL` | Optional Confluence meeting hub linked from the meeting knowledge inbox |
+| `GLOSSARY_TRUST_PROXY_HEADERS` | Trust `X-Forwarded-*` only when a TLS proxy always overwrites those headers |
+| `GLOSSARY_AI_RUN_RETENTION_DAYS` | AI execution metadata retention in days; defaults to `180` |
+| `GLOSSARY_AUDIT_RETENTION_DAYS` | Audit log retention in days; defaults to `365` |
+| `GLOSSARY_ATTACHMENT_RETENTION_DAYS` | Unreferenced attachment retention in days; defaults to `30` |
+| `GLOSSARY_RAG_WORKER_BATCH` | Maximum RAG queue items processed per batch; defaults to `8` |
+| `GLOSSARY_RAG_WORKER_IDLE_MS` | Worker polling delay while idle; defaults to `2000` ms |
+| `GLOSSARY_RAG_WORKER_BUSY_MS` | Worker delay after processing a batch; defaults to `100` ms |
 | `INITIAL_ADMIN_EMAIL` | Initial administrator email for SSO bootstrap; required for a fresh proxy-only setup |
 | `SSO_LOGIN_URL` | Proxy login entry override; defaults to `/oauth2/start?rd=%2F` |
 | `GLOSSARY_EMBED_ANCESTORS` | Optional comma-separated Confluence origins allowed to frame `/embed` |
@@ -190,7 +204,7 @@ Windows에서는 Docker Desktop과 Git Bash 또는 WSL을 사용하세요.
 
    ```bash
    mkdir -p scripts backups
-   curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.0/scripts/backup.sh -o scripts/backup.sh
+   curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.1/scripts/backup.sh -o scripts/backup.sh
    COMPOSE_FILE=docker-compose.hub.yml BACKUP_DIR=./backups bash scripts/backup.sh
    ```
 
@@ -214,7 +228,7 @@ Prepare the restore script from the installation directory in Bash:
 
 ```bash
 mkdir -p scripts
-curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.0/scripts/restore.sh -o scripts/restore.sh
+curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.1/scripts/restore.sh -o scripts/restore.sh
 export COMPOSE_FILE=docker-compose.hub.yml
 # Replace the filename with the backup produced above.
 bash scripts/restore.sh --rehearse ./backups/glossary-YYYYMMDD-HHMMSS.dump
@@ -228,7 +242,7 @@ Upgrades run database migrations; changing only the image tag back is not a data
 ## Operational notes
 
 - Put a TLS reverse proxy in front of Glossary before using it beyond a protected internal network.
-- The supplied Compose file exposes plain HTTP on all host interfaces. For TLS termination, overwrite `X-Forwarded-Proto` with the actual external protocol; HTTPS requests get `Secure` session cookies automatically. Restrict direct access to the app port when using trusted proxy headers.
+- The supplied Compose file exposes plain HTTP on `127.0.0.1` only. For TLS termination, overwrite `X-Forwarded-Proto` with the actual external protocol; HTTPS requests get `Secure` session cookies automatically. Keep direct access to the app port restricted when using trusted proxy headers.
 - Back up with `pg_dump` or the supplied backup script and rehearse restoration before production use.
 - Keep the application, migrator, and worker tags on exactly the same version.
 - The `/setup` endpoint is open only while there are no users; the first person to complete it becomes the administrator.

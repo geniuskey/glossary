@@ -9,3 +9,5 @@ backups/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
 .playwright-mcp/
+coverage/
+test-results/

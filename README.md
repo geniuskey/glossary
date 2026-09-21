@@ -210,7 +210,7 @@ Docker Hub에는 웹 앱, 마이그레이터, RAG 워커를 같은 저장소의 
 
 ```bash
 IMAGE=euiyun/glossary
-VERSION=0.3.0
+VERSION=0.3.1
 
 docker build --build-arg APP_VERSION="$VERSION" --target app -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
 docker build --build-arg APP_VERSION="$VERSION" --target migrator -t "$IMAGE:$VERSION-migrator" -t "$IMAGE:latest-migrator" .
@@ -228,9 +228,9 @@ docker push "$IMAGE:latest-worker"
 `latest`보다 앱·마이그레이터·RAG 워커를 모두 같은 버전으로 고정하는 편이 안전하다.
 
 ```bash
-docker pull euiyun/glossary:0.3.0
-docker pull euiyun/glossary:0.3.0-migrator
-docker pull euiyun/glossary:0.3.0-worker
+docker pull euiyun/glossary:0.3.1
+docker pull euiyun/glossary:0.3.1-migrator
+docker pull euiyun/glossary:0.3.1-worker
 ```
 
 ```bash
@@ -248,6 +248,7 @@ docker compose --env-file .env -f docker-compose.hub.yml up -d
 
 ```bash
 cp .env.example .env   # POSTGRES_PASSWORD를 실제 값으로
+# GLOSSARY_ALLOWED_ORIGINS도 실제 공개 HTTPS origin으로 바꾼다.
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
