@@ -79,37 +79,71 @@ async function responseError(response: Response, action: string): Promise<AiProv
   return new AiProviderError(detail ? `${summary} ${detail}` : summary, response.status);
 }
 
-function unsafeAddress(address: string): boolean {
-  const normalized = address.toLowerCase().replace(/^\[|\]$/g, "");
+/**
+ * 사내 AI 서버는 대부분 사설망(10/8, 172.16/12, 192.168/16)에 있다. SSRF 차단이
+ * 이 대역까지 넓어지면서(2026-09-17) 기존 사내 연결이 전부 막혔다 — 운영자가
+ * 호스트를 명시한 경우에만 사설 대역을 다시 연다. `*`는 전부 허용(폐쇄망 배포용).
+ */
+function allowedPrivateHosts(): Set<string> {
+  return new Set((process.env.GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS ?? "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase().replace(/^\[|\]$/g, ""))
+    .filter(Boolean));
+}
+
+// 메타데이터·link-local은 allowlist로도 열지 않는다. 사내 호스트 이름 하나가 DNS
+// rebinding으로 169.254.169.254를 가리키면 클라우드 자격 증명이 그대로 새 나간다.
+function alwaysUnsafe(normalized: string): boolean {
   if (normalized === "::" || normalized === "0.0.0.0" || normalized === "100.100.100.200") return true;
   if (isIP(normalized) === 4) {
     const parts = normalized.split(".").map(Number);
-    const first = parts[0] ?? -1;
-    const second = parts[1] ?? -1;
-    // Loopback is deliberately allowed for self-hosted/local model servers.
-    return first === 0 || first === 10 || (first === 172 && second >= 16 && second <= 31)
-      || (first === 192 && second === 168) || (first === 169 && second === 254);
+    return parts[0] === 0 || (parts[0] === 169 && parts[1] === 254);
   }
   if (isIP(normalized) === 6) {
-    return normalized.startsWith("fc") || normalized.startsWith("fd")
-      || normalized.startsWith("fe8") || normalized.startsWith("fe9") || normalized.startsWith("fea") || normalized.startsWith("feb")
-      || normalized.startsWith("::ffff:10.") || normalized.startsWith("::ffff:172.") || normalized.startsWith("::ffff:192.168.")
+    return normalized.startsWith("fe8") || normalized.startsWith("fe9") || normalized.startsWith("fea") || normalized.startsWith("feb")
       || normalized.startsWith("::ffff:169.254.");
   }
   return false;
 }
 
+function privateAddress(normalized: string): boolean {
+  if (isIP(normalized) === 4) {
+    const parts = normalized.split(".").map(Number);
+    const first = parts[0] ?? -1;
+    const second = parts[1] ?? -1;
+    // Loopback은 로컬 모델 서버를 위해 의도적으로 허용한다.
+    return first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168);
+  }
+  if (isIP(normalized) === 6) {
+    return normalized.startsWith("fc") || normalized.startsWith("fd")
+      || normalized.startsWith("::ffff:10.") || normalized.startsWith("::ffff:172.") || normalized.startsWith("::ffff:192.168.");
+  }
+  return false;
+}
+
+function unsafeAddress(address: string, allowPrivate: boolean): boolean {
+  const normalized = address.toLowerCase().replace(/^\[|\]$/g, "");
+  if (alwaysUnsafe(normalized)) return true;
+  return allowPrivate ? false : privateAddress(normalized);
+}
+
 export async function assertSafeAiEndpoint(raw: string): Promise<URL> {
   const url = new URL(raw);
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new AiProviderError("API 주소는 http 또는 https만 사용할 수 있습니다.");
-  const hostname = url.hostname.toLowerCase();
+  // URL.hostname은 IPv6 리터럴을 대괄호까지 담아 돌려준다. 벗기지 않으면 isIP가 0을
+  // 내고 DNS lookup으로 내려가 http://[::1]/ 같은 주소가 조회 실패로 잘못 막힌다.
+  const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (new Set(["metadata.google.internal", "metadata.google", "instance-data.ec2.internal"]).has(hostname)) {
     throw new AiProviderError("클라우드 메타데이터 주소에는 연결할 수 없습니다.");
   }
+  const allowed = allowedPrivateHosts();
+  const allowPrivate = allowed.has("*") || allowed.has(hostname);
   try {
     const addresses = isIP(hostname) ? [{ address: hostname }] : await lookup(hostname, { all: true });
-    if (addresses.some((entry) => unsafeAddress(entry.address))) {
-      throw new AiProviderError("링크 로컬 또는 메타데이터 주소에는 연결할 수 없습니다.");
+    if (addresses.some((entry) => unsafeAddress(entry.address, allowPrivate))) {
+      throw new AiProviderError(allowPrivate
+        ? "링크 로컬 또는 메타데이터 주소에는 연결할 수 없습니다."
+        : "링크 로컬 또는 사설망 주소에는 연결할 수 없습니다. 사내 AI 서버라면 GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS에 호스트를 추가하세요.");
     }
   } catch (error) {
     if (error instanceof AiProviderError) throw error;

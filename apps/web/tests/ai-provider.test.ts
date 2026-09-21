@@ -1,7 +1,10 @@
 import { afterEach, expect, test, vi } from "vitest";
 import { completeAi, listAiModels } from "../src/lib/ai/provider.js";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 test("OpenAI-compatible API는 chat/completions와 custom header를 사용한다", async () => {
   const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => Response.json({ choices: [{ message: { content: "용어집 답변" } }] }));
@@ -116,6 +119,31 @@ test("AI 연결은 사설 네트워크와 link-local 주소를 차단하고 loop
   await expect(completeAi({
     provider: "openai_compatible",
     baseUrl: "http://192.168.1.20/v1",
+    model: "x",
+    apiKey: "",
+    customHeaders: [],
+  }, [{ role: "user", content: "질문" }])).rejects.toThrow(/링크 로컬|메타데이터/);
+});
+
+test("GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS에 적은 사내 서버는 사설망이어도 연결한다", async () => {
+  vi.stubEnv("GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS", "10.0.0.8, ai.corp.example.com");
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ choices: [{ message: { content: "사내 답변" } }] })));
+
+  await expect(completeAi({
+    provider: "openai_compatible",
+    baseUrl: "http://10.0.0.8/v1",
+    model: "x",
+    apiKey: "",
+    customHeaders: [],
+  }, [{ role: "user", content: "질문" }])).resolves.toBe("사내 답변");
+});
+
+test("allowlist에 적어도 메타데이터·link-local 주소는 여전히 막는다", async () => {
+  vi.stubEnv("GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS", "*");
+
+  await expect(completeAi({
+    provider: "openai_compatible",
+    baseUrl: "http://169.254.169.254/v1",
     model: "x",
     apiKey: "",
     customHeaders: [],
