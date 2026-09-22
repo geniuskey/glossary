@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Keep the title/search quiet while the flow remains visible in the margins. */
+.home-flow-canvas {
+  mask-image: linear-gradient(to bottom, transparent, black 15%, black 80%, transparent),
+    radial-gradient(ellipse 34% 21% at 50% 43%, transparent 15%, black 100%);
+  mask-composite: intersect;
+}
+
 /* ---------------------------------------------------------------------------
    디자인 토큰.
    색은 전부 여기서만 정의하고, 화면 코드는 tailwind.config.ts가 매핑한

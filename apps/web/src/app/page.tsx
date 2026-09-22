@@ -8,6 +8,7 @@ import { InfoFooter } from "@/components/info-links";
 import { BrandMark, getAppNavigation, type NavKey } from "@/components/app-shell";
 import { SearchBox } from "@/components/search-box";
 import { ScrollReveal } from "@/components/scroll-reveal";
+import { HomeFlowField } from "@/components/home-flow-field";
 import { DomainBadges, StatusBadge } from "@/components/term-badges";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth/current-user";
 import { needsSetup } from "@/lib/auth/setup";
@@ -83,6 +84,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
         본문으로 건너뛰기
       </a>
       <HomeBackdrop />
+      {!q && <HomeFlowField />}
       <HomeHeader user={user} />
       {q ? (
         <main id="main-content" tabIndex={-1} className="relative z-10 mx-auto w-full max-w-3xl px-5 pb-20 pt-10 sm:px-8 sm:pt-16">
