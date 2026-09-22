@@ -49,6 +49,12 @@ export function ChatGroundedAnswer({ answer, messageId }: { answer: GroundedChat
         <p className="text-xs font-semibold text-ink">[{index + 1}] {item.title} · {EVIDENCE_FIELD_LABELS[item.field]}</p>
         <p className="mt-1 text-[11px] text-ink-3">{item.source === "meeting" ? `회의록 리비전 ${item.revision}` : item.source === "wiki" ? `위키 리비전 ${item.revision}` : `용어집 리비전 ${item.revision}`} · {new Date(item.updatedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })} (한국 시간){item.meetingDate ? ` · 회의 ${new Date(item.meetingDate).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })}` : ""}</p>
         <blockquote className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words border-l-2 border-brand/30 pl-2 text-xs leading-5 text-ink-2">{item.excerpt}</blockquote>
+        {item.images && item.images.length > 0 && <div className="mt-3 space-y-2" aria-label="근거에 포함된 이미지">
+          <p className="text-[11px] font-semibold text-ink-2">관련 이미지</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {item.images.map((image) => <MarkdownContent key={image.url} className="text-xs">{`![${image.alt.replaceAll("\\", "\\\\").replaceAll("]", "\\]")}](${image.url})`}</MarkdownContent>)}
+          </div>
+        </div>}
         {item.source === "meeting" ? (
           <div className="mt-2 flex flex-wrap gap-3 text-xs"><Link href="/meetings" className="text-brand underline">회의 지식 인박스에서 보기</Link></div>
         ) : item.source === "wiki" ? (

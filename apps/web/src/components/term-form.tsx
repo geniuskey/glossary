@@ -1020,7 +1020,7 @@ export function TermForm({
             compact={compact}
             resizable={compact}
             fillAvailable={compact}
-            livePreview={compact}
+            defaultView="glossary"
             embedded
             onUploadingChange={setImageUploading}
           />

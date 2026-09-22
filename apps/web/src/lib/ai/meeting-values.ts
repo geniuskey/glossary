@@ -22,6 +22,7 @@ export interface MeetingCitation {
   revision?: number;
   updatedAt?: string;
   field?: ChatEvidence["field"];
+  images?: ChatEvidence["images"];
   relatedTerm?: ChatEvidence["relatedTerm"];
 }
 

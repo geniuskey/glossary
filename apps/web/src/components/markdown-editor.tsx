@@ -36,10 +36,12 @@ interface MarkdownEditorProps {
   compact?: boolean;
   resizable?: boolean;
   fillAvailable?: boolean;
-  livePreview?: boolean;
+  defaultView?: MarkdownView;
   embedded?: boolean;
   onUploadingChange?: (uploading: boolean) => void;
 }
+
+export type MarkdownView = "glossary" | "text" | "preview";
 
 function imageFiles(items: Iterable<File>): File[] {
   return [...items].filter((file) => ["image/png", "image/jpeg", "image/webp"].includes(file.type));
@@ -109,7 +111,7 @@ export function MarkdownEditor({
   compact = false,
   resizable = false,
   fillAvailable = false,
-  livePreview = false,
+  defaultView = "glossary",
   embedded = false,
   onUploadingChange,
 }: MarkdownEditorProps) {
@@ -120,10 +122,11 @@ export function MarkdownEditor({
   const readOnlyCompartmentRef = useRef(new Compartment());
   const attributesCompartmentRef = useRef(new Compartment());
   const maxLengthCompartmentRef = useRef(new Compartment());
+  const livePreviewCompartmentRef = useRef(new Compartment());
   const uploadSequenceRef = useRef(0);
   const [uploadCount, setUploadCount] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const [mode, setMode] = useState<MarkdownView>(defaultView);
   const [fullscreen, setFullscreen] = useState(false);
   const fullscreenRootRef = useRef<HTMLDivElement>(null);
   const fullscreenButtonRef = useRef<HTMLButtonElement>(null);
@@ -185,10 +188,10 @@ export function MarkdownEditor({
   }
 
   function run(command: MarkdownCommand) {
+    if (disabled) return;
+    setMode("text");
     const view = viewRef.current;
-    if (!view || disabled) return;
-    setMode("edit");
-    applyCommand(view, command);
+    if (view) applyCommand(view, command);
   }
 
   function replaceUploadMarker(marker: string, replacement: string) {
@@ -254,7 +257,7 @@ export function MarkdownEditor({
           attributesCompartmentRef.current.of(editorContentAttributes(label, name, describedBy, invalid)),
           readOnlyCompartmentRef.current.of(EditorState.readOnly.of(disabled)),
           maxLengthCompartmentRef.current.of(maxLengthExtension(maxLength)),
-          livePreview ? livePreviewExtension : [],
+          livePreviewCompartmentRef.current.of(mode === "glossary" ? livePreviewExtension : []),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChangeRef.current(update.state.doc.toString());
           }),
@@ -280,7 +283,7 @@ export function MarkdownEditor({
               return true;
             },
           }),
-          livePreview ? EditorView.theme({
+          EditorView.theme({
             ".cm-live-heading-1": { fontSize: "1.5rem", fontWeight: "700", lineHeight: "1.45" },
             ".cm-live-heading-2": { fontSize: "1.3rem", fontWeight: "700", lineHeight: "1.5" },
             ".cm-live-heading-3": { fontSize: "1.15rem", fontWeight: "700", lineHeight: "1.55" },
@@ -341,7 +344,7 @@ export function MarkdownEditor({
             ".cm-live-table-add-row": { backgroundColor: "transparent", border: "0", borderRadius: "0.375rem", borderTop: "1px solid rgb(var(--line))", color: "rgb(var(--brand))", display: "block", fontSize: "1rem", height: "1.25rem", lineHeight: "1", margin: "0", minHeight: "1.25rem", padding: "0", transition: "background-color 120ms ease", width: "100%" },
             ".cm-live-table-add-row:hover, .cm-live-table-add-row:focus-visible": { backgroundColor: "rgb(var(--brand) / 0.08)" },
             ".cm-live-table-fallback": { margin: "0", whiteSpace: "pre-wrap" },
-          }) : [],
+          }),
           EditorView.theme({
             "&": { height: resizable ? "100%" : "auto", minHeight: compact ? "10rem" : "16rem", backgroundColor: "transparent", color: "rgb(var(--ink))" },
             ".cm-scroller": { overflow: "auto" },
@@ -367,7 +370,14 @@ export function MarkdownEditor({
       view.destroy();
       viewRef.current = null;
     };
-  }, [compact, livePreview, resizable]);
+  }, [compact, resizable]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({ effects: livePreviewCompartmentRef.current.reconfigure(mode === "glossary" ? livePreviewExtension : []) });
+    view.requestMeasure();
+  }, [mode]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -476,16 +486,17 @@ export function MarkdownEditor({
               label="이미지 첨부"
               title="이미지 첨부 · 붙여넣기와 드롭도 가능"
               disabled={disabled || uploadCount > 0}
-              onClick={() => { setMode("edit"); fileRef.current?.click(); }}
+              onClick={() => { setMode("text"); fileRef.current?.click(); }}
             >
               {uploadCount > 0 ? `변환 중 ${uploadCount}` : "이미지"}
             </ToolbarButton>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-1 border-l border-line pl-1">
-          {!livePreview && <div className="flex" aria-label="본문 보기 방식">
-            <button type="button" aria-pressed={mode === "edit"} className={`btn-sm ${mode === "edit" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("edit")}>편집</button>
+          <div className="flex" aria-label="본문 보기 방식">
+            <button type="button" aria-pressed={mode === "glossary"} className={`btn-sm ${mode === "glossary" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("glossary")}>용어집 방식</button>
+            <button type="button" aria-pressed={mode === "text"} className={`btn-sm ${mode === "text" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("text")}>텍스트 편집</button>
             <button type="button" aria-pressed={mode === "preview"} className={`btn-sm ${mode === "preview" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("preview")}>미리보기</button>
-          </div>}
+          </div>
           <button
             ref={fullscreenButtonRef}
             type="button"
@@ -500,18 +511,12 @@ export function MarkdownEditor({
       </div>
       <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={chooseFiles} />
       {uploadError && <div className="border-b border-danger/35 bg-danger-soft px-3 py-2 text-xs text-danger" aria-live="polite">{uploadError}</div>}
-      {livePreview ? (
-        <div className="min-h-0 flex-1 overflow-auto" aria-label="실시간 Markdown 편집기">
-          <div className="h-full" ref={hostRef} />
+      <div className={`grid ${fullscreen || resizable ? "min-h-0 flex-1" : ""}`}>
+        <div className={`${mode === "preview" ? "hidden" : "block"} h-full min-h-0 overflow-auto`} aria-label={mode === "glossary" ? "용어집 방식 Markdown 편집기" : "텍스트 Markdown 편집기"} ref={hostRef} />
+        <div className={`${mode === "preview" ? "block" : "hidden"} ${resizable ? "min-h-0" : compact ? "min-h-40" : "min-h-[16rem]"} h-full overflow-auto ${compact ? "p-3" : "p-4"} ${fullscreen ? "min-h-0" : ""}`}>
+          {value.trim() ? <MarkdownContent>{value}</MarkdownContent> : <p className="text-sm text-ink-3">미리보기가 여기에 표시됩니다.</p>}
         </div>
-      ) : (
-        <div className={`grid ${fullscreen || resizable ? "min-h-0 flex-1" : ""}`}>
-          <div className={`${mode === "preview" ? "hidden" : "block"} h-full min-h-0 overflow-auto`} ref={hostRef} />
-          <div className={`${mode === "edit" ? "hidden" : "block"} ${resizable ? "min-h-0" : compact ? "min-h-40" : "min-h-[16rem]"} h-full overflow-auto ${compact ? "p-3" : "p-4"} ${fullscreen ? "min-h-0" : ""}`}>
-            {value.trim() ? <MarkdownContent>{value}</MarkdownContent> : <p className="text-sm text-ink-3">미리보기가 여기에 표시됩니다.</p>}
-          </div>
-        </div>
-      )}
+      </div>
       {maxLength !== undefined && (
         <div
           className={cx("shrink-0 border-t border-line px-3 py-1.5 text-right text-[11px] tabular-nums", value.length >= maxLength ? "text-danger" : "text-ink-3")}

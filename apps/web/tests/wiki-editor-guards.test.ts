@@ -11,6 +11,7 @@ test("위키 본문도 공용 Markdown 편집기를 사용한다", () => {
   expect(source).toContain('name="content"');
   expect(source).toContain("maxLength={200_000}");
   expect(source).toContain("onUploadingChange={setImageUploading}");
+  expect(source).toContain('defaultView="glossary"');
   expect(source).not.toContain('min-h-[28rem] resize-y font-mono');
 });
 

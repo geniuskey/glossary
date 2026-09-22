@@ -28,7 +28,8 @@ test("전체 화면은 Esc로 닫히고 배경 스크롤을 복원한다", () =>
 
 test("본문 편집과 미리보기는 한 번에 하나만 보여 빈 패널을 만들지 않는다", () => {
   expect(source).toContain('mode === "preview" ? "hidden" : "block"');
-  expect(source).toContain('mode === "edit" ? "hidden" : "block"');
+  expect(source).toContain('mode === "glossary" ? "용어집 방식 Markdown 편집기" : "텍스트 Markdown 편집기"');
+  expect(source).toContain('mode === "preview" ? "block" : "hidden"');
   expect(source).toContain('minHeight: compact ? "10rem" : "16rem"');
   expect(source).not.toContain('minHeight: "26rem"');
 });
@@ -39,11 +40,12 @@ test("Markdown 입력 영역에는 접근 가능한 이름이 있다", () => {
   expect(source).toContain('"aria-describedby": describedBy');
 });
 
-test("에디터 설정 변경은 인스턴스를 재생성하지 않고 compartment로 갱신한다", () => {
+test("에디터 설정은 compartment로 갱신하고 보기 전환은 라이브 프리뷰를 동기화한다", () => {
   expect(editorSource).toContain("new Compartment()");
   expect(editorSource).toContain("readOnlyCompartmentRef.current.reconfigure");
   expect(editorSource).toContain("attributesCompartmentRef.current.reconfigure");
-  expect(editorSource).toContain("}, [compact, livePreview, resizable]);");
+  expect(editorSource).toContain("livePreviewCompartmentRef.current.reconfigure");
+  expect(editorSource).toContain("}, [compact, resizable]);");
 });
 
 test("Markdown 최대 길이는 입력 단계에서 제한하고 도달 상태를 알린다", () => {
@@ -92,9 +94,11 @@ test("자주 쓰는 인라인 서식과 제목에는 키보드 단축키가 있�
   expect(source).toContain('event.altKey && /^[1-6]$/.test(key)');
 });
 
-test("상세 설명은 한 화면 인라인 라이브 프리뷰를 사용한다", () => {
-  expect(editorSource).toContain("livePreview ? livePreviewExtension : []");
-  expect(editorSource).toContain('aria-label="실시간 Markdown 편집기"');
+test("용어집 방식은 한 화면 인라인 라이브 프리뷰를 사용한다", () => {
+  expect(editorSource).toContain('mode === "glossary" ? livePreviewExtension : []');
+  expect(editorSource).toContain('용어집 방식');
+  expect(editorSource).toContain('텍스트 편집');
+  expect(editorSource).toContain('미리보기');
   expect(editorSource).not.toContain("grid-rows-[minmax(12rem,1fr)_minmax(12rem,1fr)]");
   expect(editorSource).not.toContain("커서가 있는 줄에서 Markdown 원문을 편집합니다");
   expect(livePreviewSource).toContain("function activeLineNumbers");
@@ -117,6 +121,9 @@ test("Markdown 도구 막대의 오른쪽에 보기 전환과 전체 화면을 �
   expect(editorSource).toContain('className="ml-auto flex shrink-0 items-center gap-1 border-l border-line pl-1"');
   expect(editorSource).toContain('ref={fullscreenButtonRef}');
   expect(editorSource).toContain('aria-label="본문 보기 방식"');
+  expect(editorSource).toContain('aria-pressed={mode === "glossary"}');
+  expect(editorSource).toContain('aria-pressed={mode === "text"}');
+  expect(editorSource).toContain('aria-pressed={mode === "preview"}');
   expect(editorSource).not.toContain('className="flex flex-wrap items-center gap-2 border-b border-line/70 px-2 py-1.5"');
 });
 

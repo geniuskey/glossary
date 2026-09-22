@@ -242,6 +242,7 @@ function finalizeAnalysis(result: ModelMeetingAnalysis, meetingEvidence: Meeting
         wikiSlug: wiki.wikiSlug ?? wiki.slug,
         revision: wiki.revision,
         updatedAt: wiki.updatedAt,
+        images: wiki.images,
       });
       continue;
     }

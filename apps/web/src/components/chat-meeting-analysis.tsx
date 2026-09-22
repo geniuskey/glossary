@@ -57,6 +57,12 @@ function EvidenceBlock({ analysis, labels, messageId }: { analysis: MeetingAnaly
           {item.source === "wiki" && item.revision !== undefined && <p className="mt-0.5 text-[11px] text-ink-3">리비전 {item.revision} · 공개 위키 근거</p>}
           {item.source === "meeting" && item.meetingDate && <p className="mt-0.5 text-[11px] text-ink-3">회의일 {new Date(item.meetingDate).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })} · 기존 회의 자료 근거</p>}
           <p className="mt-1 whitespace-pre-wrap break-words leading-5 text-ink-2">{item.excerpt}</p>
+          {item.images && item.images.length > 0 && <div className="mt-3 space-y-2" aria-label="근거에 포함된 이미지">
+            <p className="text-[11px] font-semibold text-ink-2">관련 이미지</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {item.images.map((image) => <MarkdownContent key={image.url} className="text-xs">{`![${image.alt.replaceAll("\\", "\\\\").replaceAll("]", "\\]")}](${image.url})`}</MarkdownContent>)}
+            </div>
+          </div>}
           {item.source === "glossary" && item.slug && <div className="mt-2 flex flex-wrap gap-3">
             <Link href={`/g/${item.termId ?? item.slug}`} className="text-brand underline">현재 용어</Link>
             {item.revision !== undefined && <Link href={`/history/${item.termId ?? item.slug}#revision-${item.revision}`} className="text-brand underline">기준 이력</Link>}

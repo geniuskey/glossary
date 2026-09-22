@@ -6,6 +6,7 @@ import { encryptAiSecret } from "../src/lib/ai/crypto.js";
 import { createWikiPage } from "../src/lib/wiki/store.js";
 import { processWikiRagIndexQueue } from "../src/lib/rag/wiki-indexer.js";
 import { searchWikiRag } from "../src/lib/rag/wiki-search.js";
+import { retrieveGlossaryContext } from "../src/lib/ai/retrieval.js";
 
 const db = createDb(process.env.DATABASE_URL_TEST!);
 const baseUrl = "http://127.0.0.1:9997/v1";
@@ -87,7 +88,7 @@ test("공개 위키 저장이 durable 색인·pgvector 검색과 연결된다", 
     slug: `wiki-rag-${randomUUID().slice(0, 8)}`,
     title: "출시 기준 위키",
     summary: "출시 전 확인해야 할 기준",
-    content: "결정: 베타 출시를 진행한다.\n액션 아이템: 민수가 금요일까지 출시 기준을 확인한다.",
+    content: `결정: 베타 출시를 진행한다.\n액션 아이템: 민수가 금요일까지 출시 기준을 확인한다.\n![출시 기준표](/api/v1/attachments/${"c".repeat(64)})`,
     domain: ["상품팀"],
     termIds: [],
     status: "published",
@@ -105,4 +106,15 @@ test("공개 위키 저장이 durable 색인·pgvector 검색과 연결된다", 
 
   const hits = await searchWikiRag("출시 기준과 액션 아이템", { topK: 5 });
   expect(hits.some((hit) => hit.wikiPageId === created.id && hit.startOffset >= 0 && hit.slug === created.slug)).toBe(true);
+
+  const grounding = await retrieveGlossaryContext("출시 기준", 8, { includeMeetingDocuments: false });
+  const wikiEvidence = grounding.evidence?.filter((item) => item.source === "wiki") ?? [];
+  expect(wikiEvidence.some((item) => item.wikiPageId === created.id)).toBe(true);
+  expect(wikiEvidence.flatMap((item) => item.images ?? [])).toContainEqual({
+    url: `/api/v1/attachments/${"c".repeat(64)}`,
+    alt: "출시 기준표",
+  });
+
+  const glossaryOnly = await retrieveGlossaryContext("출시 기준", 8, { includeMeetingDocuments: false, includeWikiDocuments: false });
+  expect(glossaryOnly.evidence?.some((item) => item.source === "wiki")).toBe(false);
 });

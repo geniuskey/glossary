@@ -7,6 +7,7 @@ export interface ChatEvidence {
   updatedAt: string;
   field: "metadata" | "definition" | "body" | "relationship" | "meeting" | "wiki";
   excerpt: string;
+  images?: Array<{ url: string; alt: string }>;
   start?: number;
   source?: "glossary" | "meeting" | "wiki";
   meetingDocumentId?: string;

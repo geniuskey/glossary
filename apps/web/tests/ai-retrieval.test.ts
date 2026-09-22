@@ -18,7 +18,7 @@ beforeAll(async () => {
   const active = await createTerm({
     nameEn: activeName,
     fullNameEn: "Zero Query Retrieval Probe",
-    definitionMd: "용어 챗봇 검색 회귀 테스트를 위한 공개 용어",
+    definitionMd: `용어 챗봇 검색 회귀 테스트를 위한 공개 용어\n![용어 도표](/api/v1/attachments/${"d".repeat(64)})`,
     domain: ["QA"],
     status: "active",
     surfaces: [],
@@ -61,6 +61,10 @@ test("질문 문장 안의 짧은 약어를 찾아 AI 근거와 출처를 만든
   ]));
   expect(result.context).toContain("Zero Query Retrieval Probe");
   expect(result.context).toContain("용어 챗봇 검색 회귀 테스트");
+  expect(result.evidence?.flatMap((item) => item.images ?? [])).toContainEqual({
+    url: `/api/v1/attachments/${"d".repeat(64)}`,
+    alt: "용어 도표",
+  });
 });
 
 test("보완 필요 용어도 검색 근거와 출처로 활용한다", async () => {

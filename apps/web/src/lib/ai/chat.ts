@@ -54,7 +54,7 @@ export async function answerGlossaryQuestion(
   }
 
   if (intent === "edit") {
-    const grounding = await retrieveGlossaryContext(classified.data.query, 12, { domain, passageQuery: question, vectorSearch: true, includeMeetingDocuments: false, telemetry });
+    const grounding = await retrieveGlossaryContext(classified.data.query, 12, { domain, passageQuery: question, vectorSearch: true, includeMeetingDocuments: false, includeWikiDocuments: true, telemetry });
     const result = await proposeChatEdit(config, question, history, grounding, previousEdit, telemetry);
     return { ...result, sources: grounding.sources };
   }
@@ -84,9 +84,9 @@ export async function answerGlossaryQuestion(
 
   const retrievalQuestion = classified.data.query;
   const queries = [retrievalQuestion];
-  let grounding = await retrieveGlossaryContext(retrievalQuestion, 12, { domain, passageQuery: question, vectorSearch: true, telemetry });
+  let grounding = await retrieveGlossaryContext(retrievalQuestion, 12, { domain, passageQuery: question, vectorSearch: true, includeWikiDocuments: true, telemetry });
   if (!grounding.sources.length && retrievalQuestion !== question) {
-    grounding = await retrieveGlossaryContext(question, 12, { domain, passageQuery: question, vectorSearch: true, telemetry });
+    grounding = await retrieveGlossaryContext(question, 12, { domain, passageQuery: question, vectorSearch: true, includeWikiDocuments: true, telemetry });
     queries.push(question);
   }
   if (grounding.sources.length === 0 && !(grounding.evidence?.length)) {

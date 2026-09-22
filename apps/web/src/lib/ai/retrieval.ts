@@ -11,6 +11,7 @@ import { searchMeetingRag, type MeetingSearchHit } from "@/lib/rag/meeting-searc
 import { searchWikiRag, type WikiSearchHit } from "@/lib/rag/wiki-search";
 import type { AiRunContext } from "./observability-values";
 import type { ChatEvidence } from "./grounding-values";
+import { extractMarkdownImages } from "@/lib/markdown/images";
 
 export interface ChatSource {
   termId?: string;
@@ -33,6 +34,7 @@ export interface RetrievalOptions {
   passageQuery?: string;
   vectorSearch?: boolean;
   includeMeetingDocuments?: boolean;
+  includeWikiDocuments?: boolean;
   telemetry?: AiRunContext;
 }
 
@@ -70,7 +72,8 @@ async function optionalVectorHits(question: string, options: RetrievalOptions): 
     if (!config.enabled || !config.chatEnabled) return { glossaryHits: [], meetingHits: [], wikiHits: [] };
     const hasActiveMeetings = options.includeMeetingDocuments !== false
       && (await getDb().select({ id: meetingDocuments.id }).from(meetingDocuments).where(eq(meetingDocuments.status, "active")).limit(1)).length > 0;
-    const hasPublishedWiki = (await getDb().select({ id: wikiPages.id }).from(wikiPages).where(eq(wikiPages.status, "published")).limit(1)).length > 0;
+    const hasPublishedWiki = options.includeWikiDocuments !== false
+      && (await getDb().select({ id: wikiPages.id }).from(wikiPages).where(eq(wikiPages.status, "published")).limit(1)).length > 0;
     const topK = Math.min(24, Math.max(8, limitForVectorSearch(options)));
     const [glossaryResult, meetingResult, wikiResult] = await Promise.all([
       searchRag(question, {
@@ -108,6 +111,18 @@ function limitForVectorSearch(options: RetrievalOptions): number {
   return options.vectorSearch ? 16 : 8;
 }
 
+function mergeWikiHits(hits: readonly WikiSearchHit[], limit: number): WikiSearchHit[] {
+  const bestByPage = new Map<string, WikiSearchHit>();
+  for (const hit of hits) {
+    const key = `${hit.wikiPageId}:${hit.revision}`;
+    const current = bestByPage.get(key);
+    if (!current || hit.score > current.score) bestByPage.set(key, hit);
+  }
+  return [...bestByPage.values()]
+    .sort((left, right) => right.score - left.score || right.updatedAt.localeCompare(left.updatedAt))
+    .slice(0, Math.max(1, Math.min(24, limit)));
+}
+
 async function retrieveSnapshot(
   db: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0],
   question: string,
@@ -120,11 +135,13 @@ async function retrieveSnapshot(
   const key = surfaceKeys(question).normLoose;
   const keywords = retrievalKeywords(question);
   const passageKeywords = retrievalKeywords(options.passageQuery ?? question);
+  const wikiKeywords = [...new Set([...keywords, ...passageKeywords])];
   const domainFilter = and(sql`${terms.replacedById} is null`, options.domain ? arrayContains(terms.domain, [options.domain]) : undefined);
-  if (!key && keywords.length === 0 && vectorHits.length === 0 && meetingHits.length === 0 && wikiHits.length === 0) return { context: "{\"terms\":[],\"relationships\":[],\"meetings\":[],\"wiki\":[]}", sources: [] };
+  if (!key && keywords.length === 0 && wikiKeywords.length === 0 && vectorHits.length === 0 && meetingHits.length === 0 && wikiHits.length === 0) return { context: "{\"terms\":[],\"relationships\":[],\"meetings\":[],\"wiki\":[]}", sources: [] };
 
   const content = sql<string>`concat_ws(' ', ${terms.nameEn}, ${terms.nameKo}, ${terms.fullNameEn}, ${terms.fullNameKo}, ${terms.definitionMd}, ${terms.bodyMd})`;
-  const [surfaceCandidates, contentCandidates] = await Promise.all([
+  const wikiContent = sql<string>`concat_ws(' ', ${wikiPages.title}, ${wikiPages.summary}, ${wikiPages.content})`;
+  const [surfaceCandidates, contentCandidates, wikiCandidates] = await Promise.all([
     key ? db
       .select({
         id: terms.id,
@@ -166,6 +183,26 @@ async function retrieveSnapshot(
       ))
       .orderBy(desc(sql`(${sql.join(keywords.map((word) => sql`case when ${content} ilike ${`%${word}%`} then 1 else 0 end`), sql` + `)})`), desc(terms.updatedAt))
       .limit(40) : Promise.resolve([]),
+    options.includeWikiDocuments === false || wikiKeywords.length === 0 ? Promise.resolve([]) : db
+      .select({
+        id: wikiPages.id,
+        slug: wikiPages.slug,
+        title: wikiPages.title,
+        summary: wikiPages.summary,
+        domain: wikiPages.domain,
+        revision: wikiPages.revision,
+        content: wikiPages.content,
+        updatedAt: wikiPages.updatedAt,
+        score: sql<number>`(${sql.join(wikiKeywords.map((word) => sql`case when ${wikiContent} ilike ${`%${word}%`} then 1 else 0 end`), sql` + `)})::int`,
+      })
+      .from(wikiPages)
+      .where(and(
+        eq(wikiPages.status, "published"),
+        options.domain ? arrayContains(wikiPages.domain, [options.domain]) : undefined,
+        or(...wikiKeywords.map((word) => sql`${wikiContent} ilike ${`%${word}%`}`)),
+      ))
+      .orderBy(desc(sql`(${sql.join(wikiKeywords.map((word) => sql`case when ${wikiContent} ilike ${`%${word}%`} then 1 else 0 end`), sql` + `)})`), desc(wikiPages.updatedAt))
+      .limit(Math.max(8, Math.min(24, limit * 2))),
   ]);
 
   const scores = new Map<string, number>();
@@ -189,7 +226,28 @@ async function retrieveSnapshot(
     meetingDocumentId: hit.meetingDocumentId,
     meetingDate: hit.meetingDate,
   }));
-  const wikiEvidence: ChatEvidence[] = wikiHits.map((hit) => ({
+  const lexicalWikiHits: WikiSearchHit[] = wikiCandidates.map((row) => ({
+    id: `lexical:${row.id}:${row.revision}`,
+    wikiPageId: row.id,
+    slug: row.slug,
+    title: row.title,
+    summary: row.summary,
+    domain: row.domain,
+    revision: row.revision,
+    content: row.content,
+    startOffset: 0,
+    endOffset: row.content.length,
+    score: Math.min(1, Number(row.score) / Math.max(1, wikiKeywords.length)),
+    rerankScore: null,
+    updatedAt: row.updatedAt.toISOString(),
+  }));
+  const combinedWikiHits = mergeWikiHits([...wikiHits, ...lexicalWikiHits], limit);
+  const wikiPageIds = [...new Set(combinedWikiHits.map((hit) => hit.wikiPageId))];
+  const wikiImageRows = wikiPageIds.length
+    ? await db.select({ id: wikiPages.id, content: wikiPages.content }).from(wikiPages).where(inArray(wikiPages.id, wikiPageIds))
+    : [];
+  const wikiImages = new Map(wikiImageRows.map((row) => [row.id, extractMarkdownImages(row.content)]));
+  const wikiEvidence: ChatEvidence[] = combinedWikiHits.map((hit) => ({
     id: `wiki:${hit.wikiPageId}:${hit.revision}:${hit.id}`,
     slug: hit.slug,
     title: hit.title,
@@ -197,6 +255,7 @@ async function retrieveSnapshot(
     updatedAt: hit.updatedAt,
     field: "wiki",
     excerpt: hit.content.slice(0, 1_800),
+    images: wikiImages.get(hit.wikiPageId) ?? extractMarkdownImages(hit.content),
     start: hit.startOffset,
     source: "wiki",
     wikiPageId: hit.wikiPageId,
@@ -212,7 +271,7 @@ async function retrieveSnapshot(
     revision: hit.revision,
     excerpt: hit.content.slice(0, 1_800),
   }));
-  const wikiEntries = wikiHits.map((hit) => ({
+  const wikiEntries = combinedWikiHits.map((hit) => ({
     id: hit.wikiPageId,
     slug: hit.slug,
     title: hit.title,
@@ -220,6 +279,7 @@ async function retrieveSnapshot(
     domain: hit.domain,
     revision: hit.revision,
     excerpt: hit.content.slice(0, 1_800),
+    images: wikiImages.get(hit.wikiPageId) ?? extractMarkdownImages(hit.content),
   }));
   if (seedIds.length === 0) return {
     context: JSON.stringify({ terms: [], relationships: [], meetings: meetingEntries, wiki: wikiEntries }),
@@ -266,6 +326,11 @@ async function retrieveSnapshot(
   const byId = new Map(termRows.map((term) => [term.id, term]));
   const evidence: ChatEvidence[] = termRows.flatMap((term) => {
     const base = { termId: term.id, slug: term.slug, title: displayName(term), revision: term.revision, updatedAt: term.updatedAt.toISOString() };
+    const images = {
+      definition: extractMarkdownImages(term.definitionMd),
+      body: extractMarkdownImages(term.bodyMd),
+    };
+    const allImages = [...new Map([...images.definition, ...images.body].map((image) => [image.url, image])).values()];
     const metadata = `표기: ${[term.nameKo, term.nameEn].filter(Boolean).join(" / ")}; 확장명: ${[term.fullNameKo, term.fullNameEn].filter(Boolean).join(" / ")}; 도메인: ${term.domain.join(", ")}; 업무 분류: ${term.categories.join(", ")}; 주제: ${term.topic ?? ""}; 추가 표기: ${surfaceRows.filter((surface) => surface.termId === term.id).map((surface) => `${surface.text} (${surface.kind})`).join(", ")}`;
     const vectorEvidence = vectorHits
       .filter((hit) => hit.termId === term.id && hit.revision === term.revision)
@@ -274,11 +339,12 @@ async function retrieveSnapshot(
         id: `${term.id}:${term.revision}:vector:${hit.id}`,
         field: hit.sourceField as ChatEvidence["field"],
         excerpt: hit.content.slice(0, 1_800),
+        images: hit.sourceField === "body" || hit.sourceField === "definition" ? images[hit.sourceField] : hit.sourceField === "metadata" ? allImages : undefined,
       }));
     return [
-      { ...base, id: `${term.id}:${term.revision}:metadata`, field: "metadata" as const, excerpt: metadata.slice(0, 1800) },
+      { ...base, id: `${term.id}:${term.revision}:metadata`, field: "metadata" as const, excerpt: metadata.slice(0, 1800), images: allImages },
       ...(["definition", "body"] as const).flatMap((field) => relevantPassages(field === "body" ? term.bodyMd : term.definitionMd, passageKeywords, field === "body" ? 3 : 1)
-        .map((passage) => ({ ...base, id: `${term.id}:${term.revision}:${field}:${passage.start}`, field, excerpt: passage.text, start: passage.start }))),
+        .map((passage) => ({ ...base, id: `${term.id}:${term.revision}:${field}:${passage.start}`, field, excerpt: passage.text, images: images[field], start: passage.start }))),
       ...vectorEvidence,
     ];
   });
@@ -294,6 +360,10 @@ async function retrieveSnapshot(
     topic: term.topic,
     definition: evidence.filter((item) => item.slug === term.slug && item.field === "definition").map((item) => item.excerpt).join("\n\n") || null,
     body: evidence.filter((item) => item.slug === term.slug && item.field === "body").map((item) => item.excerpt).join("\n\n") || null,
+    images: {
+      definition: extractMarkdownImages(term.definitionMd),
+      body: extractMarkdownImages(term.bodyMd),
+    },
     revision: term.revision,
     updatedAt: term.updatedAt.toISOString(),
     replacedById: term.replacedById,

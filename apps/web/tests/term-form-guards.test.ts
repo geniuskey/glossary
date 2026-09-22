@@ -153,7 +153,7 @@ test("표기·분류는 접을 수 있고 상세 설명은 항상 열린 일반 
   expect(code).toContain('title="상세 설명"');
   expect(code).toContain('description="예시나 배경처럼 한줄 정의만으로 부족한 맥락을 남깁니다."');
   expect(code).toContain('className={cx("card overflow-hidden", compact && "flex min-h-0 flex-1 flex-col")}');
-  expect(code).toContain('resizable={compact}\n            fillAvailable={compact}\n            livePreview={compact}\n            embedded');
+  expect(code).toContain('resizable={compact}\n            fillAvailable={compact}\n            defaultView="glossary"\n            embedded');
   expect(code).not.toContain('<h2 className="text-sm font-semibold text-ink">본문</h2>');
 });
 

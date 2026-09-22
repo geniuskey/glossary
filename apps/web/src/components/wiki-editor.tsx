@@ -110,6 +110,7 @@ export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: 
         onChange={setContent}
         disabled={saving}
         maxLength={200_000}
+        defaultView="glossary"
         resizable
         onUploadingChange={setImageUploading}
       />
