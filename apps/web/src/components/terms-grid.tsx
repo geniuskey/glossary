@@ -233,7 +233,7 @@ export function TermsGrid(props: TermsGridProps) {
   const [order, setOrder] = useStoredPref<ColumnKey[]>(ORDER_KEY, defaultColumnOrder(), readOrder);
   const [density, setDensity] = useStoredPref<Density>(DENSITY_KEY, "normal", readDensity);
 
-  const [menu, setMenu] = useState<"columns" | "density" | "export" | "help" | null>(null);
+  const [menu, setMenu] = useState<"columns" | "density" | "export" | null>(null);
   // 머리글 우클릭 메뉴. column이 null이면 머리글의 빈 자리를 누른 것이라 열
   // 목록만 보여준다(정렬·이 열 숨기기는 가리키는 열이 없다).
   const [headerMenu, setHeaderMenu] = useState<{ column: GridColumn | null; x: number; y: number } | null>(null);
@@ -1458,7 +1458,8 @@ export function TermsGrid(props: TermsGridProps) {
                           if (e.key === "Tab" && isEditingCell(r, c)) tabFromCell(e, r, c);
                         }}
                         className={cx(
-                          "group/cell relative border-b border-r border-grid px-2 align-middle outline-none transition-[background-color] motion-reduce:transition-none",
+                          "group/cell relative border-b border-r border-b-grid border-r-line/40 px-3 align-middle outline-none transition-[background-color] motion-reduce:transition-none",
+                          (col.key === "nameEn" || col.key === "nameKo") && "font-medium text-ink",
                           frozen && "sticky z-10",
                           settledColumn === col.key && "column-settle",
                           col.kind === "readonly" ? "cursor-default" : "cursor-cell",
@@ -1878,8 +1879,8 @@ function GridToolbar(props: {
   allColumns: readonly GridColumn[];
   hidden: ColumnKey[];
   density: Density;
-  menu: "columns" | "density" | "export" | "help" | null;
-  setMenu: (m: "columns" | "density" | "export" | "help" | null) => void;
+  menu: "columns" | "density" | "export" | null;
+  setMenu: (m: "columns" | "density" | "export" | null) => void;
   onToggleColumn: (key: ColumnKey) => void;
   onMoveColumn: (key: ColumnKey, direction: -1 | 1) => void;
   onReorderColumn: (source: ColumnKey, target: ColumnKey, side: ColumnDropSide) => void;
@@ -1964,10 +1965,10 @@ function GridToolbar(props: {
     // relative z-50: 여기서 열리는 메뉴는 표 위로 펼쳐진다. 도구 막대가 쌓임
     // 맥락을 만들지 않으면 아래로 펼쳐진 메뉴가 고정된 열 머리글에 가려진다.
     <div
-      className="relative z-50 flex min-w-0 shrink-0 items-center border-b border-line bg-panel px-3 py-1.5 text-xs"
+      className="relative z-50 flex min-w-0 shrink-0 flex-wrap items-center gap-y-2 border-b border-line bg-panel px-3 py-2 text-xs"
       onMouseDown={stop}
     >
-      <div className="min-w-0 flex-1 overflow-x-auto">
+      <div className="min-w-0 basis-full flex-1 overflow-x-auto xl:basis-0">
         <div className="flex min-w-max items-center gap-1.5">
           {props.toolbarLeading && <div className="shrink-0">{props.toolbarLeading}</div>}
           <button type="button" className="btn-quiet btn-sm shrink-0" disabled={props.importDisabled} onClick={props.onImport} title="영문·한글 표 가져오기">가져오기</button>
@@ -2018,7 +2019,7 @@ function GridToolbar(props: {
         </div>
       </div>
 
-      <div className="ml-auto flex shrink-0 items-center gap-1.5">
+      <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1.5">
         {props.toolbarActions}
         <Menu
           label={`${DENSITY_LABEL[props.density]} 밀도`}
@@ -2112,10 +2113,10 @@ function GridToolbar(props: {
         </Menu>
 
         <Menu
-          label="내보내기"
+          label="더보기"
           open={props.menu === "export"}
           onToggle={() => props.setMenu(props.menu === "export" ? null : "export")}
-          width="w-48"
+          width="w-80"
         >
           <button
             type="button"
@@ -2133,14 +2134,7 @@ function GridToolbar(props: {
             표로 클립보드에 복사
             <span className="mt-0.5 block text-[10px] text-ink-3">시트에 그대로 붙여넣기</span>
           </button>
-        </Menu>
-
-        <Menu
-          label="도움말"
-          open={props.menu === "help"}
-          onToggle={() => props.setMenu(props.menu === "help" ? null : "help")}
-          width="w-80"
-        >
+          <span className="my-2 block h-px bg-line" />
           <p className="px-2 pb-1.5 pt-1 text-[11px] font-medium text-ink">단축키</p>
           {SHORTCUTS.map(([keys, what]) => (
             <div key={keys} className="flex items-baseline gap-2 rounded px-2 py-1 text-[11px]">
@@ -2205,7 +2199,7 @@ function Menu({
         <div
           ref={panelRef}
           id={menuId}
-          className={cx("absolute right-0 z-50 mt-1 rounded-lg border border-line bg-panel p-1 shadow-pop", width)}
+          className={cx("absolute right-0 z-50 mt-1 max-h-[60dvh] max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain rounded-lg border border-line bg-panel p-1 shadow-pop", width)}
         >
           {children}
         </div>

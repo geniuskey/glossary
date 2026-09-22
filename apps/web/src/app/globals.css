@@ -325,6 +325,11 @@
 }
 
 @layer components {
+  /* 사전의 책등은 브랜드색, 도메인 색은 분류 정보에만 사용한다. */
+  .dictionary-card {
+    @apply rounded-xl border border-line border-l-[3px] border-l-brand/60 bg-panel transition-colors hover:border-brand/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand;
+  }
+
   /* 그래프 툴바는 사이드바를 뺀 실제 콘텐츠 폭으로 필터 표시 방식을
      결정해야 한다. viewport 기준 breakpoint를 쓰면 같은 창에서도 사이드바
      접힘 상태에 따라 툴바가 불필요하게 두 줄이 된다. */

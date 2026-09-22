@@ -37,9 +37,10 @@ test("관련 용어의 부연 설명은 상시 문구 대신 도움말로 제공
   expect(detailSource).toContain('<HelpTip text="같은 도메인, 업무 분류나 주제에서 이어지는 개념입니다." />');
 });
 
-test("정의와 본문을 같은 개념의 표기보다 먼저 보여준다", () => {
+test("정의, 표기, 자세한 설명 순서로 읽고 관리 정보는 마지막에 확인한다", () => {
   expect(detailSource.indexOf('id="definition-heading"')).toBeLessThan(detailSource.indexOf('id="surfaces-heading"'));
-  expect(detailSource.indexOf('>본문</h2>')).toBeLessThan(detailSource.indexOf('id="surfaces-heading"'));
+  expect(detailSource.indexOf('id="surfaces-heading"')).toBeLessThan(detailSource.indexOf('>자세한 설명과 사용 맥락</h2>'));
+  expect(detailSource.indexOf('>자세한 설명과 사용 맥락</h2>')).toBeLessThan(detailSource.indexOf('aria-label="관리 정보"'));
 });
 
 test("공용 검색창은 모바일 키보드를 임의로 열지 않도록 자동 포커스가 기본 해제된다", () => {

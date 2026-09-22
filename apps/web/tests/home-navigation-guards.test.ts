@@ -13,7 +13,7 @@ test("홈 모바일 헤더에서도 용어 시트로 바로 이동할 수 있다
 
 test("홈 헤더는 앱 셸과 같은 높이와 메뉴 체계를 사용한다", () => {
   expect(homeSource).toContain('className="mx-auto flex h-14 w-full max-w-7xl items-center gap-2 px-4 sm:px-6"');
-  expect(homeSource).toContain('APP_NAV_ITEMS.filter');
+  expect(homeSource).toContain('getAppNavigation(user)');
   expect(homeSource).toContain('{item.label}');
   expect(homeSource).toContain('aria-label="새 용어 추가"');
   expect(homeSource).not.toContain('<HelpLink />');

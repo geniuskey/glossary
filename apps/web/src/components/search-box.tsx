@@ -180,12 +180,12 @@ export function SearchBox({
           aria-autocomplete="list"
           aria-keyshortcuts={compact ? "/" : undefined}
           aria-activedescendant={open && active >= 0 ? `${listId}-${active}` : undefined}
-          placeholder="용어 · 약어 · 별칭 · 금지 표기…"
+          placeholder={compact ? "전체 용어집에서 검색…" : "어떤 용어가 궁금한가요?"}
           className={cx(
             "field border-line-strong bg-panel hover:border-brand/35",
             compact
               ? "h-10 rounded-xl pl-10 pr-12 text-base sm:text-sm shadow-sm"
-              : "h-16 rounded-full pl-12 pr-5 text-base shadow-[0_10px_32px_-18px_rgb(38_32_99_/_0.42)]",
+              : "h-14 rounded-xl pl-12 pr-5 text-base shadow-sm",
           )}
         />
         {compact && (
@@ -236,8 +236,8 @@ export function SearchBox({
         )}
       </div>
 
-      {!compact && <div className="mt-4 flex items-center justify-center gap-2 px-1">
-        <button type="submit" className="btn-primary min-h-11 rounded-full px-6">
+      {!compact && <div className="mt-3 flex items-center gap-2 px-1">
+        <button type="submit" className="btn-primary min-h-10 px-6">
           검색
         </button>
         {/* 같은 입력을 시트의 q 필터로 그대로 넘긴다. formAction은 이 버튼으로

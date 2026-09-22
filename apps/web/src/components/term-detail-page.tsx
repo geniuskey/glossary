@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { surfaceKeys } from "@glossary/db";
 import { AppShell } from "@/components/app-shell";
+import { CopyTermButton } from "@/components/copy-term-button";
 import { HelpTip } from "@/components/help-tip";
 import { MarkdownContent } from "@/components/markdown-content";
 import { CompletionBadge, CompletionProgress, MissingFields } from "@/components/term-completion";
@@ -11,7 +12,7 @@ import { getCurrentUser } from "@/lib/auth/current-user";
 import { businessCategoryLabel } from "@/lib/terms/enums";
 import { termCompletion } from "@/lib/terms/completion";
 import { getTermByIdOrSlug, listRelatedTerms, type SurfaceKind } from "@/lib/terms/query";
-import { displayName, relativeTime, spineHue } from "@/lib/ui/format";
+import { displayName, relativeTime } from "@/lib/ui/format";
 import { getTermQualitySettings } from "@/lib/workspace/term-quality";
 import { mergedDestination } from "@/lib/terms/merge";
 import { listWikiPagesForTerm } from "@/lib/wiki/store";
@@ -81,7 +82,6 @@ export async function TermDetailPage({
     ? term.surfaces.find((s) => s.kind !== "canonical" && surfaceKeys(s.text).normLoose === fromKey)
     : undefined;
 
-  const hue = spineHue(term.slug);
   const [qualitySettings, relatedTerms, wikiPages] = await Promise.all([
     getTermQualitySettings(),
     listRelatedTerms(term, 6),
@@ -97,7 +97,7 @@ export async function TermDetailPage({
       : "/graph";
 
   return (
-    <AppShell user={user} title={displayName(term)}>
+    <AppShell user={user} title="용어 상세">
       <nav className="mb-5 text-xs text-ink-3">
         <Link href="/" className="link">
           검색
@@ -106,17 +106,16 @@ export async function TermDetailPage({
         <span className="font-mono">{term.slug}</span>
       </nav>
 
-      <article className="animate-fade-up">
-        <div className="flex items-start gap-4">
-          {/* 목록의 책등 색과 같은 색을 상세에도 둔다 — 같은 용어를 다시 열었을 때
-              "아까 그 카드"라는 감각이 이어지게 하려는 장치다(spineHue). */}
+      <article className="animate-fade-up rounded-2xl border border-line bg-panel p-5 sm:p-8">
+        <div className="flex flex-wrap items-start gap-4">
+          {/* 책등은 브랜드색으로 통일한다. 분야별 색상은 도메인에만 쓴다. */}
           <span
             aria-hidden
-            className="mt-1.5 h-14 w-1.5 shrink-0 rounded-full"
-            style={{ backgroundColor: `hsl(${hue} 62% 55%)` }}
+            className="mt-1.5 h-14 w-1 shrink-0 rounded-full bg-brand"
           />
           <div className="min-w-0 flex-1">
-            <p className="break-words text-2xl font-semibold tracking-tight lg:hidden">{displayName(term)}</p>
+            <p className="mb-2 text-[11px] font-medium tracking-[0.16em] text-ink-3">용어 사전</p>
+            <h2 className="break-words text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">{displayName(term)}</h2>
             {term.nameEn && term.nameKo && <p className="mt-0.5 text-ink-2">{term.nameKo}</p>}
             {/* F3: fullNameKo는 스키마·생성·수정·API 응답에 전부 있는데 화면에는
                 없었다 — R96이 bodyMd에 편 논리("저장만 되고 화면 어디에도 없으면
@@ -126,8 +125,9 @@ export async function TermDetailPage({
                 {[term.fullNameEn, term.fullNameKo].filter(Boolean).join(" · ")}
               </p>
             )}
+            <div className="mt-2"><CopyTermButton text={displayName(term)} /></div>
           </div>
-          <div className="flex shrink-0 gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             <Link href={`/edit/${term.slug}#ai-review-heading`} className="btn-ghost btn-sm">
               AI 검토
             </Link>
@@ -139,6 +139,13 @@ export async function TermDetailPage({
             </Link>
           </div>
         </div>
+
+        {term.definitionMd && (
+          <section className="mt-6 border-l-2 border-brand/40 bg-paper px-5 py-4 text-lg leading-relaxed" aria-labelledby="definition-heading">
+            <h2 id="definition-heading" className="mb-2 text-xs font-medium text-ink-3">한줄 정의</h2>
+            <MarkdownContent>{term.definitionMd}</MarkdownContent>
+          </section>
+        )}
 
         {fromSurface && (
           <p className="mt-3 flex flex-wrap items-center gap-1.5 text-sm text-ink-2">
@@ -160,41 +167,6 @@ export async function TermDetailPage({
           <TopicBadge topic={term.topic} />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 border-b border-line py-2.5 text-xs text-ink-3" aria-label="관리 정보">
-          <span className="font-medium text-ink-2">관리 정보</span>
-          <CompletionBadge completion={completion} />
-          <OwnerBadge ownerName={term.ownerName} mine={term.ownerId === user.id} />
-          {/* F4: R40이 updatedAt을 TermDetail에 정식으로 추가한 이유가 "위키
-              상세 페이지는 최근 수정을 보여줘야 한다"였는데, 그 화면이 지금
-              한 번도 쓰지 않고 있었다. 함께 쓰는 사전에서는 "얼마나 최근 것인가"가
-              먼저 읽혀야 하므로 상대 시간으로 보여준다(lib/ui/format.ts). */}
-          <span className="ml-auto text-xs text-ink-3" title={term.updatedAt.toISOString()}>
-            최근 수정 {relativeTime(term.updatedAt)}
-          </span>
-        </div>
-
-        {!completion.complete && (
-          <section className="mt-5 rounded-xl border border-warn/35 bg-warn-soft p-4 sm:p-5" aria-labelledby="completion-heading">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-              <div className="min-w-0 flex-1">
-                <h2 id="completion-heading" className="text-sm font-semibold text-ink text-balance">
-                  이 용어는 아직 함께 정리 중입니다
-                </h2>
-                <p className="mt-1 text-xs leading-5 text-ink-2">
-                  아래 항목 중 알고 있는 것 하나만 보태 주세요. 완벽하지 않아도 다음 사람이 이어서 다듬을 수 있습니다.
-                </p>
-                {term.status === "draft" && (
-                  <p className="mt-1 text-xs leading-5 text-ink-3">초안은 기본 검색과 AI 조회에 나타나지 않습니다.</p>
-                )}
-                <div className="mt-3 max-w-sm"><CompletionProgress completion={completion} /></div>
-                <div className="mt-2.5"><MissingFields completion={completion} /></div>
-              </div>
-              <Link href={`/edit/${term.slug}`} className="btn-primary shrink-0 self-start sm:self-auto">
-                정리 이어가기
-              </Link>
-            </div>
-          </section>
-        )}
 
         {term.homonyms.length > 0 && (
           <div className="note note-warn mt-5">
@@ -210,22 +182,6 @@ export async function TermDetailPage({
               ))}
             </ul>
           </div>
-        )}
-
-        {term.definitionMd && (
-          <section className="mt-5" aria-labelledby="definition-heading">
-            <h2 id="definition-heading" className="label mb-2">한줄 정의</h2>
-            <MarkdownContent>{term.definitionMd}</MarkdownContent>
-          </section>
-        )}
-
-        {term.bodyMd && (
-          <section className="mt-6">
-            <h2 className="label mb-2">본문</h2>
-            <div className="card p-4 sm:p-5">
-              <MarkdownContent>{term.bodyMd}</MarkdownContent>
-            </div>
-          </section>
         )}
 
         <section className="mt-6" aria-labelledby="surfaces-heading">
@@ -251,6 +207,13 @@ export async function TermDetailPage({
             })}
           </ul>
         </section>
+
+        {term.bodyMd && (
+          <section className="mt-8 border-t border-line pt-6">
+            <h2 className="mb-4 text-sm font-semibold text-ink">자세한 설명과 사용 맥락</h2>
+            <MarkdownContent>{term.bodyMd}</MarkdownContent>
+          </section>
+        )}
 
         {relatedTerms.length > 0 && (
           <section className="mt-8 border-t border-line pt-6" aria-labelledby="related-terms-heading">
@@ -318,6 +281,41 @@ export async function TermDetailPage({
                 </Link>
               </li>)}
             </ul>
+          </section>
+        )}
+        <div className="flex flex-wrap items-center gap-2 border-b border-line py-2.5 text-xs text-ink-3" aria-label="관리 정보">
+          <span className="font-medium text-ink-2">관리 정보</span>
+          <CompletionBadge completion={completion} />
+          <OwnerBadge ownerName={term.ownerName} mine={term.ownerId === user.id} />
+          {/* F4: R40이 updatedAt을 TermDetail에 정식으로 추가한 이유가 "위키
+              상세 페이지는 최근 수정을 보여줘야 한다"였는데, 그 화면이 지금
+              한 번도 쓰지 않고 있었다. 함께 쓰는 사전에서는 "얼마나 최근 것인가"가
+              먼저 읽혀야 하므로 상대 시간으로 보여준다(lib/ui/format.ts). */}
+          <span className="ml-auto text-xs text-ink-3" title={term.updatedAt.toISOString()}>
+            최근 수정 {relativeTime(term.updatedAt)}
+          </span>
+        </div>
+
+        {!completion.complete && (
+          <section className="mt-5 rounded-xl border border-warn/35 bg-warn-soft p-4 sm:p-5" aria-labelledby="completion-heading">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <h2 id="completion-heading" className="text-sm font-semibold text-ink text-balance">
+                  이 용어는 아직 함께 정리 중입니다
+                </h2>
+                <p className="mt-1 text-xs leading-5 text-ink-2">
+                  아래 항목 중 알고 있는 것 하나만 보태 주세요. 완벽하지 않아도 다음 사람이 이어서 다듬을 수 있습니다.
+                </p>
+                {term.status === "draft" && (
+                  <p className="mt-1 text-xs leading-5 text-ink-3">초안은 기본 검색과 AI 조회에 나타나지 않습니다.</p>
+                )}
+                <div className="mt-3 max-w-sm"><CompletionProgress completion={completion} /></div>
+                <div className="mt-2.5"><MissingFields completion={completion} /></div>
+              </div>
+              <Link href={`/edit/${term.slug}`} className="btn-primary shrink-0 self-start sm:self-auto">
+                정리 이어가기
+              </Link>
+            </div>
           </section>
         )}
       </article>

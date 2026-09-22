@@ -3,11 +3,22 @@ import { createElement } from "react";
 import { expect, test } from "vitest";
 import { vi } from "vitest";
 import { AccountMenu } from "../src/components/account-menu.js";
-import { AppShell } from "../src/components/app-shell.js";
+import { AppShell, getAppNavigation } from "../src/components/app-shell.js";
+import { DEFAULT_WORKSPACE_MENU_SETTINGS } from "../src/lib/workspace/menu-settings-values.js";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
+
+test("목적별 메뉴는 숨김·권한·그룹 내 사용자 순서를 유지한다", async () => {
+  const groups = await getAppNavigation(
+    { id: "editor-1", email: "editor@example.com", name: "편집자", role: "editor" },
+    { ...DEFAULT_WORKSPACE_MENU_SETTINGS, graph: false, order: ["chat", "sheet", "wiki"] },
+  );
+  expect(groups.map((group) => group.label)).toEqual(["찾고 이해하기", "함께 다듬기", "운영·연동"]);
+  expect(groups[0]?.items.map((item) => item.key)).toEqual(["chat", "sheet", "wiki"]);
+  expect(groups.flatMap((group) => group.items).map((item) => item.key)).not.toContain("statistics");
+});
 
 test("사이드바 탐색과 상단 검색·생성·계정 영역을 분리한다", async () => {
   const html = renderToStaticMarkup(await AppShell({
@@ -20,7 +31,7 @@ test("사이드바 탐색과 상단 검색·생성·계정 영역을 분리한�
   expect(html).not.toContain('title="검색 · 홈"');
   expect(html).toContain('role="search"');
   expect(html).toContain('<h1 class="sr-only min-w-0 truncate text-sm font-semibold tracking-tight text-ink lg:not-sr-only">시트</h1>');
-  expect(html).toContain('placeholder="용어 · 약어 · 별칭 · 금지 표기…"');
+  expect(html).toContain('placeholder="전체 용어집에서 검색…"');
   expect(html).toContain('aria-keyshortcuts="/"');
   expect(html).toContain('aria-label="새 용어 추가"');
   expect(html).toContain('href="/help"');

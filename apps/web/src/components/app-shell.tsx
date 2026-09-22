@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import type { CurrentUser } from "@/lib/auth/current-user";
 import { cx } from "@/lib/ui/format";
 import { getWorkspaceMenuSettings } from "@/lib/workspace/menu-settings";
-import { isWorkspaceMenuKey } from "@/lib/workspace/menu-settings-values";
+import { isWorkspaceMenuKey, type ResolvedWorkspaceMenuSettings } from "@/lib/workspace/menu-settings-values";
 import { AccountMenu } from "./account-menu";
 import { CollapsibleSidebar } from "./collapsible-sidebar";
 import { SearchBox } from "./search-box";
@@ -25,6 +25,25 @@ export const APP_NAV_ITEMS: Array<{ key: NavKey; href: string; label: string; hi
   { key: "import", href: "/import", label: "가져오기", hint: "엑셀", icon: <IconImport /> },
   { key: "statistics", href: "/statistics", label: "통계", hint: "운영 현황", icon: <IconStatistics />, adminOnly: true },
 ];
+
+export const APP_NAV_GROUPS = [
+  { label: "찾고 이해하기", keys: ["sheet", "graph", "wiki", "chat"] },
+  { label: "함께 다듬기", keys: ["contribute", "check", "field-completion", "classifications", "meetings"] },
+  { label: "운영·연동", keys: ["import", "api", "statistics"] },
+] as const;
+
+export async function getAppNavigation(user: CurrentUser | null, configuredSettings?: ResolvedWorkspaceMenuSettings) {
+  const settings = configuredSettings ?? await getWorkspaceMenuSettings();
+  const order = new Map<string, number>(settings.order.map((key, index) => [key, index]));
+  return APP_NAV_GROUPS.map((group) => ({
+    label: group.label,
+    items: APP_NAV_ITEMS.filter((item) =>
+      (group.keys as readonly string[]).includes(item.key)
+      && (item.alwaysOn || (isWorkspaceMenuKey(item.key) && settings[item.key]))
+      && (!item.adminOnly || user?.role === "admin"),
+    ).sort((a, b) => (order.get(a.key) ?? 99) - (order.get(b.key) ?? 99)),
+  })).filter((group) => group.items.length > 0);
+}
 
 /**
  * 화면 뼈대. 현재 위치는 usePathname 대신 각 화면이 넘기는 `current`로 받는다 —
@@ -55,14 +74,7 @@ export async function AppShell({
 }) {
   const menuSettings = await getWorkspaceMenuSettings();
   if (current && isWorkspaceMenuKey(current) && !menuSettings[current]) redirect("/");
-  const menuOrder = new Map(menuSettings.order.map((key, index) => [key, index]));
-  const visibleNavItems = APP_NAV_ITEMS
-    .filter((item) => (item.alwaysOn || (isWorkspaceMenuKey(item.key) && menuSettings[item.key])) && (!item.adminOnly || user?.role === "admin"))
-    .sort((left, right) => {
-      const leftIndex = isWorkspaceMenuKey(left.key) ? menuOrder.get(left.key) : undefined;
-      const rightIndex = isWorkspaceMenuKey(right.key) ? menuOrder.get(right.key) : undefined;
-      return (leftIndex ?? Number.MAX_SAFE_INTEGER) - (rightIndex ?? Number.MAX_SAFE_INTEGER);
-    });
+  const navigation = await getAppNavigation(user, menuSettings);
 
   return (
     <div className="min-h-screen lg:flex">
@@ -87,8 +99,10 @@ export async function AppShell({
           </Link>
         )}
         navigation={(
-          <nav id="primary-navigation" aria-label="주 메뉴" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto lg:flex-none lg:flex-col lg:items-stretch lg:gap-0.5 lg:px-2">
-            {visibleNavItems.map((item) => {
+          <nav id="primary-navigation" aria-label="주 메뉴" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto lg:min-h-0 lg:flex-col lg:items-stretch lg:gap-0.5 lg:overflow-y-auto lg:px-2">
+            {navigation.map((group) => <Fragment key={group.label}>
+              <p className="sidebar-expanded-only hidden px-2.5 pb-2 pt-5 text-[11px] font-medium tracking-wide text-ink-3 lg:block">{group.label}</p>
+              {group.items.map((item) => {
               const active = item.key === current;
               return (
                 <Link
@@ -112,7 +126,8 @@ export async function AppShell({
                   <span className="whitespace-nowrap text-[10px] font-medium lg:hidden">{item.label}</span>
                 </Link>
               );
-            })}
+              })}
+            </Fragment>)}
           </nav>
         )}
       />

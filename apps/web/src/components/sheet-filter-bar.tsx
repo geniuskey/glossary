@@ -51,8 +51,8 @@ export function SheetFilterBar({ query }: { query: string }) {
           enterKeyHint="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          aria-label="용어 검색"
-          placeholder="용어 · 약어 · 별칭 검색…"
+          aria-label="현재 시트에서 검색"
+          placeholder="현재 시트에서 찾기…"
           className="field h-9 py-0 pl-9 pr-9"
         />
         {(search || query) && (

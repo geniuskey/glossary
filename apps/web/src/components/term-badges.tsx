@@ -7,7 +7,7 @@ import { cx } from "@/lib/ui/format";
 // (여기 두 번째 사본이 있으면 그게 곧 드리프트의 출처가 된다).
 export const STATUS_TONE: Record<TermStatusLiteral, string> = {
   draft: "bg-warn-soft text-warn",
-  active: "bg-ok-soft text-ok",
+  active: "bg-panel-2 text-ink-2",
 };
 
 export function StatusBadge({ status, className }: { status: TermStatusLiteral; className?: string }) {

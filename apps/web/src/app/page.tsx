@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { AccountMenu } from "@/components/account-menu";
 import { InfoFooter } from "@/components/info-links";
-import { APP_NAV_ITEMS, BrandMark, type NavKey } from "@/components/app-shell";
+import { BrandMark, getAppNavigation, type NavKey } from "@/components/app-shell";
 import { SearchBox } from "@/components/search-box";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { DomainBadges, StatusBadge } from "@/components/term-badges";
@@ -14,10 +14,10 @@ import { initialAdminEmail, isInitialAdminEmail, ssoLoginUrl } from "@/lib/auth/
 import { loadSsoConfig, resolveLoginSsoMode, resolvePasswordLoginEnabled } from "@/lib/auth/sso/config";
 import { inspectProxyHeaders } from "@/lib/auth/sso/proxy-headers";
 import { SURFACE_KIND_LABEL, TERM_STATUS_LABEL } from "@/lib/terms/enums";
-import { termFacets, type TermFacets } from "@/lib/terms/query";
+import { getTermByIdOrSlug, listTerms, termFacets, type TermDetail, type TermFacets } from "@/lib/terms/query";
 import { searchTerms, type SearchHit } from "@/lib/terms/search";
 import { newTermHref, termHref } from "@/lib/terms/search-ui";
-import { displayName, spineHue } from "@/lib/ui/format";
+import { displayName } from "@/lib/ui/format";
 import { getHomeContent } from "@/lib/workspace/home-content";
 import { DEFAULT_HOME_CONTENT, type HomeContent } from "@/lib/workspace/home-content-values";
 
@@ -60,10 +60,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
   const raw = await searchParams;
   const rawQ = Array.isArray(raw.q) ? raw.q[0] : raw.q;
   const q = (rawQ ?? "").trim();
-  const [hits, facets, homeContent] = await Promise.all([
+  const [hits, facets, homeContent, recentTerms] = await Promise.all([
     q ? searchTerms(q, RESULT_LIMIT) : Promise.resolve<SearchHit[]>([]),
     termFacets(),
     q ? Promise.resolve(DEFAULT_HOME_CONTENT) : getHomeContent(),
+    q ? Promise.resolve([]) : listTerms({ page: 1, pageSize: 3, sort: "updatedAt", dir: "desc" })
+      .then(({ items }) => Promise.all(items.map((term) => getTermByIdOrSlug(term.id))))
+      .then((items) => items.filter((term): term is TermDetail => term !== null)),
   ]);
 
   return (
@@ -90,13 +93,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
           </div>
           <Results q={q} hits={hits} />
         </main>
-      ) : <HomeLanding facets={facets} homeContent={homeContent} />}
+      ) : <HomeLanding facets={facets} homeContent={homeContent} recentTerms={recentTerms} />}
       <InfoFooter className="relative z-10 mx-auto max-w-7xl border-t border-line px-5 py-6 sm:px-8" />
     </div>
   );
 }
 
-function HomeHeader({ user }: { user: CurrentUser }) {
+async function HomeHeader({ user }: { user: CurrentUser }) {
+  const navigation = await getAppNavigation(user);
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-panel/90 backdrop-blur">
       <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-2 px-4 sm:px-6">
@@ -116,7 +120,7 @@ function HomeHeader({ user }: { user: CurrentUser }) {
           >
             <IconGrid />
           </Link>
-          <details className="relative xl:hidden">
+          <details className="relative">
             <summary
               className="btn-quiet h-9 w-9 cursor-pointer list-none touch-manipulation p-0 [&::-webkit-details-marker]:hidden"
               aria-label="전체 메뉴"
@@ -124,10 +128,11 @@ function HomeHeader({ user }: { user: CurrentUser }) {
             >
               <IconMenu />
             </summary>
-            <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-line bg-panel p-1.5 shadow-xl shadow-ink/10">
-              <p className="px-2.5 pb-1.5 pt-1 text-[11px] font-medium text-ink-3">주요 메뉴</p>
+            <div className="absolute right-0 top-full z-50 mt-2 max-h-[75dvh] w-64 overflow-y-auto rounded-xl border border-line bg-panel p-2 shadow-xl shadow-ink/10">
+              {navigation.map((group) => <div key={group.label}>
+              <p className="px-2.5 pb-1.5 pt-3 text-[11px] font-medium text-ink-3">{group.label}</p>
               <ul className="space-y-0.5">
-                {APP_NAV_ITEMS.filter((item) => !item.adminOnly || user.role === "admin").map((item) => (
+                {group.items.map((item) => (
                   <li key={item.key}>
                     <Link
                       href={item.href}
@@ -141,9 +146,10 @@ function HomeHeader({ user }: { user: CurrentUser }) {
                   </li>
                 ))}
               </ul>
+              </div>)}
             </div>
           </details>
-          {APP_NAV_ITEMS.filter((item) => !item.adminOnly || user.role === "admin").map((item) => (
+          {navigation.flatMap((group) => group.items).map((item) => (
             <Link key={item.key} href={item.href} className={`btn-quiet ${HOME_NAV_VISIBILITY[item.key] ?? "hidden"}`}>
               {item.label}
             </Link>
@@ -158,25 +164,28 @@ function HomeHeader({ user }: { user: CurrentUser }) {
   );
 }
 
-function HomeLanding({ facets, homeContent }: { facets: TermFacets; homeContent: HomeContent }) {
+function HomeLanding({ facets, homeContent, recentTerms }: { facets: TermFacets; homeContent: HomeContent; recentTerms: TermDetail[] }) {
   const active = facets.statuses.find((status) => status.value === "active")?.count ?? 0;
   const domains = facets.domains.slice(0, 6);
   return (
     <main id="main-content" tabIndex={-1} className="relative z-10 mx-auto w-full max-w-7xl px-5 pb-16 sm:px-8 sm:pb-24">
-      <section className="relative flex min-h-[calc(100svh-3.5rem)] items-center justify-center py-12 sm:py-16">
-        <div className="w-full max-w-3xl animate-fade-up text-center">
+      <section className="relative border-b border-line py-10 sm:py-12">
+        <div className="grid items-center gap-7 lg:grid-cols-[1fr_1.1fr] lg:gap-16 animate-fade-up">
+          <div>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">{homeContent.eyebrow}</p>
-          <h1 className="mt-5 text-[clamp(2.35rem,5vw,4rem)] font-semibold leading-[1.12] tracking-[-0.05em] text-ink">
+          <h1 className="mt-3 text-[clamp(2rem,3.5vw,3rem)] font-semibold leading-[1.3] tracking-[-0.045em] text-ink">
             <HomeTitle title={homeContent.title} />
           </h1>
-          <p className="mx-auto mt-5 max-w-xl whitespace-pre-line text-sm leading-7 text-ink-2 sm:text-base">
+          <p className="mt-4 max-w-xl whitespace-pre-line text-sm leading-7 text-ink-2">
             {homeContent.description}
           </p>
-          <div className="mx-auto mt-9 max-w-2xl">
+          </div>
+          <div className="min-w-0">
+          <div className="max-w-2xl">
             <SearchBox defaultValue="" />
           </div>
           {facets.total > 0 ? (
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm text-ink-2">
+            <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink-2">
               <Stat value={facets.total} label="개 등록 용어" href="/sheet" />
               <Stat value={active} label={`개 ${TERM_STATUS_LABEL.active}`} href="/sheet?status=active" />
               <Stat value={facets.needsContribution} label="개 정리 대기" href="/contribute" />
@@ -191,15 +200,35 @@ function HomeLanding({ facets, homeContent }: { facets: TermFacets; homeContent:
               </div>
             </div>
           )}
-          <a href="#home-tasks" aria-label="지금 필요한 작업으로 이동" className="home-scroll-cue mt-10 inline-flex text-ink-3 transition-colors hover:text-brand">
-            <span className="grid h-7 w-7 place-items-center rounded-full border border-line bg-panel/70 text-brand shadow-sm">
-              <IconArrowDown />
-            </span>
-          </a>
+          </div>
         </div>
       </section>
 
-      <section className="mb-8 scroll-mt-20" aria-labelledby="home-tasks">
+      {recentTerms.length > 0 && <section className="py-8" aria-labelledby="recent-terms-heading">
+        <div className="mb-4 flex items-baseline justify-between gap-3">
+          <div><p className="text-[11px] font-medium tracking-[0.16em] text-ink-3">우리 팀의 사전</p><h2 id="recent-terms-heading" className="mt-1 text-xl font-semibold tracking-tight">최근 다듬은 용어</h2></div>
+          <Link href="/sheet?sort=updatedAt&dir=desc" className="btn-quiet btn-sm">전체 용어 <IconArrow /></Link>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {recentTerms.map((term) => <Link key={term.id} href={`/g/${term.slug}`} className="dictionary-card group flex min-w-0 flex-col p-5 sm:p-6">
+            <p className="text-[11px] text-ink-3">{term.domain.join(" · ") || "용어집"}</p>
+            <h3 className="mt-3 break-words text-xl font-semibold tracking-tight group-hover:text-brand">{displayName(term)}</h3>
+            {term.nameEn && term.nameKo && <p className="mt-1 text-sm text-ink-2">{term.nameKo}</p>}
+            <p className="mb-5 mt-3 line-clamp-2 text-sm leading-6 text-ink-2">{term.definitionMd || "아직 한줄 정의가 없습니다. 알고 있는 뜻을 보태 주세요."}</p>
+            <div className="mt-auto flex flex-wrap gap-1.5 border-t border-line pt-3">
+              {term.surfaces.filter((surface) => surface.kind === "abbreviation" || surface.kind === "alias").slice(0, 3).map((surface) => <span key={surface.id} className="rounded bg-panel-2 px-2 py-1 text-xs text-ink-2">{surface.text}<span className="ml-1 text-ink-3">{SURFACE_KIND_LABEL[surface.kind]}</span></span>)}
+              <span className="ml-auto inline-flex items-center gap-1 text-xs text-brand">뜻 살펴보기 <IconArrow /></span>
+            </div>
+          </Link>)}
+        </div>
+      </section>}
+
+      {domains.length > 0 && <nav aria-label="분야별 용어 탐색" className="mb-8 flex flex-wrap items-center gap-2 border-y border-line py-4">
+        <span className="mr-2 text-xs font-medium text-ink-2">분야별로 찾기</span>
+        {domains.map((domain) => <Link key={domain.value} href={`/sheet?domain=${encodeURIComponent(domain.value)}`} className="chip bg-panel hover:border-brand/40">{domain.value}<span className="text-ink-3">{domain.count}</span></Link>)}
+      </nav>}
+
+      <section className="mb-8 mt-8 scroll-mt-20" aria-labelledby="home-tasks">
         <ScrollReveal>
           <h2 id="home-tasks" className="text-lg font-semibold text-ink">지금 필요한 작업</h2>
         </ScrollReveal>
@@ -275,7 +304,7 @@ function HomeTitle({ title }: { title: string }) {
     <>
       {first}
       {rest.map((line, index) => (
-        <span key={`${index}:${line}`} className="home-gradient-text">
+        <span key={`${index}:${line}`} className="text-brand">
           <br />{line}
         </span>
       ))}
@@ -284,7 +313,7 @@ function HomeTitle({ title }: { title: string }) {
 }
 
 function Stat({ value, label, href }: { value: number; label: string; href?: string }) {
-  const content = <><strong className="text-lg font-bold tracking-tight text-ink">{value.toLocaleString("ko-KR")}</strong><span className="text-xs text-ink-3">{label}</span></>;
+  const content = <><strong className="text-sm font-semibold tabular-nums text-ink-2">{value.toLocaleString("ko-KR")}</strong><span className="text-xs text-ink-3">{label}</span></>;
   return href
     ? <Link href={href} className="flex items-baseline gap-1.5 rounded-md hover:text-brand">{content}</Link>
     : <span className="flex items-baseline gap-1.5">{content}</span>;
@@ -315,15 +344,14 @@ function Results({ q, hits }: { q: string; hits: SearchHit[] }) {
     <section className="mt-8 rounded-2xl border border-line bg-panel/70 p-3 pb-5 shadow-sm backdrop-blur sm:p-5">
       <p className="mb-2 px-3 text-xs text-ink-3">결과 <span className="font-medium text-ink-2">{hits.length}</span>개{hits.length === RESULT_LIMIT && " 이상"}<span className="mx-1.5">·</span><Link href={`/sheet?q=${encodeURIComponent(q)}`} className="link">시트에서 보기</Link></p>
       <p className="mb-3 px-3 text-xs leading-6 text-ink-2">금지·비권장 표기로 찾았다면 용어 상세에서 대표 표기와 사용 지침을 확인하세요.</p>
-      <ol>{hits.map((hit) => <li key={hit.id}><Link href={termHref(hit)} className="flex gap-3 rounded-xl px-3 py-3 transition hover:bg-panel-2"><span aria-hidden className="mt-1 h-8 w-1 shrink-0 rounded-full" style={{ backgroundColor: `hsl(${spineHue(hit.slug)} 62% 55%)` }} /><span className="min-w-0 flex-1"><span className="flex flex-wrap items-baseline gap-x-2 gap-y-1"><span className="text-[15px] font-medium text-ink">{displayName(hit)}</span>{hit.nameEn && hit.nameKo && <span className="text-sm text-ink-2">{hit.nameKo}</span>}{hit.matchedKind !== "canonical" && <span className="chip chip-on px-2 py-0.5 text-[11px]">{hit.matchedText}<span className="opacity-70">{SURFACE_KIND_LABEL[hit.matchedKind]}</span></span>}{!hit.exact && <span className="text-[11px] text-ink-3">비슷한 표기</span>}</span>{hit.definitionMd && <span className="mt-0.5 line-clamp-2 block text-sm text-ink-2">{hit.definitionMd}</span>}<span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-3"><DomainBadges domain={hit.domain} />{hit.status !== "active" && <StatusBadge status={hit.status} />}</span></span></Link></li>)}</ol>
+      <ol>{hits.map((hit) => <li key={hit.id}><Link href={termHref(hit)} className="flex gap-3 rounded-xl px-3 py-3 transition hover:bg-panel-2"><span aria-hidden className="mt-1 h-8 w-1 shrink-0 rounded-full bg-brand/60" /><span className="min-w-0 flex-1"><span className="flex flex-wrap items-baseline gap-x-2 gap-y-1"><span className="text-[15px] font-medium text-ink">{displayName(hit)}</span>{hit.nameEn && hit.nameKo && <span className="text-sm text-ink-2">{hit.nameKo}</span>}{hit.matchedKind !== "canonical" && <span className="chip chip-on px-2 py-0.5 text-[11px]">{hit.matchedText}<span className="opacity-70">{SURFACE_KIND_LABEL[hit.matchedKind]}</span></span>}{!hit.exact && <span className="text-[11px] text-ink-3">비슷한 표기</span>}</span>{hit.definitionMd && <span className="mt-0.5 line-clamp-2 block text-sm text-ink-2">{hit.definitionMd}</span>}<span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-3"><DomainBadges domain={hit.domain} />{hit.status !== "active" && <StatusBadge status={hit.status} />}</span></span></Link></li>)}</ol>
     </section>
   );
 }
 
-function HomeBackdrop() { return <div className="pointer-events-none absolute inset-0" aria-hidden><div className="absolute -left-40 top-24 h-[28rem] w-[28rem] rounded-full bg-brand/10 blur-[110px]" /><div className="absolute -right-32 top-0 h-[30rem] w-[30rem] rounded-full bg-accent/10 blur-[120px]" /><div className="home-grid absolute inset-x-0 top-0 h-[46rem] opacity-50" /></div>; }
+function HomeBackdrop() { return <div className="pointer-events-none absolute inset-x-0 top-14 h-80 bg-gradient-to-b from-brand/[0.025] to-transparent" aria-hidden />; }
 function IconPlus() { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden><path d="M8 3v10M3 8h10" strokeLinecap="round" /></svg>; }
 function IconArrow() { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><path d="M3 8h9M9 4.5 12.5 8 9 11.5" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
-function IconArrowDown() { return <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><path d="M8 3v9M4.5 8.5 8 12l3.5-3.5" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
 function IconSearch() { return <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><circle cx="7.5" cy="7.5" r="4.5" /><path d="m11 11 3.5 3.5" strokeLinecap="round" /></svg>; }
 function IconPen() { return <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><path d="m11.3 3.2 3.5 3.5-8.7 8.7-3.9.4.4-3.9 8.7-8.7Z" strokeLinejoin="round" /><path d="m9.8 4.7 3.5 3.5" /></svg>; }
 function IconPeople() { return <svg width="19" height="19" viewBox="0 0 19 19" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><circle cx="7" cy="6" r="2.5" /><path d="M2.5 15c.3-3 1.8-4.5 4.5-4.5s4.2 1.5 4.5 4.5" strokeLinecap="round" /><path d="M12.5 4.5a2.4 2.4 0 0 1 0 4.7M13 11c2.1.2 3.2 1.5 3.5 4" strokeLinecap="round" /></svg>; }

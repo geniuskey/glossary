@@ -39,6 +39,7 @@ test.afterAll(async () => {
 
 test("용어 등록부터 별칭 검색, 문서 점검과 이력 되돌리기까지 이어진다", async ({ page }) => {
   test.setTimeout(60_000);
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/login");
   await page.getByLabel("이메일").fill(email);
   await page.getByLabel("비밀번호").fill(password);
@@ -56,7 +57,32 @@ test("용어 등록부터 별칭 검색, 문서 점검과 이력 되돌리기까
   await expect(page).toHaveURL(new RegExp(`/g/${slug}$`));
   await expect(page.getByText(originalDefinition)).toBeVisible();
 
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.getByRole("button", { name: "대표 표기 복사" }).click();
+  await expect(page.getByRole("status")).toContainText("복사했습니다");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(nameEn);
+  await page.screenshot({ path: "test-results/design-term-desktop.png", fullPage: true });
+
   await page.goto("/");
+  await expect(page.getByRole("heading", { name: "최근 다듬은 용어" })).toBeVisible();
+  await expect(page.getByRole("link", { name: new RegExp(`${nameEn}.*뜻 살펴보기`) })).toBeVisible();
+  await page.screenshot({ path: "test-results/design-home-desktop.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: "test-results/design-home-mobile.png", fullPage: true });
+  await page.goto("/sheet");
+  await expect(page.getByRole("textbox", { name: "현재 시트에서 검색" })).toBeVisible();
+  await page.getByRole("button", { name: "더보기", exact: true }).click();
+  await expect(page.getByRole("button", { name: "CSV 파일로 저장" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: "test-results/design-sheet-mobile.png", fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole("button", { name: "더보기", exact: true }).click();
+  await page.screenshot({ path: "test-results/design-sheet-desktop.png", fullPage: true });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  await page.screenshot({ path: "test-results/design-home-dark.png", fullPage: true });
+  await page.emulateMedia({ colorScheme: "light" });
   await page.getByLabel("용어 검색").fill(alias);
   await page.getByLabel("용어 검색").press("Enter");
   await expect(page.getByRole("link", { name: new RegExp(nameEn) })).toBeVisible();
