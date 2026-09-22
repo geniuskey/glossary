@@ -14,7 +14,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   if (!isUuid(id)) notFound();
   const config = publicAiConfig(await loadAiConfig());
   return (
-    <AppShell user={user} title="용어 챗봇" current="chat" roomy dense>
+    <AppShell user={user} title="용어 챗봇" current="chat" wide>
       <ChatPanel enabled={config.enabled && config.secretsReadable} initialSessionId={id} />
     </AppShell>
   );

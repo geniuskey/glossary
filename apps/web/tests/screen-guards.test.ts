@@ -220,6 +220,7 @@ test("용어 챗봇은 대화로 모은 등록안을 확인 후 용어로 추가
 test("용어 챗봇은 세션 목록을 제공하고 현재 대화를 URL에 남겨 뒤로가기로 복원한다", () => {
   const content = stripComments(readFileSync(path.join(componentsDir, "chat-panel.tsx"), "utf8"));
   const page = stripComments(readFileSync(path.join(appDir, "c", "[id]", "page.tsx"), "utf8"));
+  const chatPage = stripComments(readFileSync(path.join(appDir, "chat", "page.tsx"), "utf8"));
 
   expect(content).toContain('aria-label="챗봇 대화 기록"');
   expect(content).toContain('const pathname = usePathname()');
@@ -229,6 +230,10 @@ test("용어 챗봇은 세션 목록을 제공하고 현재 대화를 URL에 남
   expect(content).toContain('window.history.replaceState(null, "", `/c/${encodeURIComponent(returnedSessionId)}`)');
   expect(content).toContain('href={`/g/${source.slug}`}');
   expect(page).toContain("initialSessionId={id}");
+  expect(content).toContain('md:grid-cols-[18rem_minmax(0,1fr)]');
+  expect(content).toContain('md:flex-1 md:block md:space-y-1 md:overflow-y-auto');
+  expect(page).toContain('current="chat" wide');
+  expect(chatPage).toContain('current="chat" wide');
 });
 
 test("시트 도구 막대는 가로 스크롤 밖에서 현재 필터와 붙여넣기 도움말을 보여준다", () => {

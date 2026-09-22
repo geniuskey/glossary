@@ -14,7 +14,7 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
   if (typeof session === "string" && isUuid(session)) redirect(`/c/${session}`);
   const config = publicAiConfig(await loadAiConfig());
   return (
-    <AppShell user={user} title="용어 챗봇" current="chat" roomy dense>
+    <AppShell user={user} title="용어 챗봇" current="chat" wide>
       <ChatPanel enabled={config.enabled && config.secretsReadable} />
     </AppShell>
   );

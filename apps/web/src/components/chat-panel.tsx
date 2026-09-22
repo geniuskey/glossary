@@ -368,10 +368,10 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
   }
 
   return (
-    <div className="mx-auto grid h-[calc(100svh-7rem)] min-h-[28rem] w-full max-w-6xl grid-rows-[auto_minmax(0,1fr)] gap-3 md:grid-cols-[15rem_minmax(0,1fr)] md:grid-rows-1">
-      <aside className="rounded-xl border border-line bg-panel p-2 md:min-h-0" aria-label="챗봇 대화 기록">
+    <div className="grid h-full min-h-0 w-full grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[18rem_minmax(0,1fr)] md:grid-rows-1">
+      <aside className="flex min-h-0 flex-col rounded-xl border border-line bg-panel p-3 md:h-full md:rounded-none md:border-y-0 md:border-l-0 md:border-r" aria-label="챗봇 대화 기록">
         <button type="button" className="btn-primary w-full" onClick={newConversation} disabled={busy}>새 대화</button>
-        <div className="mt-2 flex gap-2 overflow-x-auto pb-1 md:block md:max-h-[calc(100svh-11rem)] md:space-y-1 md:overflow-y-auto md:pb-0">
+        <div className="mt-2 flex gap-2 overflow-x-auto pb-1 md:min-h-0 md:flex-1 md:block md:space-y-1 md:overflow-y-auto md:pb-0">
           {sessions.map((session) => (
             <Link
               key={session.id}
@@ -397,7 +397,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
         </div>
       </aside>
 
-    <section className="flex min-h-0 min-w-0 flex-col" aria-labelledby="chat-heading">
+    <section className="flex min-h-0 min-w-0 flex-col p-4 sm:p-5 lg:p-6" aria-labelledby="chat-heading">
       <div className="mb-3 flex items-center gap-2 border-b border-line pb-2">
         <h2 id="chat-heading" className="text-base font-semibold text-ink">용어 챗봇</h2>
         <HelpTip text="용어집 근거로 답하고, 새 용어 등록과 기존 용어의 정의·별칭·분류 수정을 돕습니다. 변경안을 확인하고 적용하면 이력에 남습니다." />
