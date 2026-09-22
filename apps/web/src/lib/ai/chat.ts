@@ -94,7 +94,7 @@ export async function answerGlossaryQuestion(
     return {
       answer,
       sources: [],
-      grounded: { claims: [], insights: [], uncertainties: [answer], evidence: [], searchedQueries: queries, domain: domain ?? null },
+      grounded: { claims: [], insights: [], uncertainties: [answer], evidence: [], ontology: [], searchedQueries: queries, domain: domain ?? null },
     };
   }
 

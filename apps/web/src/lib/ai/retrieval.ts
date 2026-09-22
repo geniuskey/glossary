@@ -1,7 +1,7 @@
 import "server-only";
 
-import { and, arrayContains, desc, eq, inArray, or, sql } from "drizzle-orm";
-import { meetingDocuments, surfaceKeys, termRevisions, terms, termSurfaces, wikiPages } from "@glossary/db";
+import { and, arrayContains, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { meetingDocuments, surfaceKeys, termRevisions, terms, termSurfaces, wikiPageTerms, wikiPages } from "@glossary/db";
 import { approvedRelations } from "@/lib/terms/relations";
 import { getDb } from "@/lib/db";
 import { relevantPassages } from "./passages";
@@ -10,8 +10,10 @@ import { searchRag, type RagSearchHit } from "@/lib/rag/search";
 import { searchMeetingRag, type MeetingSearchHit } from "@/lib/rag/meeting-search";
 import { searchWikiRag, type WikiSearchHit } from "@/lib/rag/wiki-search";
 import type { AiRunContext } from "./observability-values";
-import type { ChatEvidence } from "./grounding-values";
+import type { ChatEvidence, ChatOntologyPath } from "./grounding-values";
 import { extractMarkdownImages } from "@/lib/markdown/images";
+import { expandApprovedOntology, ontologyPathScore } from "@/lib/ontology/expand";
+import { loadOntologyPredicates, predicateMap } from "@/lib/ontology/catalog";
 
 export interface ChatSource {
   termId?: string;
@@ -27,6 +29,7 @@ export interface ChatGrounding {
   context: string;
   sources: ChatSource[];
   evidence?: ChatEvidence[];
+  ontology?: ChatOntologyPath[];
 }
 
 export interface RetrievalOptions {
@@ -137,7 +140,7 @@ async function retrieveSnapshot(
   const passageKeywords = retrievalKeywords(options.passageQuery ?? question);
   const wikiKeywords = [...new Set([...keywords, ...passageKeywords])];
   const domainFilter = and(sql`${terms.replacedById} is null`, options.domain ? arrayContains(terms.domain, [options.domain]) : undefined);
-  if (!key && keywords.length === 0 && wikiKeywords.length === 0 && vectorHits.length === 0 && meetingHits.length === 0 && wikiHits.length === 0) return { context: "{\"terms\":[],\"relationships\":[],\"meetings\":[],\"wiki\":[]}", sources: [] };
+  if (!key && keywords.length === 0 && wikiKeywords.length === 0 && vectorHits.length === 0 && meetingHits.length === 0 && wikiHits.length === 0) return { context: "{\"terms\":[],\"relationships\":[],\"ontology\":[],\"meetings\":[],\"wiki\":[]}", sources: [], ontology: [] };
 
   const content = sql<string>`concat_ws(' ', ${terms.nameEn}, ${terms.nameKo}, ${terms.fullNameEn}, ${terms.fullNameKo}, ${terms.definitionMd}, ${terms.bodyMd})`;
   const wikiContent = sql<string>`concat_ws(' ', ${wikiPages.title}, ${wikiPages.summary}, ${wikiPages.content})`;
@@ -213,6 +216,31 @@ async function retrieveSnapshot(
   // merely because it produced more chunks.
   addRank(scores, [...new Set(vectorHits.map((row) => row.termId))], 1.5);
   const seedIds = [...scores.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id);
+  const linkedWikiRows = options.includeWikiDocuments === false || seedIds.length === 0 ? [] : await db
+    .select({
+      termId: wikiPageTerms.termId,
+      termNameKo: terms.nameKo,
+      termNameEn: terms.nameEn,
+      pageId: wikiPages.id,
+      slug: wikiPages.slug,
+      title: wikiPages.title,
+      summary: wikiPages.summary,
+      domain: wikiPages.domain,
+      revision: wikiPages.revision,
+      content: wikiPages.content,
+      updatedAt: wikiPages.updatedAt,
+      role: wikiPageTerms.role,
+    })
+    .from(wikiPageTerms)
+    .innerJoin(wikiPages, eq(wikiPages.id, wikiPageTerms.wikiPageId))
+    .innerJoin(terms, eq(terms.id, wikiPageTerms.termId))
+    .where(and(
+      eq(wikiPages.status, "published"),
+      options.domain ? arrayContains(wikiPages.domain, [options.domain]) : undefined,
+      inArray(wikiPageTerms.termId, seedIds.slice(0, 12)),
+    ))
+    .orderBy(desc(wikiPages.updatedAt), asc(wikiPages.slug))
+    .limit(Math.max(8, Math.min(24, limit * 2)));
   const meetingEvidence: ChatEvidence[] = meetingHits.map((hit) => ({
     id: `meeting:${hit.meetingDocumentId}:${hit.revision}:${hit.id}`,
     slug: `meeting:${hit.meetingDocumentId}`,
@@ -241,7 +269,31 @@ async function retrieveSnapshot(
     rerankScore: null,
     updatedAt: row.updatedAt.toISOString(),
   }));
-  const combinedWikiHits = mergeWikiHits([...wikiHits, ...lexicalWikiHits], limit);
+  const linkedWikiHits: WikiSearchHit[] = linkedWikiRows.map((row) => ({
+    id: `ontology:${row.pageId}:${row.termId}:${row.revision}`,
+    wikiPageId: row.pageId,
+    slug: row.slug,
+    title: row.title,
+    summary: row.summary,
+    domain: row.domain,
+    revision: row.revision,
+    content: row.content,
+    startOffset: 0,
+    endOffset: row.content.length,
+    score: row.role === "primary" ? 0.82 : 0.62,
+    rerankScore: null,
+    updatedAt: row.updatedAt.toISOString(),
+  }));
+  const linkedWikiPaths: ChatOntologyPath[] = linkedWikiRows.map((row) => ({
+    id: `wiki-link:${row.pageId}:${row.termId}:${row.role}`,
+    source: { kind: "wiki_page" as const, id: row.pageId, title: row.title },
+    predicateKey: row.role === "primary" ? "defines" : "applies_to",
+    target: { kind: "term" as const, id: row.termId, title: displayName({ nameKo: row.termNameKo, nameEn: row.termNameEn }) },
+    depth: 1,
+    confidence: row.role === "primary" ? 100 : 80,
+    evidence: `위키 문서의 ${row.role === "primary" ? "주요" : "관련"} 용어 연결`,
+  }));
+  const combinedWikiHits = mergeWikiHits([...wikiHits, ...lexicalWikiHits, ...linkedWikiHits], limit);
   const wikiPageIds = [...new Set(combinedWikiHits.map((hit) => hit.wikiPageId))];
   const wikiImageRows = wikiPageIds.length
     ? await db.select({ id: wikiPages.id, content: wikiPages.content }).from(wikiPages).where(inArray(wikiPages.id, wikiPageIds))
@@ -282,19 +334,20 @@ async function retrieveSnapshot(
     images: wikiImages.get(hit.wikiPageId) ?? extractMarkdownImages(hit.content),
   }));
   if (seedIds.length === 0) return {
-    context: JSON.stringify({ terms: [], relationships: [], meetings: meetingEntries, wiki: wikiEntries }),
+    context: JSON.stringify({ terms: [], relationships: [], ontology: linkedWikiPaths, meetings: meetingEntries, wiki: wikiEntries }),
     sources: [],
     evidence: [...meetingEvidence, ...wikiEvidence],
+    ontology: linkedWikiPaths,
   };
 
   const graphSeeds = seedIds.slice(0, 6);
-  const relationshipRows = await approvedRelations(db, graphSeeds);
-
-  const seedSet = new Set(seedIds);
-  for (const relation of relationshipRows) {
-    const neighbor = seedSet.has(relation.sourceTermId) ? relation.targetTermId : relation.sourceTermId;
-    scores.set(neighbor, (scores.get(neighbor) ?? 0) + (0.5 * relation.confidence / 100) / 61);
+  const ontologyPredicates = await loadOntologyPredicates(db);
+  const ontologyCatalog = predicateMap(ontologyPredicates);
+  const ontologyExpansion = await expandApprovedOntology(db, graphSeeds, ontologyPredicates, { maxDepth: 2, limit: 80, domain: options.domain });
+  for (const path of ontologyExpansion.paths) {
+    scores.set(path.targetTermId, (scores.get(path.targetTermId) ?? 0) + ontologyPathScore(path));
   }
+  const relationshipRows = ontologyExpansion.relations;
   const ids = [...scores.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([id]) => id);
 
   const [termRows, surfaceRows] = await Promise.all([
@@ -324,6 +377,19 @@ async function retrieveSnapshot(
   const includedIds = new Set(termRows.map((term) => term.id));
   const names = new Map(termRows.map((term) => [term.id, displayName(term)]));
   const byId = new Map(termRows.map((term) => [term.id, term]));
+  const ontologyPaths: ChatOntologyPath[] = [
+    ...ontologyExpansion.paths.filter((path) => includedIds.has(path.sourceTermId) && includedIds.has(path.targetTermId)).map((path) => ({
+      id: path.id,
+      source: { kind: "term" as const, id: path.sourceTermId, title: names.get(path.sourceTermId) ?? path.sourceTermId },
+      predicateKey: path.predicateKey,
+      predicateLabel: ontologyCatalog.get(path.predicateKey)?.label ?? path.predicateKey,
+      target: { kind: "term" as const, id: path.targetTermId, title: names.get(path.targetTermId) ?? path.targetTermId },
+      depth: path.depth,
+      confidence: path.confidence,
+      evidence: path.evidenceMd,
+    })),
+    ...linkedWikiPaths,
+  ];
   const evidence: ChatEvidence[] = termRows.flatMap((term) => {
     const base = { termId: term.id, slug: term.slug, title: displayName(term), revision: term.revision, updatedAt: term.updatedAt.toISOString() };
     const images = {
@@ -389,8 +455,9 @@ async function retrieveSnapshot(
     });
 
   return {
-    context: JSON.stringify({ terms: entries, relationships, meetings: meetingEntries, wiki: wikiEntries }),
+    context: JSON.stringify({ terms: entries, relationships, ontology: ontologyPaths, meetings: meetingEntries, wiki: wikiEntries }),
     evidence: [...evidence, ...meetingEvidence, ...wikiEvidence],
+    ontology: ontologyPaths,
     sources: termRows.map((term) => ({
       termId: term.id,
       slug: term.slug,

@@ -4,12 +4,18 @@ import { createDb, termRelations, terms } from "@glossary/db";
 import { retrieveGlossaryContext, retrievalKeywords } from "../src/lib/ai/retrieval.js";
 import { createTerm } from "../src/lib/terms/create.js";
 import { updateTerm } from "../src/lib/terms/update.js";
+import { expandApprovedOntology } from "../src/lib/ontology/expand.js";
+import { loadOntologyPredicates } from "../src/lib/ontology/catalog.js";
 
 const db = createDb(process.env.DATABASE_URL_TEST!);
 const ids: string[] = [];
 let activeSlug = "";
+let activeId = "";
+let relatedId = "";
+let transitiveId = "";
 let draftSlug = "";
 let relatedSlug = "";
+let transitiveSlug = "";
 const suffix = Date.now().toString(36).slice(-5).toUpperCase();
 const activeName = `ZQ${suffix}`;
 const draftName = `DR${suffix}`;
@@ -37,6 +43,13 @@ beforeAll(async () => {
     status: "active",
     surfaces: [],
   }, null);
+  const transitive = await createTerm({
+    nameEn: `TRANS${suffix}`,
+    definitionMd: "그래프 2-hop 확장 회귀 테스트를 위한 공개 용어",
+    domain: ["QA"],
+    status: "active",
+    surfaces: [],
+  }, null);
   await db.insert(termRelations).values({
     sourceTermId: active.term.id,
     targetTermId: related.term.id,
@@ -44,10 +57,21 @@ beforeAll(async () => {
     status: "approved",
     evidenceMd: "검색 그래프 확장 테스트",
   });
-  ids.push(active.term.id, draft.term.id, related.term.id);
+  await db.insert(termRelations).values({
+    sourceTermId: related.term.id,
+    targetTermId: transitive.term.id,
+    relationType: "is_a",
+    status: "approved",
+    evidenceMd: "2-hop 온톨로지 경로 테스트",
+  });
+  ids.push(active.term.id, draft.term.id, related.term.id, transitive.term.id);
   activeSlug = active.term.slug;
+  activeId = active.term.id;
   draftSlug = draft.term.slug;
   relatedSlug = related.term.slug;
+  relatedId = related.term.id;
+  transitiveId = transitive.term.id;
+  transitiveSlug = transitive.term.slug;
 });
 
 afterAll(async () => {
@@ -83,6 +107,20 @@ test("승인된 관계는 seed 용어의 1-hop 검색 근거를 확장한다", a
   expect(result.sources.map((source) => source.slug)).toContain(relatedSlug);
   expect(result.context).toContain('"type":"used_in"');
   expect(result.context).toContain("검색 그래프 확장 테스트");
+});
+
+test("승인된 관계를 최대 2-hop 온톨로지 경로로 확장한다", async () => {
+  const result = await retrieveGlossaryContext(activeName);
+  expect(result.sources.map((source) => source.slug)).toContain(transitiveSlug);
+  const expansion = await expandApprovedOntology(db, [activeId], await loadOntologyPredicates(db), { maxDepth: 2 });
+  expect(expansion.paths).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      sourceTermId: relatedId,
+      targetTermId: transitiveId,
+      depth: 2,
+    }),
+  ]));
+  expect(result.context).toContain('"ontology"');
 });
 
 test("검색어 추출은 불용어·중복을 제거하고 길이를 제한한다", () => {

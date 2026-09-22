@@ -57,6 +57,7 @@ Glossary는 특정 조직·팀·제품군이 사용하는 용어집을 관리하
 - [아키텍처](/guide/architecture) — 패키지 구조와 의존 방향
 - [데이터 모델](/guide/data-model) — Term과 Surface의 분리
 - [위키 지식 창고](/guide/wiki) — 용어에 연결하는 업무 맥락 문서와 공개·RAG 규칙
+- [온톨로지와 관계 경로](/guide/data-model#ontology_predicates--관계-의미-카탈로그) — 승인 관계·위키 연결·제한적 그래프 확장
 - [협업과 관계도](/guide/collaboration) — 담당자, 업무 분류·주제, 그래프와 Confluence 임베드
 - [함께 정리](/guide/contribute) — 정리 대기, AI 제안·큐, 중복 작업
 - [필드 보완](/guide/contribute) — 한줄 정의·도메인·업무 분류 집중 작업

@@ -17,6 +17,17 @@ export interface ChatEvidence {
   relatedTerm?: { termId?: string; slug: string; title: string; revision: number };
 }
 
+export interface ChatOntologyPath {
+  id: string;
+  source: { kind: "term" | "wiki_page"; id: string; title: string };
+  predicateKey: string;
+  predicateLabel?: string;
+  target: { kind: "term" | "wiki_page"; id: string; title: string };
+  depth: number;
+  confidence: number;
+  evidence?: string | null;
+}
+
 export interface GroundedInsight {
   title: string;
   text: string;
@@ -30,6 +41,7 @@ export interface GroundedChatAnswer {
   insights: GroundedInsight[];
   uncertainties: string[];
   evidence: ChatEvidence[];
+  ontology?: ChatOntologyPath[];
   searchedQueries: string[];
   domain: string | null;
 }

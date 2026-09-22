@@ -164,6 +164,24 @@ AI가 찾은 관계는 바로 검색 그래프에 넣지 않고 `proposed`로 �
 동시 수정은 관계 버전과 양쪽 용어 리비전으로 검사한다. 직접 관리한 관계의 근거를 AI가
 덮어쓰지 않으며, 변경된 관계의 이전 AI 제안은 검토 캐시에서 제거한다.
 
+## ontology_predicates — 관계 의미 카탈로그
+
+`ontology_predicates`는 그래프의 실제 연결을 복제하지 않고, 관계가 어떤 의미를 갖는지 선언한다.
+`term_relations`의 기존 승인·리비전 검증과 `wiki_page_terms`의 공개 상태를 그대로 사용하므로
+별도의 트리플스토어 없이도 검색과 챗봇이 같은 관계 규칙을 공유한다.
+
+| 컬럼 | 설명 |
+|---|---|
+| `key`, `label` | 모델과 화면에서 사용할 안정적인 관계 키·국문 이름 |
+| `inverse_key` | 반대 방향으로 읽을 때 사용할 관계 키. `is_a` ↔ `has_subtype`처럼 쌍으로 관리 |
+| `symmetric`, `transitive` | 대칭·추이 관계 여부. 검색 확장은 무제한 추론을 하지 않고 최대 2-hop으로 제한 |
+| `source_kind`, `target_kind` | `term` 또는 `wiki_page`. 위키는 `defines`·`applies_to`로 용어를 연결 |
+| `description`, `sort_order` | 관계 작성·검토 화면에 표시할 설명과 목록 순서 |
+
+기본 카탈로그에는 기존 6가지 용어 관계의 역관계와 위키의 `defines`·`applies_to`가 함께
+들어간다. 애플리케이션은 마이그레이션 직후 잠시 카탈로그 조회가 실패해도 내장 기본값으로
+검색을 계속할 수 있다.
+
 ## 인증 테이블
 
 - **users** — `email`(유니크), `name`, `password_hash`, `role`(`admin` \| `editor`),

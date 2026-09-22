@@ -1487,6 +1487,13 @@ export const openApiSpec = {
                 uncertainties: { type: "array", items: { type: "string" } },
                 searchedQueries: { type: "array", maxItems: 2, items: { type: "string" } },
                 domain: { type: ["string", "null"] },
+                ontology: { type: "array", description: "승인 관계와 공개 위키 연결로 검색된 직접·간접 경로", items: { type: "object", required: ["id", "source", "predicateKey", "target", "depth", "confidence"], properties: {
+                  id: { type: "string" },
+                  source: { type: "object", required: ["kind", "id", "title"], properties: { kind: { type: "string", enum: ["term", "wiki_page"] }, id: { type: "string", format: "uuid" }, title: { type: "string" } } },
+                  predicateKey: { type: "string" }, predicateLabel: { type: "string" },
+                  target: { type: "object", required: ["kind", "id", "title"], properties: { kind: { type: "string", enum: ["term", "wiki_page"] }, id: { type: "string", format: "uuid" }, title: { type: "string" } } },
+                  depth: { type: "integer", minimum: 1, maximum: 2 }, confidence: { type: "integer", minimum: 0, maximum: 100 }, evidence: { type: ["string", "null"] },
+                } } },
                 evidence: { type: "array", items: { type: "object", required: ["id", "slug", "title", "revision", "updatedAt", "field", "excerpt"], properties: {
                   id: { type: "string" }, termId: { type: "string", format: "uuid" }, slug: { type: "string" }, title: { type: "string" },
                   revision: { type: "integer", minimum: 0 }, updatedAt: { type: "string", format: "date-time" },

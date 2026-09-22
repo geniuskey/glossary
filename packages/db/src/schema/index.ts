@@ -13,3 +13,4 @@ export * from "./wiki";
 export * from "./ai-observability";
 export * from "./security";
 export * from "./candidates";
+export * from "./ontology";

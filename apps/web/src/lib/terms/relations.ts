@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, arrayContains, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { aiReviewSuggestions, termRelations, termRevisions, terms, users } from "@glossary/db";
 import { getDb } from "@/lib/db";
@@ -29,12 +29,22 @@ export function usableRelationWhere() {
   );
 }
 
-export async function approvedRelations(db: Db | Tx, termIds: string[], limit = 40) {
+export async function approvedRelations(db: Db | Tx, termIds: string[], limit = 40, domain?: string) {
   if (!termIds.length) return [];
-  return db.select().from(termRelations).where(and(
+  const where = and(
     usableRelationWhere(),
     or(inArray(termRelations.sourceTermId, termIds), inArray(termRelations.targetTermId, termIds)),
-  )).orderBy(desc(termRelations.confidence), termRelations.id).limit(limit);
+  );
+  if (!domain) return db.select().from(termRelations).where(where).orderBy(desc(termRelations.confidence), termRelations.id).limit(limit);
+  const scopedSource = alias(terms, "approved_relation_source");
+  const scopedTarget = alias(terms, "approved_relation_target");
+  const rows = await db.select({ relation: termRelations }).from(termRelations)
+    .innerJoin(scopedSource, eq(scopedSource.id, termRelations.sourceTermId))
+    .innerJoin(scopedTarget, eq(scopedTarget.id, termRelations.targetTermId))
+    .where(and(where, arrayContains(scopedSource.domain, [domain]), arrayContains(scopedTarget.domain, [domain])))
+    .orderBy(desc(termRelations.confidence), termRelations.id)
+    .limit(limit);
+  return rows.map((row) => row.relation);
 }
 
 export async function semanticGraphRelations(termIds: string[]) {

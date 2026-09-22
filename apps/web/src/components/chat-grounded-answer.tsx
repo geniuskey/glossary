@@ -35,6 +35,18 @@ export function ChatGroundedAnswer({ answer, messageId }: { answer: GroundedChat
         </li>)}
       </ul>
     </section>}
+    {answer.ontology && answer.ontology.length > 0 && <section className="mt-3 rounded-lg border border-line bg-panel-2/50 p-2.5" aria-label="온톨로지 경로">
+      <p className="text-xs font-semibold text-ink">검색된 승인 관계 경로</p>
+      <ul className="mt-1.5 space-y-1 text-xs leading-5 text-ink-2">
+        {answer.ontology.slice(0, 8).map((path) => <li key={path.id}>
+          <span className="font-medium text-ink">{path.source.title}</span>
+          <span className="mx-1 text-ink-3">— {path.predicateLabel ?? path.predicateKey} →</span>
+          <span className="font-medium text-ink">{path.target.title}</span>
+          <span className="ml-1 text-[11px] text-ink-3">(검색 씨앗에서 {path.depth}단계 · 신뢰도 {path.confidence}%)</span>
+        </li>)}
+      </ul>
+      <p className="mt-1.5 text-[11px] text-ink-3">관계 경로는 승인된 연결과 공개 위키의 명시적 연결을 보여주며, 사실 판단은 함께 표시된 근거 구절을 기준으로 합니다.</p>
+    </section>}
     {answer.uncertainties.length > 0 && <div className="mt-3 rounded-lg border border-warn/25 bg-warn-soft p-2.5">
       <p className="text-xs font-semibold text-ink">확인할 사항</p>
       <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-ink-2">{answer.uncertainties.map((item, index) => <li key={index}>{item}</li>)}</ul>
