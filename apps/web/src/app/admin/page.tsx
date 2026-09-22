@@ -61,7 +61,15 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       }}
     />;
   }
-  else if (tab === "home") panel = <HomeContentPanel initialContent={await getHomeContent()} />;
+  else if (tab === "home") {
+    const [content, menuSettings, aiConfig] = await Promise.all([getHomeContent(), getWorkspaceMenuSettings(), loadAiConfig()]);
+    const ai = publicAiConfig(aiConfig);
+    panel = <HomeContentPanel
+      initialContent={content}
+      initialMode={menuSettings.homeMode}
+      aiAvailable={ai.enabled && ai.secretsReadable}
+    />;
+  }
   else if (tab === "menus") panel = <MenuSettingsPanel initialSettings={await getWorkspaceMenuSettings()} />;
   else if (tab === "quality") {
     const settings = await getTermQualitySettings();

@@ -7,15 +7,18 @@ import { isUuid } from "@/lib/api-error";
 
 export const metadata = { title: "용어 챗봇" };
 
-export default async function ChatPage({ searchParams }: { searchParams: Promise<{ session?: string | string[] }> }) {
+export default async function ChatPage({ searchParams }: { searchParams: Promise<{ session?: string | string[]; prompt?: string | string[] }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const session = (await searchParams).session;
+  const params = await searchParams;
+  const session = params.session;
   if (typeof session === "string" && isUuid(session)) redirect(`/c/${session}`);
   const config = publicAiConfig(await loadAiConfig());
+  const rawPrompt = Array.isArray(params.prompt) ? params.prompt[0] : params.prompt;
+  const initialQuestion = rawPrompt?.trim().slice(0, 20_000) || undefined;
   return (
     <AppShell user={user} title="용어 챗봇" current="chat" wide>
-      <ChatPanel enabled={config.enabled && config.secretsReadable} />
+      <ChatPanel enabled={config.enabled && config.secretsReadable} initialQuestion={initialQuestion} />
     </AppShell>
   );
 }

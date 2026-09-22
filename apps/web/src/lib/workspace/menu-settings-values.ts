@@ -1,7 +1,8 @@
-import type { WorkspaceMenuKey } from "@glossary/db";
+import type { WorkspaceHomeMode, WorkspaceMenuKey } from "@glossary/db";
 
 export type ResolvedWorkspaceMenuSettings = Record<WorkspaceMenuKey, boolean> & {
   order: WorkspaceMenuKey[];
+  homeMode: WorkspaceHomeMode;
 };
 
 export interface WorkspaceMenuOption {
@@ -58,6 +59,7 @@ export const DEFAULT_WORKSPACE_MENU_SETTINGS: ResolvedWorkspaceMenuSettings = {
   import: true,
   statistics: true,
   order: DEFAULT_WORKSPACE_MENU_ORDER,
+  homeMode: "search",
 };
 
 export function isWorkspaceMenuKey(value: string): value is WorkspaceMenuKey {

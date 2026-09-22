@@ -30,7 +30,7 @@ function isLargePastedMessage(content: string): boolean {
   return content.length > 500 || content.split(/\r?\n/).length > 5;
 }
 
-export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; initialSessionId?: string }) {
+export function ChatPanel({ enabled, initialSessionId, initialQuestion }: { enabled: boolean; initialSessionId?: string; initialQuestion?: string }) {
   const pathname = usePathname();
   const routeSessionId = pathname?.startsWith("/c/") ? pathname.slice(3) : pathname ? null : initialSessionId ?? null;
   const [messages, setMessages] = useState<Message[]>([]);
@@ -38,7 +38,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(initialSessionId ?? null);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
-  const [question, setQuestion] = useState("");
+  const [question, setQuestion] = useState(initialQuestion ?? "");
   const [domains, setDomains] = useState<string[]>([]);
   const [searchDomain, setSearchDomain] = useState("");
   const [sending, setSending] = useState(false);
@@ -50,6 +50,8 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editError, setEditError] = useState<{ id: string; text: string } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLFormElement>(null);
+  const autoSubmittedQuestionRef = useRef<string | null>(null);
   const messagesRef = useRef<Message[]>([]);
   const routeSessionRef = useRef(routeSessionId);
   routeSessionRef.current = routeSessionId;
@@ -96,6 +98,16 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
       });
     return () => controller.abort();
   }, [routeSessionId, historyRetry]);
+
+  useEffect(() => {
+    const text = initialQuestion?.trim();
+    if (!text || routeSessionId || historyLoading || historyError || !enabled || autoSubmittedQuestionRef.current === text) return;
+    // The prompt came from the home composer. Submit the same form the user
+    // would submit, so the normal validation, loading state, and error handling
+    // stay in one path. The ref prevents React Strict Mode from sending twice.
+    autoSubmittedQuestionRef.current = text;
+    composerRef.current?.requestSubmit();
+  }, [initialQuestion, routeSessionId, historyLoading, historyError, enabled]);
 
   function openSession(sessionId: string) {
     if (busy || sessionId === routeSessionId) return;
@@ -533,7 +545,7 @@ export function ChatPanel({ enabled, initialSessionId }: { enabled: boolean; ini
         <div ref={endRef} aria-hidden="true" />
       </div>
 
-      <form onSubmit={(event) => void submit(event)} className="mt-3 flex items-end gap-2 rounded-xl border border-line bg-panel p-2 shadow-sm focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15">
+      <form ref={composerRef} onSubmit={(event) => void submit(event)} className="mt-3 flex items-end gap-2 rounded-xl border border-line bg-panel p-2 shadow-sm focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15">
         <label htmlFor="chat-question" className="sr-only">용어 질문 또는 생성·수정 요청</label>
         <textarea id="chat-question" name="question" autoComplete="off" rows={2} maxLength={20_000} value={question} onChange={(event) => setQuestion(event.target.value)} disabled={!enabled || busy || historyLoading || Boolean(historyError)} placeholder={activeTeachingDraft() ? "빠진 정보나 수정할 내용을 알려주세요…" : "용어를 질문하거나 기존 용어집 내용을 붙여넣으세요…"} className="min-h-11 min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 text-base sm:text-sm leading-5 text-ink outline-none placeholder:text-ink-3" onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {

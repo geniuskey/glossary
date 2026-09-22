@@ -1,5 +1,5 @@
 import { z } from "zod/v3";
-import { workspaceMenuKeys } from "@glossary/db";
+import { workspaceHomeModes, workspaceMenuKeys } from "@glossary/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";
 import { getWorkspaceMenuSettings, saveWorkspaceMenuSettings } from "@/lib/workspace/menu-settings";
@@ -21,6 +21,9 @@ const menuSettingsSchema = z.object({
   api: z.boolean(),
   import: z.boolean(),
   statistics: z.boolean(),
+  // Older clients may not know about the home input mode. Preserve the
+  // existing value when they update only sidebar visibility/order.
+  homeMode: z.enum(workspaceHomeModes).optional(),
   order: z.array(z.enum(workspaceMenuKeys)).length(workspaceMenuKeys.length).refine(
     (value) => new Set(value).size === workspaceMenuKeys.length,
     "메뉴 순서에는 모든 메뉴가 한 번씩 포함되어야 합니다.",
@@ -38,5 +41,6 @@ export const PATCH = withApiErrors(async (request: Request) => {
   if (isResponse(admin)) return admin;
   const parsed = menuSettingsSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "메뉴 설정을 확인해 주세요.", 400, parsed.error.flatten());
-  return Response.json({ settings: await saveWorkspaceMenuSettings(parsed.data, admin.id) });
+  const current = await getWorkspaceMenuSettings();
+  return Response.json({ settings: await saveWorkspaceMenuSettings({ ...current, ...parsed.data }, admin.id) });
 });

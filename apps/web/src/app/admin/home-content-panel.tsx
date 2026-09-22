@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { WorkspaceHomeMode } from "@glossary/db";
 import {
   DEFAULT_HOME_CONTENT,
   HOME_CONTENT_LIMITS,
@@ -9,13 +10,15 @@ import {
 import { cx } from "@/lib/ui/format";
 import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
 
-export function HomeContentPanel({ initialContent }: { initialContent: HomeContent }) {
+export function HomeContentPanel({ initialContent, initialMode, aiAvailable }: { initialContent: HomeContent; initialMode: WorkspaceHomeMode; aiAvailable: boolean }) {
   const [content, setContent] = useState(initialContent);
   const [savedContent, setSavedContent] = useState(initialContent);
+  const [mode, setMode] = useState<WorkspaceHomeMode>(initialMode);
+  const [savedMode, setSavedMode] = useState<WorkspaceHomeMode>(initialMode);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
   const valid = content.eyebrow.trim().length > 0 && content.title.trim().length > 0 && content.description.trim().length > 0;
-  const dirty = JSON.stringify(content) !== JSON.stringify(savedContent);
+  const dirty = JSON.stringify(content) !== JSON.stringify(savedContent) || mode !== savedMode;
   useUnsavedChanges(dirty);
 
   function update<K extends keyof HomeContent>(key: K, value: HomeContent[K]) {
@@ -26,6 +29,7 @@ export function HomeContentPanel({ initialContent }: { initialContent: HomeConte
   function loadDefaults() {
     if (dirty && !window.confirm("작성 중인 문구를 기본 문구로 바꿀까요? 저장하기 전까지 실제 홈 화면은 바뀌지 않습니다.")) return;
     setContent(DEFAULT_HOME_CONTENT);
+    setMode("search");
     setMessage(null);
   }
 
@@ -46,9 +50,25 @@ export function HomeContentPanel({ initialContent }: { initialContent: HomeConte
         setMessage({ kind: "bad", text: body?.error?.message ?? `저장하지 못했습니다 (${res.status}).` });
         return;
       }
+      if (mode !== savedMode) {
+        const modeResponse = await fetch("/api/v1/admin/home-mode", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ mode }),
+        });
+        const modeBody = await modeResponse.json().catch(() => null) as { mode?: WorkspaceHomeMode; error?: { message?: string } } | null;
+        if (!modeResponse.ok || !modeBody?.mode) {
+          setContent(body.settings);
+          setSavedContent(body.settings);
+          setMessage({ kind: "bad", text: modeBody?.error?.message ?? `홈 입력 방식을 저장하지 못했습니다 (${modeResponse.status}).` });
+          return;
+        }
+        setMode(modeBody.mode);
+        setSavedMode(modeBody.mode);
+      }
       setContent(body.settings);
       setSavedContent(body.settings);
-      setMessage({ kind: "ok", text: "홈 소개 문구를 저장했습니다." });
+      setMessage({ kind: "ok", text: "홈 화면 설정을 저장했습니다." });
     } catch {
       setMessage({ kind: "bad", text: "네트워크 오류로 저장하지 못했습니다." });
     } finally {
@@ -67,6 +87,14 @@ export function HomeContentPanel({ initialContent }: { initialContent: HomeConte
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <div className="card space-y-4 p-4 sm:p-5">
+          <fieldset className="border-b border-line pb-4">
+            <legend className="label">홈 첫 화면 입력 방식</legend>
+            <p className="mt-1.5 text-xs leading-5 text-ink-3">방문자가 처음 만나는 입력창을 검색 또는 용어 챗봇으로 선택합니다. 채팅은 AI 연결이 정상적으로 활성화된 경우에만 홈에 표시됩니다.</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <ModeOption mode="search" value={mode} disabled={saving} onChange={setMode} title="용어 검색" body="약어·별칭·금지 표기를 빠르게 찾습니다." />
+              <ModeOption mode="chat" value={mode} disabled={saving || !aiAvailable} onChange={setMode} title="용어 챗봇" body={aiAvailable ? "용어집에 근거해 질문을 시작합니다." : "AI 연결을 활성화하면 사용할 수 있습니다."} />
+            </div>
+          </fieldset>
           <TextField
             label="조직 또는 용어집 라벨"
             hint="대표 문구 위에 작게 표시됩니다. 예: Camera Platform Group"
@@ -122,13 +150,21 @@ export function HomeContentPanel({ initialContent }: { initialContent: HomeConte
               {content.description || "소개 문구를 입력하세요"}
             </p>
             <div className="mx-auto mt-7 flex h-11 max-w-md items-center rounded-xl border border-line bg-panel px-4 text-left text-sm text-ink-3 shadow-sm">
-              용어를 검색하세요…
+              {mode === "chat" && aiAvailable ? "무엇이든 물어보세요…" : "용어를 검색하세요…"}
             </div>
           </div>
         </div>
       </div>
     </section>
   );
+}
+
+function ModeOption({ mode, value, disabled, onChange, title, body }: { mode: WorkspaceHomeMode; value: WorkspaceHomeMode; disabled: boolean; onChange: (mode: WorkspaceHomeMode) => void; title: string; body: string }) {
+  const selected = value === mode;
+  return <label className={cx("flex cursor-pointer gap-2.5 rounded-xl border p-3 transition", selected ? "border-brand/50 bg-brand-soft/45" : "border-line bg-panel hover:border-line-strong", disabled && "cursor-not-allowed opacity-55")}>
+    <input type="radio" name="home-mode" value={mode} checked={selected} disabled={disabled} onChange={() => onChange(mode)} className="mt-0.5 h-4 w-4 accent-brand" />
+    <span><span className="block text-sm font-medium text-ink">{title}</span><span className="mt-1 block text-xs leading-5 text-ink-3">{body}</span></span>
+  </label>;
 }
 
 function TextField({

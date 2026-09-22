@@ -33,15 +33,15 @@ export const APP_NAV_GROUPS = [
 ] as const;
 
 export async function getAppNavigation(user: CurrentUser | null, configuredSettings?: ResolvedWorkspaceMenuSettings) {
-  const settings = configuredSettings ?? await getWorkspaceMenuSettings();
-  const order = new Map<string, number>(settings.order.map((key, index) => [key, index]));
+  const menuSettings = configuredSettings ?? await getWorkspaceMenuSettings();
+  const order = new Map<string, number>(menuSettings.order.map((key, index) => [key, index]));
   return APP_NAV_GROUPS.map((group) => ({
     label: group.label,
     items: APP_NAV_ITEMS.filter((item) =>
       (group.keys as readonly string[]).includes(item.key)
-      && (item.alwaysOn || (isWorkspaceMenuKey(item.key) && settings[item.key]))
+      && (item.alwaysOn || (isWorkspaceMenuKey(item.key) && menuSettings[item.key]))
       && (!item.adminOnly || user?.role === "admin"),
-    ).sort((a, b) => (order.get(a.key) ?? 99) - (order.get(b.key) ?? 99)),
+    ).sort((left, right) => (order.get(left.key) ?? 99) - (order.get(right.key) ?? 99)),
   })).filter((group) => group.items.length > 0);
 }
 

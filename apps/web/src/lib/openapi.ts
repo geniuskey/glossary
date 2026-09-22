@@ -457,6 +457,40 @@ export const openApiSpec = {
         },
       },
     },
+    "/admin/home-mode": {
+      get: {
+        summary: "홈 첫 화면 입력 방식 조회",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("{ mode: search | chat }", { type: "object", properties: { mode: { type: "string", enum: ["search", "chat"] } } }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+      patch: {
+        summary: "홈 첫 화면 입력 방식 수정",
+        security: [{ sessionCookie: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["mode"],
+                additionalProperties: false,
+                properties: { mode: { type: "string", enum: ["search", "chat"] } },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": json("저장된 홈 입력 방식", { type: "object", properties: { mode: { type: "string", enum: ["search", "chat"] } } }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+    },
     "/admin/menu-settings": {
       get: {
         summary: "사이드바 메뉴 표시 설정 조회",
@@ -504,6 +538,7 @@ export const openApiSpec = {
                   api: { type: "boolean" },
                   import: { type: "boolean" },
                   statistics: { type: "boolean" },
+                  homeMode: { type: "string", enum: ["search", "chat"] },
                 },
               },
             },

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
+import { loadAiConfig, publicAiConfig } from "@/lib/ai/config";
 import { AccountMenu } from "@/components/account-menu";
 import { InfoFooter } from "@/components/info-links";
 import { BrandMark, getAppNavigation, type NavKey } from "@/components/app-shell";
@@ -20,6 +21,8 @@ import { newTermHref, termHref } from "@/lib/terms/search-ui";
 import { displayName } from "@/lib/ui/format";
 import { getHomeContent } from "@/lib/workspace/home-content";
 import { DEFAULT_HOME_CONTENT, type HomeContent } from "@/lib/workspace/home-content-values";
+import { getWorkspaceMenuSettings } from "@/lib/workspace/menu-settings";
+import type { WorkspaceHomeMode } from "@glossary/db";
 
 export const dynamic = "force-dynamic";
 const RESULT_LIMIT = 20;
@@ -60,13 +63,15 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
   const raw = await searchParams;
   const rawQ = Array.isArray(raw.q) ? raw.q[0] : raw.q;
   const q = (rawQ ?? "").trim();
-  const [hits, facets, homeContent, recentTerms] = await Promise.all([
+  const [hits, facets, homeContent, recentTerms, workspaceSettings, aiConfig] = await Promise.all([
     q ? searchTerms(q, RESULT_LIMIT) : Promise.resolve<SearchHit[]>([]),
     termFacets(),
     q ? Promise.resolve(DEFAULT_HOME_CONTENT) : getHomeContent(),
     q ? Promise.resolve([]) : listTerms({ page: 1, pageSize: 3, sort: "updatedAt", dir: "desc" })
       .then(({ items }) => Promise.all(items.map((term) => getTermByIdOrSlug(term.id))))
       .then((items) => items.filter((term): term is TermDetail => term !== null)),
+    getWorkspaceMenuSettings(),
+    loadAiConfig().then(publicAiConfig),
   ]);
 
   return (
@@ -93,7 +98,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
           </div>
           <Results q={q} hits={hits} />
         </main>
-      ) : <HomeLanding facets={facets} homeContent={homeContent} recentTerms={recentTerms} />}
+      ) : <HomeLanding
+        facets={facets}
+        homeContent={homeContent}
+        recentTerms={recentTerms}
+        homeMode={workspaceSettings.homeMode}
+        aiAvailable={aiConfig.enabled && aiConfig.secretsReadable}
+      />}
       <InfoFooter className="relative z-10 mx-auto max-w-7xl border-t border-line px-5 py-6 sm:px-8" />
     </div>
   );
@@ -164,52 +175,33 @@ async function HomeHeader({ user }: { user: CurrentUser }) {
   );
 }
 
-function HomeLanding({ facets, homeContent, recentTerms }: { facets: TermFacets; homeContent: HomeContent; recentTerms: TermDetail[] }) {
+function HomeLanding({ facets, homeContent, recentTerms, homeMode, aiAvailable }: { facets: TermFacets; homeContent: HomeContent; recentTerms: TermDetail[]; homeMode: WorkspaceHomeMode; aiAvailable: boolean }) {
   const active = facets.statuses.find((status) => status.value === "active")?.count ?? 0;
   const domains = facets.domains.slice(0, 6);
+  const visibleMode = homeMode === "chat" && aiAvailable ? "chat" : "search";
   return (
     <main id="main-content" tabIndex={-1} className="relative z-10 mx-auto w-full max-w-7xl px-5 pb-16 sm:px-8 sm:pb-24">
-      <section className="relative border-b border-line py-10 sm:py-12">
-        <div className="grid items-center gap-7 lg:grid-cols-[1fr_1.1fr] lg:gap-16 animate-fade-up">
-          <div>
+      <section className="relative flex min-h-[calc(100svh-3.5rem)] items-center justify-center border-b border-line py-16 sm:py-20">
+        <div className="w-full max-w-3xl animate-fade-up text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">{homeContent.eyebrow}</p>
-          <h1 className="mt-3 text-[clamp(2rem,3.5vw,3rem)] font-semibold leading-[1.3] tracking-[-0.045em] text-ink">
-            <HomeTitle title={homeContent.title} />
-          </h1>
-          <p className="mt-4 max-w-xl whitespace-pre-line text-sm leading-7 text-ink-2">
-            {homeContent.description}
-          </p>
+          <h1 className="mt-5 text-[clamp(2.35rem,5vw,4rem)] font-semibold leading-[1.15] tracking-[-0.05em] text-ink"><HomeTitle title={homeContent.title} /></h1>
+          <div className="mx-auto mt-9 max-w-2xl">
+            {visibleMode === "chat" ? <HomeChatPrompt /> : <SearchBox defaultValue="" />}
           </div>
-          <div className="min-w-0">
-          <div className="max-w-2xl">
-            <SearchBox defaultValue="" />
-          </div>
-          {facets.total > 0 ? (
-            <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink-2">
-              <Stat value={facets.total} label="개 등록 용어" href="/sheet" />
-              <Stat value={active} label={`개 ${TERM_STATUS_LABEL.active}`} href="/sheet?status=active" />
-              <Stat value={facets.needsContribution} label="개 정리 대기" href="/contribute" />
-            </div>
-          ) : (
-            <div className="mt-8 rounded-2xl border border-line bg-panel p-5 text-left">
-              <h2 className="font-semibold text-ink">아직 등록된 용어가 없습니다</h2>
-              <p className="mt-2 text-sm leading-6 text-ink-2">팀에서 자주 묻는 약어 하나부터 시작해 보세요. 기존 목록이 있다면 엑셀 파일을 가져와 등록 전에 미리 확인할 수 있습니다.</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Link href="/new" className="btn-primary">첫 용어 등록하기</Link>
-                <Link href="/import" className="btn-ghost">엑셀 가져오기</Link>
-              </div>
-            </div>
-          )}
-          </div>
+          <p className="mt-4 text-xs text-ink-3">{visibleMode === "chat" ? "용어집에 근거해 답하고, 필요한 경우 정리 작업으로 이어집니다." : "약어, 별칭, 금지 표기까지 한 번에 찾아보세요."}</p>
+          <a href="#home-intro" aria-label="용어집 설명으로 이동" className="home-scroll-cue mt-12 inline-flex text-ink-3 transition-colors hover:text-brand">
+            <span className="grid h-8 w-8 place-items-center rounded-full border border-line bg-panel/70 text-brand shadow-sm"><IconArrowDown /></span>
+          </a>
         </div>
       </section>
 
-      {recentTerms.length > 0 && <section className="py-8" aria-labelledby="recent-terms-heading">
-        <div className="mb-4 flex items-baseline justify-between gap-3">
+      <section id="home-intro" className="scroll-mt-20 pt-20" aria-labelledby="recent-terms-heading">
+        <p className="max-w-2xl whitespace-pre-line text-sm leading-7 text-ink-2 sm:text-base">{homeContent.description}</p>
+        <div className="mb-5 flex items-baseline justify-between gap-3">
           <div><p className="text-[11px] font-medium tracking-[0.16em] text-ink-3">우리 팀의 사전</p><h2 id="recent-terms-heading" className="mt-1 text-xl font-semibold tracking-tight">최근 다듬은 용어</h2></div>
           <Link href="/sheet?sort=updatedAt&dir=desc" className="btn-quiet btn-sm">전체 용어 <IconArrow /></Link>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
+        {recentTerms.length > 0 ? <div className="grid gap-4 md:grid-cols-3">
           {recentTerms.map((term) => <Link key={term.id} href={`/g/${term.slug}`} className="dictionary-card group flex min-w-0 flex-col p-5 sm:p-6">
             <p className="text-[11px] text-ink-3">{term.domain.join(" · ") || "용어집"}</p>
             <h3 className="mt-3 break-words text-xl font-semibold tracking-tight group-hover:text-brand">{displayName(term)}</h3>
@@ -220,15 +212,23 @@ function HomeLanding({ facets, homeContent, recentTerms }: { facets: TermFacets;
               <span className="ml-auto inline-flex items-center gap-1 text-xs text-brand">뜻 살펴보기 <IconArrow /></span>
             </div>
           </Link>)}
-        </div>
-      </section>}
+        </div> : <div className="card p-6"><h3 className="font-semibold text-ink">아직 등록된 용어가 없습니다</h3><p className="mt-2 text-sm leading-6 text-ink-2">팀에서 자주 묻는 약어 하나부터 시작해 보세요.</p><div className="mt-4 flex flex-wrap gap-2"><Link href="/new" className="btn-primary">첫 용어 등록하기</Link><Link href="/import" className="btn-ghost">엑셀 가져오기</Link></div></div>}
+      </section>
 
-      {domains.length > 0 && <nav aria-label="분야별 용어 탐색" className="mb-8 flex flex-wrap items-center gap-2 border-y border-line py-4">
+      <section className="mt-16 border-y border-line py-5" aria-label="용어집 현황">
+        <div className="flex flex-wrap items-center gap-x-7 gap-y-3 text-sm text-ink-2">
+          <Stat value={facets.total} label="개 등록 용어" href="/sheet" />
+          <Stat value={active} label={`개 ${TERM_STATUS_LABEL.active}`} href="/sheet?status=active" />
+          <Stat value={facets.needsContribution} label="개 정리 대기" href="/contribute" />
+        </div>
+      </section>
+
+      {domains.length > 0 && <nav aria-label="분야별 용어 탐색" className="mt-8 flex flex-wrap items-center gap-2">
         <span className="mr-2 text-xs font-medium text-ink-2">분야별로 찾기</span>
         {domains.map((domain) => <Link key={domain.value} href={`/sheet?domain=${encodeURIComponent(domain.value)}`} className="chip bg-panel hover:border-brand/40">{domain.value}<span className="text-ink-3">{domain.count}</span></Link>)}
       </nav>}
 
-      <section className="mb-8 mt-8 scroll-mt-20" aria-labelledby="home-tasks">
+      <section className="mb-8 mt-20 scroll-mt-20" aria-labelledby="home-tasks">
         <ScrollReveal>
           <h2 id="home-tasks" className="text-lg font-semibold text-ink">지금 필요한 작업</h2>
         </ScrollReveal>
@@ -298,6 +298,26 @@ function TaskLink({ href, title, body }: { href: string; title: string; body: st
   );
 }
 
+function HomeChatPrompt() {
+  return (
+    <form method="get" action="/chat" role="search" aria-label="용어 챗봇 질문" className="w-full">
+      <label htmlFor="home-chat-prompt" className="sr-only">용어 챗봇에 질문</label>
+      <div className="flex items-center gap-2 rounded-2xl border border-line-strong bg-panel p-2 text-left shadow-sm transition focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15">
+        <span className="shrink-0 pl-2 text-brand" aria-hidden><IconSearch /></span>
+        <input
+          id="home-chat-prompt"
+          name="prompt"
+          type="text"
+          maxLength={20_000}
+          placeholder="용어집에 무엇이 궁금한가요?"
+          className="min-w-0 flex-1 bg-transparent px-1 py-2 text-sm text-ink outline-none placeholder:text-ink-3"
+        />
+        <button type="submit" className="btn-primary h-10 shrink-0 px-3 sm:px-4">챗봇 열기</button>
+      </div>
+    </form>
+  );
+}
+
 function HomeTitle({ title }: { title: string }) {
   const [first, ...rest] = title.split(/\r?\n/);
   return (
@@ -352,6 +372,7 @@ function Results({ q, hits }: { q: string; hits: SearchHit[] }) {
 function HomeBackdrop() { return <div className="pointer-events-none absolute inset-x-0 top-14 h-80 bg-gradient-to-b from-brand/[0.025] to-transparent" aria-hidden />; }
 function IconPlus() { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden><path d="M8 3v10M3 8h10" strokeLinecap="round" /></svg>; }
 function IconArrow() { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><path d="M3 8h9M9 4.5 12.5 8 9 11.5" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
+function IconArrowDown() { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><path d="M8 3v9M4.5 8.5 8 12l3.5-3.5" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
 function IconSearch() { return <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><circle cx="7.5" cy="7.5" r="4.5" /><path d="m11 11 3.5 3.5" strokeLinecap="round" /></svg>; }
 function IconPen() { return <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><path d="m11.3 3.2 3.5 3.5-8.7 8.7-3.9.4.4-3.9 8.7-8.7Z" strokeLinejoin="round" /><path d="m9.8 4.7 3.5 3.5" /></svg>; }
 function IconPeople() { return <svg width="19" height="19" viewBox="0 0 19 19" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><circle cx="7" cy="6" r="2.5" /><path d="M2.5 15c.3-3 1.8-4.5 4.5-4.5s4.2 1.5 4.5 4.5" strokeLinecap="round" /><path d="M12.5 4.5a2.4 2.4 0 0 1 0 4.7M13 11c2.1.2 3.2 1.5 3.5 4" strokeLinecap="round" /></svg>; }

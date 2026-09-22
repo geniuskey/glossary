@@ -19,8 +19,11 @@ export const workspaceMenuKeys = [
 ] as const;
 
 export type WorkspaceMenuKey = (typeof workspaceMenuKeys)[number];
+export const workspaceHomeModes = ["search", "chat"] as const;
+export type WorkspaceHomeMode = (typeof workspaceHomeModes)[number];
 export type WorkspaceMenuSettings = Partial<Record<WorkspaceMenuKey, boolean>> & {
   order?: WorkspaceMenuKey[];
+  homeMode?: WorkspaceHomeMode;
 };
 
 /**
