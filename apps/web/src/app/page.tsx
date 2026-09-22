@@ -326,7 +326,7 @@ function HomeTitle({ title }: { title: string }) {
     <>
       {first}
       {rest.map((line, index) => (
-        <span key={`${index}:${line}`} className="text-brand">
+        <span key={`${index}:${line}`} className="home-gradient-text">
           <br />{line}
         </span>
       ))}
