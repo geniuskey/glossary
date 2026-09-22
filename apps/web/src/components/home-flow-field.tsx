@@ -10,18 +10,22 @@ type CoreWord = {
   emphasis?: boolean;
 };
 
-const CORE_WORDS: readonly CoreWord[] = [
-  { label: "용어", lane: 1, start: 0.04, speed: 0.014, emphasis: true },
-  { label: "개념", lane: 7, start: 0.15, speed: 0.012 },
-  { label: "표기", lane: 3, start: 0.27, speed: 0.015 },
-  { label: "정의", lane: 9, start: 0.38, speed: 0.013, emphasis: true },
-  { label: "검색", lane: 5, start: 0.49, speed: 0.016 },
-  { label: "검증", lane: 0, start: 0.59, speed: 0.0125 },
-  { label: "관계", lane: 8, start: 0.68, speed: 0.0145 },
-  { label: "위키", lane: 4, start: 0.77, speed: 0.0135 },
-  { label: "협업", lane: 10, start: 0.86, speed: 0.0155, emphasis: true },
-  { label: "RAG", lane: 2, start: 0.94, speed: 0.013 },
+const CORE_LABELS = [
+  "용어", "개념", "표기", "정의", "검색", "검증", "관계", "위키", "협업", "RAG",
+  "표준화", "단일 사전", "대표 표기", "별칭", "약어", "도메인", "문맥", "분류", "사용 지침", "변경 이력",
+  "발견", "등록", "정리", "검토", "기여", "제안", "공유", "가져오기", "문서 검사", "의미 검색",
+  "정규화", "중복 탐지", "미등록 후보", "지식 그래프", "임베딩", "리비전", "OpenAPI", "자동 교정", "하이브리드 검색", "기계 판독",
 ];
+
+const EMPHASIZED_WORDS = new Set(["용어", "정의", "협업", "표준화", "단일 사전", "기계 판독"]);
+const FLOW_SPAN = 2.8;
+const CORE_WORDS: readonly CoreWord[] = CORE_LABELS.map((label, index) => ({
+  label,
+  lane: (index * 7 + 1) % 13,
+  start: (0.08 + index * 0.67) % FLOW_SPAN,
+  speed: 0.0105 + (index % 5) * 0.0008,
+  emphasis: EMPHASIZED_WORDS.has(label),
+}));
 
 function laneY(x: number, lane: number, time: number, width: number, height: number, laneCount: number) {
   const progress = x / Math.max(1, width);
@@ -98,11 +102,12 @@ export function HomeFlowField() {
       const mobile = width < 640;
       for (let index = 0; index < CORE_WORDS.length; index += 1) {
         const word = CORE_WORDS[index]!;
-        const progress = (word.start + time * word.speed) % 1.14 - 0.07;
+        const progress = (word.start + time * word.speed) % FLOW_SPAN - 0.9;
         const x = progress * width;
         const mappedLane = mobile ? word.lane % laneCount : word.lane;
         const y = laneY(x, mappedLane, time, width, height, laneCount);
-        const size = mobile ? (word.emphasis ? 14 : 13) : word.emphasis ? 18 : 15;
+        const longLabel = word.label.length > 5;
+        const size = mobile ? (word.emphasis ? 14 : longLabel ? 12 : 13) : word.emphasis ? 18 : longLabel ? 13 : 15;
 
         context.textAlign = "center";
         context.textBaseline = "middle";
@@ -117,7 +122,7 @@ export function HomeFlowField() {
     }
 
     function draw() {
-      const laneCount = width < 640 ? 7 : 11;
+      const laneCount = width < 640 ? 8 : 13;
       context.clearRect(0, 0, width, height);
       drawStreamlines(laneCount);
       drawWords(laneCount);
