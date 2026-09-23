@@ -45,10 +45,11 @@ test("기존 API 키 주소는 설정 허브의 API 키 영역으로 이어진�
   expect(legacyPage).toContain('redirect("/settings#api-keys")');
 });
 
-test("관리자 통계 화면은 성장 차트와 조직별 집계를 제공한다", () => {
+test("공개 통계 화면은 성장 차트와 분류별 집계를 제공한다", () => {
   const statisticsPage = readFileSync(path.join(appDir, "statistics", "page.tsx"), "utf8");
   const groupTable = readFileSync(path.join(appDir, "statistics", "group-statistics-table.tsx"), "utf8");
-  expect(statisticsPage).toContain('user.role !== "admin"');
+  expect(statisticsPage).not.toContain('redirect("/login")');
+  expect(statisticsPage).not.toContain('user.role !== "admin"');
   expect(statisticsPage).toContain("<DailyGrowthChart");
   expect(statisticsPage).toContain('value="cumulativeTerms"');
   expect(statisticsPage).toContain('kind="category"');

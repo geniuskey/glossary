@@ -17,7 +17,9 @@ test("목적별 메뉴는 숨김·권한·그룹 내 사용자 순서를 유지�
   );
   expect(groups.map((group) => group.label)).toEqual(["찾고 이해하기", "함께 다듬기", "운영·연동"]);
   expect(groups[0]?.items.map((item) => item.key)).toEqual(["chat", "sheet", "wiki"]);
-  expect(groups.flatMap((group) => group.items).map((item) => item.key)).not.toContain("statistics");
+  expect(groups.flatMap((group) => group.items).map((item) => item.key)).toContain("statistics");
+  const publicGroups = await getAppNavigation(null, DEFAULT_WORKSPACE_MENU_SETTINGS);
+  expect(publicGroups.flatMap((group) => group.items).map((item) => item.key)).toContain("statistics");
 });
 
 test("사이드바 탐색과 상단 검색·생성·계정 영역을 분리한다", async () => {
@@ -73,7 +75,7 @@ test("roomy 본문은 문서 여백을 유지하면서 편집 화면 폭을 넓�
     children: "편집 폼",
   }));
 
-  expect(html).toContain("max-w-6xl");
+  expect(html).toContain("max-w-7xl");
   expect(html).toContain("px-5 py-8 lg:px-8");
   expect(html).not.toContain("max-w-4xl");
 });

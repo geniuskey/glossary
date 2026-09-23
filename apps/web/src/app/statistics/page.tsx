@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { HelpTip } from "@/components/help-tip";
 import { CumulativeChart, DailyGrowthChart, RevisionActivityChart } from "@/components/statistics-charts";
@@ -24,8 +23,6 @@ export default async function StatisticsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  if (user.role !== "admin") redirect("/");
 
   const period = periodOf((await searchParams).days);
   const [statistics, categories] = await Promise.all([getPlatformStatistics(period), listBusinessCategories()]);

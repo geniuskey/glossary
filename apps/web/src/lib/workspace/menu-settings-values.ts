@@ -25,7 +25,7 @@ export const WORKSPACE_MENU_OPTIONS: readonly WorkspaceMenuOption[] = [
   { key: "wiki", label: "위키", description: "검토된 업무 원칙·프로세스·플레이북" },
   { key: "api", label: "API", description: "개발자 연동 문서와 API 사용 화면" },
   { key: "import", label: "가져오기", description: "엑셀로 용어를 일괄 가져오기" },
-  { key: "statistics", label: "통계", description: "관리자용 운영 현황", adminOnly: true },
+  { key: "statistics", label: "통계", description: "누구나 볼 수 있는 플랫폼 통계" },
 ];
 
 // 구현 파일의 배열 배치와 무관하게, 사용자가 자주 쓰는 핵심 화면에서

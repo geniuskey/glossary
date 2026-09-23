@@ -23,7 +23,7 @@ export const APP_NAV_ITEMS: Array<{ key: NavKey; href: string; label: string; hi
   { key: "wiki", href: "/w", label: "위키", hint: "업무 맥락", icon: <IconWiki /> },
   { key: "api", href: "/api", label: "API", hint: "개발자 연동", icon: <IconApi /> },
   { key: "import", href: "/import", label: "가져오기", hint: "엑셀", icon: <IconImport /> },
-  { key: "statistics", href: "/statistics", label: "통계", hint: "운영 현황", icon: <IconStatistics />, adminOnly: true },
+  { key: "statistics", href: "/statistics", label: "통계", hint: "운영 현황", icon: <IconStatistics /> },
 ];
 
 export const APP_NAV_GROUPS = [
