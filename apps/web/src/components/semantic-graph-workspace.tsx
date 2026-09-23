@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { TermGraph } from "./term-graph";
 import { RelationManager } from "./relation-manager";
 import type { GraphTerm } from "@/lib/terms/query";
@@ -19,7 +20,8 @@ type SemanticPathView = {
 };
 type Overview = { totalTerms: number; usable: number; proposed: number; stale: number; omitted: number };
 
-export function SemanticGraphWorkspace({ terms, relations, overview, focusTerm, invalidFocus, paths, domainColors, topBar }: {
+export function SemanticGraphWorkspace({ panel, terms, relations, overview, focusTerm, invalidFocus, paths, domainColors }: {
+  panel: "explore" | "manage";
   terms: GraphTerm[];
   relations: SemanticRelation[];
   overview: Overview;
@@ -27,34 +29,27 @@ export function SemanticGraphWorkspace({ terms, relations, overview, focusTerm, 
   invalidFocus: boolean;
   paths: SemanticPathView[];
   domainColors: { label: string; color: string }[];
-  topBar?: ReactNode;
 }) {
+  const router = useRouter();
   const [selectedTerm, setSelectedTerm] = useState<{ id: string; name: string } | null>(null);
-  const [graphKey, setGraphKey] = useState(0);
   const byId = useMemo(() => new Map(terms.map((term) => [term.id, term])), [terms]);
   const number = useMemo(() => new Intl.NumberFormat("ko-KR"), []);
+  const manageFocus = selectedTerm ? byId.get(selectedTerm.id) : focusTerm;
+  const manageHref = `/graph?view=semantic&panel=manage${manageFocus ? `&focus=${encodeURIComponent(manageFocus.slug)}` : ""}`;
   const visiblePaths = focusTerm ? paths : relations.map((relation) => ({
     id: relation.id, sourceTermId: relation.sourceTermId, targetTermId: relation.targetTermId,
     predicateLabel: RELATION_LABEL[relation.relationType], depth: 1, evidenceMd: relation.evidenceMd,
   }));
 
   return <div className="min-h-full bg-paper">
-    <div className="graph-toolbar-shell flex flex-wrap items-center justify-end gap-2 border-b border-line bg-panel px-4 py-2">{topBar}</div>
     <div className="mx-auto max-w-[96rem] px-5 py-6 lg:px-8">
+      {panel === "explore" ? <>
       <header className="max-w-4xl">
-        <p className="text-xs font-semibold text-brand">근거 기반 관계 탐색</p>
-        <h2 className="mt-1 text-xl font-semibold tracking-tight text-ink">용어가 어떻게 연결되는지 확인하세요</h2>
-        <p className="mt-2 text-sm leading-6 text-ink-2">이 화면은 승인됐고 양쪽 용어가 이후 변경되지 않은 관계만 보여줍니다. 용어를 고르면 챗봇 검색에 쓰는 최대 2단계 연결과 각 관계의 근거를 살펴볼 수 있습니다.</p>
+        <h2 className="text-xl font-semibold tracking-tight text-ink">용어가 어떻게 연결되는지 확인하세요</h2>
+        <p className="mt-2 text-sm leading-6 text-ink-2">사용 가능한 승인 관계에서 용어를 골라 최대 2단계 연결과 근거를 살펴볼 수 있습니다.</p>
       </header>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="의미 관계 현황">
-        <Metric value={number.format(overview.usable)} label="사용 가능한 승인 관계" detail="그래프와 챗봇 검색에 반영" />
-        <Metric value={number.format(overview.proposed)} label="검토 대기" detail="근거 확인 후 승인 필요" />
-        <Metric value={number.format(overview.stale)} label="재검토 필요" detail="용어 수정으로 검색에서 제외" />
-        <Metric value={number.format(overview.totalTerms)} label="등록 용어" detail="분류 연결은 별도 보기" />
-      </div>
-
-      <div className="mt-6 flex flex-wrap items-end justify-between gap-4 rounded-xl border border-line bg-panel p-4">
+      <div className="mt-5 flex flex-wrap items-end justify-between gap-4 rounded-xl border border-line bg-panel p-4">
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-ink">용어 중심으로 살펴보기</h3>
           <p className="mt-1 text-xs leading-5 text-ink-3">한 용어에서 출발해 직접 연결과 그 다음 연결을 따라갑니다. 관계의 방향과 근거를 함께 확인하세요.</p>
@@ -71,10 +66,10 @@ export function SemanticGraphWorkspace({ terms, relations, overview, focusTerm, 
             <h3 id="semantic-empty-title" className="mt-2 text-lg font-semibold text-ink">{focusTerm ? `${displayName(focusTerm)}에 사용 가능한 승인 관계가 없습니다` : "아직 사용 가능한 승인 관계가 없습니다"}</h3>
             <p className="mt-2 text-sm leading-6 text-ink-2">도메인·업무 분류가 같다는 사실만으로 의미 관계를 만들지는 않습니다. 두 용어가 어떤 관계인지와 확인 가능한 근거를 기록하고 승인해야 이 화면과 챗봇의 관계 확장에 반영됩니다.</p>
             <div className="mt-5 flex flex-wrap gap-2">
-              <a href="#semantic-relation-manager" className="btn-primary">관계 제안·검토하기</a>
+              <Link href={manageHref} className="btn-primary">관계 제안·검토하기</Link>
               <Link href="/graph?view=classification" className="btn-ghost">분류 연결 살펴보기</Link>
             </div>
-            {overview.proposed > 0 && <p className="mt-4 text-xs text-ink-3">검토 대기 {number.format(overview.proposed)}개가 있습니다. 아래 관리 목록에서 근거와 방향을 확인하세요.</p>}
+            {overview.proposed > 0 && <p className="mt-4 text-xs text-ink-3">검토 대기 {number.format(overview.proposed)}개가 있습니다. 관계 관리에서 근거와 방향을 확인하세요.</p>}
           </div>
         </section>
       ) : (
@@ -82,9 +77,12 @@ export function SemanticGraphWorkspace({ terms, relations, overview, focusTerm, 
           <section className="min-w-0 overflow-hidden rounded-xl border border-line bg-panel" aria-labelledby="semantic-map-title">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
               <div><h3 id="semantic-map-title" className="text-sm font-semibold text-ink">{focusTerm ? `${displayName(focusTerm)}의 2단계 관계` : "승인 관계 지도"}</h3><p className="mt-0.5 text-xs text-ink-3">{number.format(terms.length)}개 용어 · {number.format(relations.length)}개 관계{!focusTerm && overview.omitted > 0 ? ` · ${number.format(overview.omitted)}개 관계는 표시 범위 밖` : ""}</p></div>
-              {focusTerm && <Link href="/graph?view=semantic" className="btn-ghost btn-sm">전체 관계로 돌아가기</Link>}
+              <div className="flex gap-2">
+                {selectedTerm && <Link href={manageHref} className="btn-ghost btn-sm">선택한 용어 관리</Link>}
+                {focusTerm && <Link href="/graph?view=semantic" className="btn-ghost btn-sm">전체 관계로 돌아가기</Link>}
+              </div>
             </div>
-            <div className="h-[min(66vh,660px)] min-h-[460px]"><TermGraph key={graphKey} terms={terms} domainColors={domainColors} mode="semantic" semanticRelations={relations} onSelectTerm={setSelectedTerm} /></div>
+            <div className="h-[min(66vh,660px)] min-h-[460px]"><TermGraph terms={terms} domainColors={domainColors} mode="semantic" semanticRelations={relations} onSelectTerm={setSelectedTerm} /></div>
           </section>
           <section className="min-w-0 rounded-xl border border-line bg-panel p-4" aria-labelledby="semantic-path-title">
             <h3 id="semantic-path-title" className="text-sm font-semibold text-ink">{focusTerm ? "연결 경로와 근거" : "표시된 관계와 근거"}</h3>
@@ -101,7 +99,20 @@ export function SemanticGraphWorkspace({ terms, relations, overview, focusTerm, 
         </div>
       )}
 
-      <RelationManager selectedTerm={selectedTerm} onClearSelection={() => { setSelectedTerm(null); setGraphKey((key) => key + 1); }} initialCreateOpen={overview.usable === 0 && overview.proposed === 0} />
+      </> : <>
+        <header className="max-w-4xl">
+          <h2 className="text-xl font-semibold tracking-tight text-ink">관계를 제안하고 검토하세요</h2>
+          <p className="mt-2 text-sm leading-6 text-ink-2">근거와 방향을 확인해 승인하면 관계 탐색과 챗봇 검색에 반영됩니다. 용어가 바뀐 관계는 다시 검토해야 합니다.</p>
+        </header>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="의미 관계 현황">
+          <Metric value={number.format(overview.usable)} label="사용 가능한 승인 관계" detail="그래프와 챗봇 검색에 반영" />
+          <Metric value={number.format(overview.proposed)} label="검토 대기" detail="근거 확인 후 승인 필요" />
+          <Metric value={number.format(overview.stale)} label="재검토 필요" detail="용어 수정으로 검색에서 제외" />
+          <Metric value={number.format(overview.totalTerms)} label="등록 용어" detail="분류 연결은 별도 보기" />
+        </div>
+        {invalidFocus && <p className="mt-4 rounded-lg border border-warn/30 bg-warn-soft px-4 py-3 text-sm text-warn" role="alert">해당 용어를 찾지 못했습니다. 아래에서 다른 용어를 검색해 주세요.</p>}
+        <RelationManager selectedTerm={focusTerm ? { id: focusTerm.id, name: displayName(focusTerm) } : null} onClearSelection={() => router.push("/graph?view=semantic&panel=manage")} initialCreateOpen={overview.usable === 0 && overview.proposed === 0} />
+      </>}
     </div>
   </div>;
 }
