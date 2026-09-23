@@ -90,7 +90,7 @@ function RelationEditor({ relation, busy, onSave, onCancel }: { relation: Manage
   </form>;
 }
 
-export function RelationManager({ selectedTerm, onClearSelection }: { selectedTerm: { id: string; name: string } | null; onClearSelection: () => void }) {
+export function RelationManager({ selectedTerm, onClearSelection, initialCreateOpen = false }: { selectedTerm: { id: string; name: string } | null; onClearSelection: () => void; initialCreateOpen?: boolean }) {
   const router = useRouter();
   const id = useId();
   const [source, setSource] = useState<RelationTerm | null>(null);
@@ -144,10 +144,10 @@ export function RelationManager({ selectedTerm, onClearSelection }: { selectedTe
     }
   }
 
-  return <section className="card mt-4 p-4 sm:p-5" aria-labelledby={`${id}-title`}>
+  return <section id="semantic-relation-manager" className="card mt-6 scroll-mt-6 p-4 sm:p-5" aria-labelledby={`${id}-title`}>
     <h2 id={`${id}-title`} className="text-base font-semibold">의미 관계 관리</h2>
     <p className="mt-1 text-xs text-ink-3">제안 → 근거 검토 → 승인. 승인 후 용어가 바뀌지 않은 관계만 그래프와 챗봇이 사용합니다.</p>
-    <details className="mt-4 rounded-lg border border-line p-3">
+    <details open={initialCreateOpen || undefined} className="mt-4 rounded-lg border border-line p-3">
       <summary className="cursor-pointer text-sm font-medium">새 관계 제안</summary>
       <form onSubmit={create} className="mt-3 space-y-3">
         <div className="grid gap-3 sm:grid-cols-2"><TermPicker label="A · 출발 용어" value={source} onChange={setSource} disabled={busy} /><TermPicker label="B · 도착 용어" value={target} onChange={setTarget} disabled={busy} /></div>

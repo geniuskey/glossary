@@ -270,7 +270,8 @@ export function buildGraphModel(terms: readonly GraphTerm[]): GraphModel {
 }
 
 export function buildSemanticGraphModel(terms: readonly GraphTerm[], relations: readonly SemanticRelation[]): GraphModel {
-  const nodes = terms.slice(0, TERM_LIMIT).map((term, index): GraphNode => {
+  const connectedIds = new Set(relations.flatMap((relation) => [relation.sourceTermId, relation.targetTermId]));
+  const nodes = terms.filter((term) => connectedIds.has(term.id)).slice(0, TERM_LIMIT).map((term, index): GraphNode => {
     const angle = index * Math.PI * (3 - Math.sqrt(5));
     const distance = 35 * Math.sqrt(index);
     return { key: `n:${term.id}`, label: displayName(term), kind: "term", term, radius: 12, vx: 0, vy: 0,
@@ -678,13 +679,13 @@ export function TermGraph({
     }
   }
 
-  if (terms.length === 0) {
+  if (model.nodes.length === 0) {
     return (
       <section className="flex h-full min-h-[480px] flex-col">
         {topBar && (
           <div className="graph-toolbar-shell flex min-w-0 shrink-0 items-center justify-end gap-1.5 border-b border-line px-3 py-1.5">{topBar}</div>
         )}
-        <div className="grid min-h-0 flex-1 place-items-center px-5 py-16 text-center text-sm text-ink-3">조건에 맞는 용어가 없습니다.</div>
+        <div className="grid min-h-0 flex-1 place-items-center px-5 py-16 text-center text-sm text-ink-3">{mode === "semantic" ? "표시할 승인 관계가 없습니다." : "조건에 맞는 용어가 없습니다."}</div>
       </section>
     );
   }
@@ -763,7 +764,7 @@ export function TermGraph({
                 const endY = target.y - tangentY * insetRatio;
                 return <g key={edge.key} opacity={emphasized ? 0.85 : 0.1}>
                   <path d={`M ${stableCoordinate(source.x)} ${stableCoordinate(source.y)} Q ${stableCoordinate(controlX)} ${stableCoordinate(controlY)} ${stableCoordinate(endX)} ${stableCoordinate(endY)}`} fill="none" markerEnd={`url(#${markerId})`} />
-                  {active && emphasized && <text x={stableCoordinate((source.x + 2 * controlX + endX) / 4)} y={stableCoordinate((source.y + 2 * controlY + endY) / 4 - 6 * visualNodeScale)} textAnchor="middle" stroke="none" className="fill-ink-2" fontSize={10 * visualNodeScale}>{RELATION_LABEL[edge.relation.relationType]}</text>}
+                  {(model.edges.length <= 16 || active) && emphasized && <text x={stableCoordinate((source.x + 2 * controlX + endX) / 4)} y={stableCoordinate((source.y + 2 * controlY + endY) / 4 - 6 * visualNodeScale)} textAnchor="middle" stroke="none" className="fill-ink-2" fontSize={10 * visualNodeScale}>{RELATION_LABEL[edge.relation.relationType]}</text>}
                 </g>;
               }
               return (

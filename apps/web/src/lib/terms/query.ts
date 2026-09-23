@@ -627,3 +627,22 @@ export async function listGraphTerms(filters: GraphFilters = {}): Promise<GraphT
     .orderBy(terms.category, terms.nameKo, terms.nameEn, terms.id)
     .limit(filters.limit ?? 120);
 }
+
+/** 의미 그래프의 노드는 승인 관계의 실제 양 끝에서만 가져온다. */
+export async function graphTermsByIds(ids: readonly string[]): Promise<GraphTerm[]> {
+  if (ids.length === 0) return [];
+  return getDb()
+    .select({ ...summaryColumns, definitionMd: terms.definitionMd })
+    .from(terms)
+    .where(inArray(terms.id, [...ids]))
+    .orderBy(terms.nameKo, terms.nameEn, terms.id);
+}
+
+export async function graphTermBySlug(slug: string): Promise<GraphTerm | null> {
+  const [term] = await getDb()
+    .select({ ...summaryColumns, definitionMd: terms.definitionMd })
+    .from(terms)
+    .where(eq(terms.slug, slug))
+    .limit(1);
+  return term ?? null;
+}

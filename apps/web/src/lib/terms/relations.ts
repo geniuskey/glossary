@@ -59,6 +59,36 @@ export async function semanticGraphRelations(termIds: string[]) {
   return { items: items.map(({ id, sourceTermId, targetTermId, relationType, evidenceMd }) => ({ id, sourceTermId, targetTermId, relationType, evidenceMd })), omitted: Math.max(0, (counted?.total ?? 0) - items.length) };
 }
 
+/** 전체 의미 관계의 현황과 화면에 실을 연결을 함께 읽는다. */
+export async function semanticGraphOverview() {
+  const db = getDb();
+  const [candidates, [usable], [approved], [proposed]] = await Promise.all([
+    db.select().from(termRelations).where(usableRelationWhere())
+      .orderBy(desc(termRelations.confidence), termRelations.id).limit(500),
+    db.select({ total: sql<number>`count(*)::int` }).from(termRelations).where(usableRelationWhere()),
+    db.select({ total: sql<number>`count(*)::int` }).from(termRelations).where(eq(termRelations.status, "approved")),
+    db.select({ total: sql<number>`count(*)::int` }).from(termRelations).where(eq(termRelations.status, "proposed")),
+  ]);
+  const ids = new Set<string>();
+  const shown: typeof candidates = [];
+  for (const relation of candidates) {
+    if (shown.length >= 80) break;
+    if (ids.size + Number(!ids.has(relation.sourceTermId)) + Number(!ids.has(relation.targetTermId)) > 100) continue;
+    ids.add(relation.sourceTermId);
+    ids.add(relation.targetTermId);
+    shown.push(relation);
+  }
+  const total = usable?.total ?? 0;
+  return {
+    items: shown.map(({ id, sourceTermId, targetTermId, relationType, evidenceMd }) => ({ id, sourceTermId, targetTermId, relationType, evidenceMd })),
+    termIds: [...new Set(shown.flatMap((relation) => [relation.sourceTermId, relation.targetTermId]))],
+    total,
+    omitted: Math.max(0, total - shown.length),
+    proposed: proposed?.total ?? 0,
+    stale: Math.max(0, (approved?.total ?? 0) - total),
+  };
+}
+
 export async function listRelations(filters: { termId?: string; status?: RelationStatus; type?: RelationType; page?: number } = {}): Promise<RelationPage> {
   const page = filters.page ?? 1;
   const where = and(

@@ -128,6 +128,9 @@ export async function TermDetailPage({
             <div className="mt-2"><CopyTermButton text={displayName(term)} /></div>
           </div>
           <div className="flex flex-wrap gap-1.5">
+            <Link href={`/graph?view=semantic&focus=${encodeURIComponent(term.slug)}`} className="btn-ghost btn-sm">
+              의미 관계
+            </Link>
             <Link href={`/edit/${term.slug}#ai-review-heading`} className="btn-ghost btn-sm">
               AI 검토
             </Link>

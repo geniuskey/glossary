@@ -13,7 +13,7 @@ const relation: SemanticRelation = { id: "edge-1", sourceTermId: "a", targetTerm
 
 test("의미 그래프는 분류 허브 없이 저장된 방향·종류·근거를 유지한다", () => {
   const model = buildSemanticGraphModel([term("a"), term("b"), term("c")], [relation]);
-  expect(model.nodes).toHaveLength(3);
+  expect(model.nodes).toHaveLength(2);
   expect(model.nodes.every((node) => node.kind === "term")).toBe(true);
   expect(model.edges).toEqual([{ key: relation.id, source: "n:a", target: "n:b", relation }]);
   expect(model.omittedEdgeCount).toBe(0);
@@ -34,10 +34,13 @@ test("의미 그래프는 방향 화살표와 키보드 안내를 렌더링하�
   expect(html).not.toContain("graph-topic-swatch");
 });
 
-test("의미 그래프도 초기 좌표가 고정 정밀도이고 관계 없는 용어를 남긴다", () => {
+test("의미 그래프는 관계 없는 용어를 연결된 것처럼 보여주지 않는다", () => {
   const model = buildSemanticGraphModel(Array.from({ length: 100 }, (_, i) => term(String(i))), []);
-  expect(model.nodes).toHaveLength(100);
-  for (const node of model.nodes) {
+  expect(model.nodes).toHaveLength(0);
+  const connected = buildSemanticGraphModel([term("a"), term("b"), term("c")], [relation]);
+  expect(connected.nodes).toHaveLength(2);
+  expect(connected.edges).toHaveLength(1);
+  for (const node of connected.nodes) {
     expect(node.x).toBe(Math.round(node.x * 1_000_000) / 1_000_000);
     expect(node.y).toBe(Math.round(node.y * 1_000_000) / 1_000_000);
   }

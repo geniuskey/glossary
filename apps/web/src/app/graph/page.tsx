@@ -4,11 +4,14 @@ import { AppShell } from "@/components/app-shell";
 import { GraphFilterBar } from "@/components/graph-filter-bar";
 import { TermGraph } from "@/components/term-graph";
 import { SemanticGraphWorkspace } from "@/components/semantic-graph-workspace";
-import { semanticGraphRelations } from "@/lib/terms/relations";
+import { semanticGraphOverview } from "@/lib/terms/relations";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { listDomains } from "@/lib/terms/domains";
 import { DOMAIN_VALUE_MAX } from "@/lib/terms/limits";
-import { listGraphTermsWithTotal, termFacets } from "@/lib/terms/query";
+import { graphTermBySlug, graphTermsByIds, listGraphTermsWithTotal, termFacets } from "@/lib/terms/query";
+import { expandApprovedOntology } from "@/lib/ontology/expand";
+import { loadOntologyPredicates } from "@/lib/ontology/catalog";
+import { getDb } from "@/lib/db";
 
 export const metadata = { title: "용어 관계도" };
 
@@ -25,46 +28,71 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
   const [facets, domainOptions] = await Promise.all([termFacets(), listDomains()]);
   const category = facets.categories.some((facet) => facet.value === rawCategory) ? rawCategory : undefined;
   const topic = first(params.topic) ?? (rawCategory && !category ? rawCategory : undefined);
-  const { items: terms, total } = await listGraphTermsWithTotal({ domain, category, topic, limit: 100 });
-  const semantic = first(params.view) === "semantic";
-  const relations = semantic ? await semanticGraphRelations(terms.map((term) => term.id)) : { items: [], omitted: 0 };
+  // 기존 /graph?domain=... 링크는 분류 지도로 유지한다. 필터 없는 기본 화면은
+  // 실제 승인 관계와 근거를 먼저 보여준다.
+  const semantic = first(params.view) === "semantic" || (first(params.view) !== "classification" && !domain && !category && !topic);
+  const rawFocus = Array.isArray(params.focus) ? params.focus[0] : params.focus;
+  const focusSlug = semantic ? rawFocus?.trim().slice(0, 200) || undefined : undefined;
+  const focusTerm = focusSlug ? await graphTermBySlug(focusSlug) : null;
+  const overview = semantic ? await semanticGraphOverview() : null;
+  const predicates = semantic && focusTerm ? await loadOntologyPredicates() : [];
+  const expansion = semantic && focusTerm ? await expandApprovedOntology(getDb(), [focusTerm.id], predicates, { maxDepth: 2, limit: 80 }) : null;
+  const relations = focusTerm && expansion
+    ? expansion.relations.map(({ id, sourceTermId, targetTermId, relationType, evidenceMd }) => ({ id, sourceTermId, targetTermId, relationType, evidenceMd }))
+    : overview?.items ?? [];
+  const paths = expansion?.paths.map((path) => ({
+    ...path,
+    predicateLabel: predicates.find((predicate) => predicate.key === path.predicateKey)?.label ?? path.predicateKey,
+  })) ?? [];
+  const semanticTermIds = focusTerm
+    ? [...new Set([focusTerm.id, ...relations.flatMap((relation) => [relation.sourceTermId, relation.targetTermId])])]
+    : overview?.termIds ?? [];
+  const semanticTerms = semantic ? await graphTermsByIds(semanticTermIds) : [];
+  const classification = semantic ? null : await listGraphTermsWithTotal({ domain, category, topic, limit: 100 });
   const filters = new URLSearchParams();
   if (domain) filters.set("domain", domain);
   if (category) filters.set("category", category);
   if (topic) filters.set("topic", topic);
-  const classificationHref = filters.size ? `/graph?${filters}` : "/graph";
-  filters.set("view", "semantic");
-  const semanticHref = `/graph?${filters}`;
+  filters.set("view", "classification");
+  const classificationHref = `/graph?${filters}`;
+  const semanticHref = "/graph?view=semantic";
   const number = new Intl.NumberFormat("ko-KR");
   const graphTopBar = (
     <>
       <span
         className="graph-toolbar-count max-w-52 truncate text-[11px] text-ink-3"
         title={semantic
-          ? `승인된 의미 관계 ${relations.items.length}개 표시${relations.omitted > 0 ? ` · 연결 ${relations.omitted}개 생략` : ""}`
-          : `전체 ${number.format(total)}개 중 ${number.format(terms.length)}개 표시`}
+          ? `사용 가능한 승인 관계 ${number.format(overview?.total ?? 0)}개 중 ${number.format(relations.length)}개 표시${!focusTerm && (overview?.omitted ?? 0) > 0 ? ` · ${number.format(overview!.omitted)}개 생략` : ""}`
+          : `전체 ${number.format(classification?.total ?? 0)}개 중 ${number.format(classification?.items.length ?? 0)}개 표시`}
       >
-        {semantic ? `관계 ${number.format(relations.items.length)}개` : `${number.format(terms.length)} / ${number.format(total)}개`}
+        {semantic ? `승인 관계 ${number.format(relations.length)}개 표시` : `${number.format(classification?.items.length ?? 0)} / ${number.format(classification?.total ?? 0)}개`}
       </span>
       <nav className="flex shrink-0 gap-1.5" aria-label="관계도 보기">
         <Link href={classificationHref} aria-current={!semantic ? "page" : undefined} className={!semantic ? "graph-toolbar-view-link btn-primary h-8 px-2.5 text-xs" : "graph-toolbar-view-link btn-ghost h-8 px-2.5 text-xs"}>분류 관계</Link>
         <Link href={semanticHref} aria-current={semantic ? "page" : undefined} className={semantic ? "graph-toolbar-view-link btn-primary h-8 px-2.5 text-xs" : "graph-toolbar-view-link btn-ghost h-8 px-2.5 text-xs"}>의미 관계</Link>
       </nav>
-      <GraphFilterBar
+      {!semantic && <GraphFilterBar
         values={{ domain: domain ?? "", category: category ?? "", topic: topic ?? "" }}
         domains={facets.domains.map((f) => ({ value: f.value, label: f.value }))}
         categories={facets.categories.map((f) => ({ value: f.value, label: f.label }))}
         topics={facets.topics.map((f) => ({ value: f.value, label: f.value }))}
-        view={semantic ? "semantic" : undefined}
-      />
+      />}
     </>
   );
 
   return (
     <AppShell user={user} title="용어 관계도" current="graph" wide>
       <div className="min-h-0 flex-1 overflow-auto">
-        {semantic ? <SemanticGraphWorkspace terms={terms} relations={relations.items} domainColors={domainOptions.map(({ label, color }) => ({ label, color }))} topBar={graphTopBar} />
-          : <TermGraph terms={terms} domainColors={domainOptions.map(({ label, color }) => ({ label, color }))} topBar={graphTopBar} />}
+        {semantic && overview ? <SemanticGraphWorkspace
+          terms={semanticTerms}
+          relations={relations}
+          overview={{ totalTerms: facets.total, usable: overview.total, proposed: overview.proposed, stale: overview.stale, omitted: overview.omitted }}
+          focusTerm={focusTerm}
+          invalidFocus={Boolean(focusSlug && !focusTerm)}
+          paths={paths}
+          domainColors={domainOptions.map(({ label, color }) => ({ label, color }))}
+          topBar={graphTopBar}
+        /> : <TermGraph terms={classification?.items ?? []} domainColors={domainOptions.map(({ label, color }) => ({ label, color }))} topBar={graphTopBar} />}
       </div>
     </AppShell>
   );
