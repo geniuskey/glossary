@@ -4,6 +4,7 @@ import { isResponse, requireAdminUser, requireAuth } from "@/lib/auth/require";
 import { deleteDomain, updateDomain } from "@/lib/terms/domains";
 import { DOMAIN_COLOR_KEYS } from "@/lib/terms/domain-colors";
 import { DOMAIN_VALUE_MAX } from "@/lib/terms/limits";
+import { DOMAIN_LABEL_FORBIDDEN_MESSAGE, isValidDomainLabel } from "@/lib/terms/domain-label";
 
 const ALLOWED_METHODS = ["PATCH", "DELETE"];
 const { GET, POST, PUT, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -19,6 +20,9 @@ export const PATCH = withApiErrors(async (request: Request, context: { params: P
   if (isResponse(admin)) return admin;
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "도메인 변경 값이 올바르지 않습니다.", 400, parsed.error.flatten());
+  if (parsed.data.label !== undefined && !isValidDomainLabel(parsed.data.label)) {
+    return apiError("validation_failed", DOMAIN_LABEL_FORBIDDEN_MESSAGE, 400, { field: "label" });
+  }
   const { key } = await context.params;
   const result = await updateDomain(key, parsed.data);
   if (result === "not_found") return apiError("not_found", "도메인을 찾을 수 없습니다.", 404);

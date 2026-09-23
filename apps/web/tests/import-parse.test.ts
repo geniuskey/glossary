@@ -190,3 +190,12 @@ test("분류 체계 목록을 받으면 없는 도메인이 붙은 행은 건너
   expect(rows.map((row) => row.nameEn)).toEqual(["AE"]);
   expect(errors).toEqual([{ rowNumber: 3, message: expect.stringContaining("광학") }]);
 });
+
+test("가져오기 도메인은 모양만 다른 값(NFD·대소문자)도 분류 체계 이름으로 맞춘다", async () => {
+  const buf = await workbook([["AE", "자동노출", "", `${"일반".normalize("NFD")}, isp`, "active", "", ""]]);
+
+  const { rows, errors } = await parseGlossaryWorkbook(buf, undefined, undefined, ["일반", "ISP"]);
+
+  expect(errors).toEqual([]);
+  expect(rows[0]?.domain).toEqual(["일반", "ISP"]);
+});

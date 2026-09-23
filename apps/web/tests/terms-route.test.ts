@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, expect, test, vi } from "vitest";
-import { apiKeys, createDb, terms, termRevisions, users } from "@glossary/db";
+import { apiKeys, createDb, domains, terms, termRevisions, users } from "@glossary/db";
 import { generateApiKey } from "../src/lib/auth/api-key.js";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
@@ -442,7 +442,29 @@ test("이미 붙어 있던 분류 체계 밖 도메인은 patch를 막지 않고
     params: Promise.resolve({ idOrSlug: term.slug }),
   });
   expect(added.status).toBe(400);
-  expect((await added.json()).error.details).toEqual({ field: "domain" });
+  const body = await added.json();
+  expect(body.error.message).toContain(`새 도메인 ${suffix}`);
+  expect(body.error.details).toMatchObject({ field: "domain", unknown: [`새 도메인 ${suffix}`] });
+});
+
+// 운영에서 payload는 ["일반"], 도메인 목록에도 "일반"이 보이는데 저장이 400으로
+// 막혔다. 화면에 같게 보이는 NFC/NFD 차이만으로 SQL `IN` 비교가 어긋날 수 있다.
+test("분류 체계 이름과 NFC/NFD만 다른 도메인도 저장되고, 분류 체계 이름 그대로 저장된다", async () => {
+  const term = await seedRouteTerm();
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const catalogLabel = `일반 ${suffix}`.normalize("NFD");
+  await db.insert(domains).values({ key: `nfd-probe-${suffix}`, label: catalogLabel, color: "p71", sortOrder: 9999 });
+  try {
+    const { token } = await makeKeyRow(["write"]);
+    const res = await termPatch(patchRequest({ domain: [catalogLabel.normalize("NFC")] }, token), {
+      params: Promise.resolve({ idOrSlug: term.slug }),
+    });
+    expect(res.status).toBe(200);
+    const [saved] = await db.select({ domain: terms.domain }).from(terms).where(eq(terms.id, term.id));
+    expect(saved?.domain).toEqual([catalogLabel]);
+  } finally {
+    await db.delete(domains).where(eq(domains.key, `nfd-probe-${suffix}`));
+  }
 });
 
 // R54: updateTerm의 conflict 결과는 409 revision_conflict로 변환되어야 한다.

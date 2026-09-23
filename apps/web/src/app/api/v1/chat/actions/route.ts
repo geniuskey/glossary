@@ -5,7 +5,7 @@ import { getDb } from "@/lib/db";
 import { requireAuth, isResponse } from "@/lib/auth/require";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { updateTerm } from "@/lib/terms/update";
-import { addedDomains, domainsExist } from "@/lib/terms/domains";
+import { resolveDomains } from "@/lib/terms/domains";
 import { getTermByIdOrSlug } from "@/lib/terms/query";
 import { businessCategoriesExist } from "@/lib/terms/categories";
 import { chatEditPatchSchema } from "@/lib/ai/chat-edit-schema";
@@ -52,8 +52,11 @@ export const POST = withApiErrors(async (request: Request) => {
       await getDb().transaction((tx) => saveReceipt(tx, "cancelled"));
       return Response.json({ edit: finish("cancelled") });
     }
-    const currentDomains = patch.data.domain ? (await getTermByIdOrSlug(proposal.termId))?.domain ?? [] : [];
-    if (patch.data.domain && !await domainsExist(addedDomains(patch.data.domain, currentDomains)) || patch.data.category && !await businessCategoriesExist(patch.data.category)) {
+    const domains = patch.data.domain
+      ? await resolveDomains(patch.data.domain, (await getTermByIdOrSlug(proposal.termId))?.domain ?? [])
+      : undefined;
+    if (domains) patch.data.domain = domains.labels;
+    if (domains?.unknown.length || patch.data.category && !await businessCategoriesExist(patch.data.category)) {
       return apiError("validation_failed", "분류 체계가 변경되었습니다. 새 수정안을 요청해 주세요.", 400);
     }
     const result = await updateTerm(proposal.termId, patch.data, auth.user.id, proposal.expectedRevision, null,

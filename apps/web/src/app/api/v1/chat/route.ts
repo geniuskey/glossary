@@ -12,7 +12,7 @@ import type { TermTeachingDraft } from "@/lib/ai/teaching-values";
 import { getDb } from "@/lib/db";
 import { appendChatMessage } from "@/lib/ai/chat-messages";
 import { termInputBaseSchema } from "@/lib/terms/schema";
-import { domainsExist, listDomains } from "@/lib/terms/domains";
+import { listDomains, resolveDomains } from "@/lib/terms/domains";
 import { consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const ALLOWED_METHODS = ["GET", "POST", "PATCH", "DELETE"];
@@ -130,7 +130,11 @@ export const POST = withApiErrors(async (request: Request) => {
 
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "질문과 대화 내용을 확인해 주세요.", 400, parsed.error.flatten());
-  if (parsed.data.domain && !await domainsExist([parsed.data.domain])) return apiError("validation_failed", "검색할 도메인이 없습니다. 전체 도메인을 선택하거나 목록을 다시 불러오세요.", 400);
+  if (parsed.data.domain) {
+    const resolved = await resolveDomains([parsed.data.domain]);
+    if (resolved.unknown.length) return apiError("validation_failed", "검색할 도메인이 없습니다. 전체 도메인을 선택하거나 목록을 다시 불러오세요.", 400);
+    parsed.data.domain = resolved.labels[0];
+  }
 
   let conversationId: string | undefined;
   let previousMessages: StoredChatMessage[] = [];

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { domains, type Db } from "@glossary/db";
 import { firstUnusedDomainColor } from "./domain-colors";
+import { domainLabelKey, normalizeDomainLabel } from "./domain-label";
 import { slugify } from "./slug";
 
 // domains.ts는 server-only라 tsx로 도는 시드 스크립트가 import할 수 없다.
@@ -23,27 +24,27 @@ export function uniqueDomainKey(label: string, taken: ReadonlySet<string>): stri
  * 가져오기 단계에서 거절한다(parse-xlsx.ts).
  */
 export async function ensureDomains(db: Db, labels: readonly string[]): Promise<string[]> {
-  const wanted = [...new Set(labels.map((label) => label.trim()).filter(Boolean))];
+  const wanted = [...new Set(labels.map(normalizeDomainLabel).filter(Boolean))];
   if (wanted.length === 0) return [];
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('glossary_domain_catalog'))`);
     const current = await tx
       .select({ key: domains.key, label: domains.label, color: domains.color, sortOrder: domains.sortOrder })
       .from(domains);
-    const knownLabels = new Set(current.map((domain) => domain.label));
+    const knownLabels = new Set(current.map((domain) => domainLabelKey(domain.label)));
     const keys = new Set(current.map((domain) => domain.key));
     const colors = new Set(current.map((domain) => domain.color));
     let sortOrder = Math.max(-1, ...current.map((domain) => domain.sortOrder)) + 1;
     const created: string[] = [];
     for (const label of wanted) {
-      if (knownLabels.has(label)) continue;
+      if (knownLabels.has(domainLabelKey(label))) continue;
       const color = firstUnusedDomainColor(colors);
       if (!color) throw new Error(`도메인 색상 팔레트가 가득 차 ‘${label}’ 도메인을 추가할 수 없습니다.`);
       const key = uniqueDomainKey(label, keys);
       await tx.insert(domains).values({ key, label, color, sortOrder });
       keys.add(key);
       colors.add(color);
-      knownLabels.add(label);
+      knownLabels.add(domainLabelKey(label));
       sortOrder += 1;
       created.push(label);
     }

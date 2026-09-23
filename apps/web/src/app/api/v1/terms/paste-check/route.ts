@@ -4,7 +4,8 @@ import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAuth } from "@/lib/auth/require";
 import { listBusinessCategories } from "@/lib/terms/categories";
 import { findRepresentativeDuplicates } from "@/lib/terms/create";
-import { addedDomains, listDomains } from "@/lib/terms/domains";
+import { listDomains } from "@/lib/terms/domains";
+import { resolveDomainLabels } from "@/lib/terms/domain-label";
 import { getTermByIdOrSlug } from "@/lib/terms/query";
 import { termInputSchema, termPatchSchema } from "@/lib/terms/schema";
 import { currentRevisionNumber } from "@/lib/terms/update";
@@ -79,7 +80,7 @@ export const POST = withApiErrors(async (request: Request) => {
   }
 
   const [domains, categories] = await Promise.all([listDomains(), listBusinessCategories()]);
-  const knownDomains = new Set(domains.map((domain) => domain.label));
+  const catalogDomains = domains.map((domain) => domain.label);
   const knownCategories = new Set(categories.map((category) => category.key));
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -101,7 +102,7 @@ export const POST = withApiErrors(async (request: Request) => {
       errors.push(`${operation.line}번째 줄: 다른 사람이 먼저 수정했습니다. 새로고침한 뒤 다시 붙여넣어 주세요.`);
     }
     if (parsed.data.domain) {
-      for (const domain of addedDomains(parsed.data.domain, existing.domain)) if (!knownDomains.has(domain)) {
+      for (const domain of resolveDomainLabels(parsed.data.domain, catalogDomains, existing.domain).unknown) {
         errors.push(`${operation.line}번째 줄 · 도메인: “${domain}”은 분류 체계에 없는 도메인입니다.`);
       }
     }
@@ -130,7 +131,7 @@ export const POST = withApiErrors(async (request: Request) => {
       errors.push(...issueMessages(parsed.error, operation.line));
       continue;
     }
-    for (const domain of parsed.data.domain) if (!knownDomains.has(domain)) {
+    for (const domain of resolveDomainLabels(parsed.data.domain, catalogDomains).unknown) {
       errors.push(`${operation.line}번째 줄 · 도메인: “${domain}”은 분류 체계에 없는 도메인입니다.`);
     }
     for (const category of parsed.data.category ?? []) if (!knownCategories.has(category)) {

@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { BUSINESS_CATEGORIES, TERM_STATUSES, type BusinessCategoryLiteral, type TermStatusLiteral } from "@/lib/terms/enums";
+import { resolveDomainLabels } from "@/lib/terms/domain-label";
 import { HEADER_TO_FIELD, LIST_SEPARATOR, normalizeHeader, type ImportField } from "./format";
 
 export interface ImportRow {
@@ -82,7 +83,7 @@ export async function parseGlossaryWorkbook(
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer);
 
-  return parseWorksheet(wb.worksheets[0], categorySet, selectedFields, domainLabels && new Set(domainLabels));
+  return parseWorksheet(wb.worksheets[0], categorySet, selectedFields, domainLabels);
 }
 
 export function parseGlossaryMatrix(
@@ -94,14 +95,14 @@ export function parseGlossaryMatrix(
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("glossary");
   for (const line of matrix) ws.addRow(line);
-  return parseWorksheet(ws, new Set(categoryKeys), selectedFields, domainLabels && new Set(domainLabels));
+  return parseWorksheet(ws, new Set(categoryKeys), selectedFields, domainLabels);
 }
 
 function parseWorksheet(
   ws: ExcelJS.Worksheet | undefined,
   categorySet: Set<string>,
   selectedFields?: readonly ImportField[],
-  domainSet?: ReadonlySet<string>,
+  domainCatalog?: readonly string[],
 ): ParseResult {
   if (!ws) {
     return { rows: [], errors: [], fileErrors: [{ message: "시트를 찾을 수 없습니다." }], ignoredHeaders: [] };
@@ -168,12 +169,14 @@ function parseWorksheet(
       return;
     }
 
-    const domain = splitList(raw.domain ?? "");
+    const listed = splitList(raw.domain ?? "");
     // 가져오기는 분류 체계를 거치지 않고 terms.domain을 쓰는 통로였다. 여기서
     // 걸러 내지 않으면 분류 체계 밖 도메인이 붙은 용어가 생기고, 그 용어는 편집
     // 화면에서 "분류 체계에 없는 도메인"으로 저장이 막힌다. 자동 등록은 하지
     // 않는다 — 도메인 색상 팔레트가 24칸뿐이라 파일 하나가 분류 체계를 채워 버린다.
-    const unknownDomains = domainSet ? domain.filter((label) => !domainSet.has(label)) : [];
+    const resolvedDomains = domainCatalog ? resolveDomainLabels(listed, domainCatalog) : { labels: listed, unknown: [] };
+    const domain = resolvedDomains.labels;
+    const unknownDomains = resolvedDomains.unknown;
     if (unknownDomains.length) {
       errors.push({
         rowNumber,

@@ -2,7 +2,7 @@ import { z } from "zod/v3";
 import { meetingDocumentStatusEnum } from "@glossary/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAuth } from "@/lib/auth/require";
-import { domainsExist } from "@/lib/terms/domains";
+import { resolveDomains, unknownDomainsResponse } from "@/lib/terms/domains";
 import {
   createMeetingDocument,
   listMeetingDocuments,
@@ -78,8 +78,9 @@ export const POST = withApiErrors(async (request: Request) => {
   if (!parsed.success) return apiError("validation_failed", "회의록 입력을 확인해 주세요.", 400, parsed.error.flatten());
   const meetingDate = parseDate(parsed.data.meetingDate);
   if (isResponse(meetingDate)) return meetingDate;
-  const domain = [...new Set(parsed.data.domain)];
-  if (!(await domainsExist(domain))) return apiError("validation_failed", "분류 체계에 없는 도메인이 포함되어 있습니다.", 400, { field: "domain" });
+  const resolved = await resolveDomains(parsed.data.domain);
+  if (resolved.unknown.length) return unknownDomainsResponse(resolved.unknown);
+  const domain = resolved.labels;
   const created = await createMeetingDocument({ ...parsed.data, meetingDate, domain }, auth.kind === "user" ? auth.user.id : null);
   return Response.json({ meeting: toMeetingDocumentWire(created, true), indexed: false }, { status: 201 });
 });

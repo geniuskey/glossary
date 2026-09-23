@@ -103,3 +103,30 @@ test("사용 중 도메인은 일반 사용자가 삭제할 수 없고 관리자
   [updated] = await db.select({ domain: terms.domain }).from(terms).where(eq(terms.id, termId));
   expect(updated?.domain).toEqual(["Other"]);
 });
+
+// 편집 폼은 도메인 목록을 쉼표로 이어 들고 있다가 저장할 때 다시 쪼갠다.
+// 쉼표 든 이름을 받으면 그 도메인을 고른 용어는 저장 요청에서 두 조각이 된다.
+test("도메인 이름에 쉼표를 넣으면 추가도 이름 변경도 400이다", async () => {
+  await loginAs("admin");
+  const created = await POST(jsonRequest("POST", { label: "메모리, 파운드리" }));
+  expect(created.status).toBe(400);
+  expect((await created.json()).error.message).toContain("쉼표");
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const ok = await POST(jsonRequest("POST", { label: `Comma ${suffix}` }));
+  const key = (await ok.json()).domain.key as string;
+  extraDomainKeys.push(key);
+  const renamed = await PATCH(jsonRequest("PATCH", { label: "A, B" }), { params: Promise.resolve({ key }) });
+  expect(renamed.status).toBe(400);
+});
+
+test("NFD나 끝 공백이 섞인 이름은 NFC로 정리해 저장하고, 모양만 다른 중복은 거절한다", async () => {
+  await loginAs("editor");
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const label = `일반 ${suffix}`;
+  const created = await POST(jsonRequest("POST", { label: `${label.normalize("NFD")} ` }));
+  expect(created.status).toBe(201);
+  const body = await created.json();
+  extraDomainKeys.push(body.domain.key);
+  expect(body.domain.label).toBe(label);
+  expect((await POST(jsonRequest("POST", { label: label.normalize("NFD") }))).status).toBe(409);
+});
