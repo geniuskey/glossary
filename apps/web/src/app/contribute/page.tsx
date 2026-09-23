@@ -22,13 +22,13 @@ import { MySuggestionQueue } from "./my-suggestion-queue";
 export const metadata = { title: "함께 정리" };
 
 const PRIMARY_TABS = [
-  { key: "edit", label: "정리 대기", href: "/contribute" },
-  { key: "agent", label: "제안 검토", href: "/contribute?tab=agent" },
+  { key: "agent", label: "제안 검토", href: "/contribute" },
+  { key: "edit", label: "정리 대기", href: "/contribute?tab=edit" },
   { key: "duplicates", label: "중복 후보 검토", href: "/contribute?tab=duplicates" },
   { key: "mine", label: "내 작업", href: "/contribute?tab=mine" },
 ] as const;
 
-const AGENT_REVIEW_LIST_LIMIT = 300;
+const AGENT_REVIEW_LIST_LIMIT = 60;
 
 export default async function ContributePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await getCurrentUser();
@@ -45,20 +45,24 @@ export default async function ContributePage({ searchParams }: { searchParams: P
     if (query) fieldParams.set("q", query);
     redirect(`/contribute/fields?${fieldParams.toString()}`);
   }
-  const tab = requestedTab === "agent" || requestedTab === "queue" || requestedTab === "duplicates" || requestedTab === "mine" ? requestedTab : "edit";
+  const tab = requestedTab === undefined
+    ? "agent"
+    : requestedTab === "edit" || requestedTab === "agent" || requestedTab === "queue" || requestedTab === "duplicates" || requestedTab === "mine"
+      ? requestedTab
+      : "edit";
   const rawTermId = params.termId;
   const selectedTermId = tab === "agent" ? (Array.isArray(rawTermId) ? rawTermId[0] : rawTermId) : undefined;
   const filters = { q: scalar("q").slice(0, 200), category: scalar("category"), missing: scalar("missing"), page: Math.min(100000, Math.max(1, Number.parseInt(scalar("page"), 10) || 1)) };
   const requestedQueueFilter = scalar("status");
   const queueFilter = isReviewQueueFilter(requestedQueueFilter) ? requestedQueueFilter : "all";
-  const pageHref = (page: number) => `/contribute?${new URLSearchParams({ q: filters.q, category: filters.category, missing: filters.missing, page: String(page) })}`;
+  const pageHref = (page: number) => `/contribute?${new URLSearchParams({ tab: "edit", q: filters.q, category: filters.category, missing: filters.missing, page: String(page) })}`;
   const contributionLimit = tab === "agent" ? AGENT_REVIEW_LIST_LIMIT : 60;
   const termListTab = tab === "edit" || tab === "agent";
   const [queue, storedAi, reviewQueue, personalSuggestionTasks] = await Promise.all([
     termListTab
       ? tab === "edit"
         ? listContributionTerms(contributionLimit, user.id, selectedTermId, filters)
-        : listContributionTerms(contributionLimit, user.id, selectedTermId, { includePrepared: true, preservePreferredOrder: true })
+        : listContributionTerms(contributionLimit, user.id, selectedTermId, { ...filters, includePrepared: true, preservePreferredOrder: true })
       : Promise.resolve({ items: [], total: 0 }),
     loadAiConfig(),
     listReviewQueue(tab === "queue" ? { filter: queueFilter, page: filters.page } : { pageSize: 1 }),
@@ -132,12 +136,12 @@ export default async function ContributePage({ searchParams }: { searchParams: P
       )}
 
       {tab === "duplicates" ? <DuplicateReviewPanel initialQuery={scalar("term")} initialStatus={scalar("status")} aiAvailable={Boolean(ai.enabled && ai.secretsReadable)} /> : tab === "edit" ? <>
-      <form key={`${filters.q}:${filters.category}:${filters.missing}`} action="/contribute" className="mb-4 flex flex-wrap items-end gap-3">
+      <form key={`${filters.q}:${filters.category}:${filters.missing}`} action="/contribute?tab=edit" className="mb-4 flex flex-wrap items-end gap-3">
         <label className="min-w-0 flex-1 text-xs text-ink-2">용어 검색<input name="q" defaultValue={filters.q} maxLength={200} autoComplete="off" placeholder="예: 캐시…" className="mt-1 block w-full rounded-lg border border-line bg-panel p-2 text-sm text-ink" /></label>
         <label className="text-xs text-ink-2">업무 분야<select name="category" defaultValue={filters.category} className="mt-1 block max-w-full rounded-lg border border-line bg-panel p-2 text-sm text-ink"><option value="">전체 분야</option>{categories.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
         <label className="text-xs text-ink-2">부족한 정보<select name="missing" defaultValue={filters.missing} className="mt-1 block rounded-lg border border-line bg-panel p-2 text-sm text-ink"><option value="">전체 항목</option><option value="meaning">정식 명칭 또는 정의</option><option value="definition">한줄 정의</option><option value="context">도메인 또는 업무 분류</option><option value="body">본문</option></select></label>
         <button type="submit" className="btn-primary btn-sm">찾기</button>
-        <Link href="/contribute" className="btn-quiet btn-sm">초기화</Link>
+        <Link href="/contribute?tab=edit" className="btn-quiet btn-sm">초기화</Link>
       </form>
       <section aria-label="정리를 기다리는 용어">
         {queue.items.length > 0 ? (
@@ -160,7 +164,14 @@ export default async function ContributePage({ searchParams }: { searchParams: P
           {filters.page * 60 < queue.total && <Link href={pageHref(filters.page + 1)} className="btn-quiet btn-sm">다음 페이지</Link>}
         </nav>}
       </section>
-      </> : tab === "agent" ? <AgentReviewPanel key={selectedTermId ?? "default"} initialTerms={queue.items} initialTermId={selectedTermId} totalTerms={queue.total} autoReviewEnabled={Boolean(ai.enabled && ai.secretsReadable && ai.autoReviewEnabled)} initialReviews={preparedReviews} categoryLabels={categoryLabels} /> : tab === "mine" ? <MySuggestionQueue initialItems={personalSuggestionTasks.map((task) => ({ ...task, payload: task.payload as { title?: string; field?: string; value?: unknown; reason?: string; href?: string }, createdAt: task.createdAt.toISOString(), updatedAt: task.updatedAt.toISOString(), remindAt: task.remindAt?.toISOString() ?? null }))} /> : <ReviewQueuePanel queue={reviewQueue} aiAvailable={Boolean(ai.enabled && ai.secretsReadable)} />}
+      </> : tab === "agent" ? <>
+        <AgentReviewPanel key={`${filters.page}:${selectedTermId ?? "default"}`} initialTerms={queue.items} initialTermId={selectedTermId} totalTerms={queue.total} autoReviewEnabled={Boolean(ai.enabled && ai.secretsReadable && ai.autoReviewEnabled)} initialReviews={preparedReviews} categoryLabels={categoryLabels} />
+        {(queue.total > AGENT_REVIEW_LIST_LIMIT || filters.page > 1) && <nav aria-label="제안 검토 페이지" className="mt-4 flex items-center justify-center gap-3 text-xs">
+          {filters.page > 1 && <Link href={`/contribute?tab=agent&page=${filters.page - 1}`} className="btn-quiet btn-sm">이전 페이지</Link>}
+          <span>{filters.page}페이지 · 총 {queue.total.toLocaleString("ko-KR")}개</span>
+          {filters.page * AGENT_REVIEW_LIST_LIMIT < queue.total && <Link href={`/contribute?tab=agent&page=${filters.page + 1}`} className="btn-quiet btn-sm">다음 페이지</Link>}
+        </nav>}
+      </> : tab === "mine" ? <MySuggestionQueue initialItems={personalSuggestionTasks.map((task) => ({ ...task, payload: task.payload as { title?: string; field?: string; value?: unknown; reason?: string; href?: string }, createdAt: task.createdAt.toISOString(), updatedAt: task.updatedAt.toISOString(), remindAt: task.remindAt?.toISOString() ?? null }))} /> : <ReviewQueuePanel queue={reviewQueue} aiAvailable={Boolean(ai.enabled && ai.secretsReadable)} />}
     </AppShell>
   );
 }

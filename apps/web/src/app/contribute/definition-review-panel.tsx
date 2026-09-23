@@ -9,6 +9,7 @@ import { SuggestionDispositionActions } from "./suggestion-disposition-actions";
 
 type Message = { kind: "ok" | "bad"; text: string } | null;
 type DefinitionReviewRow = Omit<DefinitionReviewCandidate, "suggestion"> & { suggestion: string | null };
+type GenerateResult = "ok" | "failed";
 
 function normalizeCandidate(candidate: DefinitionReviewCandidate): DefinitionReviewRow {
   return { ...candidate, suggestion: candidate.suggestion ?? null };
@@ -29,6 +30,8 @@ export function DefinitionReviewPanel({ initialCandidates, aiAvailable }: {
   const [approvingIds, setApprovingIds] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<Message>(null);
+  const [autoStopped, setAutoStopped] = useState(false);
+  const [autoRetry, setAutoRetry] = useState(0);
 
   function isGenerating(termId: string): boolean {
     return generatingIds.includes(termId);
@@ -38,8 +41,8 @@ export function DefinitionReviewPanel({ initialCandidates, aiAvailable }: {
     return approvingIds.includes(termId);
   }
 
-  async function generate(candidate: DefinitionReviewRow, force = false): Promise<void> {
-    if (generatingRef.current.has(candidate.id)) return;
+  async function generate(candidate: DefinitionReviewRow, force = false): Promise<GenerateResult> {
+    if (generatingRef.current.has(candidate.id)) return "failed";
     generatingRef.current.add(candidate.id);
     setGeneratingIds((items) => items.includes(candidate.id) ? items : [...items, candidate.id]);
     setErrors((items) => {
@@ -53,12 +56,16 @@ export function DefinitionReviewPanel({ initialCandidates, aiAvailable }: {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ termId: candidate.id, ...(force ? { force: true } : {}) }),
       });
-      if (!response.ok) throw new Error(await responseMessage(response, "한줄 정의를 정리하지 못했습니다"));
+      if (!response.ok) {
+        throw new Error(await responseMessage(response, "한줄 정의를 정리하지 못했습니다"));
+      }
       const body = await response.json() as { suggestion?: unknown };
       if (typeof body.suggestion !== "string" || !body.suggestion.trim()) throw new Error("한줄 정의 제안을 받지 못했습니다.");
       setCandidates((items) => items.map((item) => item.id === candidate.id ? { ...item, suggestion: body.suggestion as string } : item));
+      return "ok";
     } catch (error) {
       setErrors((items) => ({ ...items, [candidate.id]: error instanceof Error ? error.message : "한줄 정의를 정리하지 못했습니다." }));
+      return "failed";
     } finally {
       generatingRef.current.delete(candidate.id);
       setGeneratingIds((items) => items.filter((id) => id !== candidate.id));
@@ -67,17 +74,31 @@ export function DefinitionReviewPanel({ initialCandidates, aiAvailable }: {
 
   useEffect(() => {
     if (!aiAvailable) return;
+    setAutoStopped(false);
     const pending = initialCandidates.map(normalizeCandidate).filter((candidate) => !candidate.suggestion?.trim());
     let cursor = 0;
+    let stopped = false;
+    let consecutiveFailures = 0;
     const worker = async () => {
-      while (cursor < pending.length) {
+      while (!stopped && cursor < pending.length) {
         const candidate = pending[cursor];
         cursor += 1;
-        if (candidate) await generate(candidate);
+        if (candidate) {
+          const result = await generate(candidate);
+          if (result === "failed") {
+            consecutiveFailures += 1;
+            if (consecutiveFailures >= 3) {
+              stopped = true;
+              setAutoStopped(true);
+            }
+          } else {
+            consecutiveFailures = 0;
+          }
+        }
       }
     };
     void Promise.all(Array.from({ length: Math.min(2, pending.length) }, () => worker()));
-  }, [aiAvailable, initialCandidates]);
+  }, [aiAvailable, initialCandidates, autoRetry]);
 
   async function approve(candidate: DefinitionReviewRow): Promise<void> {
     const definitionMd = candidate.suggestion?.trim();
@@ -110,6 +131,10 @@ export function DefinitionReviewPanel({ initialCandidates, aiAvailable }: {
   return (
     <section aria-label="한줄 정의 보완 목록" className="space-y-3">
       <div className="card overflow-hidden">
+        {autoStopped && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 border-b border-warn/30 bg-warn-soft/50 px-4 py-3 text-xs text-ink-2">
+          <span>AI 제안 오류가 연속으로 발생해 자동 생성을 멈췄습니다. 오류 메시지와 연결 상태를 확인한 뒤 다시 시작해 주세요.</span>
+          <button type="button" className="btn-quiet btn-sm" onClick={() => setAutoRetry((value) => value + 1)}>자동 생성 다시 시도</button>
+        </div>}
         {candidates.length === 0 ? (
           <p className="px-4 py-12 text-center text-sm text-ink-3">정리할 용어가 없습니다.</p>
         ) : (

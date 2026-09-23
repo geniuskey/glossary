@@ -31,6 +31,7 @@ export async function listClassificationReviewCandidates(
   kind: ClassificationReviewKind,
   limit = 200,
   query = "",
+  offset = 0,
 ): Promise<ClassificationReviewCandidate[]> {
   const db = getDb();
   const missing = kind === "domain"
@@ -57,7 +58,8 @@ export async function listClassificationReviewCandidates(
     .from(terms)
     .where(and(...conditions))
     .orderBy(asc(terms.updatedAt), asc(terms.id))
-    .limit(Math.min(200, Math.max(1, limit)));
+    .limit(Math.min(200, Math.max(1, limit)))
+    .offset(Math.max(0, offset));
 
   const revisions = rows.length > 0
     ? await db

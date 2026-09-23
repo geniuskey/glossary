@@ -20,6 +20,8 @@ export const metadata: Metadata = {
 };
 
 type FieldKey = "identity" | "definition" | "domain" | "category";
+const DEFINITION_REVIEW_PAGE_SIZE = 20;
+const CLASSIFICATION_REVIEW_PAGE_SIZE = 40;
 
 const FIELD_ITEMS: ReadonlyArray<{
   key: FieldKey;
@@ -86,21 +88,25 @@ export default async function FieldCompletionPage({ searchParams }: { searchPara
   const identityView = parseIdentityView(scalar(params, "view"));
   const classificationKind: ClassificationReviewKind | undefined = field === "domain" ? "domain" : field === "category" ? "category" : undefined;
   const selectedField = field ? FIELD_ITEMS.find((item) => item.key === field) : undefined;
-  const [storedAi, identityPage, definitionCandidates, classificationCandidates, categories, domains] = await Promise.all([
+  const [storedAi, identityPage, definitionRows, classificationCandidates, categories, domains] = await Promise.all([
     loadAiConfig(),
     field === "identity"
       ? listIdentityReviewCandidatePage(IDENTITY_REVIEW_PAGE_SIZE, query, user.id, (page - 1) * IDENTITY_REVIEW_PAGE_SIZE)
       : Promise.resolve({ candidates: [], hasNextPage: false }),
-    field === "definition" ? listDefinitionReviewCandidates(100, user.id) : Promise.resolve([]),
-    classificationKind ? listClassificationReviewCandidates(classificationKind, 200, query) : Promise.resolve([]),
+    field === "definition" ? listDefinitionReviewCandidates(DEFINITION_REVIEW_PAGE_SIZE + 1, user.id, (page - 1) * DEFINITION_REVIEW_PAGE_SIZE) : Promise.resolve([]),
+    classificationKind ? listClassificationReviewCandidates(classificationKind, CLASSIFICATION_REVIEW_PAGE_SIZE + 1, query, (page - 1) * CLASSIFICATION_REVIEW_PAGE_SIZE) : Promise.resolve([]),
     classificationKind ? listBusinessCategories() : Promise.resolve([]),
     classificationKind ? listDomains() : Promise.resolve([]),
   ]);
   const ai = publicAiConfig(storedAi);
   const aiAvailable = Boolean(ai.enabled && ai.secretsReadable);
+  const definitionHasNextPage = definitionRows.length > DEFINITION_REVIEW_PAGE_SIZE;
+  const definitionCandidates = definitionRows.slice(0, DEFINITION_REVIEW_PAGE_SIZE);
+  const classificationHasNextPage = classificationCandidates.length > CLASSIFICATION_REVIEW_PAGE_SIZE;
+  const visibleClassificationPage = classificationCandidates.slice(0, CLASSIFICATION_REVIEW_PAGE_SIZE);
   const visibleClassificationCandidates = classificationKind
-    ? await filterClassificationReviewCandidates(classificationCandidates, classificationKind, user.id)
-    : classificationCandidates;
+    ? await filterClassificationReviewCandidates(visibleClassificationPage, classificationKind, user.id)
+    : visibleClassificationPage;
 
   return (
     <AppShell user={user} title="필드 보완" current="field-completion" roomy>
@@ -132,10 +138,17 @@ export default async function FieldCompletionPage({ searchParams }: { searchPara
               aiAvailable={aiAvailable}
             />
           ) : field === "definition" ? (
-            <DefinitionReviewPanel initialCandidates={definitionCandidates} aiAvailable={aiAvailable} />
+            <>
+              <DefinitionReviewPanel initialCandidates={definitionCandidates} aiAvailable={aiAvailable} />
+              {(page > 1 || definitionHasNextPage) && <nav aria-label="한줄 정의 페이지" className="mt-4 flex items-center justify-center gap-3 text-xs">
+                {page > 1 && <Link href={`/contribute/fields?field=definition&page=${page - 1}`} className="btn-quiet btn-sm">이전 페이지</Link>}
+                <span>{page}페이지</span>
+                {definitionHasNextPage && <Link href={`/contribute/fields?field=definition&page=${page + 1}`} className="btn-quiet btn-sm">다음 페이지</Link>}
+              </nav>}
+            </>
           ) : (
             <ClassificationReviewPanel
-              key={`${field}:${query}`}
+              key={`${field}:${query}:${page}`}
               kind={classificationKind!}
               initialCandidates={visibleClassificationCandidates}
               query={query}
@@ -145,6 +158,11 @@ export default async function FieldCompletionPage({ searchParams }: { searchPara
               basePath="/contribute/fields"
             />
           )}
+          {(classificationKind && (page > 1 || classificationHasNextPage)) && <nav aria-label="분류 보완 페이지" className="mt-4 flex items-center justify-center gap-3 text-xs">
+            {page > 1 && <Link href={`/contribute/fields?field=${field}&page=${page - 1}${query ? `&q=${encodeURIComponent(query)}` : ""}`} className="btn-quiet btn-sm">이전 페이지</Link>}
+            <span>{page}페이지</span>
+            {classificationHasNextPage && <Link href={`/contribute/fields?field=${field}&page=${page + 1}${query ? `&q=${encodeURIComponent(query)}` : ""}`} className="btn-quiet btn-sm">다음 페이지</Link>}
+          </nav>}
         </section>
       ) : (
         <FieldOverview />

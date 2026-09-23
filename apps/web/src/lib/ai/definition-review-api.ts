@@ -35,10 +35,20 @@ export async function generateDefinitionResponse(request: Request, userId: strin
       return apiError("ai_not_enabled", "AI 연결을 먼저 활성화해 주세요.", 409);
     }
     if (error instanceof Error && error.message === "INSUFFICIENT_BODY") {
-      return apiError("operation_conflict", "본문만으로 한줄 정의를 만들 근거가 충분하지 않습니다.", 422);
+      return apiError(
+        "operation_conflict",
+        "본문만으로 한줄 정의를 만들 근거가 충분하지 않습니다. 용어 본문에 용도나 맥락을 보충한 뒤 다시 시도해 주세요.",
+        422,
+        { reason: "insufficient_body", field: "bodyMd", termId: candidate.id },
+      );
     }
     if (error instanceof AiProviderError) {
-      return apiError("ai_provider_error", "AI에서 한줄 정의를 받지 못했습니다. 연결과 모델을 확인해 주세요.", 502);
+      return apiError(
+        "ai_provider_error",
+        "AI에서 한줄 정의를 받지 못했습니다. 관리자 화면의 ‘AI 운영’에서 최근 실패를 확인해 주세요.",
+        502,
+        { providerStatus: error.status ?? null },
+      );
     }
     throw error;
   }

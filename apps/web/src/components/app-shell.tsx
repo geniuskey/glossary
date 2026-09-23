@@ -168,7 +168,7 @@ export async function AppShell({
               ? "flex min-h-0 flex-col"
               : dense
                 ? "mx-auto w-full max-w-[90rem] px-4 py-3 lg:px-6"
-                : cx("mx-auto w-full px-5 py-8 lg:px-8", roomy ? "max-w-6xl" : "max-w-4xl"),
+                : cx("mx-auto w-full px-5 py-8 lg:px-8", roomy ? "max-w-7xl" : "max-w-4xl"),
           )}
         >
           {children}

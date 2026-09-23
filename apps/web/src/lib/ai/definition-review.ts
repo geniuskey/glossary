@@ -29,7 +29,7 @@ export interface DefinitionReviewCandidate {
 
 const inFlight = new Map<string, Promise<string | null>>();
 
-export async function listDefinitionReviewCandidates(limit = 100, userId: string | null = null): Promise<DefinitionReviewCandidate[]> {
+export async function listDefinitionReviewCandidates(limit = 100, userId: string | null = null, offset = 0): Promise<DefinitionReviewCandidate[]> {
   const db = getDb();
   const rows = await db.select({
     id: terms.id,
@@ -42,7 +42,7 @@ export async function listDefinitionReviewCandidates(limit = 100, userId: string
   }).from(terms).where(and(
     sql`btrim(coalesce(${terms.bodyMd}, '')) <> ''`,
     sql`btrim(coalesce(${terms.definitionMd}, '')) = ''`,
-  )).orderBy(asc(terms.updatedAt), asc(terms.id)).limit(Math.min(200, Math.max(1, limit)));
+  )).orderBy(asc(terms.updatedAt), asc(terms.id)).limit(Math.min(200, Math.max(1, limit))).offset(Math.max(0, offset));
 
   const revisions = rows.length > 0
     ? await db.select({
