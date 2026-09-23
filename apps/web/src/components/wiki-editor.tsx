@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
@@ -18,6 +19,14 @@ interface WikiEditorPage {
 }
 
 interface DomainOption { key: string; label: string }
+
+interface MatchingTerm {
+  slug: string;
+  nameEn: string | null;
+  nameKo: string | null;
+  matchedText: string;
+  exact: boolean;
+}
 
 function splitList(value: string): string[] {
   return [...new Set(value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean))];
@@ -37,6 +46,7 @@ export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: 
   const [saving, setSaving] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [termMatches, setTermMatches] = useState<{ title: string; items: MatchingTerm[] } | null>(null);
   const initialStatus: WikiEditorPage["status"] = canPublish ? (initialPage?.status ?? "draft") : "draft";
   const dirty = slug !== (initialPage?.slug ?? "")
     || title !== (initialPage?.title ?? "")
@@ -48,6 +58,30 @@ export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: 
     || status !== initialStatus;
 
   useUnsavedChanges(dirty);
+
+  useEffect(() => {
+    const query = title.trim();
+    if (!query) return;
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/v1/terms/suggest?q=${encodeURIComponent(query)}`, { signal: controller.signal });
+        if (!response.ok) return;
+        const data = await response.json() as { items?: MatchingTerm[] };
+        setTermMatches({ title: query, items: (data.items ?? []).filter((item) => item.exact) });
+      } catch {
+        // 제목 안내가 실패해도 위키 작성은 계속할 수 있다.
+      }
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [title]);
+
+  const matchingTerms = termMatches?.title === title.trim() ? termMatches.items : [];
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -93,6 +127,13 @@ export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: 
     <div className="grid gap-4 sm:grid-cols-2">
       <label className="block"><span className="label">제목</span><input name="title" autoComplete="off" className="field" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={240} placeholder="예: 실험 설계 원칙" required /></label>
       <label className="block"><span className="label">주소</span><input name="slug" autoComplete="off" spellCheck={false} className="field font-mono" value={slug} onChange={(event) => setSlug(event.target.value)} maxLength={120} placeholder="비우면 제목으로 자동 생성…" /><span className="mt-1 block text-xs text-ink-3">/w/ 아래 주소입니다. 용어와 같은 주소는 자동으로 피합니다.</span></label>
+      {matchingTerms.length > 0 && <div className="note note-warn sm:col-span-2" role="status">
+          <p className="font-medium">이 제목과 일치하는 용어가 있습니다.</p>
+          <p className="mt-1 text-sm">뜻·표기·사용 예시를 설명하려면 용어의 상세 설명에 작성하세요. 업무 원칙이나 절차를 정리한다면 위키로 계속 작성할 수 있습니다.</p>
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">{matchingTerms.map((term) => <li key={term.slug}>
+            <Link href={`/edit/${encodeURIComponent(term.slug)}#term-body`} className="underline underline-offset-2">{term.nameKo || term.nameEn || term.matchedText} 상세 설명 편집</Link>
+          </li>)}</ul>
+      </div>}
       <label className="block sm:col-span-2"><span className="label">요약</span><textarea name="summary" autoComplete="off" className="field min-h-20 resize-y" value={summary} onChange={(event) => setSummary(event.target.value)} maxLength={600} placeholder="이 문서가 어떤 업무 판단에 도움을 주는지 한두 문장으로 적어 주세요…" /></label>
       <label className="block sm:col-span-2"><span className="label">원문 출처 URL</span><input name="sourceUrl" autoComplete="off" spellCheck={false} className="field font-mono text-sm" type="url" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} maxLength={2_000} placeholder="예: https://company.atlassian.net/wiki/spaces/TEAM/pages/…" /><span className="mt-1 block text-xs text-ink-3">Confluence 등 원문을 관리하는 곳의 링크입니다. 위키에는 검토한 결과만 남기고 원문은 이 주소에서 확인합니다.</span></label>
       <label className="block"><span className="label">도메인</span><input name="domain" autoComplete="off" className="field" list="wiki-domain-options" value={domainText} onChange={(event) => setDomainText(event.target.value)} placeholder="예: 상품, 보안…" /><datalist id="wiki-domain-options">{domainOptions.map((item) => <option key={item.key} value={item.label} />)}</datalist><span className="mt-1 block text-xs text-ink-3">쉼표 또는 줄바꿈으로 여러 도메인을 구분합니다.</span></label>

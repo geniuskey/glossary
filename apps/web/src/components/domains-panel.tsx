@@ -32,6 +32,7 @@ export function DomainsPanel({
 }) {
   const [domains, setDomains] = useState(initialDomains);
   const [newLabel, setNewLabel] = useState(initialNewLabel);
+  const [newLabelEn, setNewLabelEn] = useState("");
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [paletteKey, setPaletteKey] = useState<string | null>(null);
   const [message, setMessage] = useState<Message>(null);
@@ -50,7 +51,7 @@ export function DomainsPanel({
     dropTarget?.edge ?? null,
     dragRowHeight,
   ), [domains, draggedKey, dropTarget, dragRowHeight]);
-  useUnsavedChanges(dirtyKeys.size > 0 || newLabel.trim().length > 0);
+  useUnsavedChanges(dirtyKeys.size > 0 || newLabel.trim().length > 0 || newLabelEn.trim().length > 0);
 
   async function add(event: React.FormEvent) {
     event.preventDefault();
@@ -62,12 +63,13 @@ export function DomainsPanel({
       const response = await fetch("/api/v1/admin/domains", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ label }),
+        body: JSON.stringify({ label, labelEn: newLabelEn.trim() || null }),
       });
       if (!response.ok) throw new Error(await errorMessage(response, "도메인을 추가하지 못했습니다"));
       const body = await response.json() as { domain: ManagedDomain };
       setDomains((current) => [...current, body.domain]);
       setNewLabel("");
+      setNewLabelEn("");
       setMessage({ kind: "ok", text: `‘${body.domain.label}’ 도메인을 추가했습니다.` });
     } catch (error) {
       setMessage({ kind: "bad", text: error instanceof Error ? error.message : "도메인을 추가하지 못했습니다." });
@@ -76,8 +78,8 @@ export function DomainsPanel({
     }
   }
 
-  function editName(key: string, label: string) {
-    setDomains((current) => current.map((item) => item.key === key ? { ...item, label } : item));
+  function editName(key: string, field: "label" | "labelEn", value: string) {
+    setDomains((current) => current.map((item) => item.key === key ? { ...item, [field]: value } : item));
     setDirtyKeys((current) => new Set(current).add(key));
     setMessage(null);
   }
@@ -90,21 +92,25 @@ export function DomainsPanel({
     try {
       const results = await Promise.all(pending.map(async (domain) => {
         const label = domain.label.trim();
+        const labelEn = domain.labelEn?.trim() || "";
         try {
           const response = await fetch(`/api/v1/admin/domains/${encodeURIComponent(domain.key)}`, {
             method: "PATCH",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ label }),
+            body: JSON.stringify({ label, labelEn }),
           });
           if (!response.ok) throw new Error(await errorMessage(response, "이름을 저장하지 못했습니다"));
-          return { key: domain.key, label, error: null as string | null };
+          return { key: domain.key, label, labelEn, error: null as string | null };
         } catch (error) {
-          return { key: domain.key, label, error: error instanceof Error ? error.message : "이름을 저장하지 못했습니다." };
+          return { key: domain.key, label, labelEn, error: error instanceof Error ? error.message : "이름을 저장하지 못했습니다." };
         }
       }));
       const failures = results.filter((result) => result.error);
-      const saved = new Map(results.filter((result) => !result.error).map((result) => [result.key, result.label]));
-      setDomains((current) => current.map((domain) => saved.has(domain.key) ? { ...domain, label: saved.get(domain.key)! } : domain));
+      const saved = new Map(results.filter((result) => !result.error).map((result) => [result.key, result]));
+      setDomains((current) => current.map((domain) => {
+        const result = saved.get(domain.key);
+        return result ? { ...domain, label: result.label, labelEn: result.labelEn || null } : domain;
+      }));
       setDirtyKeys(new Set(failures.map((result) => result.key)));
       setMessage(failures.length > 0
         ? { kind: "bad", text: failures[0]!.error! }
@@ -258,13 +264,14 @@ export function DomainsPanel({
       <form onSubmit={(event) => void add(event)} className="card overflow-hidden">
         <div className="overflow-x-auto">
         <table
-          className="w-full min-w-[600px] border-collapse text-left text-sm [&_td]:border [&_td]:border-line [&_th]:border [&_th]:border-line"
+          className="w-full min-w-[700px] border-collapse text-left text-sm [&_td]:border [&_td]:border-line [&_th]:border [&_th]:border-line"
           onDragOver={isAdmin ? dragOver : undefined}
           onDrop={isAdmin ? drop : undefined}
         >
           <thead><tr className="bg-panel-2 text-xs text-ink-3">
             <th className="w-14 px-2 py-1.5 font-medium">순서</th>
-            <th className="px-2 py-1.5 font-medium">도메인 이름</th>
+            <th className="px-2 py-1.5 font-medium">이름</th>
+            <th className="px-2 py-1.5 font-medium">영문 이름 (선택)</th>
             <th className="w-20 px-2 py-1.5 text-center font-medium">색상</th>
             <th className="w-16 px-2 py-1.5 text-right font-medium">사용</th>
             <th className="w-20 px-2 py-1.5 text-center font-medium">관리</th>
@@ -303,8 +310,11 @@ export function DomainsPanel({
                   </div>
                 ) : <span className="font-mono text-xs text-ink-3">{index + 1}</span>}</td>
                 <td className="px-2 py-1">{isAdmin
-                  ? <input value={domain.label} maxLength={DOMAIN_VALUE_MAX} disabled={Boolean(busyKey)} onChange={(event) => editName(domain.key, event.target.value)} className={GRID_INPUT_CLASS} aria-label={`${domain.key} 이름`} />
+                  ? <input value={domain.label} maxLength={DOMAIN_VALUE_MAX} disabled={Boolean(busyKey)} onChange={(event) => editName(domain.key, "label", event.target.value)} className={GRID_INPUT_CLASS} aria-label={`${domain.key} 이름`} />
                   : <span className="font-medium text-ink">{domain.label}</span>}</td>
+                <td className="px-2 py-1">{isAdmin
+                  ? <input value={domain.labelEn ?? ""} maxLength={DOMAIN_VALUE_MAX} disabled={Boolean(busyKey)} onChange={(event) => editName(domain.key, "labelEn", event.target.value)} className={GRID_INPUT_CLASS} aria-label={`${domain.key} 영문 이름 (선택)`} />
+                  : <span className="text-ink-2">{domain.labelEn || "—"}</span>}</td>
                 <td className="px-2 py-1 text-center">
                   <button
                     type="button"
@@ -326,7 +336,7 @@ export function DomainsPanel({
               </tr>
               {isAdmin && paletteKey === domain.key && (
                 <tr className="bg-panel-2/45">
-                  <td colSpan={5} className="px-3 py-3">
+                  <td colSpan={6} className="px-3 py-3">
                     <div className="space-y-2" role="group" aria-label={`${domain.label} 도메인 색상 팔레트`}>
                       {DOMAIN_COLOR_SETS.map((set) => (
                         <div key={set.key} className="grid grid-cols-[4rem_minmax(0,1fr)] items-center gap-2">
@@ -362,6 +372,7 @@ export function DomainsPanel({
           <tfoot><tr className="bg-panel-2/45">
             <td className="px-2 py-1" />
             <td className="px-2 py-1"><label htmlFor="new-domain" className="sr-only">새 도메인 이름</label><input id="new-domain" value={newLabel} maxLength={DOMAIN_VALUE_MAX} required disabled={Boolean(busyKey)} onChange={(event) => setNewLabel(event.target.value)} placeholder="예: IT" className={GRID_INPUT_CLASS} /></td>
+            <td className="px-2 py-1"><label htmlFor="new-domain-en" className="sr-only">새 도메인 영문 이름 (선택)</label><input id="new-domain-en" value={newLabelEn} maxLength={DOMAIN_VALUE_MAX} disabled={Boolean(busyKey)} onChange={(event) => setNewLabelEn(event.target.value)} placeholder="영문 이름 (선택)" className={GRID_INPUT_CLASS} /></td>
             <td />
             <td />
             <td className="px-2 py-1 text-center"><button type="submit" className="btn-primary btn-sm whitespace-nowrap" disabled={!newLabel.trim() || Boolean(busyKey)}>추가</button></td>

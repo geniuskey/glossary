@@ -20,11 +20,13 @@ const { DELETE } = await import("../src/app/api/v1/admin/categories/[key]/route.
 const db = createDb(process.env.DATABASE_URL_TEST!);
 const userIds: string[] = [];
 let categoryKey = "";
+let optionalCategoryKey = "";
 let termId = "";
 
 afterAll(async () => {
   if (termId) await db.delete(terms).where(eq(terms.id, termId));
   if (categoryKey) await db.delete(businessCategories).where(eq(businessCategories.key, categoryKey));
+  if (optionalCategoryKey) await db.delete(businessCategories).where(eq(businessCategories.key, optionalCategoryKey));
   for (const id of userIds) await db.delete(users).where(eq(users.id, id));
 });
 
@@ -47,12 +49,15 @@ function jsonRequest(method: "POST" | "DELETE", body?: unknown) {
   });
 }
 
-test("일반 사용자는 한글·영문 이름을 모두 입력해 업무 분류를 추가한다", async () => {
+test("일반 사용자는 기본 이름만으로 업무 분류를 추가하고 영문 이름을 선택할 수 있다", async () => {
   await loginAs("editor");
-  const missingEnglish = await POST(jsonRequest("POST", { labelKo: "라우트 분류" }));
-  expect(missingEnglish.status).toBe(400);
-
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const withoutEnglish = await POST(jsonRequest("POST", { labelKo: `기본 분류 ${suffix}` }));
+  expect(withoutEnglish.status).toBe(201);
+  const optionalBody = await withoutEnglish.json();
+  optionalCategoryKey = optionalBody.category.key;
+  expect(optionalBody.category.labelEn).toBeNull();
+
   const created = await POST(jsonRequest("POST", {
     labelKo: `라우트 분류 ${suffix}`,
     labelEn: `Route Category ${suffix}`,

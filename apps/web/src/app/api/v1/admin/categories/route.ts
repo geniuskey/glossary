@@ -13,7 +13,7 @@ export { PUT, DELETE, OPTIONS };
 
 const createSchema = z.object({
   labelKo: z.string().trim().min(1).max(60),
-  labelEn: z.string().trim().min(1).max(60),
+  labelEn: z.string().trim().max(60).nullish(),
 }).strict();
 const reorderSchema = z.object({ keys: z.array(z.string().min(1).max(64)).max(1000) }).strict();
 

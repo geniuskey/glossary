@@ -351,6 +351,13 @@
       "when": 1790081585708,
       "tag": "0049_sudden_argent",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1790179112972,
+      "tag": "0050_conscious_skrulls",
+      "breakpoints": true
     }
   ]
 }

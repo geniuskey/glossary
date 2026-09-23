@@ -13,8 +13,7 @@ const admin = readFileSync(path.join(root, "src/app/admin/page.tsx"), "utf8");
 test("업무 분류는 개인 설정이 아닌 분류 체계 페이지의 compact 테이블에서 관리한다", () => {
   expect(panel).toContain("<table");
   expect(panel).toContain("<tfoot>");
-  expect(panel).toContain("한글 이름");
-  expect(panel).toContain("English name");
+  expect(panel).toContain("영문 이름 (선택)");
   expect(settings).not.toContain("<CategoriesPanel");
   expect(classifications).toContain("<CategoriesPanel");
   expect(classifications).toContain('isAdmin={user.role === "admin"}');
@@ -29,9 +28,9 @@ test("도메인은 축소된 팔레트에서 고유 색상을 선택한다", () 
   expect(domainsPanel).toContain("domain-color-swatch");
 });
 
-test("분류 추가는 두 이름을 모두 요구하고 사용 중 삭제 권한을 구분한다", () => {
+test("분류 추가는 기본 이름만 요구하고 사용 중 삭제 권한을 구분한다", () => {
   expect(panel).toContain("required disabled={Boolean(busyKey)}");
-  expect(panel).toContain("!newLabelKo.trim() || !newLabelEn.trim()");
+  expect(panel).toContain("disabled={!newLabelKo.trim() || Boolean(busyKey)}");
   expect(panel).toContain("!isAdmin && category.usageCount > 0");
   expect(panel).toContain("연결된 용어");
   expect(panel).toContain("관리자만");

@@ -75,7 +75,7 @@ export function ClassificationMultiSelect({
       const rows = body[refresh.responseKey] ?? [];
       setOptions(rows.flatMap((row) => {
         if (kind === "domain" && typeof row.label === "string") {
-          return [{ value: row.label, label: row.label }];
+          return [{ value: row.label, label: row.label, secondaryLabel: typeof row.labelEn === "string" ? row.labelEn : undefined }];
         }
         if (kind === "category" && typeof row.key === "string" && typeof row.label === "string") {
           return [{

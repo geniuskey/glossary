@@ -153,8 +153,8 @@ export default async function FieldCompletionPage({ searchParams }: { searchPara
               initialCandidates={visibleClassificationCandidates}
               query={query}
               aiAvailable={aiAvailable}
-              domainOptions={domains.map((domain) => ({ value: domain.label, label: domain.label }))}
-              categoryOptions={categories.map((category) => ({ value: category.key, label: category.labelKo, secondaryLabel: category.labelEn }))}
+              domainOptions={domains.map((domain) => ({ value: domain.label, label: domain.label, secondaryLabel: domain.labelEn ?? undefined }))}
+              categoryOptions={categories.map((category) => ({ value: category.key, label: category.labelKo, secondaryLabel: category.labelEn ?? undefined }))}
               basePath="/contribute/fields"
             />
           )}
@@ -194,7 +194,7 @@ function FieldOverview() {
 
       <div className="grid gap-3 lg:grid-cols-3">
         {FIELD_ITEMS.map((item, index) => (
-          <article key={item.key} className="card flex items-center justify-between gap-3 p-4">
+          <Link key={item.key} href={item.href} className="card group flex items-center justify-between gap-3 p-4 transition hover:border-brand/40 hover:bg-panel-2/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40">
             <div className="min-w-0">
               <div className="flex items-center gap-3">
                 <p className="shrink-0 text-xs font-semibold tracking-[0.14em] text-brand">0{index + 1}</p>
@@ -202,8 +202,8 @@ function FieldOverview() {
               </div>
               <p className="mt-1 pl-7 text-xs text-ink-2">{item.summary}</p>
             </div>
-            <Link href={item.href} className="btn-quiet btn-sm shrink-0">열기 <span aria-hidden>→</span></Link>
-          </article>
+            <span className="btn-quiet btn-sm shrink-0 group-hover:text-brand">열기 <span aria-hidden>→</span></span>
+          </Link>
         ))}
       </div>
     </section>

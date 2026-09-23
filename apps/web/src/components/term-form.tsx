@@ -93,7 +93,7 @@ export function TermForm({
 }: {
   initial?: TermFormInitial;
   assignees?: AssignableUser[];
-  domainOptions?: string[];
+  domainOptions?: Array<{ label: string; labelEn: string | null }>;
   categoryOptions?: BusinessCategoryOption[];
   canDelete?: boolean;
 }) {
@@ -886,7 +886,7 @@ export function TermForm({
                 help="여러 도메인을 선택할 수 있습니다. 등록되지 않은 값은 분류 체계에서 먼저 추가합니다."
                 placeholder="도메인 검색…"
                 selected={commaSeparatedValues(form.domain)}
-                initialOptions={domainOptions.map((domain) => ({ value: domain, label: domain }))}
+                initialOptions={domainOptions.map((domain) => ({ value: domain.label, label: domain.label, secondaryLabel: domain.labelEn ?? undefined }))}
                 kind="domain"
                 manageHref="/classifications"
                 refresh={{ url: "/api/v1/admin/domains", responseKey: "domains" }}
@@ -907,7 +907,7 @@ export function TermForm({
                 initialOptions={categoryOptions.map((category) => ({
                   value: category.key,
                   label: category.labelKo,
-                  secondaryLabel: category.labelEn,
+                  secondaryLabel: category.labelEn ?? undefined,
                 }))}
                 kind="category"
                 manageHref="/classifications?view=categories"
@@ -1001,7 +1001,7 @@ export function TermForm({
         />
       )}
 
-      <section className={cx("card overflow-hidden", compact && "flex min-h-0 flex-1 flex-col")}>
+      <section id="term-body" className={cx("card overflow-hidden", compact && "flex min-h-0 flex-1 flex-col")}>
         <CompactSectionTitle
           compact={compact}
           title="상세 설명"

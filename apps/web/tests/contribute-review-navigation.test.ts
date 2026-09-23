@@ -22,11 +22,11 @@ test("검토 큐의 제안 보기는 해당 용어를 제안 검토 화면에 �
   expect(page).toContain('{ key: "duplicates", label: "중복 후보 검토", href: "/contribute?tab=duplicates" }');
   expect(page).toContain('redirect(`/contribute/fields?${fieldParams.toString()}`)');
   expect(page).toContain('href="/contribute?tab=queue"');
-  expect(page).toContain('href="/contribute/fields"');
+  expect(page).not.toContain('href="/contribute/fields"');
   expect(page).not.toContain("ClassificationReviewPanel");
   expect(page).not.toContain("DefinitionReviewPanel");
   expect(page).toContain('const contributionLimit = tab === "agent" ? AGENT_REVIEW_LIST_LIMIT : 60;');
-  expect(page).toContain('listContributionTerms(contributionLimit, user.id, selectedTermId, { includePrepared: true, preservePreferredOrder: true })');
+  expect(page).toContain('listContributionTerms(contributionLimit, user.id, selectedTermId, { ...filters, includePrepared: true, preservePreferredOrder: true })');
   expect(page).not.toContain('prepareAutoReviews(missing.map((term) => term.id))');
   expect(page).not.toContain('자동·수동 AI 검토의 진행 상태를 함께 확인합니다.');
   expect(page).not.toContain('tab === "agent" ? "현재 값과 제안을 비교한 뒤 필요한 변경만 승인하세요."');
@@ -36,7 +36,7 @@ test("검토 큐의 제안 보기는 해당 용어를 제안 검토 화면에 �
   expect(fieldsPage).toContain('aria-label="필드 보완 작업" className="mb-6 flex min-w-0 overflow-x-auto overflow-y-hidden border-b border-line"');
   expect(fieldsPage).toContain('field === "definition" ?');
   expect(fieldsPage).toContain("ClassificationReviewPanel");
-  expect(fieldsPage).toContain("listClassificationReviewCandidates(classificationKind, 200, query)");
+  expect(fieldsPage).toContain("listClassificationReviewCandidates(classificationKind, CLASSIFICATION_REVIEW_PAGE_SIZE + 1, query");
   expect(fieldsPage).toContain('basePath="/contribute/fields"');
   const fieldsOverviewIndex = fieldsPage.indexOf("function FieldOverview()");
   const fieldsNavIndex = fieldsPage.indexOf('<nav aria-label="필드 보완 작업"');

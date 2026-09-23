@@ -40,7 +40,7 @@ export default async function NewTermPage({ searchParams }: { searchParams: Prom
         </p>
       </header>
 
-      <TermForm initial={newTermFormState(searchQuery)} assignees={assignees} domainOptions={domainOptions.map((domain) => domain.label)} categoryOptions={categoryOptions} />
+      <TermForm initial={newTermFormState(searchQuery)} assignees={assignees} domainOptions={domainOptions} categoryOptions={categoryOptions} />
     </AppShell>
   );
 }

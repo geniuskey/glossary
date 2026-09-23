@@ -8,10 +8,10 @@ import { slugify } from "./slug";
 
 export interface BusinessCategoryOption {
   key: string;
-  /** 기존 화면에서 쓰는 기본 표시명. 현재는 한글 이름과 같다. */
+  /** 기본 표시 이름. labelKo는 기존 API와의 호환을 위해 같은 값을 돌려준다. */
   label: string;
   labelKo: string;
-  labelEn: string;
+  labelEn: string | null;
 }
 
 export interface ManagedBusinessCategory extends BusinessCategoryOption {
@@ -71,8 +71,8 @@ export async function businessCategoriesExist(keys: readonly string[]): Promise<
   return rows.length === unique.length;
 }
 
-async function uniqueCategoryKey(labelEn: string): Promise<string> {
-  const base = slugify(labelEn).slice(0, 64) || "category";
+async function uniqueCategoryKey(label: string): Promise<string> {
+  const base = slugify(label).slice(0, 64) || "category";
   const rows = await getDb().select({ key: businessCategories.key }).from(businessCategories);
   const taken = new Set(rows.map((row) => row.key));
   if (!taken.has(base)) return base;
@@ -84,17 +84,17 @@ async function uniqueCategoryKey(labelEn: string): Promise<string> {
 
 export async function createBusinessCategory(
   labelKo: string,
-  labelEn: string,
+  labelEn?: string | null,
 ): Promise<ManagedBusinessCategory | null> {
   const db = getDb();
   const normalizedKo = labelKo.trim();
-  const normalizedEn = labelEn.trim();
+  const normalizedEn = labelEn?.trim() || null;
   const [duplicate] = await db
     .select({ key: businessCategories.key })
     .from(businessCategories)
     .where(or(
       sql`lower(${businessCategories.label}) = lower(${normalizedKo})`,
-      sql`lower(${businessCategories.labelEn}) = lower(${normalizedEn})`,
+      normalizedEn ? sql`lower(${businessCategories.labelEn}) = lower(${normalizedEn})` : undefined,
     ))
     .limit(1);
   if (duplicate) return null;
@@ -102,7 +102,7 @@ export async function createBusinessCategory(
   const [orderRow] = await db
     .select({ nextOrder: sql<number>`coalesce(max(${businessCategories.sortOrder}), -1)::int + 1` })
     .from(businessCategories);
-  const key = await uniqueCategoryKey(normalizedEn);
+  const key = await uniqueCategoryKey(normalizedKo);
   const [created] = await db
     .insert(businessCategories)
     .values({ key, label: normalizedKo, labelEn: normalizedEn, sortOrder: orderRow?.nextOrder ?? 0 })
@@ -120,11 +120,11 @@ export async function createBusinessCategory(
 export async function renameBusinessCategory(
   key: string,
   labelKo: string,
-  labelEn: string,
+  labelEn?: string | null,
 ): Promise<"ok" | "not_found" | "duplicate"> {
   const db = getDb();
   const normalizedKo = labelKo.trim();
-  const normalizedEn = labelEn.trim();
+  const normalizedEn = labelEn?.trim() || null;
   const [duplicate] = await db
     .select({ key: businessCategories.key })
     .from(businessCategories)
@@ -132,7 +132,7 @@ export async function renameBusinessCategory(
       sql`${businessCategories.key} <> ${key}`,
       or(
         sql`lower(${businessCategories.label}) = lower(${normalizedKo})`,
-        sql`lower(${businessCategories.labelEn}) = lower(${normalizedEn})`,
+        normalizedEn ? sql`lower(${businessCategories.labelEn}) = lower(${normalizedEn})` : undefined,
       ),
     ))
     .limit(1);

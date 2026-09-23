@@ -101,9 +101,6 @@ export default async function ContributePage({ searchParams }: { searchParams: P
               {item.label}
             </Link>
           ))}
-          <Link href="/contribute/fields" className="relative -mb-px shrink-0 whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-ink-3 transition hover:text-ink">
-            필드 보완
-          </Link>
         </nav>
         <div className="flex shrink-0 items-center gap-1 pb-2.5">
           <Link href="/contribute?tab=queue" aria-current={tab === "queue" ? "page" : undefined} className={cx("inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition hover:bg-panel-2 hover:text-ink", tab === "queue" ? "bg-brand-soft text-brand" : "text-ink-3")}>

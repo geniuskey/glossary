@@ -867,7 +867,7 @@ export const openApiSpec = {
       post: {
         summary: "업무 분류 추가",
         security: [{ sessionCookie: [] }, { apiKey: [] }],
-        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["labelKo", "labelEn"], additionalProperties: false, properties: { labelKo: { type: "string", minLength: 1, maxLength: 60 }, labelEn: { type: "string", minLength: 1, maxLength: 60 } } } } } },
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["labelKo"], additionalProperties: false, properties: { labelKo: { type: "string", minLength: 1, maxLength: 60, description: "기본 표시 이름" }, labelEn: { type: ["string", "null"], maxLength: 60, description: "선택 영문 이름" } } } } } },
         responses: {
           "201": json("{ category }", { type: "object" }),
           "400": errorResponse("validation_failed"),
@@ -894,7 +894,7 @@ export const openApiSpec = {
       patch: {
         summary: "업무 분류 표시 이름 변경",
         security: [{ sessionCookie: [] }],
-        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["labelKo", "labelEn"], additionalProperties: false, properties: { labelKo: { type: "string", minLength: 1, maxLength: 60 }, labelEn: { type: "string", minLength: 1, maxLength: 60 } } } } } },
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["labelKo"], additionalProperties: false, properties: { labelKo: { type: "string", minLength: 1, maxLength: 60, description: "기본 표시 이름" }, labelEn: { type: ["string", "null"], maxLength: 60, description: "선택 영문 이름" } } } } } },
         responses: {
           "200": json("{ ok: true }", { type: "object" }),
           "400": errorResponse("validation_failed"),
@@ -924,7 +924,7 @@ export const openApiSpec = {
       post: {
         summary: "도메인 추가",
         security: [{ sessionCookie: [] }, { apiKey: [] }],
-        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["label"], additionalProperties: false, properties: { label: { type: "string", minLength: 1, maxLength: 100 } } } } } },
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["label"], additionalProperties: false, properties: { label: { type: "string", minLength: 1, maxLength: 100 }, labelEn: { type: ["string", "null"], maxLength: 100 } } } } } },
         responses: {
           "201": json("{ domain }", { type: "object" }),
           "400": errorResponse("validation_failed"),
@@ -951,7 +951,7 @@ export const openApiSpec = {
       patch: {
         summary: "도메인 이름 또는 고유 팔레트 색상 변경",
         security: [{ sessionCookie: [] }],
-        requestBody: { required: true, content: { "application/json": { schema: { type: "object", minProperties: 1, additionalProperties: false, properties: { label: { type: "string", minLength: 1, maxLength: 100 }, color: { type: "string", pattern: "^p(?:[0-6][0-9]|7[01])$", description: "72색 도메인 팔레트 키. 다른 도메인과 중복될 수 없습니다." } } } } } },
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", minProperties: 1, additionalProperties: false, properties: { label: { type: "string", minLength: 1, maxLength: 100 }, labelEn: { type: ["string", "null"], maxLength: 100 }, color: { type: "string", pattern: "^p(?:[0-6][0-9]|7[01])$", description: "72색 도메인 팔레트 키. 다른 도메인과 중복될 수 없습니다." } } } } } },
         responses: {
           "200": json("{ ok: true }", { type: "object" }),
           "400": errorResponse("validation_failed"),

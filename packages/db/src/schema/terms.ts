@@ -13,6 +13,7 @@ export const domains = pgTable(
   {
     key: text("key").primaryKey(),
     label: text("label").notNull(),
+    labelEn: text("label_en"),
     color: text("color").notNull(),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -20,6 +21,7 @@ export const domains = pgTable(
   },
   (t) => ({
     labelUnique: uniqueIndex("domains_label_unique").on(t.label),
+    labelEnUnique: uniqueIndex("domains_label_en_unique").on(t.labelEn),
     colorUnique: uniqueIndex("domains_color_unique").on(t.color),
     orderIdx: index("domains_order_idx").on(t.sortOrder, t.key),
   }),
@@ -30,7 +32,7 @@ export const businessCategories = pgTable(
   {
     key: text("key").primaryKey(),
     label: text("label").notNull(),
-    labelEn: text("label_en").notNull(),
+    labelEn: text("label_en"),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

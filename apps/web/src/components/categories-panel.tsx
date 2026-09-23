@@ -29,9 +29,8 @@ export function CategoriesPanel({
   isAdmin: boolean;
 }) {
   const [categories, setCategories] = useState(initialCategories);
-  const typedInKorean = /[가-힣]/.test(initialNewLabel);
-  const [newLabelKo, setNewLabelKo] = useState(typedInKorean ? initialNewLabel : "");
-  const [newLabelEn, setNewLabelEn] = useState(typedInKorean ? "" : initialNewLabel);
+  const [newLabelKo, setNewLabelKo] = useState(initialNewLabel);
+  const [newLabelEn, setNewLabelEn] = useState("");
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [message, setMessage] = useState<Message>(null);
   const [dirtyKeys, setDirtyKeys] = useState<Set<string>>(() => new Set());
@@ -54,7 +53,7 @@ export function CategoriesPanel({
     event.preventDefault();
     const labelKo = newLabelKo.trim();
     const labelEn = newLabelEn.trim();
-    if (!labelKo || !labelEn || busyKey) return;
+    if (!labelKo || busyKey) return;
     setBusyKey("__new__");
     setMessage(null);
     try {
@@ -86,13 +85,13 @@ export function CategoriesPanel({
 
   async function saveNames() {
     const pending = categories.filter((category) => dirtyKeys.has(category.key));
-    if (pending.length === 0 || pending.some((category) => !category.labelKo.trim() || !category.labelEn.trim()) || busyKey) return;
+    if (pending.length === 0 || pending.some((category) => !category.labelKo.trim()) || busyKey) return;
     setBusyKey("__names__");
     setMessage(null);
     try {
       const results = await Promise.all(pending.map(async (category) => {
         const labelKo = category.labelKo.trim();
-        const labelEn = category.labelEn.trim();
+        const labelEn = category.labelEn?.trim() || "";
         try {
           const response = await fetch(`/api/v1/admin/categories/${encodeURIComponent(category.key)}`, {
             method: "PATCH",
@@ -250,8 +249,8 @@ export function CategoriesPanel({
           <thead>
             <tr className="bg-panel-2 text-xs text-ink-3">
               <th scope="col" className="w-14 px-2 py-1.5 font-medium">순서</th>
-              <th scope="col" className="px-2 py-1.5 font-medium">한글 이름</th>
-              <th scope="col" className="px-2 py-1.5 font-medium">English name</th>
+              <th scope="col" className="px-2 py-1.5 font-medium">이름</th>
+              <th scope="col" className="px-2 py-1.5 font-medium">영문 이름 (선택)</th>
               <th scope="col" className="w-16 px-2 py-1.5 text-right font-medium">사용</th>
               <th scope="col" className="w-20 px-2 py-1.5 text-center font-medium">관리</th>
             </tr>
@@ -295,13 +294,13 @@ export function CategoriesPanel({
                 </td>
                 <td className="px-2 py-1">
                   {isAdmin ? (
-                    <input value={category.labelKo} onChange={(event) => editName(category.key, "labelKo", event.target.value)} maxLength={60} disabled={Boolean(busyKey)} aria-label={`${category.key} 한글 이름`} className={GRID_INPUT_CLASS} />
+                    <input value={category.labelKo} onChange={(event) => editName(category.key, "labelKo", event.target.value)} maxLength={60} disabled={Boolean(busyKey)} aria-label={`${category.key} 이름`} className={GRID_INPUT_CLASS} />
                   ) : <span className="font-medium text-ink">{category.labelKo}</span>}
                 </td>
                 <td className="px-2 py-1">
                   {isAdmin ? (
-                    <input value={category.labelEn} onChange={(event) => editName(category.key, "labelEn", event.target.value)} maxLength={60} disabled={Boolean(busyKey)} aria-label={`${category.key} 영문 이름`} className={GRID_INPUT_CLASS} />
-                  ) : <span className="text-ink-2">{category.labelEn}</span>}
+                    <input value={category.labelEn ?? ""} onChange={(event) => editName(category.key, "labelEn", event.target.value)} maxLength={60} disabled={Boolean(busyKey)} aria-label={`${category.key} 영문 이름 (선택)`} className={GRID_INPUT_CLASS} />
+                  ) : <span className="text-ink-2">{category.labelEn || "—"}</span>}
                 </td>
                 <td className="px-2 py-1 text-right font-mono text-xs tabular-nums text-ink-2">{category.usageCount.toLocaleString("ko-KR")}</td>
                 <td className="px-2 py-1 text-center">
@@ -320,16 +319,16 @@ export function CategoriesPanel({
             <tr className="bg-panel-2/45">
               <td className="px-2 py-1" />
               <td className="px-2 py-1">
-                <label htmlFor="new-category-ko" className="sr-only">새 업무 분류 한글 이름</label>
+                <label htmlFor="new-category-ko" className="sr-only">새 업무 분류 이름</label>
                 <input id="new-category-ko" value={newLabelKo} onChange={(event) => setNewLabelKo(event.target.value)} maxLength={60} required disabled={Boolean(busyKey)} placeholder="예: 보안" className={GRID_INPUT_CLASS} />
               </td>
               <td className="px-2 py-1">
                 <label htmlFor="new-category-en" className="sr-only">새 업무 분류 영문 이름</label>
-                <input id="new-category-en" value={newLabelEn} onChange={(event) => setNewLabelEn(event.target.value)} maxLength={60} required disabled={Boolean(busyKey)} placeholder="e.g. Security" className={GRID_INPUT_CLASS} />
+                <input id="new-category-en" value={newLabelEn} onChange={(event) => setNewLabelEn(event.target.value)} maxLength={60} disabled={Boolean(busyKey)} placeholder="영문 이름 (선택)" className={GRID_INPUT_CLASS} />
               </td>
               <td />
               <td className="px-2 py-1 text-center">
-                <button type="submit" disabled={!newLabelKo.trim() || !newLabelEn.trim() || Boolean(busyKey)} className="btn-primary btn-sm whitespace-nowrap">추가</button>
+                <button type="submit" disabled={!newLabelKo.trim() || Boolean(busyKey)} className="btn-primary btn-sm whitespace-nowrap">추가</button>
               </td>
             </tr>
           </tfoot>
@@ -338,7 +337,7 @@ export function CategoriesPanel({
         {isAdmin && (
           <div className="flex items-center justify-end gap-3 border-t border-line bg-panel px-3 py-2">
             {dirtyKeys.size > 0 && <span className="text-xs text-ink-3">{dirtyKeys.size.toLocaleString("ko-KR")}개 수정됨</span>}
-            <button type="button" className="btn-primary btn-sm" disabled={dirtyKeys.size === 0 || categories.some((category) => dirtyKeys.has(category.key) && (!category.labelKo.trim() || !category.labelEn.trim())) || Boolean(busyKey)} onClick={() => void saveNames()}>
+            <button type="button" className="btn-primary btn-sm" disabled={dirtyKeys.size === 0 || categories.some((category) => dirtyKeys.has(category.key) && !category.labelKo.trim()) || Boolean(busyKey)} onClick={() => void saveNames()}>
               {busyKey === "__names__" ? "저장 중…" : "변경사항 저장"}
             </button>
           </div>

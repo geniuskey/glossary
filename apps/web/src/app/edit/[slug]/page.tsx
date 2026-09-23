@@ -80,7 +80,7 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
       <TermForm
         initial={initial}
         assignees={assignees}
-        domainOptions={domainOptions.map((domain) => domain.label)}
+        domainOptions={domainOptions}
         categoryOptions={categoryOptions}
         canDelete={user.role === "admin"}
       />

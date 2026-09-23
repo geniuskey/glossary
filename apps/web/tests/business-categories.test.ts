@@ -14,14 +14,19 @@ const db = createDb(process.env.DATABASE_URL_TEST!);
 const marker = `보안 분류 ${Date.now()}`;
 const markerEn = `Security Category ${Date.now()}`;
 let categoryKey = "";
+let optionalCategoryKey = "";
 let termId = "";
 
 afterAll(async () => {
   if (termId) await db.delete(terms).where(eq(terms.id, termId));
   if (categoryKey) await db.delete(businessCategories).where(eq(businessCategories.key, categoryKey));
+  if (optionalCategoryKey) await db.delete(businessCategories).where(eq(businessCategories.key, optionalCategoryKey));
 });
 
 test("업무 분류는 한글·영문 이름으로 추가하고 두 이름을 함께 바꿀 수 있다", async () => {
+  const withoutEnglish = await createBusinessCategory(`${marker} 기본`);
+  expect(withoutEnglish?.labelEn).toBeNull();
+  optionalCategoryKey = withoutEnglish!.key;
   const created = await createBusinessCategory(marker, markerEn);
   expect(created).not.toBeNull();
   categoryKey = created!.key;

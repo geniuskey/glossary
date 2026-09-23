@@ -61,9 +61,12 @@ test("일반 사용자는 분류 체계에 도메인을 추가하고 미사용 �
   const createdBody = await created.json();
   domainKey = createdBody.domain.key;
   expect(createdBody.domain.color).toMatch(/^p\d{2}$/);
+  expect(createdBody.domain.labelEn).toBeNull();
 
-  const unused = await POST(jsonRequest("POST", { label: `Unused ${suffix}` }));
-  const unusedKey = (await unused.json()).domain.key as string;
+  const unused = await POST(jsonRequest("POST", { label: `Unused ${suffix}`, labelEn: `Optional English ${suffix}` }));
+  const unusedBody = await unused.json();
+  expect(unusedBody.domain.labelEn).toBe(`Optional English ${suffix}`);
+  const unusedKey = unusedBody.domain.key as string;
   expect((await DELETE(jsonRequest("DELETE"), { params: Promise.resolve({ key: unusedKey }) })).status).toBe(204);
 });
 
@@ -80,9 +83,12 @@ test("사용 중 도메인은 일반 사용자가 삭제할 수 없고 관리자
 
   await loginAs("admin");
   const renamedLabel = `${domainLabel} renamed`;
-  expect((await PATCH(jsonRequest("PATCH", { label: renamedLabel }), { params: Promise.resolve({ key: domainKey }) })).status).toBe(200);
+  const englishLabel = `Domain alias ${domainKey}`;
+  expect((await PATCH(jsonRequest("PATCH", { label: renamedLabel, labelEn: englishLabel }), { params: Promise.resolve({ key: domainKey }) })).status).toBe(200);
   let [updated] = await db.select({ domain: terms.domain }).from(terms).where(eq(terms.id, termId));
   expect(updated?.domain).toEqual([renamedLabel, "Other"]);
+  const [renamedDomain] = await db.select({ labelEn: domains.labelEn }).from(domains).where(eq(domains.key, domainKey));
+  expect(renamedDomain?.labelEn).toBe(englishLabel);
 
   const allColors = await db.select({ color: domains.color }).from(domains);
   const changedColor = DOMAIN_COLOR_PALETTE.find((color) => !allColors.some((row) => row.color === color.key))!.key;

@@ -12,6 +12,7 @@ import { apiError } from "@/lib/api-error";
 export interface DomainOption {
   key: string;
   label: string;
+  labelEn: string | null;
   color: string;
 }
 
@@ -22,7 +23,7 @@ export interface ManagedDomain extends DomainOption {
 
 export async function listDomains(): Promise<DomainOption[]> {
   return getDb()
-    .select({ key: domains.key, label: domains.label, color: domains.color })
+    .select({ key: domains.key, label: domains.label, labelEn: domains.labelEn, color: domains.color })
     .from(domains)
     .orderBy(asc(domains.sortOrder), asc(domains.key));
 }
@@ -32,6 +33,7 @@ export async function listManagedDomains(): Promise<ManagedDomain[]> {
     .select({
       key: domains.key,
       label: domains.label,
+      labelEn: domains.labelEn,
       color: domains.color,
       sortOrder: domains.sortOrder,
       usageCount: sql<number>`(
@@ -61,13 +63,14 @@ export function unknownDomainsResponse(unknown: readonly string[]): Response {
   return apiError("validation_failed", message, 400, { field: "domain", unknown, fieldErrors: { domain: [message] } });
 }
 
-export async function createDomain(label: string): Promise<ManagedDomain | "duplicate" | "palette_full"> {
+export async function createDomain(label: string, labelEn?: string | null): Promise<ManagedDomain | "duplicate" | "palette_full"> {
   const db = getDb();
   const normalized = normalizeDomainLabel(label);
+  const normalizedEn = labelEn?.trim() || null;
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('glossary_domain_catalog'))`);
-    const current = await tx.select({ key: domains.key, label: domains.label, color: domains.color }).from(domains);
-    if (current.some((domain) => domainLabelKey(domain.label) === domainLabelKey(normalized))) return "duplicate" as const;
+    const current = await tx.select({ key: domains.key, label: domains.label, labelEn: domains.labelEn, color: domains.color }).from(domains);
+    if (current.some((domain) => domainLabelKey(domain.label) === domainLabelKey(normalized) || (normalizedEn && domain.labelEn && domainLabelKey(domain.labelEn) === domainLabelKey(normalizedEn)))) return "duplicate" as const;
     const color = firstUnusedDomainColor(new Set(current.map((domain) => domain.color)));
     if (!color) return "palette_full" as const;
     const [orderRow] = await tx
@@ -76,7 +79,7 @@ export async function createDomain(label: string): Promise<ManagedDomain | "dupl
     const key = uniqueDomainKey(normalized, new Set(current.map((domain) => domain.key)));
     const [created] = await tx
       .insert(domains)
-      .values({ key, label: normalized, color, sortOrder: orderRow?.nextOrder ?? 0 })
+      .values({ key, label: normalized, labelEn: normalizedEn, color, sortOrder: orderRow?.nextOrder ?? 0 })
       .returning();
     return { ...created!, usageCount: 0 };
   });
@@ -84,7 +87,7 @@ export async function createDomain(label: string): Promise<ManagedDomain | "dupl
 
 export async function updateDomain(
   key: string,
-  input: { label?: string; color?: string },
+  input: { label?: string; labelEn?: string | null; color?: string },
 ): Promise<"ok" | "not_found" | "duplicate_label" | "duplicate_color"> {
   const db = getDb();
   const result = await db.transaction(async (tx) => {
@@ -92,9 +95,13 @@ export async function updateDomain(
     const [current] = await tx.select().from(domains).where(eq(domains.key, key)).limit(1);
     if (!current) return "not_found" as const;
     const normalized = input.label === undefined ? undefined : normalizeDomainLabel(input.label);
+    const normalizedEn = input.labelEn === undefined ? undefined : input.labelEn?.trim() || null;
     if (normalized !== undefined) {
-      const others = await tx.select({ label: domains.label }).from(domains).where(sql`${domains.key} <> ${key}`);
-      if (others.some((domain) => domainLabelKey(domain.label) === domainLabelKey(normalized))) return "duplicate_label" as const;
+      const others = await tx.select({ label: domains.label, labelEn: domains.labelEn }).from(domains).where(sql`${domains.key} <> ${key}`);
+      if (others.some((domain) => domainLabelKey(domain.label) === domainLabelKey(normalized) || (normalizedEn && domain.labelEn && domainLabelKey(domain.labelEn) === domainLabelKey(normalizedEn)))) return "duplicate_label" as const;
+    } else if (normalizedEn) {
+      const others = await tx.select({ labelEn: domains.labelEn }).from(domains).where(sql`${domains.key} <> ${key}`);
+      if (others.some((domain) => domain.labelEn && domainLabelKey(domain.labelEn) === domainLabelKey(normalizedEn))) return "duplicate_label" as const;
     }
     if (input.color !== undefined) {
       const [duplicate] = await tx
@@ -106,6 +113,7 @@ export async function updateDomain(
     }
     await tx.update(domains).set({
       ...(normalized !== undefined ? { label: normalized } : {}),
+      ...(normalizedEn !== undefined ? { labelEn: normalizedEn } : {}),
       ...(input.color !== undefined ? { color: input.color } : {}),
       updatedAt: new Date(),
     }).where(eq(domains.key, key));

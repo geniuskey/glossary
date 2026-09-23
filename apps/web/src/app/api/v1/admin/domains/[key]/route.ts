@@ -12,8 +12,9 @@ export { GET, POST, PUT, OPTIONS };
 
 const patchSchema = z.object({
   label: z.string().trim().min(1).max(DOMAIN_VALUE_MAX).optional(),
+  labelEn: z.string().trim().max(DOMAIN_VALUE_MAX).nullish(),
   color: z.string().refine((value) => DOMAIN_COLOR_KEYS.has(value), "팔레트에 없는 색상입니다.").optional(),
-}).strict().refine((value) => value.label !== undefined || value.color !== undefined, "변경할 값이 필요합니다.");
+}).strict().refine((value) => value.label !== undefined || value.labelEn !== undefined || value.color !== undefined, "변경할 값이 필요합니다.");
 
 export const PATCH = withApiErrors(async (request: Request, context: { params: Promise<{ key: string }> }) => {
   const admin = await requireAdminUser(request);

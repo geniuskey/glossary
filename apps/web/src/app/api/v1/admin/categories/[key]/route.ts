@@ -9,7 +9,7 @@ export { GET, POST, PUT, OPTIONS };
 
 const patchSchema = z.object({
   labelKo: z.string().trim().min(1).max(60),
-  labelEn: z.string().trim().min(1).max(60),
+  labelEn: z.string().trim().max(60).nullish(),
 }).strict();
 
 export const PATCH = withApiErrors(async (request: Request, context: { params: Promise<{ key: string }> }) => {
