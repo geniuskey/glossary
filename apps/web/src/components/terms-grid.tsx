@@ -86,7 +86,7 @@ const CONCURRENCY = 6;
 /** 선택 테두리와 채우기 손잡이가 스크롤 상자 끝에서 잘리지 않게 남길 여백. */
 const ACTIVE_CELL_GAP = 4;
 
-type Toast = { id: number; tone: "error" | "conflict" | "ok"; text: string; refresh?: boolean };
+type Toast = { id: number; tone: "error" | "conflict" | "ok"; text: string; refresh?: boolean; href?: string; actionLabel?: string };
 type Batch = { label: string; entries: RowPatch[] };
 /** 되돌린 결과(역패치)를 어느 더미에 쌓을지. "edit"만 다시하기 더미를 비운다. */
 type CommitMode = "edit" | "undo" | "redo";
@@ -579,16 +579,10 @@ export function TermsGrid(props: TermsGridProps) {
         return;
       }
       const body = (await res.json()) as TermWriteResponse;
-      const made = createdRow(body);
-
-      // 이 입력칸은 표의 마지막 빈 줄이다. 서버 목록을 곧바로 새로고침하면 기본
-      // 정렬(최근 수정 내림차순)이 새 용어를 1번으로 끌어올려, 사용자가 방금 입력한
-      // 위치와 결과 위치가 달라진다. 붙여넣기로 만든 행과 똑같이 현재 표 끝에 붙이고
-      // 다음 명시적 새로고침부터 선택한 정렬을 적용한다.
-      setRows((prev) => [...prev, made]);
       setDraft({ nameEn: "", nameKo: "" });
       draftRef.current?.focus();
-      pushToast({ tone: "ok", text: "마지막 행에 용어를 추가했습니다." });
+      pushToast({ tone: "ok", text: "용어를 추가했습니다.", href: `/g/${body.term.slug}`, actionLabel: "새 용어 열기" });
+      router.refresh();
       if (body.warnings.length > 0) {
         pushToast({ tone: "conflict", text: "기존 용어와 겹치는 표기가 있습니다." });
       }
@@ -647,9 +641,8 @@ export function TermsGrid(props: TermsGridProps) {
   }
 
   function downloadCsv() {
-    const target = picked.size ? rows.filter((r) => picked.has(r.id)) : rows;
     // 엑셀은 BOM이 없으면 UTF-8 CSV의 한글을 깨뜨린다.
-    const blob = new Blob(["﻿", toCsv(target, columns)], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob(["﻿", toCsv(rows, columns)], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -1126,14 +1119,14 @@ export function TermsGrid(props: TermsGridProps) {
       added = results[1];
     } finally { pasteBusy.current = false; setPasteProgress(""); }
 
-    // 선택 영역은 실제로 존재하게 된 만큼만 잡는다 — 만들지 못한 줄까지 잡으면
-    // 포커스가 없는 좌표를 가리킨다. 방금 만든 행은 rowsRef에 아직 안 보일 수
-    // 있어(setRows가 렌더로 반영되기 전이다) 만든 개수로 직접 센다.
-    const rowCount = Math.max(rowsRef.current.length, rows.length + added);
-    if (anchor.r >= rowCount) return;
-    const height = Math.min(matrix.length, rowCount - anchor.r) - 1;
-    const width = Math.min(Math.max(...matrix.map((m) => m.length)), columns.length - anchor.c) - 1;
-    setSel({ anchor, focus: { r: anchor.r + Math.max(0, height), c: anchor.c + Math.max(0, width) } });
+    // 서버 목록이 갱신되기 전에는 기존 행 범위만 선택한다.
+    const rowCount = rowsRef.current.length;
+    if (anchor.r < rowCount) {
+      const height = Math.min(matrix.length, rowCount - anchor.r) - 1;
+      const width = Math.min(Math.max(...matrix.map((m) => m.length)), columns.length - anchor.c) - 1;
+      setSel({ anchor, focus: { r: anchor.r + Math.max(0, height), c: anchor.c + Math.max(0, width) } });
+    }
+    if (added > 0) router.refresh();
   }
 
   /**
@@ -1146,7 +1139,7 @@ export function TermsGrid(props: TermsGridProps) {
   async function createRows(creates: readonly PastedRow[]): Promise<number> {
     if (creates.length === 0) return 0;
 
-    const made: TermRow[] = [];
+    const made: string[] = [];
     const failures: string[] = [];
     let flagged = 0;
 
@@ -1167,7 +1160,7 @@ export function TermsGrid(props: TermsGridProps) {
           }
           const body = (await res.json()) as TermWriteResponse;
           if (body.warnings.length > 0) flagged += 1;
-          made.push(createdRow(body));
+          made.push(body.term.slug);
         } catch {
           failures.push(`${draft.line}번째 줄: 네트워크 오류로 만들지 못했습니다.`);
         }
@@ -1176,11 +1169,13 @@ export function TermsGrid(props: TermsGridProps) {
       setCreating(false);
     }
 
-    // 현재 검색·필터에 맞지 않는 행이어도 화면에는 남긴다 — 방금 만든 것이
-    // 곧바로 사라지면 만들어졌는지조차 알 수 없다. 새로고침하면 제자리로 간다.
     if (made.length > 0) {
-      setRows((prev) => [...prev, ...made]);
-      pushToast({ tone: "ok", text: `${made.length}개 행을 새로 만들었습니다.` });
+      pushToast({
+        tone: "ok",
+        text: `${made.length}개 행을 새로 만들었습니다.`,
+        href: `/g/${made[0]}`,
+        actionLabel: made.length === 1 ? "새 용어 열기" : "첫 용어 열기",
+      });
     }
     if (flagged > 0) {
       pushToast({ tone: "conflict", text: `그중 ${flagged}개는 기존 용어와 표기가 겹칩니다.` });
@@ -1194,17 +1189,6 @@ export function TermsGrid(props: TermsGridProps) {
       });
     }
     return made.length;
-  }
-
-  function createdRow(body: TermWriteResponse): TermRow {
-    // 방금 만든 행의 리비전은 언제나 1이다(createTerm이 리비전 1을 함께 쓴다).
-    return {
-      ...body.term,
-      categoryLabel: props.categoryOptions.find((category) => category.key === body.term.category)?.label ?? null,
-      ownerName: null,
-      revision: 1,
-      editorName: props.viewerName,
-    };
   }
 
   function togglePick(id: string) {
@@ -1568,6 +1552,9 @@ export function TermsGrid(props: TermsGridProps) {
                 <span className="flex flex-wrap items-center gap-2">
                   <input
                     ref={draftRef}
+                    aria-label="새 용어 영문명"
+                    name="newTermNameEn"
+                    autoComplete="off"
                     value={draft.nameEn}
                     onChange={(e) => setDraft({ ...draft, nameEn: e.target.value })}
                     onKeyDown={(e) => {
@@ -1579,6 +1566,9 @@ export function TermsGrid(props: TermsGridProps) {
                     className="h-7 w-48 rounded-md border border-line bg-panel px-2 text-[13px] placeholder:text-ink-3 focus:border-brand focus:outline-none"
                   />
                   <input
+                    aria-label="새 용어 국문명"
+                    name="newTermNameKo"
+                    autoComplete="off"
                     value={draft.nameKo}
                     onChange={(e) => setDraft({ ...draft, nameKo: e.target.value })}
                     onKeyDown={(e) => {
@@ -1767,6 +1757,11 @@ export function TermsGrid(props: TermsGridProps) {
               )}
             >
               <span className="min-w-0 flex-1">{t.text}</span>
+              {t.href && (
+                <Link href={t.href} className="shrink-0 font-semibold underline underline-offset-2 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current">
+                  {t.actionLabel}
+                </Link>
+              )}
               {t.refresh ? (
                 <button type="button" className="btn-ghost btn-sm shrink-0" onClick={() => router.refresh()}>
                   새로고침
@@ -2123,8 +2118,8 @@ function GridToolbar(props: {
             onClick={props.onCsv}
             className="w-full rounded px-2 py-1.5 text-left text-xs text-ink-2 hover:bg-panel-2"
           >
-            CSV 파일로 저장
-            <span className="mt-0.5 block text-[10px] text-ink-3">엑셀에서 바로 열립니다</span>
+            보이는 화면 CSV 파일로 저장
+            <span className="mt-0.5 block text-[10px] text-ink-3">현재 페이지의 행을 엑셀에서 바로 엽니다</span>
           </button>
           <button
             type="button"

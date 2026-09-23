@@ -311,7 +311,7 @@ test("PROTO G: '+' 줄 붙여넣기 표식이 핸들러와 JSX 양쪽에 있다 
   expect(/fetch\(\s*["'`]\/api\/v1\/terms["'`]/.test(content)).toBe(true);
 });
 
-test("PROTO G: 마지막 빈 줄에서 만든 용어는 현재 표의 마지막 행에 붙는다", () => {
+test("PROTO G: 마지막 빈 줄에서 만든 용어는 서버 목록과 집계를 다시 읽는다", () => {
   const content = stripComments(readFileSync(path.join(componentsDir, "terms-grid.tsx"), "utf8"));
   const start = content.indexOf("async function createFromDraft()");
   const end = content.indexOf("async function deletePicked", start);
@@ -319,10 +319,8 @@ test("PROTO G: 마지막 빈 줄에서 만든 용어는 현재 표의 마지막 
 
   expect(start).toBeGreaterThanOrEqual(0);
   expect(end).toBeGreaterThan(start);
-  expect(createFromDraft).toContain("setRows((prev) => [...prev, made])");
-  // router.refresh()는 기본 정렬(최근 수정 내림차순)을 즉시 다시 적용해 새 행을
-  // 1번으로 올린다. 사용자가 새로고침하기 전에는 입력한 마지막 위치를 지킨다.
-  expect(createFromDraft).not.toContain("router.refresh()");
+  expect(createFromDraft).toContain("router.refresh()");
+  expect(createFromDraft).not.toContain("setRows((prev) => [...prev, made])");
 });
 
 test("PROTO I: 시트 열 레이아웃은 내용과 무관한 고정 폭·저장된 순서·실제 drop을 사용한다", () => {

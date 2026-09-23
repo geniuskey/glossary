@@ -73,7 +73,7 @@ test("용어 등록부터 별칭 검색, 문서 점검과 이력 되돌리기까
   await page.goto("/sheet");
   await expect(page.getByRole("textbox", { name: "현재 시트에서 검색" })).toBeVisible();
   await page.getByRole("button", { name: "더보기", exact: true }).click();
-  await expect(page.getByRole("button", { name: "CSV 파일로 저장" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "보이는 화면 CSV 파일로 저장" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: "test-results/design-sheet-mobile.png", fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
