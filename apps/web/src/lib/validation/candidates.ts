@@ -6,7 +6,7 @@ import { unregisteredCandidates, type UnregisteredCandidateStatus } from "@gloss
 import { getDb } from "@/lib/db";
 import { createTerm } from "@/lib/terms/create";
 import type { TermInput } from "@/lib/terms/schema";
-import type { ValidationFinding } from "@glossary/engine";
+import type { ValidationFinding, ValidationHighlight } from "@glossary/engine";
 
 export type CandidateStatus = UnregisteredCandidateStatus;
 
@@ -78,10 +78,11 @@ export async function listCandidates(options: CandidateListOptions = {}): Promis
   return { items: rows, total: Number(totalRows[0]?.count ?? 0), page, pageSize };
 }
 
-/** 검증 결과에서 후보만 추려 한 문서의 중복 발견은 한 번에 합산한다. */
+/** 검증 결과에서 후보만 추려 한 문서의 반복 표기를 한 번에 합산한다. */
 export async function recordUnregisteredCandidates(input: {
   content: string;
   findings: readonly ValidationFinding[];
+  highlights?: readonly ValidationHighlight[];
   path?: string | null;
   lexiconVersion?: string;
 }): Promise<void> {
@@ -105,6 +106,24 @@ export async function recordUnregisteredCandidates(input: {
       count: 1,
       context: candidateContext(input.content, finding.start, finding.end),
     });
+  }
+
+  if (input.highlights) {
+    for (const item of grouped.values()) item.count = 0;
+    for (const highlight of input.highlights) {
+      if (highlight.kind !== "unregistered") continue;
+      const normLoose = normalizeSurface(highlight.text).loose;
+      if (!normLoose) continue;
+      const existing = grouped.get(normLoose);
+      if (existing) existing.count += 1;
+      else grouped.set(normLoose, {
+        text: highlight.text,
+        count: 1,
+        context: candidateContext(input.content, highlight.start, highlight.end),
+      });
+    }
+    // Findings may extend beyond the response's capped highlight list.
+    for (const item of grouped.values()) item.count = Math.max(1, item.count);
   }
 
   if (grouped.size === 0) return;

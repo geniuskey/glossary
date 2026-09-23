@@ -46,6 +46,7 @@ export const POST = withApiErrors(async (request: Request) => {
     scheduleAfterResponse(() => recordUnregisteredCandidates({
       content: parsed.data.content,
       findings: rawResult.findings,
+      highlights: rawResult.highlights,
       path: parsed.data.path,
       lexiconVersion: snapshot.version,
     }));

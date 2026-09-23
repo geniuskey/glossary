@@ -378,6 +378,31 @@ function replacementFor(entries: readonly CompiledEntry[], selected: CompiledEnt
   return canonical ? { text: canonical.text, slug: canonical.slug } : null;
 }
 
+const ENGLISH_FUNCTION_WORDS = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "is", "it",
+  "of", "on", "or", "the", "this", "that", "to", "was", "were", "with",
+]);
+
+function hasKoreanSentenceContext(document: string, start: number, end: number): boolean {
+  const before = document.slice(Math.max(0, start - 120), start).split(/[.!?\r\n]/).at(-1) ?? "";
+  const after = document.slice(end, Math.min(document.length, end + 120)).split(/[.!?\r\n]/)[0] ?? "";
+  return /[가-힣]/.test(before + after);
+}
+
+function isEnglishCandidate(document: string, text: string, start: number, end: number): boolean {
+  if (text.length < 2 || (text === text.toLowerCase() && ENGLISH_FUNCTION_WORDS.has(text))) return false;
+  if (/^[A-Za-z]\d+$/.test(text)) return false;
+  const previous = previousCodePoint(document, start);
+  const next = nextCodePoint(document, end);
+  if ((previous && /[A-Za-z0-9_]/.test(previous)) || (next && /[A-Za-z0-9_]/.test(next))) return false;
+  // Technical spelling carries evidence even in an English-only document.
+  if (/^[A-Z][A-Z0-9]{1,11}$/.test(text) || /[._/-]/.test(text)
+    || /[a-z][A-Z]/.test(text) || /[A-Za-z]\d/.test(text)) return true;
+  // A plain single English word is useful in Korean prose, but English prose
+  // must not turn into a glossary candidate for every word.
+  return hasKoreanSentenceContext(document, start, end);
+}
+
 function addUnregisteredFindings(
   document: string,
   lexicon: CompiledLexicon,
@@ -389,38 +414,48 @@ function addUnregisteredFindings(
 ): ValidationHighlight[] {
   const ignored = new Set(ignoredCandidates.map((candidate) => normalizeSurface(candidate).loose).filter(Boolean));
   const patterns = [
-    /\b[A-Z][A-Z0-9]{1,5}\b/g,
-    /\b[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)+\b/g,
+    { expression: /(?<![A-Za-z0-9_])([A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)+)(?![A-Za-z0-9_])/g, english: false },
+    { expression: /(?<![A-Za-z0-9_])([A-Za-z](?:\+\+|#)|\.NET)(?![A-Za-z0-9_])/g, english: false },
+    { expression: /(?<![A-Za-z0-9_])([A-Za-z][A-Za-z0-9]*(?:[._/-][A-Za-z0-9]+)*)(?![A-Za-z0-9_])/g, english: true },
+    // A Korean word is only a candidate when the author explicitly defines it.
+    // Absence from the glossary is not evidence that every noun needs registration.
+    { expression: /([가-힣]{2,20}?)(?:이란|란)(?=\s|[,:：])/g, english: false },
+    { expression: /[“"‘']([가-힣]{2,20}(?:\s+[가-힣]{2,20}){0,3})[”"’']\s*(?:이란|란)(?=\s|[,:：])/g, english: false },
   ];
   const seen = new Set<string>();
-  const seenSpans = collectHighlights ? new Set<string>() : null;
   const highlights: ValidationHighlight[] = [];
   const matchedRanges = matched.map((item) => ({ start: item.start, end: item.end }));
 
-  for (const pattern of patterns) {
-    for (const result of document.matchAll(pattern)) {
-      const start = result.index ?? -1;
-      const text = result[0];
+  const occurrences: Array<{ text: string; start: number; end: number }> = [];
+  for (const { expression, english } of patterns) {
+    for (const result of document.matchAll(expression)) {
+      const text = result[1]!;
+      const start = (result.index ?? -1) + result[0].indexOf(text);
       const end = start + text.length;
-      if (start < 0 || inRange(excluded, start) || matchedRanges.some((range) => start < range.end && range.start < end)) continue;
-      const normalized = normalizeSurface(text).loose;
-      if (!normalized || ignored.has(normalized) || lexicon.knownNorms.has(normalized)) continue;
-      const spanKey = `${start}:${end}`;
-      if (seenSpans && !seenSpans.has(spanKey)) {
-        seenSpans.add(spanKey);
-        highlights.push({ kind: "unregistered", text, start, end });
-      }
-      if (!seen.has(normalized)) {
-        seen.add(normalized);
-        findings.push({
-          rule: "unregistered",
-          severity: "info",
-          message: "사전에 등록되지 않은 후보입니다.",
-          text,
-          start,
-          end,
-        });
-      }
+      if (start < 0 || (english && !isEnglishCandidate(document, text, start, end))) continue;
+      occurrences.push({ text, start, end });
+    }
+  }
+  occurrences.sort((a, b) => a.start - b.start || b.end - a.end);
+
+  let lastCandidateEnd = -1;
+  for (const { text, start, end } of occurrences) {
+    if (start < lastCandidateEnd || excluded.some((range) => start < range.end && range.start < end)
+      || matchedRanges.some((range) => start < range.end && range.start < end)) continue;
+    const normalized = normalizeSurface(text).loose;
+    if (!normalized || ignored.has(normalized) || lexicon.knownNorms.has(normalized)) continue;
+    lastCandidateEnd = end;
+    if (collectHighlights) highlights.push({ kind: "unregistered", text, start, end });
+    if (!seen.has(normalized)) {
+      seen.add(normalized);
+      findings.push({
+        rule: "unregistered",
+        severity: "info",
+        message: "문서에 등장하지만 사전에 등록되지 않은 용어 후보입니다.",
+        text,
+        start,
+        end,
+      });
     }
   }
   return highlights;

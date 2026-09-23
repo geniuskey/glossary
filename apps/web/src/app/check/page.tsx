@@ -11,6 +11,7 @@ export default async function CheckPage({ searchParams }: { searchParams: Promis
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   const raw = await searchParams;
+  const initialView = raw.view === "candidates" ? "candidates" : "check";
   const rawQ = Array.isArray(raw.q) ? raw.q[0] : raw.q;
   const q = (rawQ ?? "").trim().slice(0, 120);
   const rawPage = Array.isArray(raw.page) ? raw.page[0] : raw.page;
@@ -32,14 +33,15 @@ export default async function CheckPage({ searchParams }: { searchParams: Promis
   }));
 
   return (
-    <AppShell user={user} title="문서 점검" current="check" roomy>
-      <h2 className="mb-4 text-xl font-semibold tracking-tight text-ink lg:hidden">문서 점검</h2>
+    <AppShell user={user} title="문서 점검" current="check" dense>
+      <h2 className="mb-2 text-xl font-semibold tracking-tight text-ink lg:hidden">문서 점검</h2>
       <CandidateCheckPanel
         initialCandidates={items}
         total={result.total}
         page={result.page}
         pageSize={result.pageSize}
         query={q}
+        initialView={initialView}
       />
     </AppShell>
   );

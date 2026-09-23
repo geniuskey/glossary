@@ -1835,7 +1835,7 @@ export const openApiSpec = {
               type: "object", additionalProperties: false,
               properties: {
                 minSeverity: { type: "string", enum: ["error", "warning", "info"], default: "info" },
-                extractUnregistered: { type: "boolean", default: true },
+                extractUnregistered: { type: "boolean", default: true, description: "한국어 문장 속 영문 표기, 특징적인 영문 명칭, 명시적으로 정의된 한글 표현에서 미등록 후보 추출" },
                 collectCandidates: { type: "boolean", default: false, description: "미등록 후보를 검토 목록에 누적" },
                 ignoredCandidates: { type: "array", items: { type: "string", maxLength: 120 }, maxItems: 1000 },
               },
@@ -1867,7 +1867,7 @@ export const openApiSpec = {
               type: "object", additionalProperties: false,
               properties: {
                 minSeverity: { type: "string", enum: ["error", "warning", "info"], default: "info" },
-                extractUnregistered: { type: "boolean", default: true },
+                extractUnregistered: { type: "boolean", default: true, description: "한국어 문장 속 영문 표기, 특징적인 영문 명칭, 명시적으로 정의된 한글 표현에서 미등록 후보 추출" },
                 collectCandidates: { type: "boolean", default: false, description: "미등록 후보를 검토 목록에 누적" },
                 ignoredCandidates: { type: "array", items: { type: "string", maxLength: 120 }, maxItems: 1000 },
               },
