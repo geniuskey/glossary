@@ -53,7 +53,9 @@ let created = 0;
 let reused = 0;
 
 for (const [index, sample] of DEFINITION_SAMPLES.entries()) {
-  const [nameKo, fullNameEn, bodyMd] = sample;
+  const [nameKo, englishName, bodyMd] = sample;
+  const nameEn = nameKo === "ETL" ? "ETL" : englishName;
+  const fullNameEn = nameKo === "ETL" ? englishName : null;
   const name = `정의 샘플 · ${nameKo}`;
   const [existing] = await db
     .select({ id: terms.id, slug: terms.slug })
@@ -71,6 +73,7 @@ for (const [index, sample] of DEFINITION_SAMPLES.entries()) {
     const [inserted] = await tx.insert(terms).values({
       slug,
       qualityProfile: "auto",
+      nameEn,
       nameKo: name,
       fullNameEn,
       domain: ["IT"],
@@ -82,8 +85,9 @@ for (const [index, sample] of DEFINITION_SAMPLES.entries()) {
       updatedBy: authorId,
     }).returning();
     const surfaces = [
+      { termId: inserted!.id, text: nameEn, lang: "en" as const, kind: nameKo === "ETL" ? "abbreviation" as const : "canonical" as const, caseSensitive: nameKo === "ETL", ...surfaceKeys(nameEn) },
       { termId: inserted!.id, text: name, lang: "ko" as const, kind: "canonical" as const, caseSensitive: false, ...surfaceKeys(name) },
-      { termId: inserted!.id, text: fullNameEn, lang: "en" as const, kind: "full_name" as const, caseSensitive: false, ...surfaceKeys(fullNameEn) },
+      ...(fullNameEn ? [{ termId: inserted!.id, text: fullNameEn, lang: "en" as const, kind: "full_name" as const, caseSensitive: false, ...surfaceKeys(fullNameEn) }] : []),
     ];
     const savedSurfaces = await tx.insert(termSurfaces).values(surfaces).returning();
     await tx.insert(termRevisions).values({

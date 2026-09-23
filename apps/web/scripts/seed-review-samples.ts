@@ -62,7 +62,9 @@ let created = 0;
 let reused = 0;
 
 for (const [index, sample] of REVIEW_SAMPLES.entries()) {
-  const [nameKo, fullNameEn, currentDefinition, proposedDefinition, domain, category] = sample;
+  const [nameKo, englishName, currentDefinition, proposedDefinition, domain, category] = sample;
+  const nameEn = englishName;
+  const fullNameEn = nameEn === "CQRS" ? "Command Query Responsibility Segregation" : null;
   const [existing] = await db
     .select({ id: terms.id, slug: terms.slug })
     .from(terms)
@@ -71,11 +73,12 @@ for (const [index, sample] of REVIEW_SAMPLES.entries()) {
 
   const term = existing ?? await db.transaction(async (tx) => {
     const name = `검토 샘플 · ${nameKo}`;
-    const bodyMd = `${fullNameEn}의 사용 맥락과 판단 기준을 확인하기 위한 검토 샘플 본문입니다. 실제 운영 문서에서 이 용어가 사용되는 상황을 설명하는 근거로 활용합니다.`;
+    const bodyMd = `${englishName}의 사용 맥락과 판단 기준을 확인하기 위한 검토 샘플 본문입니다. 실제 운영 문서에서 이 용어가 사용되는 상황을 설명하는 근거로 활용합니다.`;
     const slug = `review-sample-${index + 1}`;
     const [inserted] = await tx.insert(terms).values({
       slug,
       qualityProfile: "auto",
+      nameEn,
       nameKo: name,
       fullNameEn,
       domain: [],
@@ -87,8 +90,9 @@ for (const [index, sample] of REVIEW_SAMPLES.entries()) {
       updatedBy: authorId,
     }).returning();
     const surfaces = [
+      { termId: inserted!.id, text: nameEn, lang: "en" as const, kind: nameEn === "CQRS" ? "abbreviation" as const : "canonical" as const, caseSensitive: nameEn === "CQRS", ...surfaceKeys(nameEn) },
       { termId: inserted!.id, text: name, lang: "ko" as const, kind: "canonical" as const, caseSensitive: false, ...surfaceKeys(name) },
-      { termId: inserted!.id, text: fullNameEn, lang: "en" as const, kind: "full_name" as const, caseSensitive: false, ...surfaceKeys(fullNameEn) },
+      ...(fullNameEn ? [{ termId: inserted!.id, text: fullNameEn, lang: "en" as const, kind: "full_name" as const, caseSensitive: false, ...surfaceKeys(fullNameEn) }] : []),
     ];
     const savedSurfaces = await tx.insert(termSurfaces).values(surfaces).returning();
     await tx.insert(termRevisions).values({
@@ -113,21 +117,21 @@ for (const [index, sample] of REVIEW_SAMPLES.entries()) {
       id: `sample-review-${index + 1}-definition`,
       field: "definitionMd" as const,
       value: proposedDefinition,
-      reason: `샘플 근거: 본문의 ${fullNameEn} 설명을 한 문장으로 구체화했습니다.`,
+      reason: `샘플 근거: 본문의 ${englishName} 설명을 한 문장으로 구체화했습니다.`,
       source: "agent" as const,
     },
     {
       id: `sample-review-${index + 1}-domain`,
       field: "domain" as const,
       value: [domain],
-      reason: `샘플 분류: ${fullNameEn}은(는) ${domain} 맥락에서 주로 사용됩니다.`,
+      reason: `샘플 분류: ${englishName}은(는) ${domain} 맥락에서 주로 사용됩니다.`,
       source: "agent" as const,
     },
     {
       id: `sample-review-${index + 1}-category`,
       field: "category" as const,
       value: [category],
-      reason: `샘플 분류: ${fullNameEn}의 업무 성격을 ${category}로 분류했습니다.`,
+      reason: `샘플 분류: ${englishName}의 업무 성격을 ${category}로 분류했습니다.`,
       source: "agent" as const,
     },
   ];
