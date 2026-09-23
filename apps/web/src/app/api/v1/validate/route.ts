@@ -37,6 +37,7 @@ export const POST = withApiErrors(async (request: Request) => {
     format: parsed.data.format,
     extractUnregistered: parsed.data.options.extractUnregistered,
     ignoredCandidates: parsed.data.options.ignoredCandidates,
+    includeHighlights: true,
     lexiconVersion: snapshot.version,
   });
   const result = filterResult(rawResult, parsed.data.options.minSeverity);
@@ -55,5 +56,14 @@ export const POST = withApiErrors(async (request: Request) => {
     path: parsed.data.path ?? null,
     stats: result.stats,
     findings: result.findings.map((finding) => wireFinding(parsed.data.content, finding)),
+    highlights: (result.highlights ?? []).map((highlight) => ({
+      kind: highlight.kind,
+      matchedText: highlight.text,
+      span: { start: highlight.start, end: highlight.end },
+      ...(highlight.termId ? { termId: highlight.termId } : {}),
+      ...(highlight.slug ? { slug: highlight.slug } : {}),
+      ...(highlight.surfaceKind ? { surfaceKind: highlight.surfaceKind } : {}),
+    })),
+    highlightsTruncated: result.highlightsTruncated ?? false,
   });
 });

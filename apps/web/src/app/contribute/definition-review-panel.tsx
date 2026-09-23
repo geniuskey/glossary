@@ -168,7 +168,10 @@ export function DefinitionReviewPanel({ initialCandidates, aiAvailable }: {
                         <textarea
                           aria-label={`${candidate.name} 한줄 정의 제안`}
                           value={candidate.suggestion ?? ""}
-                          onChange={(event) => setCandidates((items) => items.map((item) => item.id === candidate.id ? { ...item, suggestion: event.currentTarget.value.replace(/[\r\n]+/g, " ") } : item))}
+                          onChange={(event) => {
+                            const suggestion = event.currentTarget.value.replace(/[\r\n]+/g, " ");
+                            setCandidates((items) => items.map((item) => item.id === candidate.id ? { ...item, suggestion } : item));
+                          }}
                           rows={2}
                           maxLength={1_000}
                           disabled={generating || approving}

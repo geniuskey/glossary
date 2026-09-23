@@ -41,6 +41,16 @@ export interface ValidationFinding {
   candidates?: ValidationCandidate[];
 }
 
+export interface ValidationHighlight {
+  kind: "registered" | "unregistered";
+  text: string;
+  start: number;
+  end: number;
+  termId?: string;
+  slug?: string;
+  surfaceKind?: SurfaceKind;
+}
+
 export interface ValidationStats {
   matched: number;
   errors: number;
@@ -50,6 +60,8 @@ export interface ValidationStats {
 
 export interface ValidationResult {
   findings: ValidationFinding[];
+  highlights?: ValidationHighlight[];
+  highlightsTruncated?: boolean;
   stats: ValidationStats;
   lexiconVersion?: string;
 }
@@ -60,6 +72,8 @@ export interface ValidateOptions {
   extractUnregistered?: boolean;
   ignoredCandidates?: readonly string[];
   maxFindings?: number;
+  /** Include source spans for registered and unregistered surfaces. */
+  includeHighlights?: boolean;
   lexiconVersion?: string;
 }
 
@@ -371,13 +385,16 @@ function addUnregisteredFindings(
   matched: readonly RawMatch[],
   findings: ValidationFinding[],
   ignoredCandidates: readonly string[],
-): void {
+  collectHighlights: boolean,
+): ValidationHighlight[] {
   const ignored = new Set(ignoredCandidates.map((candidate) => normalizeSurface(candidate).loose).filter(Boolean));
   const patterns = [
     /\b[A-Z][A-Z0-9]{1,5}\b/g,
     /\b[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)+\b/g,
   ];
   const seen = new Set<string>();
+  const seenSpans = collectHighlights ? new Set<string>() : null;
+  const highlights: ValidationHighlight[] = [];
   const matchedRanges = matched.map((item) => ({ start: item.start, end: item.end }));
 
   for (const pattern of patterns) {
@@ -387,18 +404,26 @@ function addUnregisteredFindings(
       const end = start + text.length;
       if (start < 0 || inRange(excluded, start) || matchedRanges.some((range) => start < range.end && range.start < end)) continue;
       const normalized = normalizeSurface(text).loose;
-      if (!normalized || ignored.has(normalized) || lexicon.knownNorms.has(normalized) || seen.has(normalized)) continue;
-      seen.add(normalized);
-      findings.push({
-        rule: "unregistered",
-        severity: "info",
-        message: "사전에 등록되지 않은 후보입니다.",
-        text,
-        start,
-        end,
-      });
+      if (!normalized || ignored.has(normalized) || lexicon.knownNorms.has(normalized)) continue;
+      const spanKey = `${start}:${end}`;
+      if (seenSpans && !seenSpans.has(spanKey)) {
+        seenSpans.add(spanKey);
+        highlights.push({ kind: "unregistered", text, start, end });
+      }
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+        findings.push({
+          rule: "unregistered",
+          severity: "info",
+          message: "사전에 등록되지 않은 후보입니다.",
+          text,
+          start,
+          end,
+        });
+      }
     }
   }
+  return highlights;
 }
 
 export function validateDocument(
@@ -412,6 +437,19 @@ export function validateDocument(
   const excluded = options.format === "plain" ? [] : markdownExcludedRanges(document);
   const matches = chooseMatches(rawMatches(document, compiled, excluded));
   const findings: ValidationFinding[] = [];
+  const collectHighlights = options.includeHighlights === true;
+  const highlights: ValidationHighlight[] = collectHighlights ? matches.map((match) => {
+    const selected = bestEntry(compiled.compiledEntries, match.entryIndexes);
+    return {
+      kind: "registered",
+      text: document.slice(match.start, match.end),
+      start: match.start,
+      end: match.end,
+      termId: selected.termId,
+      slug: selected.slug,
+      surfaceKind: selected.kind,
+    };
+  }) : [];
 
   for (const match of matches) {
     const entries = match.entryIndexes.map((index) => compiled.compiledEntries[index]!);
@@ -465,11 +503,12 @@ export function validateDocument(
   }
 
   if (options.extractUnregistered !== false) {
-    addUnregisteredFindings(document, compiled, excluded, matches, findings, options.ignoredCandidates ?? []);
+    highlights.push(...addUnregisteredFindings(document, compiled, excluded, matches, findings, options.ignoredCandidates ?? [], collectHighlights));
   }
 
   const maxFindings = Math.max(1, Math.floor(options.maxFindings ?? 5_000));
   const limited = findings.slice(0, maxFindings);
+  if (collectHighlights) highlights.sort((a, b) => a.start - b.start || a.end - b.end);
   const stats: ValidationStats = {
     matched: matches.length,
     errors: limited.filter((finding) => finding.severity === "error").length,
@@ -479,6 +518,10 @@ export function validateDocument(
 
   return {
     findings: limited,
+    ...(collectHighlights ? {
+      highlights: highlights.slice(0, maxFindings),
+      highlightsTruncated: highlights.length > maxFindings,
+    } : {}),
     stats,
     ...(compiled.version || options.lexiconVersion ? { lexiconVersion: compiled.version ?? options.lexiconVersion } : {}),
   };

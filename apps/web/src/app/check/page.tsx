@@ -33,22 +33,14 @@ export default async function CheckPage({ searchParams }: { searchParams: Promis
 
   return (
     <AppShell user={user} title="문서 점검" current="check" roomy>
-      <div className="space-y-8">
-        <header className="border-b border-line pb-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">문서 품질</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">문서 점검</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-3">
-            문서에서 금칙어·비표준 표기·미등록 후보를 찾습니다. 후보를 용어로 등록하거나 무시하면 다음 점검부터 검토 목록을 정리할 수 있습니다.
-          </p>
-        </header>
-        <CandidateCheckPanel
-          initialCandidates={items}
-          total={result.total}
-          page={result.page}
-          pageSize={result.pageSize}
-          query={q}
-        />
-      </div>
+      <h2 className="mb-4 text-xl font-semibold tracking-tight text-ink lg:hidden">문서 점검</h2>
+      <CandidateCheckPanel
+        initialCandidates={items}
+        total={result.total}
+        page={result.page}
+        pageSize={result.pageSize}
+        query={q}
+      />
     </AppShell>
   );
 }

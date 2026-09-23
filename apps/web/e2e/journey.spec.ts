@@ -90,7 +90,6 @@ test("용어 등록부터 별칭 검색, 문서 점검과 이력 되돌리기까
   await expect(page).toHaveURL(new RegExp(`/g/${slug}\\?from=`));
 
   await page.goto("/check");
-  await page.getByLabel("문서 이름·출처").fill("E2E 온보딩 문서");
   await page.getByLabel("문서 본문").fill(`${nameKo}에서 ${candidate}를 사용합니다.`);
   await page.getByRole("button", { name: "문서 점검", exact: true }).click();
   await expect(page.getByText("미등록 1")).toBeVisible();

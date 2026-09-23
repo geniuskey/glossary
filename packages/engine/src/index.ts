@@ -12,6 +12,7 @@ export type {
   ValidateOptions,
   ValidationCandidate,
   ValidationFinding,
+  ValidationHighlight,
   ValidationResult,
   ValidationRule,
   ValidationSeverity,

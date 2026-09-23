@@ -212,6 +212,22 @@ export const openApiSpec = {
           candidates: { type: "array", items: { $ref: "#/components/schemas/LexiconEntry" } },
         },
       },
+      ValidationHighlight: {
+        type: "object",
+        required: ["kind", "matchedText", "span"],
+        properties: {
+          kind: { type: "string", enum: ["registered", "unregistered"] },
+          matchedText: { type: "string" },
+          span: {
+            type: "object",
+            required: ["start", "end"],
+            properties: { start: { type: "integer", minimum: 0 }, end: { type: "integer", minimum: 0 } },
+          },
+          termId: { type: "string", format: "uuid" },
+          slug: { type: "string" },
+          surfaceKind: { type: "string" },
+        },
+      },
       UnregisteredCandidate: {
         type: "object",
         required: ["id", "text", "status", "occurrenceCount", "firstSeenAt", "lastSeenAt"],
@@ -1830,6 +1846,8 @@ export const openApiSpec = {
           "200": json("문서 검증 결과", { type: "object", properties: {
             lexiconVersion: { type: "string" }, path: { type: ["string", "null"] }, stats: { type: "object" },
             findings: { type: "array", items: { $ref: "#/components/schemas/ValidationFinding" } },
+            highlights: { type: "array", items: { $ref: "#/components/schemas/ValidationHighlight" }, description: "본문의 등록·미등록 표기 위치. 최대 5,000개." },
+            highlightsTruncated: { type: "boolean", description: "강조 표기가 5,000개를 초과해 일부 생략되었는지 여부" },
           } }),
           "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "403": errorResponse("forbidden"),
         },

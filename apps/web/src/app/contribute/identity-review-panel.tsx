@@ -417,7 +417,10 @@ export function IdentityReviewPanel({ initialCandidates, query, view, page, hasN
                                     value={draft ?? ""}
                                     maxLength={500}
                                     disabled={isSaving(suggestion.id)}
-                                    onChange={(event) => setDraftValues((items) => ({ ...items, [suggestion.id]: event.currentTarget.value }))}
+                                    onChange={(event) => {
+                                      const value = event.currentTarget.value;
+                                      setDraftValues((items) => ({ ...items, [suggestion.id]: value }));
+                                    }}
                                     className="field mt-1 w-full text-sm"
                                     aria-label={`${FIELD_LABEL[suggestion.field]} 제안`}
                                   />
