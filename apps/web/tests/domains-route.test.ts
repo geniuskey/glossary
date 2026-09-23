@@ -123,7 +123,7 @@ test("NFD나 끝 공백이 섞인 이름은 NFC로 정리해 저장하고, 모�
   await loginAs("editor");
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const label = `일반 ${suffix}`;
-  const created = await POST(jsonRequest("POST", { label: `${label.normalize("NFD")} ` }));
+  const created = await POST(jsonRequest("POST", { label: `${label.normalize("NFD")}\u00a0` }));
   expect(created.status).toBe(201);
   const body = await created.json();
   extraDomainKeys.push(body.domain.key);
