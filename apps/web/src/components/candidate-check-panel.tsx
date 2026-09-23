@@ -92,6 +92,7 @@ export function CandidateCheckPanel({
   const [result, setResult] = useState<ValidationResult | null>(null);
   const [checking, setChecking] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resultFilter, setResultFilter] = useState<ResultFilter>("all");
@@ -245,6 +246,13 @@ export function CandidateCheckPanel({
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const candidatePageLinks = totalPages > 1 ? (
+    <nav aria-label="후보 페이지" className="flex items-center gap-2 text-xs">
+      <span className="mr-1 tabular-nums text-ink-3">{page} / {totalPages}</span>
+      {page > 1 && <Link className="btn-quiet h-8 px-2.5" href={`/check?${new URLSearchParams({ ...(query ? { q: query } : {}), view: "candidates", page: String(page - 1) })}`}>이전</Link>}
+      {page < totalPages && <Link className="btn-quiet h-8 px-2.5" href={`/check?${new URLSearchParams({ ...(query ? { q: query } : {}), view: "candidates", page: String(page + 1) })}`}>다음</Link>}
+    </nav>
+  ) : null;
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3 border-b border-line pb-2">
@@ -321,9 +329,9 @@ export function CandidateCheckPanel({
             ) : <div className="flex flex-1 items-center justify-center px-6 text-center text-sm leading-6 text-ink-3"><p>본문을 붙여 넣고 점검하면 결과가 여기에 표시됩니다.</p></div>}
           </aside>
         </section>
-      ) : <section className="rounded-xl border border-line bg-panel p-4 shadow-sm">
-        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-3">
-          <div><h3 className="text-base font-semibold text-ink">미등록 후보</h3><p className="mt-1 text-xs text-ink-3">발견 빈도가 높은 순서로 표시합니다. 현재 {total}개가 열려 있습니다.</p></div>
+      ) : <section className="rounded-xl border border-line bg-panel p-3 shadow-sm sm:p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
+          <div><h3 className="text-base font-semibold text-ink">미등록 후보 <span className="ml-1 text-sm font-normal tabular-nums text-ink-3">{total.toLocaleString("ko-KR")}개</span></h3><p className="mt-0.5 text-xs text-ink-3">발견 빈도순 · 후보를 열면 문맥을 볼 수 있습니다.</p></div>
           <form className="flex gap-2" action="/check">
             <input type="hidden" name="view" value="candidates" />
             <label className="sr-only" htmlFor="candidate-query">후보 검색</label>
@@ -335,26 +343,34 @@ export function CandidateCheckPanel({
         {initialCandidates.length === 0 ? (
           <div className="mt-5 rounded-2xl border border-dashed border-line px-5 py-10 text-center"><p className="text-sm text-ink-2">열린 후보가 없습니다.</p><p className="mt-1 text-xs text-ink-3">문서 점검에서 발견된 미등록 후보가 이곳에 쌓입니다.</p></div>
         ) : (
-          <ul className="mt-4 space-y-3">
+          <>
+          <div className="flex items-center justify-between gap-2 py-2 text-xs text-ink-3">
+            <span className="tabular-nums">{((page - 1) * pageSize + 1).toLocaleString("ko-KR")}–{Math.min(page * pageSize, total).toLocaleString("ko-KR")} / {total.toLocaleString("ko-KR")}</span>
+            {candidatePageLinks}
+          </div>
+          <div className="hidden grid-cols-[minmax(0,1fr)_5rem_7rem_8.5rem] gap-2 border-y border-line bg-panel-2 px-3 py-1.5 text-[11px] font-medium text-ink-3 md:grid">
+            <span>후보</span><span className="text-right">발견</span><span className="text-right">최근 발견</span><span className="text-right">작업</span>
+          </div>
+          <ul className="divide-y divide-line border-y border-line md:border-t-0">
             {initialCandidates.map((candidate) => (
-              <li key={candidate.id} className="rounded-2xl border border-line bg-panel p-4 shadow-sm sm:p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2"><h4 className="text-sm font-semibold text-ink">{candidate.text}</h4><span className="rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand">{candidate.occurrenceCount}회 발견</span></div>
-                    <p className="mt-2 text-xs leading-5 text-ink-3">{candidate.sampleContext ?? "샘플 문맥 없음"}</p>
-                    <p className="mt-2 text-[11px] text-ink-3">{candidate.source ? `${candidate.source} · ` : ""}최근 {formatDate(candidate.lastSeenAt)}</p>
-                  </div>
-                  <div className="flex shrink-0 gap-2">
-                    <button type="button" className="btn-primary h-9 px-3 text-xs" onClick={() => setActiveId(activeId === candidate.id ? null : candidate.id)} disabled={busyId === candidate.id}>{activeId === candidate.id ? "닫기" : "용어로 등록"}</button>
-                    <button type="button" className="btn-quiet h-9 px-3 text-xs" onClick={() => dismiss(candidate.id)} disabled={busyId === candidate.id}>무시</button>
+              <li key={candidate.id} className="min-w-0">
+                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 px-2 py-1.5 md:grid-cols-[minmax(0,1fr)_5rem_7rem_8.5rem] md:px-3">
+                  <button type="button" aria-expanded={expandedId === candidate.id} aria-controls={`candidate-detail-${candidate.id}`} onClick={() => setExpandedId(expandedId === candidate.id ? null : candidate.id)} className="min-w-0 truncate rounded py-1 text-left text-sm font-medium text-ink hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" title={candidate.text}><span aria-hidden="true" className="mr-1.5 text-ink-3">{expandedId === candidate.id ? "▾" : "▸"}</span>{candidate.text}</button>
+                  <span className="text-right text-xs tabular-nums text-ink-2 md:col-start-2">{candidate.occurrenceCount.toLocaleString("ko-KR")}회</span>
+                  <span className="hidden text-right text-xs text-ink-3 md:block">{formatDate(candidate.lastSeenAt)}</span>
+                  <div className="flex justify-end gap-1">
+                    <button type="button" className="btn-quiet h-7 px-2 text-xs" onClick={() => setActiveId(activeId === candidate.id ? null : candidate.id)} disabled={busyId === candidate.id}>{activeId === candidate.id ? "닫기" : "등록"}</button>
+                    <button type="button" className="btn-quiet h-7 px-2 text-xs" onClick={() => dismiss(candidate.id)} disabled={busyId === candidate.id}>무시</button>
                   </div>
                 </div>
-                {activeId === candidate.id && <PromotionForm candidate={candidate} onSubmit={promote} busy={busyId === candidate.id} />}
+                <div id={`candidate-detail-${candidate.id}`} hidden={expandedId !== candidate.id} className="border-t border-line bg-panel-2 px-3 py-2 text-xs leading-5 text-ink-2"><p>{candidate.sampleContext ?? "샘플 문맥 없음"}</p><p className="mt-1 text-ink-3">최근 {formatDate(candidate.lastSeenAt)}{candidate.source ? ` · ${candidate.source}` : ""}</p></div>
+                {activeId === candidate.id && <div className="border-t border-line bg-panel-2 px-3 pb-3"><PromotionForm candidate={candidate} onSubmit={promote} busy={busyId === candidate.id} /></div>}
               </li>
             ))}
           </ul>
+          </>
         )}
-        {totalPages > 1 && <div className="mt-5 flex items-center justify-center gap-3 text-xs"><span className="text-ink-3">{page} / {totalPages}</span>{page > 1 && <Link className="link" href={`/check?${new URLSearchParams({ ...(query ? { q: query } : {}), view: "candidates", page: String(page - 1) })}`}>이전</Link>}{page < totalPages && <Link className="link" href={`/check?${new URLSearchParams({ ...(query ? { q: query } : {}), view: "candidates", page: String(page + 1) })}`}>다음</Link>}</div>}
+        {candidatePageLinks && <div className="mt-3 flex justify-center">{candidatePageLinks}</div>}
       </section>}
     </div>
   );
