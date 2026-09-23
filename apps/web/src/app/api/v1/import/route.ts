@@ -3,6 +3,7 @@ import { requireAuth, isResponse } from "@/lib/auth/require";
 import { isGlossarySnapshotBytes } from "@/lib/admin/term-snapshot-format";
 import { parseGlossaryWorkbook } from "@/lib/import/parse-xlsx";
 import { listBusinessCategories } from "@/lib/terms/categories";
+import { listDomains } from "@/lib/terms/domains";
 import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS } from "@/lib/import/format";
 import { applyImport, dryRunImport } from "@/lib/import/apply";
 import { scheduleRagIndexing } from "@/lib/rag/indexer";
@@ -64,10 +65,12 @@ export const POST = withApiErrors(async (request: Request) => {
     );
   }
 
-  const categoryOptions = await listBusinessCategories();
+  const [categoryOptions, domainOptions] = await Promise.all([listBusinessCategories(), listDomains()]);
   const { rows, errors, fileErrors, ignoredHeaders } = await parseGlossaryWorkbook(
     bytes,
     categoryOptions.map((category) => category.key),
+    undefined,
+    domainOptions.map((domain) => domain.label),
   );
 
   // R119: 행 수 상한. computeVerdict(apply.ts)가 findDuplicates를 행마다 부르지

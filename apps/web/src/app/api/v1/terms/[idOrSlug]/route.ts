@@ -6,7 +6,7 @@ import { getTermByIdOrSlug, type TermDetailResponse } from "@/lib/terms/query";
 import { termPatchSchema } from "@/lib/terms/schema";
 import { isAssignableUserId } from "@/lib/terms/owners";
 import { businessCategoriesExist } from "@/lib/terms/categories";
-import { domainsExist } from "@/lib/terms/domains";
+import { resolveDomains, unknownDomainsResponse } from "@/lib/terms/domains";
 import { representativeDuplicateFieldErrors } from "@/lib/terms/create";
 import { deleteTerm, updateTerm, type UpdateTermSuccess } from "@/lib/terms/update";
 import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
@@ -54,8 +54,10 @@ export const PATCH = withApiErrors(
     if (parsed.data.ownerId && !(await isAssignableUserId(parsed.data.ownerId))) {
       return apiError("validation_failed", "담당자 계정을 찾을 수 없습니다.", 400, { field: "ownerId" });
     }
-    if (parsed.data.domain && !(await domainsExist(parsed.data.domain))) {
-      return apiError("validation_failed", "분류 체계에 없는 도메인이 포함되어 있습니다.", 400, { field: "domain" });
+    if (parsed.data.domain) {
+      const domains = await resolveDomains(parsed.data.domain, existing.domain);
+      if (domains.unknown.length) return unknownDomainsResponse(domains.unknown);
+      parsed.data.domain = domains.labels;
     }
     if (parsed.data.category && !(await businessCategoriesExist(parsed.data.category))) {
       return apiError("validation_failed", "업무 분류를 찾을 수 없습니다.", 400, { field: "category" });

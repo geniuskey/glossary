@@ -4,6 +4,7 @@ import { users } from "@glossary/db";
 import { getDb } from "../src/lib/db.js";
 import { SEED_PACKS, packByKey, type SeedPack } from "../src/lib/seed/glossaries.js";
 import { createTerm, findDuplicates } from "../src/lib/terms/create.js";
+import { ensureDomains } from "../src/lib/terms/domain-catalog.js";
 import { termInputSchema } from "../src/lib/terms/schema.js";
 import { deriveSurfaces } from "../src/lib/terms/surfaces.js";
 
@@ -56,6 +57,10 @@ async function seedAuthorId(): Promise<string | null> {
 
 const authorId = await seedAuthorId();
 if (!authorId) console.log("관리자 계정이 없어 작성자 없이 추가합니다.");
+
+// 씨앗 용어가 단 도메인이 분류 체계에 없으면 그 용어는 편집 화면에서 저장이 막힌다.
+const registered = await ensureDomains(getDb(), selected.flatMap((pack) => [...pack.domain]));
+if (registered.length) console.log(`도메인 ${registered.length}개를 분류 체계에 추가했습니다: ${registered.join(", ")}`);
 
 let totalAdded = 0;
 let totalSkipped = 0;

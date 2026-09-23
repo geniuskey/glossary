@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, expect, test, vi } from "vitest";
-import { apiKeys, createDb, terms, termRevisions, users } from "@glossary/db";
+import { apiKeys, createDb, domains, terms, termRevisions, users } from "@glossary/db";
 import { generateApiKey } from "../src/lib/auth/api-key.js";
 import { hashPassword } from "../src/lib/auth/password.js";
 import { createSession, SESSION_COOKIE } from "../src/lib/auth/session.js";
@@ -422,6 +422,49 @@ test("병합된 표기가 모순되면 patch는 400 validation_failed (R52)", as
   expect(res.status).toBe(400);
   const body = await res.json();
   expect(body.error.code).toBe("validation_failed");
+});
+
+// 가져오기·시드로 분류 체계 밖 도메인이 이미 붙은 용어도, 편집 폼은 도메인
+// 배열 전체를 다시 보낸다. 전체를 검사하면 도메인을 건드리지 않은 저장까지 막혔다.
+test("이미 붙어 있던 분류 체계 밖 도메인은 patch를 막지 않고, 새로 붙이는 도메인만 검사한다", async () => {
+  const term = await seedRouteTerm();
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const legacy = `레거시 도메인 ${suffix}`;
+  await db.update(terms).set({ domain: [legacy] }).where(eq(terms.id, term.id));
+  const { token } = await makeKeyRow(["write"]);
+
+  const kept = await termPatch(patchRequest({ definitionMd: "정의만 고친다", domain: [legacy] }, token), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+  expect(kept.status).toBe(200);
+
+  const added = await termPatch(patchRequest({ domain: [legacy, `새 도메인 ${suffix}`] }, token), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+  expect(added.status).toBe(400);
+  const body = await added.json();
+  expect(body.error.message).toContain(`새 도메인 ${suffix}`);
+  expect(body.error.details).toMatchObject({ field: "domain", unknown: [`새 도메인 ${suffix}`] });
+});
+
+// 운영에서 payload는 ["일반"], 도메인 목록에도 "일반"이 보이는데 저장이 400으로
+// 막혔다. 화면에 같게 보이는 NFC/NFD 차이만으로 SQL `IN` 비교가 어긋날 수 있다.
+test("분류 체계 이름과 NFC/NFD만 다른 도메인도 저장되고, 분류 체계 이름 그대로 저장된다", async () => {
+  const term = await seedRouteTerm();
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const catalogLabel = `일반 ${suffix}`.normalize("NFD");
+  await db.insert(domains).values({ key: `nfd-probe-${suffix}`, label: catalogLabel, color: "p71", sortOrder: 9999 });
+  try {
+    const { token } = await makeKeyRow(["write"]);
+    const res = await termPatch(patchRequest({ domain: [catalogLabel.normalize("NFC")] }, token), {
+      params: Promise.resolve({ idOrSlug: term.slug }),
+    });
+    expect(res.status).toBe(200);
+    const [saved] = await db.select({ domain: terms.domain }).from(terms).where(eq(terms.id, term.id));
+    expect(saved?.domain).toEqual([catalogLabel]);
+  } finally {
+    await db.delete(domains).where(eq(domains.key, `nfd-probe-${suffix}`));
+  }
 });
 
 // R54: updateTerm의 conflict 결과는 409 revision_conflict로 변환되어야 한다.

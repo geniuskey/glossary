@@ -7,6 +7,11 @@ const mocks = vi.hoisted(() => ({ createTerm: vi.fn(), findDuplicates: vi.fn(), 
 vi.mock("@/lib/terms/create", () => ({ createTerm: mocks.createTerm, findDuplicates: mocks.findDuplicates }));
 vi.mock("@/lib/auth/require", () => ({ requireAuth: mocks.requireAuth, isResponse: (value: unknown) => value instanceof Response }));
 vi.mock("@/lib/terms/categories", () => ({ listBusinessCategories: async () => [] }));
+// 가져오기는 분류 체계에 없는 도메인이 붙은 행을 건너뛴다. 이 파일의 표본 도메인을 등록된 것으로 둔다.
+vi.mock("@/lib/terms/domains", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../src/lib/terms/domains")>(),
+  listDomains: async () => ["SW", "IT"].map((label) => ({ key: label.toLowerCase(), label, color: "p00" })),
+}));
 import { POST } from "../src/app/api/v1/import/review/route";
 import type { ReviewReport } from "../src/lib/import/review";
 

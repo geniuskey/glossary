@@ -176,3 +176,26 @@ test("관리자가 추가한 업무 분류 key는 현재 허용 목록을 받아
   expect(result.rows[0]).toMatchObject({ nameEn: "Secure Boot", category: "security" });
   expect(result.rows[0]?.topic).toBeUndefined();
 });
+
+// 가져오기가 분류 체계 밖 도메인을 terms.domain에 그대로 쓰면, 그 용어는 편집
+// 화면에서 "분류 체계에 없는 도메인"으로 저장이 막힌다.
+test("분류 체계 목록을 받으면 없는 도메인이 붙은 행은 건너뛸 행으로 보낸다", async () => {
+  const buf = await workbook([
+    ["AE", "자동노출", "", "ISP", "active", "", ""],
+    ["AF", "자동초점", "", "ISP, 광학", "active", "", ""],
+  ]);
+
+  const { rows, errors } = await parseGlossaryWorkbook(buf, undefined, undefined, ["ISP"]);
+
+  expect(rows.map((row) => row.nameEn)).toEqual(["AE"]);
+  expect(errors).toEqual([{ rowNumber: 3, message: expect.stringContaining("광학") }]);
+});
+
+test("가져오기 도메인은 모양만 다른 값(NFD·대소문자)도 분류 체계 이름으로 맞춘다", async () => {
+  const buf = await workbook([["AE", "자동노출", "", `${"일반".normalize("NFD")}, isp`, "active", "", ""]]);
+
+  const { rows, errors } = await parseGlossaryWorkbook(buf, undefined, undefined, ["일반", "ISP"]);
+
+  expect(errors).toEqual([]);
+  expect(rows[0]?.domain).toEqual(["일반", "ISP"]);
+});

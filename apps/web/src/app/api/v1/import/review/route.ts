@@ -4,6 +4,7 @@ import { isGlossarySnapshotBytes, isGlossarySnapshotText } from "@/lib/admin/ter
 import { parseGlossaryMatrix, parseGlossaryWorkbook } from "@/lib/import/parse-xlsx";
 import { parseClipboardMatrix } from "@/lib/terms/grid";
 import { listBusinessCategories } from "@/lib/terms/categories";
+import { listDomains } from "@/lib/terms/domains";
 import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS } from "@/lib/import/format";
 import { prepareReview, reviewedInput, reviewRequestSchema } from "@/lib/import/prepare-review";
 import { isSimpleGlossaryHeader, needsReview, reviewColumns } from "@/lib/import/review";
@@ -36,6 +37,7 @@ export const POST = withApiErrors(async (request: Request) => {
   try { config = reviewRequestSchema.parse(JSON.parse(review)); }
   catch { return apiError("validation_failed", "검토 데이터 형식이 올바르지 않습니다.", 400); }
   const categories = (await listBusinessCategories()).map((c) => c.key);
+  const domainLabels = (await listDomains()).map((d) => d.label);
   const columns = reviewColumns(config.columns);
   let parsed;
   try {
@@ -45,7 +47,7 @@ export const POST = withApiErrors(async (request: Request) => {
       if (isGlossarySnapshotBytes(bytes)) {
         return apiError("validation_failed", "관리자용 용어집 스냅샷은 일반 가져오기에서 사용할 수 없습니다. 복원은 별도의 관리자 절차로 진행해야 합니다.", 400);
       }
-      parsed = await parseGlossaryWorkbook(bytes, categories, columns.map((column) => column.key));
+      parsed = await parseGlossaryWorkbook(bytes, categories, columns.map((column) => column.key), domainLabels);
     } else if (typeof text === "string") {
       if (new TextEncoder().encode(text).length > MAX_IMPORT_BYTES) return apiError("payload_too_large", "붙여넣기 내용이 10MB를 넘습니다.", 413);
       if (isGlossarySnapshotText(text)) {
@@ -60,7 +62,7 @@ export const POST = withApiErrors(async (request: Request) => {
         matrix.unshift(columns.map((column) => column.label));
         addedHeader = true;
       }
-      parsed = parseGlossaryMatrix(matrix, categories, columns.map((column) => column.key));
+      parsed = parseGlossaryMatrix(matrix, categories, columns.map((column) => column.key), domainLabels);
       if (addedHeader) {
         parsed.rows.forEach((row) => { row.rowNumber -= 1; });
         parsed.errors.forEach((row) => { row.rowNumber -= 1; });

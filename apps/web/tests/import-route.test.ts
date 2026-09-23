@@ -1,9 +1,10 @@
 import ExcelJS from "exceljs";
 import { eq } from "drizzle-orm";
-import { afterAll, expect, test, vi } from "vitest";
-import { apiKeys, createDb, terms } from "@glossary/db";
+import { afterAll, beforeAll, expect, test, vi } from "vitest";
+import { apiKeys, createDb, domains, terms } from "@glossary/db";
 import { generateApiKey } from "../src/lib/auth/api-key.js";
 import { SESSION_COOKIE } from "../src/lib/auth/session.js";
+import { ensureDomains } from "../src/lib/terms/domain-catalog.js";
 import { GLOSSARY_SNAPSHOT_FORMAT, GLOSSARY_SNAPSHOT_VERSION } from "../src/lib/admin/term-snapshot-format.js";
 
 // terms-lookup.test.ts(R83)와 같은 이유: 이 라우트의 요청은 실제 Next 요청
@@ -51,7 +52,14 @@ async function buildXlsx(nameEn: string): Promise<ArrayBuffer> {
   return (await wb.xlsx.writeBuffer()) as ArrayBuffer;
 }
 
+// 가져오기는 분류 체계에 없는 도메인이 붙은 행을 건너뛴다. 표본 도메인을 먼저 등록한다.
+let createdDomainLabels: string[] = [];
+beforeAll(async () => {
+  createdDomainLabels = await ensureDomains(db, ["SW", "IT"]);
+});
+
 afterAll(async () => {
+  for (const label of createdDomainLabels) await db.delete(domains).where(eq(domains.label, label));
   for (const id of createdTermIds) await db.delete(terms).where(eq(terms.id, id));
   for (const id of createdKeyIds) await db.delete(apiKeys).where(eq(apiKeys.id, id));
 });

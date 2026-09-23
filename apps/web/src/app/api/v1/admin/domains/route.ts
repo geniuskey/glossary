@@ -3,6 +3,7 @@ import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAdminUser, requireAuth } from "@/lib/auth/require";
 import { createDomain, listManagedDomains, reorderDomains } from "@/lib/terms/domains";
 import { DOMAIN_VALUE_MAX } from "@/lib/terms/limits";
+import { DOMAIN_LABEL_FORBIDDEN_MESSAGE, isValidDomainLabel } from "@/lib/terms/domain-label";
 
 const ALLOWED_METHODS = ["GET", "POST", "PATCH"];
 const { PUT, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -22,6 +23,7 @@ export const POST = withApiErrors(async (request: Request) => {
   if (isResponse(auth)) return auth;
   const parsed = createSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "도메인 이름이 올바르지 않습니다.", 400, parsed.error.flatten());
+  if (!isValidDomainLabel(parsed.data.label)) return apiError("validation_failed", DOMAIN_LABEL_FORBIDDEN_MESSAGE, 400, { field: "label" });
   const domain = await createDomain(parsed.data.label);
   if (domain === "duplicate") return apiError("operation_conflict", "같은 이름의 도메인이 이미 있습니다.", 409);
   if (domain === "palette_full") return apiError("operation_conflict", "사용 가능한 도메인 색상을 모두 사용했습니다.", 409);

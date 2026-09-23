@@ -10,7 +10,7 @@ import {
 import { DOMAIN_VALUE_MAX, TERM_QUERY_MAX } from "@/lib/terms/limits";
 import { isAssignableUserId } from "@/lib/terms/owners";
 import { businessCategoriesExist, businessCategoryExists } from "@/lib/terms/categories";
-import { domainsExist } from "@/lib/terms/domains";
+import { resolveDomains, unknownDomainsResponse } from "@/lib/terms/domains";
 import { listTerms, type BusinessCategory, type TermStatus } from "@/lib/terms/query";
 import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
 import { prepareAutoReview } from "@/lib/ai/auto-review";
@@ -144,9 +144,9 @@ export const POST = withApiErrors(async (request: Request) => {
   if (parsed.data.ownerId && !(await isAssignableUserId(parsed.data.ownerId))) {
     return apiError("validation_failed", "담당자 계정을 찾을 수 없습니다.", 400, { field: "ownerId" });
   }
-  if (!(await domainsExist(parsed.data.domain))) {
-    return apiError("validation_failed", "분류 체계에 없는 도메인이 포함되어 있습니다.", 400, { field: "domain" });
-  }
+  const domains = await resolveDomains(parsed.data.domain);
+  if (domains.unknown.length) return unknownDomainsResponse(domains.unknown);
+  parsed.data.domain = domains.labels;
   if (!(await businessCategoriesExist(parsed.data.category))) {
     return apiError("validation_failed", "업무 분류를 찾을 수 없습니다.", 400, { field: "category" });
   }
