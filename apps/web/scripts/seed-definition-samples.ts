@@ -1,6 +1,7 @@
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { createDb, surfaceKeys, termRevisions, termSurfaces, terms, users } from "@glossary/db";
+import { ensureDomains } from "../src/lib/terms/domain-catalog.js";
 
 try {
   process.loadEnvFile(path.join(import.meta.dirname, "../../../.env"));
@@ -46,6 +47,8 @@ async function seedAuthorId(): Promise<string | null> {
 }
 
 const authorId = await seedAuthorId();
+// 샘플 용어의 도메인이 분류 체계에 없으면 그 용어는 편집 화면에서 저장이 막힌다.
+await ensureDomains(db, ["IT"]);
 let created = 0;
 let reused = 0;
 

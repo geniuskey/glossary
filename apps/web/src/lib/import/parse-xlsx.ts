@@ -76,22 +76,33 @@ export async function parseGlossaryWorkbook(
   buffer: ArrayBuffer,
   categoryKeys: readonly string[] = BUSINESS_CATEGORIES,
   selectedFields?: readonly ImportField[],
+  domainLabels?: readonly string[],
 ): Promise<ParseResult> {
   const categorySet = new Set<string>(categoryKeys);
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer);
 
-  return parseWorksheet(wb.worksheets[0], categorySet, selectedFields);
+  return parseWorksheet(wb.worksheets[0], categorySet, selectedFields, domainLabels && new Set(domainLabels));
 }
 
-export function parseGlossaryMatrix(matrix: readonly string[][], categoryKeys: readonly string[] = BUSINESS_CATEGORIES, selectedFields?: readonly ImportField[]): ParseResult {
+export function parseGlossaryMatrix(
+  matrix: readonly string[][],
+  categoryKeys: readonly string[] = BUSINESS_CATEGORIES,
+  selectedFields?: readonly ImportField[],
+  domainLabels?: readonly string[],
+): ParseResult {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("glossary");
   for (const line of matrix) ws.addRow(line);
-  return parseWorksheet(ws, new Set(categoryKeys), selectedFields);
+  return parseWorksheet(ws, new Set(categoryKeys), selectedFields, domainLabels && new Set(domainLabels));
 }
 
-function parseWorksheet(ws: ExcelJS.Worksheet | undefined, categorySet: Set<string>, selectedFields?: readonly ImportField[]): ParseResult {
+function parseWorksheet(
+  ws: ExcelJS.Worksheet | undefined,
+  categorySet: Set<string>,
+  selectedFields?: readonly ImportField[],
+  domainSet?: ReadonlySet<string>,
+): ParseResult {
   if (!ws) {
     return { rows: [], errors: [], fileErrors: [{ message: "시트를 찾을 수 없습니다." }], ignoredHeaders: [] };
   }
@@ -157,6 +168,20 @@ function parseWorksheet(ws: ExcelJS.Worksheet | undefined, categorySet: Set<stri
       return;
     }
 
+    const domain = splitList(raw.domain ?? "");
+    // 가져오기는 분류 체계를 거치지 않고 terms.domain을 쓰는 통로였다. 여기서
+    // 걸러 내지 않으면 분류 체계 밖 도메인이 붙은 용어가 생기고, 그 용어는 편집
+    // 화면에서 "분류 체계에 없는 도메인"으로 저장이 막힌다. 자동 등록은 하지
+    // 않는다 — 도메인 색상 팔레트가 24칸뿐이라 파일 하나가 분류 체계를 채워 버린다.
+    const unknownDomains = domainSet ? domain.filter((label) => !domainSet.has(label)) : [];
+    if (unknownDomains.length) {
+      errors.push({
+        rowNumber,
+        message: `분류 체계에 없는 도메인입니다: ${unknownDomains.join(", ")}. 도메인 관리에서 먼저 추가해 주세요.`,
+      });
+      return;
+    }
+
     const category = categorySet.has(raw.category ?? "")
       ? raw.category as BusinessCategoryLiteral
       : undefined;
@@ -168,7 +193,7 @@ function parseWorksheet(ws: ExcelJS.Worksheet | undefined, categorySet: Set<stri
       nameKo,
       fullNameEn: raw.fullNameEn || undefined,
       fullNameKo: raw.fullNameKo || undefined,
-      domain: splitList(raw.domain ?? ""),
+      domain,
       category,
       topic: raw.topic || (raw.category && !categorySet.has(raw.category) ? raw.category : undefined),
       status,

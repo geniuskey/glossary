@@ -5,7 +5,7 @@ import { domains, terms } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { queueAllRagTerms, scheduleRagIndexing } from "@/lib/rag/indexer";
 import { firstUnusedDomainColor } from "./domain-colors";
-import { slugify } from "./slug";
+import { uniqueDomainKey } from "./domain-catalog";
 
 export interface DomainOption {
   key: string;
@@ -51,13 +51,16 @@ export async function domainsExist(labels: readonly string[]): Promise<boolean> 
   return rows.length === unique.length;
 }
 
-function uniqueDomainKey(label: string, taken: ReadonlySet<string>): string {
-  const base = slugify(label).slice(0, 64) || "domain";
-  if (!taken.has(base)) return base;
-  for (let suffix = 2; ; suffix += 1) {
-    const candidate = `${base.slice(0, Math.max(1, 63 - String(suffix).length))}-${suffix}`;
-    if (!taken.has(candidate)) return candidate;
-  }
+/**
+ * 수정 요청에서 새로 붙이는 도메인만 분류 체계와 대조한다. 편집 폼은 도메인을
+ * 건드리지 않아도 배열 전체를 다시 보내므로, 전체를 검사하면 가져오기·시드로
+ * 분류 체계 밖 값이 이미 붙어 있던 용어는 정의 한 줄 고치는 저장까지 전부
+ * "분류 체계에 없는 도메인" 400으로 막힌다(실측: 분류 체계에 있는 도메인만 가진
+ * 용어만 저장되고 나머지는 전부 실패).
+ */
+export function addedDomains(next: readonly string[], previous: readonly string[]): string[] {
+  const kept = new Set(previous);
+  return next.filter((label) => !kept.has(label));
 }
 
 export async function createDomain(label: string): Promise<ManagedDomain | "duplicate" | "palette_full"> {

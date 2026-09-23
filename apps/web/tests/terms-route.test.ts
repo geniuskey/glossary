@@ -424,6 +424,27 @@ test("병합된 표기가 모순되면 patch는 400 validation_failed (R52)", as
   expect(body.error.code).toBe("validation_failed");
 });
 
+// 가져오기·시드로 분류 체계 밖 도메인이 이미 붙은 용어도, 편집 폼은 도메인
+// 배열 전체를 다시 보낸다. 전체를 검사하면 도메인을 건드리지 않은 저장까지 막혔다.
+test("이미 붙어 있던 분류 체계 밖 도메인은 patch를 막지 않고, 새로 붙이는 도메인만 검사한다", async () => {
+  const term = await seedRouteTerm();
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const legacy = `레거시 도메인 ${suffix}`;
+  await db.update(terms).set({ domain: [legacy] }).where(eq(terms.id, term.id));
+  const { token } = await makeKeyRow(["write"]);
+
+  const kept = await termPatch(patchRequest({ definitionMd: "정의만 고친다", domain: [legacy] }, token), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+  expect(kept.status).toBe(200);
+
+  const added = await termPatch(patchRequest({ domain: [legacy, `새 도메인 ${suffix}`] }, token), {
+    params: Promise.resolve({ idOrSlug: term.slug }),
+  });
+  expect(added.status).toBe(400);
+  expect((await added.json()).error.details).toEqual({ field: "domain" });
+});
+
 // R54: updateTerm의 conflict 결과는 409 revision_conflict로 변환되어야 한다.
 test("기대 리비전이 어긋나면 patch는 409 revision_conflict (R54)", async () => {
   const term = await seedRouteTerm();
