@@ -24,11 +24,6 @@ export const wikiPageStatusEnum = pgEnum("wiki_page_status", [
   "archived",
 ]);
 
-export const wikiPageTermRoleEnum = pgEnum("wiki_page_term_role", [
-  "primary",
-  "related",
-]);
-
 /** 용어를 설명하는 살아 있는 업무 문서. 회의록은 과거 근거이고 위키는 승인된 맥락이다. */
 export const wikiPages = pgTable(
   "wiki_pages",
@@ -85,13 +80,11 @@ export const wikiPageTerms = pgTable(
   {
     wikiPageId: uuid("wiki_page_id").notNull().references(() => wikiPages.id, { onDelete: "cascade" }),
     termId: uuid("term_id").notNull().references(() => terms.id, { onDelete: "cascade" }),
-    role: wikiPageTermRoleEnum("role").notNull().default("related"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     primary: primaryKey({ columns: [t.wikiPageId, t.termId] }),
     termIdx: index("wiki_page_terms_term_idx").on(t.termId),
-    roleIdx: index("wiki_page_terms_role_idx").on(t.wikiPageId, t.role),
   }),
 );
 

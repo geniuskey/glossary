@@ -229,7 +229,6 @@ async function retrieveSnapshot(
       revision: wikiPages.revision,
       content: wikiPages.content,
       updatedAt: wikiPages.updatedAt,
-      role: wikiPageTerms.role,
     })
     .from(wikiPageTerms)
     .innerJoin(wikiPages, eq(wikiPages.id, wikiPageTerms.wikiPageId))
@@ -280,18 +279,18 @@ async function retrieveSnapshot(
     content: row.content,
     startOffset: 0,
     endOffset: row.content.length,
-    score: row.role === "primary" ? 0.82 : 0.62,
+    score: 0.62,
     rerankScore: null,
     updatedAt: row.updatedAt.toISOString(),
   }));
   const linkedWikiPaths: ChatOntologyPath[] = linkedWikiRows.map((row) => ({
-    id: `wiki-link:${row.pageId}:${row.termId}:${row.role}`,
+    id: `wiki-link:${row.pageId}:${row.termId}`,
     source: { kind: "wiki_page" as const, id: row.pageId, title: row.title },
-    predicateKey: row.role === "primary" ? "defines" : "applies_to",
+    predicateKey: "applies_to",
     target: { kind: "term" as const, id: row.termId, title: displayName({ nameKo: row.termNameKo, nameEn: row.termNameEn }) },
     depth: 1,
-    confidence: row.role === "primary" ? 100 : 80,
-    evidence: `위키 문서의 ${row.role === "primary" ? "주요" : "관련"} 용어 연결`,
+    confidence: 80,
+    evidence: "위키 문서의 관련 용어 연결",
   }));
   const combinedWikiHits = mergeWikiHits([...wikiHits, ...lexicalWikiHits, ...linkedWikiHits], limit);
   const wikiPageIds = [...new Set(combinedWikiHits.map((hit) => hit.wikiPageId))];

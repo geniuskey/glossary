@@ -18,11 +18,10 @@ const STATUS_LABEL = { draft: "초안", published: "공개", archived: "보관" 
 
 export function WikiIndexPanel({ initialPages }: { initialPages: WikiPage[] }) {
   return <div className="space-y-5">
-    <header className="flex flex-wrap items-end justify-between gap-4">
+    <header className="flex flex-wrap items-center justify-between gap-4">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">Workspace knowledge</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">위키 지식 창고</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-2">용어를 둘러싼 업무 원칙·프로세스·플레이북을 정리합니다. 공개된 문서만 AI가 공식 맥락으로 검색하고, 초안은 사람이 검토할 때까지 분리합니다.</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">업무 문서</h1>
+        <p className="mt-1 text-sm leading-6 text-ink-2">용어와 관련된 원칙·절차·플레이북을 정리합니다.</p>
       </div>
       <Link href="/w/new" className="btn-primary">새 위키 문서</Link>
     </header>

@@ -23,7 +23,6 @@ export interface WikiTermLink {
   id: string;
   slug: string;
   title: string;
-  role: "primary" | "related";
   domain: string[];
 }
 
@@ -125,7 +124,7 @@ function normalizeInput(input: WikiPageInput): WikiPageInput {
     sourceUrl: normalizedSourceUrl(input.sourceUrl),
     content: input.content.replace(/\r\n?/g, "\n").trim(),
     domain: [...new Set(input.domain.map(normalized).filter(Boolean))],
-    termIds: [...new Set(input.termIds)],
+    termIds: [...new Set(input.termIds)].sort(),
   };
 }
 
@@ -138,7 +137,7 @@ function normalizePatch(patch: WikiPagePatch): WikiPagePatch {
     ...(patch.sourceUrl !== undefined ? { sourceUrl: normalizedSourceUrl(patch.sourceUrl) } : {}),
     ...(patch.content !== undefined ? { content: patch.content.replace(/\r\n?/g, "\n").trim() } : {}),
     ...(patch.domain !== undefined ? { domain: [...new Set(patch.domain.map(normalized).filter(Boolean))] } : {}),
-    ...(patch.termIds !== undefined ? { termIds: [...new Set(patch.termIds)] } : {}),
+    ...(patch.termIds !== undefined ? { termIds: [...new Set(patch.termIds)].sort() } : {}),
   };
 }
 
@@ -168,12 +167,13 @@ async function termsForPage(pageId: string): Promise<WikiTermLink[]> {
     nameEn: terms.nameEn,
     nameKo: terms.nameKo,
     domain: terms.domain,
-    role: wikiPageTerms.role,
   }).from(wikiPageTerms)
     .innerJoin(terms, eq(terms.id, wikiPageTerms.termId))
     .where(eq(wikiPageTerms.wikiPageId, pageId))
-    .orderBy(asc(wikiPageTerms.role), asc(terms.slug));
-  return rows.map((row) => ({ id: row.id, slug: row.slug, title: titleOf(row), role: row.role, domain: row.domain }));
+    .orderBy(asc(terms.slug));
+  const collator = new Intl.Collator("ko-KR", { numeric: true });
+  return rows.map((row) => ({ id: row.id, slug: row.slug, title: titleOf(row), domain: row.domain }))
+    .sort((a, b) => collator.compare(a.title, b.title) || a.slug.localeCompare(b.slug));
 }
 
 export async function getWikiPageBySlug(slug: string): Promise<WikiPageWithTerms | null> {
@@ -264,10 +264,9 @@ export async function createWikiPage(input: WikiPageInput, authorId: string | nu
     }).returning();
     if (!created) throw new Error("위키 문서를 저장하지 못했습니다.");
     if (prepared.termIds.length > 0) {
-      await tx.insert(wikiPageTerms).values(prepared.termIds.map((termId, index) => ({
+      await tx.insert(wikiPageTerms).values(prepared.termIds.map((termId) => ({
         wikiPageId: created.id,
         termId,
-        role: index === 0 ? "primary" as const : "related" as const,
       })));
     }
     await tx.insert(wikiPageRevisions).values({
@@ -299,7 +298,7 @@ export async function updateWikiPage(id: string, patch: WikiPagePatch, authorId:
   const result = await getDb().transaction(async (tx) => {
     const [current] = await tx.select().from(wikiPages).where(eq(wikiPages.id, id)).limit(1);
     if (!current) return null;
-    const currentTerms = await tx.select({ termId: wikiPageTerms.termId }).from(wikiPageTerms).where(eq(wikiPageTerms.wikiPageId, id)).orderBy(asc(wikiPageTerms.role), asc(wikiPageTerms.termId));
+    const currentTerms = await tx.select({ termId: wikiPageTerms.termId }).from(wikiPageTerms).where(eq(wikiPageTerms.wikiPageId, id)).orderBy(asc(wikiPageTerms.termId));
     const next: WikiPageInput = {
       slug: normalizedPatch.slug ?? current.slug,
       title: normalizedPatch.title ?? current.title,
@@ -334,10 +333,9 @@ export async function updateWikiPage(id: string, patch: WikiPagePatch, authorId:
     if (contentChanged) {
       await tx.delete(wikiPageTerms).where(eq(wikiPageTerms.wikiPageId, id));
       if (next.termIds.length > 0) {
-        await tx.insert(wikiPageTerms).values(next.termIds.map((termId, index) => ({
+        await tx.insert(wikiPageTerms).values(next.termIds.map((termId) => ({
           wikiPageId: id,
           termId,
-          role: index === 0 ? "primary" as const : "related" as const,
         })));
       }
       await tx.insert(wikiPageRevisions).values({

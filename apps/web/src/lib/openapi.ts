@@ -146,12 +146,11 @@ export const openApiSpec = {
       },
       WikiTermLink: {
         type: "object",
-        required: ["id", "slug", "title", "role", "domain"],
+        required: ["id", "slug", "title", "domain"],
         properties: {
           id: { type: "string", format: "uuid" },
           slug: { type: "string" },
           title: { type: "string" },
-          role: { type: "string", enum: ["primary", "related"] },
           domain: { type: "array", items: { type: "string" } },
         },
       },

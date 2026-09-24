@@ -56,7 +56,7 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
         {page.terms.length > 0 && <section className="mt-5" aria-labelledby="wiki-terms-heading">
           <h2 id="wiki-terms-heading" className="label mb-2">연결된 용어</h2>
           <div className="flex flex-wrap gap-2">
-            {page.terms.map((term) => <Link key={term.id} href={`/g/${term.slug}`} className={`rounded-lg border px-3 py-2 text-sm hover:border-brand/45 hover:text-brand ${term.role === "primary" ? "border-brand/35 bg-brand-soft/45 font-medium text-brand" : "border-line bg-panel text-ink-2"}`}>
+            {page.terms.map((term) => <Link key={term.id} href={`/g/${term.slug}`} className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-2 hover:border-brand/45 hover:text-brand">
               {term.title}
             </Link>)}
           </div>

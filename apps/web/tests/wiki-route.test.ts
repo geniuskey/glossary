@@ -16,8 +16,10 @@ const { GET: getWiki, PATCH: patchWiki } = await import("../src/app/api/v1/wiki/
 const db = createDb(process.env.DATABASE_URL_TEST!);
 let userId = "";
 let termId = "";
+let secondTermId = "";
 const wikiIds: string[] = [];
 const termSlug = `wiki-route-term-${randomUUID().slice(0, 8)}`;
+const secondTermSlug = `wiki-route-second-${randomUUID().slice(0, 8)}`;
 
 beforeAll(async () => {
   const [user] = await db.insert(users).values({
@@ -31,15 +33,23 @@ beforeAll(async () => {
   const [term] = await db.insert(terms).values({
     slug: termSlug,
     nameEn: "Wiki Route Term",
+    nameKo: "하늘",
     domain: ["QA"],
     status: "active",
   }).returning();
   termId = term!.id;
+  const [secondTerm] = await db.insert(terms).values({
+    slug: secondTermSlug,
+    nameKo: "가나다",
+    status: "active",
+  }).returning();
+  secondTermId = secondTerm!.id;
 });
 
 afterAll(async () => {
   for (const id of wikiIds) await db.delete(wikiPages).where(eq(wikiPages.id, id));
   if (termId) await db.delete(terms).where(eq(terms.id, termId));
+  if (secondTermId) await db.delete(terms).where(eq(terms.id, secondTermId));
   if (userId) await db.delete(users).where(eq(users.id, userId));
   identity.user = null;
 });
@@ -56,15 +66,18 @@ test("위키 API는 연결 용어와 함께 생성·조회·수정·검색을 �
       sourceUrl: "https://confluence.example.com/pages/123",
       content: "## 결정\n베타 운영을 진행한다.",
       domain: ["상품"],
-      termSlugs: [termSlug],
+      termSlugs: [termSlug, secondTermSlug],
       status: "draft",
     }),
   }));
   expect(createdResponse.status).toBe(201);
-  const createdBody = await createdResponse.json() as { page: { id: string; slug: string; revision: number; content: string; status: string; terms: Array<{ slug: string; role: string }> } };
+  const createdBody = await createdResponse.json() as { page: { id: string; slug: string; revision: number; content: string; status: string; terms: Array<{ slug: string; title: string }> } };
   wikiIds.push(createdBody.page.id);
   expect(createdBody.page).toMatchObject({ slug, revision: 1, sourceUrl: "https://confluence.example.com/pages/123", content: expect.stringContaining("베타"), status: "draft" });
-  expect(createdBody.page.terms).toEqual([{ id: expect.any(String), slug: termSlug, title: "Wiki Route Term", role: "primary", domain: ["QA"] }]);
+  expect(createdBody.page.terms).toEqual([
+    { id: expect.any(String), slug: secondTermSlug, title: "가나다", domain: [] },
+    { id: expect.any(String), slug: termSlug, title: "하늘", domain: ["QA"] },
+  ]);
 
   const listResponse = await listWiki(new Request(`https://glossary.example.com/api/v1/wiki?q=${slug}&status=draft`));
   expect(listResponse.status).toBe(200);
@@ -72,7 +85,7 @@ test("위키 API는 연결 용어와 함께 생성·조회·수정·검색을 �
 
   const detailResponse = await getWiki(new Request(`https://glossary.example.com/api/v1/wiki/${slug}`), { params: Promise.resolve({ slug }) });
   expect(detailResponse.status).toBe(200);
-  await expect(detailResponse.json()).resolves.toMatchObject({ page: { content: expect.stringContaining("베타"), terms: [expect.objectContaining({ slug: termSlug })] } });
+  await expect(detailResponse.json()).resolves.toMatchObject({ page: { content: expect.stringContaining("베타"), terms: [expect.objectContaining({ slug: secondTermSlug }), expect.objectContaining({ slug: termSlug })] } });
 
   const editorPublishResponse = await patchWiki(new Request("https://glossary.example.com/api/v1/wiki/slug", {
     method: "PATCH",

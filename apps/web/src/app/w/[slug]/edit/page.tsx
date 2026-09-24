@@ -13,9 +13,8 @@ export default async function EditWikiPage({ params }: { params: Promise<{ slug:
   const { slug } = await params;
   const [page, domains] = await Promise.all([getWikiPageBySlug(slug), listDomains()]);
   if (!page) notFound();
-  return <AppShell user={user} title={`${page.title} 편집`} current="wiki" roomy>
-    <div className="space-y-5">
-      <header><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">Edit knowledge</p><h1 className="mt-1 break-words text-2xl font-semibold tracking-tight text-ink">{page.title}</h1><p className="mt-2 text-sm leading-6 text-ink-2">변경할 때마다 리비전이 남습니다. 공개 상태를 초안으로 바꾸면 AI 검색에서 제외됩니다.</p></header>
+  return <AppShell user={user} title={`${page.title} 편집`} current="wiki" roomy dense>
+    <div>
       <WikiEditor initialPage={toWikiPageWire(page, true)} domains={domains.map((domain) => ({ key: domain.key, label: domain.label }))} canPublish={user.role === "admin"} />
     </div>
   </AppShell>;

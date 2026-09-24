@@ -223,8 +223,7 @@ Glossary에는 검토된 지식만 위키·용어집으로 승격하는 흐름�
 
 로그인 세션 또는 `write` scope API Key로 업무 지식 문서를 저장한다. `title`과 `content`가
 필수이며, `summary`, `sourceUrl`, `domain`, `termSlugs`, `status`를 선택할 수 있다. `sourceUrl`은
-Confluence 등 원문을 관리하는 http/https 주소다. `termSlugs`의 첫
-번째 용어는 대표 용어가 된다. slug를 생략하면 제목에서 만들고, 용어 slug와 겹치지 않도록
+Confluence 등 원문을 관리하는 http/https 주소다. `termSlugs`의 용어는 순서에 따른 우선순위 없이 연결된다. slug를 생략하면 제목에서 만들고, 용어 slug와 겹치지 않도록
 자동으로 검사한다.
 
 ```json
