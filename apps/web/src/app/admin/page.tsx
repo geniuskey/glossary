@@ -124,12 +124,6 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   return (
     <AppShell user={user} title="관리자" current="admin" roomy>
-      <header className="mb-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">Admin workspace</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">관리자</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-2">서비스 구성, AI·검색, 조직 접근과 데이터를 한곳에서 관리합니다.</p>
-      </header>
-
       <div className="lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8">
         <AdminNavigation current={tab} />
         <div className="min-w-0">{panel}</div>

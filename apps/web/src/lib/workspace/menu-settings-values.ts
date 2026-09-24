@@ -63,12 +63,13 @@ export const DEFAULT_WORKSPACE_MENU_SETTINGS: ResolvedWorkspaceMenuSettings = {
   statistics: true,
   order: DEFAULT_WORKSPACE_MENU_ORDER,
   homeMode: "search",
-  brandPreset: "navy",
+  brandPreset: "indigo",
 };
 
 /** 관리자 화면의 미리보기 색. 실제 값은 globals.css의 data-brand 블록이 소유한다. */
-export const WORKSPACE_BRAND_OPTIONS: ReadonlyArray<{ key: WorkspaceBrandPreset; label: string; description: string; swatches: { surface: string; logo: string; brand: string; accent: string } }> = [
-  { key: "navy", label: "잉크 네이비", description: "사내 도구다운 신뢰감. 기본값입니다.", swatches: { surface: "#18284A", logo: "#3A62A4", brand: "#1E3A64", accent: "#B23E24" } },
+export const WORKSPACE_BRAND_OPTIONS: ReadonlyArray<{ key: WorkspaceBrandPreset; label: string; description: string; swatches: { surface: string; logo: string; brand: string; accent: string }; lightSurface?: boolean }> = [
+  { key: "indigo", label: "인디고 + 코랄", description: "밝은 인디고와 코랄. 사이드바를 밝은 면으로 둡니다. 기본값입니다.", swatches: { surface: "#FFFFFF", logo: "#4338CA", brand: "#4338CA", accent: "#BA462A" }, lightSurface: true },
+  { key: "navy", label: "잉크 네이비", description: "사내 도구다운 신뢰감. 사이드바를 남색 면으로 칠합니다.", swatches: { surface: "#18284A", logo: "#3A62A4", brand: "#1E3A64", accent: "#B23E24" } },
   { key: "ink", label: "먹 + 인주", description: "사전다운 흑백 위에 인주 한 색만 둡니다.", swatches: { surface: "#1B1E23", logo: "#B23E24", brand: "#1F2328", accent: "#B23E24" } },
   { key: "teal", label: "딥 틸 + 호박", description: "도서관 느낌의 청록. 경고색은 주황으로 옮깁니다.", swatches: { surface: "#0D3238", logo: "#1E7076", brand: "#0F4C52", accent: "#965A0A" } },
 ];

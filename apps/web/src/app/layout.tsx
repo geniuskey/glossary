@@ -33,7 +33,7 @@ async function loadBrandPreset() {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const brand = await loadBrandPreset();
   return (
-    <html lang="ko" data-brand={brand === "navy" ? undefined : brand} suppressHydrationWarning>
+    <html lang="ko" data-brand={brand === DEFAULT_WORKSPACE_MENU_SETTINGS.brandPreset ? undefined : brand} suppressHydrationWarning>
       <head>
         <InlineScript html={THEME_SCRIPT} />
       </head>

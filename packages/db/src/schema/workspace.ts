@@ -22,7 +22,7 @@ export type WorkspaceMenuKey = (typeof workspaceMenuKeys)[number];
 export const workspaceHomeModes = ["search", "chat"] as const;
 export type WorkspaceHomeMode = (typeof workspaceHomeModes)[number];
 /** 설치 단위 대표 색. 상태색(ok/warn/danger/info)과 겹치지 않는 조합만 둔다. */
-export const workspaceBrandPresets = ["navy", "ink", "teal"] as const;
+export const workspaceBrandPresets = ["indigo", "navy", "ink", "teal"] as const;
 export type WorkspaceBrandPreset = (typeof workspaceBrandPresets)[number];
 export type WorkspaceMenuSettings = Partial<Record<WorkspaceMenuKey, boolean>> & {
   order?: WorkspaceMenuKey[];

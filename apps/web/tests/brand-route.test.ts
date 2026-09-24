@@ -85,5 +85,5 @@ test("DB에 남은 알 수 없는 프리셋은 기본 색으로 읽는다", asyn
   await db.update(workspaceSettings)
     .set({ menuSettings: sql`jsonb_set(menu_settings, '{brandPreset}', '"purple"')` })
     .where(eq(workspaceSettings.id, "default"));
-  expect(await (await GET()).json()).toEqual({ preset: "navy" });
+  expect(await (await GET()).json()).toEqual({ preset: DEFAULT_WORKSPACE_MENU_SETTINGS.brandPreset });
 });

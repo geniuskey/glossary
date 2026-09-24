@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { WorkspaceBrandPreset } from "@glossary/db";
-import { WORKSPACE_BRAND_OPTIONS } from "@/lib/workspace/menu-settings-values";
+import { DEFAULT_WORKSPACE_MENU_SETTINGS, WORKSPACE_BRAND_OPTIONS } from "@/lib/workspace/menu-settings-values";
 import { cx } from "@/lib/ui/format";
 import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
 
 function applyBrand(preset: WorkspaceBrandPreset) {
-  if (preset === "navy") document.documentElement.removeAttribute("data-brand");
+  if (preset === DEFAULT_WORKSPACE_MENU_SETTINGS.brandPreset) document.documentElement.removeAttribute("data-brand");
   else document.documentElement.setAttribute("data-brand", preset);
 }
 
@@ -66,7 +66,7 @@ export function BrandSettingsPanel({ initialPreset }: { initialPreset: Workspace
       <div className="card p-4 sm:p-5">
         <fieldset>
           <legend className="sr-only">대표 색 프리셋</legend>
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {WORKSPACE_BRAND_OPTIONS.map((option) => {
               const selected = option.key === preset;
               const { surface, logo, brand, accent } = option.swatches;
@@ -80,10 +80,10 @@ export function BrandSettingsPanel({ initialPreset }: { initialPreset: Workspace
                   )}
                 >
                   <span aria-hidden className="flex h-20 bg-paper">
-                    <span className="flex w-12 flex-col gap-1.5 p-2" style={{ backgroundColor: surface }}>
+                    <span className={cx("flex w-12 flex-col gap-1.5 p-2", option.lightSurface && "border-r border-line")} style={{ backgroundColor: surface }}>
                       <span className="h-4 w-4 rounded" style={{ backgroundColor: logo }} />
-                      <span className="mt-1 h-1 w-6 rounded-full bg-white/60" />
-                      <span className="h-1 w-5 rounded-full bg-white/35" />
+                      <span className={cx("mt-1 h-1 w-6 rounded-full", option.lightSurface ? "bg-ink/25" : "bg-white/60")} />
+                      <span className={cx("h-1 w-5 rounded-full", option.lightSurface ? "bg-ink/15" : "bg-white/35")} />
                       <span className="h-1 w-6 rounded-full" style={{ backgroundColor: accent }} />
                     </span>
                     <span className="flex flex-1 flex-col justify-center gap-2 px-3">

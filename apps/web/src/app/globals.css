@@ -20,12 +20,12 @@
   --ink: 22 27 38;
   --ink-2: 76 83 97;
   --ink-3: 96 103 117;
-  --brand: 30 58 100;
-  --brand-2: 45 79 131;
-  --brand-soft: 231 236 244;
+  --brand: 67 56 202;
+  --brand-2: 88 76 222;
+  --brand-soft: 238 236 253;
   --brand-on: 255 255 255;
-  --accent: 178 62 36;
-  --accent-soft: 251 233 226;
+  --accent: 186 70 42;
+  --accent-soft: 255 237 230;
   --info: 37 99 235;
   --info-soft: 232 240 254;
   --ok: 21 120 57;
@@ -35,17 +35,17 @@
   --danger: 190 40 40;
   --danger-soft: 253 232 232;
   --grid-line: 226 221 211;
-  --selection: 45 79 131;
-  --sidebar: 24 40 68;
-  --sidebar-hover: 36 55 88;
-  --sidebar-active: 48 72 112;
-  --sidebar-line: 44 63 97;
-  --sidebar-ink: 238 241 247;
-  --sidebar-ink-2: 178 190 210;
-  --sidebar-ink-3: 150 165 190;
-  --sidebar-brand: 255 255 255;
-  --sidebar-accent: 240 128 94;
-  --sidebar-logo: 58 98 164;
+  --selection: 67 56 202;
+  --sidebar: 255 255 255;
+  --sidebar-hover: 242 239 233;
+  --sidebar-active: 238 236 253;
+  --sidebar-line: 229 225 216;
+  --sidebar-ink: 22 27 38;
+  --sidebar-ink-2: 76 83 97;
+  --sidebar-ink-3: 96 103 117;
+  --sidebar-brand: 67 56 202;
+  --sidebar-accent: 186 70 42;
+  --sidebar-logo: 67 56 202;
   --graph-category-fill-s: 42%;
   --graph-category-fill-l: 93%;
   --graph-category-stroke-s: 42%;
@@ -61,6 +61,7 @@
   --graph-topic-fill: 180 111 8;
   --graph-topic-stroke: 90 54 4;
   --graph-topic-text: 255 255 255;
+  --sidebar-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -74,12 +75,12 @@
     --ink: 234 231 224;
     --ink-2: 168 174 186;
     --ink-3: 150 157 171;
-    --brand: 143 176 226;
-    --brand-2: 170 197 238;
-    --brand-soft: 31 43 66;
-    --brand-on: 12 18 30;
-    --accent: 240 132 100;
-    --accent-soft: 58 34 28;
+    --brand: 141 133 246;
+    --brand-2: 165 158 250;
+    --brand-soft: 39 38 66;
+    --brand-on: 17 17 26;
+    --accent: 250 143 108;
+    --accent-soft: 59 37 34;
     --info: 110 157 255;
     --info-soft: 27 41 68;
     --ok: 74 194 118;
@@ -89,17 +90,17 @@
     --danger: 246 118 118;
     --danger-soft: 56 30 32;
     --grid-line: 40 46 58;
-    --selection: 143 176 226;
-    --sidebar: 11 14 20;
-    --sidebar-hover: 26 32 44;
-    --sidebar-active: 36 46 68;
-    --sidebar-line: 32 38 50;
+    --selection: 141 133 246;
+    --sidebar: 23 27 36;
+    --sidebar-hover: 30 35 46;
+    --sidebar-active: 39 38 66;
+    --sidebar-line: 43 49 62;
     --sidebar-ink: 234 231 224;
-    --sidebar-ink-2: 168 176 190;
-    --sidebar-ink-3: 140 150 168;
-    --sidebar-brand: 234 231 224;
-    --sidebar-accent: 240 132 100;
-    --sidebar-logo: 52 88 146;
+    --sidebar-ink-2: 168 174 186;
+    --sidebar-ink-3: 150 157 171;
+    --sidebar-brand: 165 158 250;
+    --sidebar-accent: 250 143 108;
+    --sidebar-logo: 99 87 226;
     --graph-category-fill-s: 28%;
     --graph-category-fill-l: 27%;
     --graph-category-stroke-s: 43%;
@@ -115,6 +116,7 @@
     --graph-topic-fill: 226 168 62;
     --graph-topic-stroke: 114 78 12;
     --graph-topic-text: 27 24 17;
+    --sidebar-scheme: dark;
   }
 }
 
@@ -127,12 +129,12 @@
   --ink: 234 231 224;
   --ink-2: 168 174 186;
   --ink-3: 150 157 171;
-  --brand: 143 176 226;
-  --brand-2: 170 197 238;
-  --brand-soft: 31 43 66;
-  --brand-on: 12 18 30;
-  --accent: 240 132 100;
-  --accent-soft: 58 34 28;
+  --brand: 141 133 246;
+  --brand-2: 165 158 250;
+  --brand-soft: 39 38 66;
+  --brand-on: 17 17 26;
+  --accent: 250 143 108;
+  --accent-soft: 59 37 34;
   --info: 110 157 255;
   --info-soft: 27 41 68;
   --ok: 74 194 118;
@@ -142,17 +144,17 @@
   --danger: 246 118 118;
   --danger-soft: 56 30 32;
   --grid-line: 40 46 58;
-  --selection: 143 176 226;
-  --sidebar: 11 14 20;
-  --sidebar-hover: 26 32 44;
-  --sidebar-active: 36 46 68;
-  --sidebar-line: 32 38 50;
+  --selection: 141 133 246;
+  --sidebar: 23 27 36;
+  --sidebar-hover: 30 35 46;
+  --sidebar-active: 39 38 66;
+  --sidebar-line: 43 49 62;
   --sidebar-ink: 234 231 224;
-  --sidebar-ink-2: 168 176 190;
-  --sidebar-ink-3: 140 150 168;
-  --sidebar-brand: 234 231 224;
-  --sidebar-accent: 240 132 100;
-  --sidebar-logo: 52 88 146;
+  --sidebar-ink-2: 168 174 186;
+  --sidebar-ink-3: 150 157 171;
+  --sidebar-brand: 165 158 250;
+  --sidebar-accent: 250 143 108;
+  --sidebar-logo: 99 87 226;
   --graph-category-fill-s: 28%;
   --graph-category-fill-l: 27%;
   --graph-category-stroke-s: 43%;
@@ -168,17 +170,84 @@
   --graph-topic-fill: 226 168 62;
   --graph-topic-stroke: 114 78 12;
   --graph-topic-text: 27 24 17;
+  --sidebar-scheme: dark;
 }
 
 /* ---------------------------------------------------------------------------
    워크스페이스 대표 색 프리셋. 관리자가 고른 값이 <html data-brand>로 걸린다.
-   브랜드 관련 토큰만 덮고 종이·잉크·상태색은 공유한다. 기본(navy)은 위의
+   브랜드 관련 토큰만 덮고 종이·잉크·상태색은 공유한다. 기본(indigo)은 위의
    :root 블록 자체라 별도 블록이 없다.
 
    다크 블록은 [data-brand]와 테마 선택자를 함께 써서 특이도를 한 단계 올린다.
    프리셋 라이트 블록과 기본 다크 블록은 특이도가 같아 뒤에 온 쪽이 이기므로,
    이렇게 하지 않으면 다크 모드에서 프리셋의 라이트 값이 새어 나온다.
 --------------------------------------------------------------------------- */
+/* 네이비는 사이드바를 남색 면으로 칠한다. */
+:root[data-brand="navy"] {
+  --brand: 30 58 100;
+  --brand-2: 45 79 131;
+  --brand-soft: 231 236 244;
+  --brand-on: 255 255 255;
+  --accent: 178 62 36;
+  --accent-soft: 251 233 226;
+  --selection: 45 79 131;
+  --sidebar: 24 40 68;
+  --sidebar-hover: 36 55 88;
+  --sidebar-active: 48 72 112;
+  --sidebar-line: 44 63 97;
+  --sidebar-ink: 238 241 247;
+  --sidebar-ink-2: 178 190 210;
+  --sidebar-ink-3: 150 165 190;
+  --sidebar-brand: 255 255 255;
+  --sidebar-accent: 240 128 94;
+  --sidebar-logo: 58 98 164;
+  --sidebar-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-brand="navy"]:not([data-theme="light"]) {
+    --brand: 143 176 226;
+    --brand-2: 170 197 238;
+    --brand-soft: 31 43 66;
+    --brand-on: 12 18 30;
+    --accent: 240 132 100;
+    --accent-soft: 58 34 28;
+    --selection: 143 176 226;
+    --sidebar: 11 14 20;
+    --sidebar-hover: 26 32 44;
+    --sidebar-active: 36 46 68;
+    --sidebar-line: 32 38 50;
+    --sidebar-ink: 234 231 224;
+    --sidebar-ink-2: 168 176 190;
+    --sidebar-ink-3: 140 150 168;
+    --sidebar-brand: 234 231 224;
+    --sidebar-accent: 240 132 100;
+    --sidebar-logo: 52 88 146;
+    --sidebar-scheme: dark;
+  }
+}
+
+:root[data-brand="navy"][data-theme="dark"] {
+  --brand: 143 176 226;
+  --brand-2: 170 197 238;
+  --brand-soft: 31 43 66;
+  --brand-on: 12 18 30;
+  --accent: 240 132 100;
+  --accent-soft: 58 34 28;
+  --selection: 143 176 226;
+  --sidebar: 11 14 20;
+  --sidebar-hover: 26 32 44;
+  --sidebar-active: 36 46 68;
+  --sidebar-line: 32 38 50;
+  --sidebar-ink: 234 231 224;
+  --sidebar-ink-2: 168 176 190;
+  --sidebar-ink-3: 140 150 168;
+  --sidebar-brand: 234 231 224;
+  --sidebar-accent: 240 132 100;
+  --sidebar-logo: 52 88 146;
+  --sidebar-scheme: dark;
+}
+
 :root[data-brand="ink"] {
   --brand: 31 35 40;
   --brand-2: 58 63 72;
@@ -309,8 +378,8 @@
   --sidebar-logo: 26 96 102;
 }
 
-/* 사이드바는 브랜드 면이다. 화면 코드의 의미 토큰(panel/ink/brand…)을 이 범위
-   안에서만 남색 면 값으로 다시 매핑한다 — 사이드바 마크업에 별도 색 클래스를
+/* 사이드바는 대표 색이 정하는 면이다. 화면 코드의 의미 토큰(panel/ink/brand…)을
+   이 범위 안에서만 --sidebar-* 값으로 다시 매핑한다 — 사이드바 마크업에 별도 색 클래스를
    흩어 두면 다크 모드와 접힘 상태마다 두 벌을 유지해야 한다. */
 .sidebar-surface {
   --paper: var(--sidebar);
@@ -326,11 +395,11 @@
   --brand-soft: var(--sidebar-active);
   --brand-on: var(--sidebar);
   --accent: var(--sidebar-accent);
-  color-scheme: dark;
+  color-scheme: var(--sidebar-scheme, dark);
 }
 
 /* 로고까지 흰 면으로 뒤집으면 사이드바에서 혼자 떠 보인다. 원래 로고의
-   "브랜드색 타일 + 흰 G" 구조를 유지하고, 남색 면에 묻히지 않을 만큼만 밝힌다. */
+   "브랜드색 타일 + 흰 G" 구조를 유지하고, 타일 색은 프리셋의 --sidebar-logo가 정한다. */
 .sidebar-surface .sidebar-brand svg {
   --brand: var(--sidebar-logo);
   --brand-on: 255 255 255;

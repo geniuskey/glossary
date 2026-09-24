@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 import { workspaceBrandPresets } from "@glossary/db";
-import { WORKSPACE_BRAND_OPTIONS } from "../src/lib/workspace/menu-settings-values.js";
+import { DEFAULT_WORKSPACE_MENU_SETTINGS, WORKSPACE_BRAND_OPTIONS } from "../src/lib/workspace/menu-settings-values.js";
 
 const styles = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
 type Tokens = Record<string, number[]>;
@@ -15,7 +15,9 @@ for (const match of styles.matchAll(/^[ \t]*(:root[^{}\n]*?)\s*\{([^}]+)\}/gm)) 
 
 const SYSTEM_DARK = ':not([data-theme="light"])';
 const EXPLICIT_DARK = '[data-theme="dark"]';
-const customPresets = workspaceBrandPresets.filter((preset) => preset !== "navy");
+// 기본 프리셋은 :root 블록 자체라 data-brand 블록이 없다.
+const defaultPreset = DEFAULT_WORKSPACE_MENU_SETTINGS.brandPreset;
+const customPresets = workspaceBrandPresets.filter((preset) => preset !== defaultPreset);
 
 function block(selector: string): Tokens {
   const tokens = blocks.get(selector);
@@ -27,8 +29,8 @@ function themes() {
   const light = block(":root");
   const dark = { ...light, ...block(`:root${EXPLICIT_DARK}`) };
   return [
-    { name: "navy/light", tokens: light },
-    { name: "navy/dark", tokens: dark },
+    { name: `${defaultPreset}/light`, tokens: light },
+    { name: `${defaultPreset}/dark`, tokens: dark },
     ...customPresets.flatMap((preset) => [
       { name: `${preset}/light`, tokens: { ...light, ...block(`:root[data-brand="${preset}"]`) } },
       { name: `${preset}/dark`, tokens: { ...dark, ...block(`:root[data-brand="${preset}"]${EXPLICIT_DARK}`) } },

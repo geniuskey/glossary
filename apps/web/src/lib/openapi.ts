@@ -12,6 +12,7 @@
 // 틀렸을 때의 비용: yaml을 기대하는 외부 도구가 있으면 GET /api/v1/openapi의
 // JSON을 변환해야 한다(docs/operations.md에 명령을 적어뒀다).
 
+import { workspaceBrandPresets } from "@glossary/db";
 import { relationPaths } from "./terms/relation-openapi";
 
 const errorEnvelope = {
@@ -512,7 +513,7 @@ export const openApiSpec = {
         summary: "워크스페이스 대표 색 조회",
         security: [{ sessionCookie: [] }],
         responses: {
-          "200": json("{ preset: navy | ink | teal }", { type: "object", properties: { preset: { type: "string", enum: ["navy", "ink", "teal"] } } }),
+          "200": json(`{ preset: ${workspaceBrandPresets.join(" | ")} }`, { type: "object", properties: { preset: { type: "string", enum: [...workspaceBrandPresets] } } }),
           "401": errorResponse("unauthorized"),
           "403": errorResponse("forbidden — 관리자만 사용 가능"),
         },
@@ -529,13 +530,13 @@ export const openApiSpec = {
                 type: "object",
                 required: ["preset"],
                 additionalProperties: false,
-                properties: { preset: { type: "string", enum: ["navy", "ink", "teal"] } },
+                properties: { preset: { type: "string", enum: [...workspaceBrandPresets] } },
               },
             },
           },
         },
         responses: {
-          "200": json("저장된 대표 색", { type: "object", properties: { preset: { type: "string", enum: ["navy", "ink", "teal"] } } }),
+          "200": json("저장된 대표 색", { type: "object", properties: { preset: { type: "string", enum: [...workspaceBrandPresets] } } }),
           "400": errorResponse("validation_failed"),
           "401": errorResponse("unauthorized"),
           "403": errorResponse("forbidden — 관리자만 사용 가능"),
@@ -590,7 +591,7 @@ export const openApiSpec = {
                   import: { type: "boolean" },
                   statistics: { type: "boolean" },
                   homeMode: { type: "string", enum: ["search", "chat"] },
-                  brandPreset: { type: "string", enum: ["navy", "ink", "teal"] },
+                  brandPreset: { type: "string", enum: [...workspaceBrandPresets] },
                 },
               },
             },
