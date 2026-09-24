@@ -40,7 +40,7 @@ export default async function SettingsPage({
   return (
     <AppShell user={user} title="설정" current="settings">
       <header className="mb-8 border-b border-line pb-5">
-        <p className="text-xs font-semibold tracking-[0.16em] text-brand">내 환경</p>
+        <p className="text-xs font-semibold text-brand">내 환경</p>
         <p className="mt-2 text-xl font-semibold tracking-tight text-balance lg:hidden">설정</p>
       </header>
 
@@ -83,7 +83,7 @@ export default async function SettingsPage({
       {user.role === "admin" && (
         <section className="card mt-4 flex flex-col gap-4 p-5 sm:flex-row sm:items-center" aria-labelledby="workspace-heading">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold tracking-[0.14em] text-brand">관리자 전용</p>
+            <p className="text-xs font-semibold text-brand">관리자 전용</p>
             <h2 id="workspace-heading" className="mt-1 font-semibold text-ink text-balance">관리자 패널</h2>
             <p className="mt-1 text-sm leading-6 text-ink-2">
               사용자 역할과 로그인 세션을 관리하고 회사 로그인 설정으로 이동합니다.
@@ -97,7 +97,7 @@ export default async function SettingsPage({
 
       <section id="api-keys" className="scroll-mt-6 border-t border-line pt-8 mt-10" aria-labelledby="api-keys-heading">
         <div className="mb-5">
-          <p className="text-xs font-semibold tracking-[0.14em] text-brand">개발자 설정</p>
+          <p className="text-xs font-semibold text-brand">개발자 설정</p>
           <h2 id="api-keys-heading" className="mt-1 text-lg font-semibold tracking-tight text-ink text-balance">API 키</h2>
           <p className="mt-1.5 max-w-2xl text-sm leading-6 text-ink-2">
             AI 린트나 외부 도구가 이 사전을 조회하고 검사할 때 씁니다. 용도마다 별도 키를 발급하고,

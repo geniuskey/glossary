@@ -11,7 +11,8 @@ import { isUuid } from "@/lib/api-error";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { businessCategoryLabel } from "@/lib/terms/enums";
 import { termCompletion } from "@/lib/terms/completion";
-import { getTermByIdOrSlug, listRelatedTerms, type SurfaceKind } from "@/lib/terms/query";
+import { listRelatedTerms, type SurfaceKind } from "@/lib/terms/query";
+import { loadTermForPage } from "@/lib/terms/page-metadata";
 import { displayName, relativeTime } from "@/lib/ui/format";
 import { getTermQualitySettings } from "@/lib/workspace/term-quality";
 import { mergedDestination } from "@/lib/terms/merge";
@@ -57,7 +58,7 @@ export async function TermDetailPage({
   if (!user) redirect("/login");
 
   const { slug } = await params;
-  const term = await getTermByIdOrSlug(slug);
+  const term = await loadTermForPage(slug);
   if (!term) notFound();
   const destination = await mergedDestination(term.id);
   if (destination) redirect(`/g/${destination}`);
@@ -97,13 +98,13 @@ export async function TermDetailPage({
       : "/graph";
 
   return (
-    <AppShell user={user} title="용어 상세">
-      <nav className="mb-5 text-xs text-ink-3">
-        <Link href="/" className="link">
-          검색
+    <AppShell user={user} title={displayName(term)}>
+      <nav aria-label="현재 위치" className="mb-5 text-xs text-ink-3">
+        <Link href="/sheet" className="link">
+          시트
         </Link>
         <span className="mx-1.5">/</span>
-        <span className="font-mono">{term.slug}</span>
+        <span aria-current="page">{displayName(term)}</span>
       </nav>
 
       <article className="animate-fade-up rounded-2xl border border-line bg-panel p-5 sm:p-8">
@@ -114,7 +115,7 @@ export async function TermDetailPage({
             className="mt-1.5 h-14 w-1 shrink-0 rounded-full bg-brand"
           />
           <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium tracking-[0.16em] text-ink-3">용어 사전</p>
+            <p className="mb-2 text-[11px] font-medium text-ink-3">용어 사전</p>
             <h2 className="break-words text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">{displayName(term)}</h2>
             {term.nameEn && term.nameKo && <p className="mt-0.5 text-ink-2">{term.nameKo}</p>}
             {/* F3: fullNameKo는 스키마·생성·수정·API 응답에 전부 있는데 화면에는

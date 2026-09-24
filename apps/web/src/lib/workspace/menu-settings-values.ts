@@ -1,8 +1,11 @@
-import type { WorkspaceHomeMode, WorkspaceMenuKey } from "@glossary/db";
+// 타입만 가져온다. 이 파일은 관리자 클라이언트 컴포넌트도 읽어서, @glossary/db의
+// 값을 하나라도 import하면 postgres 드라이버가 브라우저 번들로 끌려와 빌드가 깨진다.
+import type { WorkspaceBrandPreset, WorkspaceHomeMode, WorkspaceMenuKey } from "@glossary/db";
 
 export type ResolvedWorkspaceMenuSettings = Record<WorkspaceMenuKey, boolean> & {
   order: WorkspaceMenuKey[];
   homeMode: WorkspaceHomeMode;
+  brandPreset: WorkspaceBrandPreset;
 };
 
 export interface WorkspaceMenuOption {
@@ -60,7 +63,20 @@ export const DEFAULT_WORKSPACE_MENU_SETTINGS: ResolvedWorkspaceMenuSettings = {
   statistics: true,
   order: DEFAULT_WORKSPACE_MENU_ORDER,
   homeMode: "search",
+  brandPreset: "navy",
 };
+
+/** 관리자 화면의 미리보기 색. 실제 값은 globals.css의 data-brand 블록이 소유한다. */
+export const WORKSPACE_BRAND_OPTIONS: ReadonlyArray<{ key: WorkspaceBrandPreset; label: string; description: string; swatches: { surface: string; logo: string; brand: string; accent: string } }> = [
+  { key: "navy", label: "잉크 네이비", description: "사내 도구다운 신뢰감. 기본값입니다.", swatches: { surface: "#18284A", logo: "#3A62A4", brand: "#1E3A64", accent: "#B23E24" } },
+  { key: "ink", label: "먹 + 인주", description: "사전다운 흑백 위에 인주 한 색만 둡니다.", swatches: { surface: "#1B1E23", logo: "#B23E24", brand: "#1F2328", accent: "#B23E24" } },
+  { key: "teal", label: "딥 틸 + 호박", description: "도서관 느낌의 청록. 경고색은 주황으로 옮깁니다.", swatches: { surface: "#0D3238", logo: "#1E7076", brand: "#0F4C52", accent: "#965A0A" } },
+];
+
+// DB의 workspaceBrandPresets와 같은 목록인지는 tests/ui-contrast.test.ts가 잠근다.
+export function isWorkspaceBrandPreset(value: unknown): value is WorkspaceBrandPreset {
+  return WORKSPACE_BRAND_OPTIONS.some((option) => option.key === value);
+}
 
 export function isWorkspaceMenuKey(value: string): value is WorkspaceMenuKey {
   return WORKSPACE_MENU_OPTIONS.some((item) => item.key === value);

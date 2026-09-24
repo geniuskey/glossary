@@ -60,6 +60,7 @@ export async function AppShell({
   wide = false,
   roomy = false,
   dense = false,
+  search = true,
   children,
 }: {
   user: CurrentUser | null;
@@ -70,8 +71,12 @@ export async function AppShell({
   roomy?: boolean;
   /** 편집기처럼 한 화면에 많은 정보를 보여줘야 하는 작업 화면의 여백을 줄인다. */
   dense?: boolean;
+  /** 홈처럼 본문이 검색창과 h1을 직접 가지는 화면은 상단 검색을 빼고 제목을
+   *  h1이 아닌 문단으로 둔다 — 같은 검색창·h1이 한 화면에 두 번 생긴다. */
+  search?: boolean;
   children: ReactNode;
 }) {
+  const TitleTag = search ? "h1" : "p";
   const menuSettings = await getWorkspaceMenuSettings();
   if (current && isWorkspaceMenuKey(current) && !menuSettings[current]) redirect("/");
   const navigation = await getAppNavigation(user, menuSettings);
@@ -92,7 +97,7 @@ export async function AppShell({
             <BrandMark />
             <span className="sidebar-expanded-only hidden min-w-0 flex-col leading-none lg:flex">
               <span className="text-[15px] font-semibold tracking-tight text-ink">Glossary</span>
-              <span className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-ink-3">
+              <span className="mt-0.5 text-[10px] text-ink-3">
                 용어집
               </span>
             </span>
@@ -101,7 +106,7 @@ export async function AppShell({
         navigation={(
           <nav id="primary-navigation" aria-label="주 메뉴" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto lg:min-h-0 lg:flex-col lg:items-stretch lg:gap-0.5 lg:overflow-y-auto lg:px-2">
             {navigation.map((group) => <Fragment key={group.label}>
-              <p className="sidebar-expanded-only hidden px-2.5 pb-2 pt-5 text-[11px] font-medium tracking-wide text-ink-3 lg:block">{group.label}</p>
+              <p className="sidebar-expanded-only hidden px-2.5 pb-2 pt-5 text-[11px] font-medium text-ink-3 lg:block">{group.label}</p>
               {group.items.map((item) => {
               const active = item.key === current;
               return (
@@ -144,12 +149,14 @@ export async function AppShell({
               42rem까지 유동적으로 늘고 줄어든다. 타이틀 열에는 한글 약 4자 폭을
               남겨 좁은 데스크톱에서도 제목이 여러 줄로 뭉개지지 않게 한다. */}
           <div className="flex w-full items-center gap-2 lg:grid lg:grid-cols-[minmax(4rem,1fr)_minmax(0,42rem)_auto] lg:gap-4">
-            <h1 className="sr-only min-w-0 truncate text-sm font-semibold tracking-tight text-ink lg:not-sr-only">
+            <TitleTag className="sr-only min-w-0 truncate text-sm font-semibold tracking-tight text-ink lg:not-sr-only">
               {title}
-            </h1>
-            <div className="min-w-0 flex-1 lg:col-start-2">
-              <SearchBox defaultValue="" compact />
-            </div>
+            </TitleTag>
+            {search && (
+              <div className="min-w-0 flex-1 lg:col-start-2">
+                <SearchBox defaultValue="" compact />
+              </div>
+            )}
             <div className="ml-auto flex shrink-0 items-center gap-2 lg:col-start-3 lg:ml-0 lg:justify-self-end">
               <Link href="/new" className="btn-primary h-9 shrink-0 px-3" aria-label="새 용어 추가">
                 <IconPlus />

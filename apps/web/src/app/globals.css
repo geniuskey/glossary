@@ -2,18 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Fade the current at the viewport edges and behind the primary home action. */
-.home-flow-canvas {
-  -webkit-mask-image:
-    linear-gradient(to bottom, transparent, black 9%, black 90%, transparent),
-    radial-gradient(ellipse 35% 24% at 50% 43%, transparent 5%, rgb(0 0 0 / 0.16) 48%, black 100%);
-  -webkit-mask-composite: source-in;
-  mask-image:
-    linear-gradient(to bottom, transparent, black 9%, black 90%, transparent),
-    radial-gradient(ellipse 35% 24% at 50% 43%, transparent 5%, rgb(0 0 0 / 0.16) 48%, black 100%);
-  mask-composite: intersect;
-}
-
 /* ---------------------------------------------------------------------------
    디자인 토큰.
    색은 전부 여기서만 정의하고, 화면 코드는 tailwind.config.ts가 매핑한
@@ -24,20 +12,20 @@
    그래서 다크 값은 두 번 쓴다: 시스템 다크(명시 light가 아닐 때)와 명시 dark.
 --------------------------------------------------------------------------- */
 :root {
-  --paper: 250 249 247;
+  --paper: 247 245 240;
   --panel: 255 255 255;
-  --panel-2: 246 245 242;
-  --line: 231 227 220;
-  --line-strong: 214 209 200;
-  --ink: 27 29 34;
-  --ink-2: 88 93 102;
-  --ink-3: 105 110 120;
-  --brand: 67 56 202;
-  --brand-2: 99 87 226;
-  --brand-soft: 238 236 253;
+  --panel-2: 242 239 233;
+  --line: 229 225 216;
+  --line-strong: 210 204 192;
+  --ink: 22 27 38;
+  --ink-2: 76 83 97;
+  --ink-3: 96 103 117;
+  --brand: 30 58 100;
+  --brand-2: 45 79 131;
+  --brand-soft: 231 236 244;
   --brand-on: 255 255 255;
-  --accent: 225 103 72;
-  --accent-soft: 255 235 227;
+  --accent: 178 62 36;
+  --accent-soft: 251 233 226;
   --info: 37 99 235;
   --info-soft: 232 240 254;
   --ok: 21 120 57;
@@ -46,8 +34,18 @@
   --warn-soft: 252 242 219;
   --danger: 190 40 40;
   --danger-soft: 253 232 232;
-  --grid-line: 227 223 215;
-  --selection: 67 56 202;
+  --grid-line: 226 221 211;
+  --selection: 45 79 131;
+  --sidebar: 24 40 68;
+  --sidebar-hover: 36 55 88;
+  --sidebar-active: 48 72 112;
+  --sidebar-line: 44 63 97;
+  --sidebar-ink: 238 241 247;
+  --sidebar-ink-2: 178 190 210;
+  --sidebar-ink-3: 150 165 190;
+  --sidebar-brand: 255 255 255;
+  --sidebar-accent: 240 128 94;
+  --sidebar-logo: 58 98 164;
   --graph-category-fill-s: 42%;
   --graph-category-fill-l: 93%;
   --graph-category-stroke-s: 42%;
@@ -68,20 +66,20 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --paper: 19 21 25;
-    --panel: 26 29 34;
-    --panel-2: 33 37 43;
-    --line: 45 50 58;
-    --line-strong: 62 68 78;
-    --ink: 232 230 226;
-    --ink-2: 165 170 179;
-    --ink-3: 151 157 168;
-    --brand: 141 133 246;
-    --brand-2: 165 158 250;
-    --brand-soft: 39 38 66;
-    --brand-on: 17 17 26;
-    --accent: 250 143 108;
-    --accent-soft: 59 37 34;
+    --paper: 16 19 26;
+    --panel: 23 27 36;
+    --panel-2: 30 35 46;
+    --line: 43 49 62;
+    --line-strong: 60 68 84;
+    --ink: 234 231 224;
+    --ink-2: 168 174 186;
+    --ink-3: 150 157 171;
+    --brand: 143 176 226;
+    --brand-2: 170 197 238;
+    --brand-soft: 31 43 66;
+    --brand-on: 12 18 30;
+    --accent: 240 132 100;
+    --accent-soft: 58 34 28;
     --info: 110 157 255;
     --info-soft: 27 41 68;
     --ok: 74 194 118;
@@ -90,8 +88,18 @@
     --warn-soft: 52 42 22;
     --danger: 246 118 118;
     --danger-soft: 56 30 32;
-    --grid-line: 43 48 56;
-    --selection: 141 133 246;
+    --grid-line: 40 46 58;
+    --selection: 143 176 226;
+    --sidebar: 11 14 20;
+    --sidebar-hover: 26 32 44;
+    --sidebar-active: 36 46 68;
+    --sidebar-line: 32 38 50;
+    --sidebar-ink: 234 231 224;
+    --sidebar-ink-2: 168 176 190;
+    --sidebar-ink-3: 140 150 168;
+    --sidebar-brand: 234 231 224;
+    --sidebar-accent: 240 132 100;
+    --sidebar-logo: 52 88 146;
     --graph-category-fill-s: 28%;
     --graph-category-fill-l: 27%;
     --graph-category-stroke-s: 43%;
@@ -111,20 +119,20 @@
 }
 
 :root[data-theme="dark"] {
-  --paper: 19 21 25;
-  --panel: 26 29 34;
-  --panel-2: 33 37 43;
-  --line: 45 50 58;
-  --line-strong: 62 68 78;
-  --ink: 232 230 226;
-  --ink-2: 165 170 179;
-  --ink-3: 151 157 168;
-  --brand: 141 133 246;
-  --brand-2: 165 158 250;
-  --brand-soft: 39 38 66;
-  --brand-on: 17 17 26;
-  --accent: 250 143 108;
-  --accent-soft: 59 37 34;
+  --paper: 16 19 26;
+  --panel: 23 27 36;
+  --panel-2: 30 35 46;
+  --line: 43 49 62;
+  --line-strong: 60 68 84;
+  --ink: 234 231 224;
+  --ink-2: 168 174 186;
+  --ink-3: 150 157 171;
+  --brand: 143 176 226;
+  --brand-2: 170 197 238;
+  --brand-soft: 31 43 66;
+  --brand-on: 12 18 30;
+  --accent: 240 132 100;
+  --accent-soft: 58 34 28;
   --info: 110 157 255;
   --info-soft: 27 41 68;
   --ok: 74 194 118;
@@ -133,8 +141,18 @@
   --warn-soft: 52 42 22;
   --danger: 246 118 118;
   --danger-soft: 56 30 32;
-  --grid-line: 43 48 56;
-  --selection: 141 133 246;
+  --grid-line: 40 46 58;
+  --selection: 143 176 226;
+  --sidebar: 11 14 20;
+  --sidebar-hover: 26 32 44;
+  --sidebar-active: 36 46 68;
+  --sidebar-line: 32 38 50;
+  --sidebar-ink: 234 231 224;
+  --sidebar-ink-2: 168 176 190;
+  --sidebar-ink-3: 140 150 168;
+  --sidebar-brand: 234 231 224;
+  --sidebar-accent: 240 132 100;
+  --sidebar-logo: 52 88 146;
   --graph-category-fill-s: 28%;
   --graph-category-fill-l: 27%;
   --graph-category-stroke-s: 43%;
@@ -150,6 +168,183 @@
   --graph-topic-fill: 226 168 62;
   --graph-topic-stroke: 114 78 12;
   --graph-topic-text: 27 24 17;
+}
+
+/* ---------------------------------------------------------------------------
+   워크스페이스 대표 색 프리셋. 관리자가 고른 값이 <html data-brand>로 걸린다.
+   브랜드 관련 토큰만 덮고 종이·잉크·상태색은 공유한다. 기본(navy)은 위의
+   :root 블록 자체라 별도 블록이 없다.
+
+   다크 블록은 [data-brand]와 테마 선택자를 함께 써서 특이도를 한 단계 올린다.
+   프리셋 라이트 블록과 기본 다크 블록은 특이도가 같아 뒤에 온 쪽이 이기므로,
+   이렇게 하지 않으면 다크 모드에서 프리셋의 라이트 값이 새어 나온다.
+--------------------------------------------------------------------------- */
+:root[data-brand="ink"] {
+  --brand: 31 35 40;
+  --brand-2: 58 63 72;
+  --brand-soft: 236 235 232;
+  --brand-on: 255 255 255;
+  --accent: 178 62 36;
+  --accent-soft: 251 233 226;
+  --selection: 58 63 72;
+  --sidebar: 27 30 35;
+  --sidebar-hover: 40 44 51;
+  --sidebar-active: 54 59 68;
+  --sidebar-line: 46 50 58;
+  --sidebar-ink: 240 239 236;
+  --sidebar-ink-2: 182 185 191;
+  --sidebar-ink-3: 150 155 163;
+  --sidebar-brand: 255 255 255;
+  --sidebar-accent: 240 128 94;
+  --sidebar-logo: 178 62 36;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-brand="ink"]:not([data-theme="light"]) {
+    --brand: 226 224 218;
+    --brand-2: 244 242 238;
+    --brand-soft: 44 46 52;
+    --brand-on: 17 19 24;
+    --accent: 240 132 100;
+    --accent-soft: 58 34 28;
+    --selection: 200 198 192;
+    --sidebar: 10 11 14;
+    --sidebar-hover: 24 26 31;
+    --sidebar-active: 38 41 48;
+    --sidebar-line: 30 32 38;
+    --sidebar-ink: 234 231 224;
+    --sidebar-ink-2: 168 172 180;
+    --sidebar-ink-3: 140 146 156;
+    --sidebar-brand: 234 231 224;
+    --sidebar-accent: 240 132 100;
+    --sidebar-logo: 178 62 36;
+  }
+}
+
+:root[data-brand="ink"][data-theme="dark"] {
+  --brand: 226 224 218;
+  --brand-2: 244 242 238;
+  --brand-soft: 44 46 52;
+  --brand-on: 17 19 24;
+  --accent: 240 132 100;
+  --accent-soft: 58 34 28;
+  --selection: 200 198 192;
+  --sidebar: 10 11 14;
+  --sidebar-hover: 24 26 31;
+  --sidebar-active: 38 41 48;
+  --sidebar-line: 30 32 38;
+  --sidebar-ink: 234 231 224;
+  --sidebar-ink-2: 168 172 180;
+  --sidebar-ink-3: 140 146 156;
+  --sidebar-brand: 234 231 224;
+  --sidebar-accent: 240 132 100;
+  --sidebar-logo: 178 62 36;
+}
+
+:root[data-brand="teal"] {
+  --brand: 15 76 82;
+  --brand-2: 24 100 106;
+  --brand-soft: 226 240 239;
+  --brand-on: 255 255 255;
+  --accent: 150 90 10;
+  --accent-soft: 252 240 220;
+  --warn: 170 70 28;
+  --warn-soft: 252 234 224;
+  --selection: 24 100 106;
+  --sidebar: 13 50 56;
+  --sidebar-hover: 22 68 74;
+  --sidebar-active: 32 86 92;
+  --sidebar-line: 28 70 76;
+  --sidebar-ink: 236 245 244;
+  --sidebar-ink-2: 172 204 204;
+  --sidebar-ink-3: 140 178 178;
+  --sidebar-brand: 255 255 255;
+  --sidebar-accent: 232 168 64;
+  --sidebar-logo: 30 112 118;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-brand="teal"]:not([data-theme="light"]) {
+    --brand: 110 196 196;
+    --brand-2: 150 216 214;
+    --brand-soft: 22 52 56;
+    --brand-on: 8 24 26;
+    --accent: 230 170 70;
+    --accent-soft: 56 42 20;
+    --warn: 240 140 90;
+    --warn-soft: 58 34 24;
+    --selection: 110 196 196;
+    --sidebar: 9 22 25;
+    --sidebar-hover: 18 38 42;
+    --sidebar-active: 26 54 58;
+    --sidebar-line: 24 42 46;
+    --sidebar-ink: 230 238 237;
+    --sidebar-ink-2: 160 186 186;
+    --sidebar-ink-3: 132 160 160;
+    --sidebar-brand: 230 238 237;
+    --sidebar-accent: 232 168 64;
+    --sidebar-logo: 26 96 102;
+  }
+}
+
+:root[data-brand="teal"][data-theme="dark"] {
+  --brand: 110 196 196;
+  --brand-2: 150 216 214;
+  --brand-soft: 22 52 56;
+  --brand-on: 8 24 26;
+  --accent: 230 170 70;
+  --accent-soft: 56 42 20;
+  --warn: 240 140 90;
+  --warn-soft: 58 34 24;
+  --selection: 110 196 196;
+  --sidebar: 9 22 25;
+  --sidebar-hover: 18 38 42;
+  --sidebar-active: 26 54 58;
+  --sidebar-line: 24 42 46;
+  --sidebar-ink: 230 238 237;
+  --sidebar-ink-2: 160 186 186;
+  --sidebar-ink-3: 132 160 160;
+  --sidebar-brand: 230 238 237;
+  --sidebar-accent: 232 168 64;
+  --sidebar-logo: 26 96 102;
+}
+
+/* 사이드바는 브랜드 면이다. 화면 코드의 의미 토큰(panel/ink/brand…)을 이 범위
+   안에서만 남색 면 값으로 다시 매핑한다 — 사이드바 마크업에 별도 색 클래스를
+   흩어 두면 다크 모드와 접힘 상태마다 두 벌을 유지해야 한다. */
+.sidebar-surface {
+  --paper: var(--sidebar);
+  --panel: var(--sidebar);
+  --panel-2: var(--sidebar-hover);
+  --line: var(--sidebar-line);
+  --line-strong: var(--sidebar-line);
+  --ink: var(--sidebar-ink);
+  --ink-2: var(--sidebar-ink-2);
+  --ink-3: var(--sidebar-ink-3);
+  --brand: var(--sidebar-brand);
+  --brand-2: var(--sidebar-ink);
+  --brand-soft: var(--sidebar-active);
+  --brand-on: var(--sidebar);
+  --accent: var(--sidebar-accent);
+  color-scheme: dark;
+}
+
+/* 로고까지 흰 면으로 뒤집으면 사이드바에서 혼자 떠 보인다. 원래 로고의
+   "브랜드색 타일 + 흰 G" 구조를 유지하고, 남색 면에 묻히지 않을 만큼만 밝힌다. */
+.sidebar-surface .sidebar-brand svg {
+  --brand: var(--sidebar-logo);
+  --brand-on: 255 255 255;
+}
+
+/* 현재 위치는 면 색만으로는 약하다. 사전의 인주처럼 액센트 한 줄을 찍는다. */
+.sidebar-surface .sidebar-nav-link[aria-current="page"] {
+  box-shadow: inset 0 -2px 0 rgb(var(--accent));
+}
+
+@media (min-width: 1024px) {
+  .sidebar-surface .sidebar-nav-link[aria-current="page"] {
+    box-shadow: inset 3px 0 0 rgb(var(--accent));
+  }
 }
 
 .graph-category-node {
@@ -200,55 +395,6 @@
   border-color: hsl(var(--graph-category-hue) calc(var(--graph-category-stroke-s) + var(--domain-color-saturation-boost, 0%)) calc(var(--graph-category-stroke-l) - var(--domain-color-lightness-drop, 0%)));
   background-color: hsl(var(--graph-category-hue) calc(var(--graph-category-fill-s) + var(--domain-color-saturation-boost, 0%)) calc(var(--graph-category-fill-l) - var(--domain-color-lightness-drop, 0%)));
   color: hsl(var(--graph-category-hue) calc(var(--graph-category-text-s) + var(--domain-color-saturation-boost, 0%)) var(--graph-category-text-l));
-}
-
-@layer utilities {
-  .home-gradient-text {
-    color: rgb(var(--brand));
-    background: linear-gradient(105deg, rgb(var(--brand)) 8%, rgb(var(--brand-2)) 54%, rgb(var(--accent)) 100%);
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
-  .home-grid {
-    background-image:
-      linear-gradient(to right, rgb(var(--brand) / 0.055) 1px, transparent 1px),
-      linear-gradient(to bottom, rgb(var(--brand) / 0.055) 1px, transparent 1px);
-    background-size: 64px 64px;
-    mask-image: linear-gradient(to bottom, black, transparent 88%);
-  }
-
-  .home-concept-glow {
-    background: linear-gradient(135deg, rgb(var(--brand) / 0.24), rgb(var(--accent) / 0.2));
-  }
-
-  [data-scroll-reveal="true"][data-reveal-ready="true"] {
-    opacity: 0;
-    filter: blur(5px);
-    transform: translateY(3rem) scale(0.985);
-    transition:
-      opacity 720ms cubic-bezier(0.16, 1, 0.3, 1),
-      filter 720ms cubic-bezier(0.16, 1, 0.3, 1),
-      transform 720ms cubic-bezier(0.16, 1, 0.3, 1);
-    transition-delay: var(--reveal-delay, 0ms);
-    will-change: opacity, filter, transform;
-  }
-
-  [data-scroll-reveal="true"][data-reveal-ready="true"][data-revealed="true"] {
-    opacity: 1;
-    filter: blur(0);
-    transform: none;
-  }
-
-  .home-scroll-cue {
-    animation: home-scroll-cue 2.2s ease-in-out infinite;
-  }
-}
-
-@keyframes home-scroll-cue {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(5px); }
 }
 
 @layer base {
@@ -314,10 +460,6 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-
-  .home-scroll-cue {
-    animation: none;
   }
 }
 
@@ -640,7 +782,7 @@
   }
   .korean-editor-font,
   .korean-editor-font .markdown-body {
-    font-family: "Noto Sans KR Variable", "Noto Sans KR", Pretendard, sans-serif;
+    font-family: "Pretendard Variable", Pretendard, sans-serif;
     font-feature-settings: "kern", "ss01";
     letter-spacing: -0.012em;
   }

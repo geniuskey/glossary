@@ -5,9 +5,11 @@ import { cx } from "@/lib/ui/format";
 // 폴백을 두지 않는다 — 폴백이 있으면 DB enum에 값이 추가돼도 tsc가 조용히
 // 통과시켜 화면만 어긋난다. 라벨은 enums.ts의 TERM_STATUS_LABEL 하나만 쓴다
 // (여기 두 번째 사본이 있으면 그게 곧 드리프트의 출처가 된다).
+// 시트에서는 대부분의 행이 draft라 채움색을 쓰면 경고색이 화면을 뒤덮는다.
+// 상태는 읽히되 표의 내용보다 앞서지 않도록 선과 글자색만 쓴다.
 export const STATUS_TONE: Record<TermStatusLiteral, string> = {
-  draft: "bg-warn-soft text-warn",
-  active: "bg-panel-2 text-ink-2",
+  draft: "text-warn ring-1 ring-inset ring-warn/30",
+  active: "text-ink-3",
 };
 
 export function StatusBadge({ status, className }: { status: TermStatusLiteral; className?: string }) {

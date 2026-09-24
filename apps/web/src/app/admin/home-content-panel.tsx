@@ -140,9 +140,9 @@ export function HomeContentPanel({ initialContent, initialMode, aiAvailable }: {
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-line bg-paper p-5 sm:p-8" aria-label="홈 문구 미리보기">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">미리보기</p>
+          <p className="text-[10px] font-semibold text-brand">미리보기</p>
           <div className="mt-8 text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">{content.eyebrow || "—"}</p>
+            <p className="text-xs font-semibold text-brand">{content.eyebrow || "—"}</p>
             <h3 className="mt-4 whitespace-pre-line text-3xl font-semibold leading-[1.16] tracking-[-0.045em] text-ink">
               {content.title || "대표 문구를 입력하세요"}
             </h3>

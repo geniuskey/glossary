@@ -1,18 +1,22 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { loadTermForPage, termPageMetadata } from "@/lib/terms/page-metadata";
 import { getCurrentUser } from "@/lib/auth/current-user";
-import { getTermByIdOrSlug } from "@/lib/terms/query";
 import { listRevisions } from "@/lib/terms/update";
 import { displayName, isoDate, relativeTime } from "@/lib/ui/format";
 import { RevertButton } from "./revert-button";
+
+export function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  return termPageMetadata(params, "수정 이력");
+}
 
 export default async function TermHistoryPage({ params }: { params: Promise<{ slug: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const { slug } = await params;
-  const term = await getTermByIdOrSlug(slug);
+  const term = await loadTermForPage(slug);
   if (!term) notFound();
 
   const revisions = await listRevisions(term.id);

@@ -1,7 +1,10 @@
 import type { ReactNode } from "react";
-import "@fontsource-variable/noto-sans-kr";
+import { connection } from "next/server";
+import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "katex/dist/katex.min.css";
 import { InlineScript } from "@/components/inline-script";
+import { getWorkspaceMenuSettings } from "@/lib/workspace/menu-settings";
+import { DEFAULT_WORKSPACE_MENU_SETTINGS } from "@/lib/workspace/menu-settings-values";
 import "./globals.css";
 
 export const metadata = {
@@ -15,9 +18,22 @@ export const metadata = {
 // 설정(prefers-color-scheme)을 그대로 따른다.
 const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("glossary.theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()`;
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+// 대표 색은 body로 포털되는 팝오버까지 닿아야 해서 셸이 아니라 <html>에 건다.
+// connection()이 없으면 빌드가 정적 화면(소개·도움말)을 사전 렌더링하면서 DB에
+// 붙는다. DB를 못 읽는 순간에도 화면은 떠야 하므로 기본 색으로 물러난다.
+async function loadBrandPreset() {
+  await connection();
+  try {
+    return (await getWorkspaceMenuSettings()).brandPreset;
+  } catch {
+    return DEFAULT_WORKSPACE_MENU_SETTINGS.brandPreset;
+  }
+}
+
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const brand = await loadBrandPreset();
   return (
-    <html lang="ko" suppressHydrationWarning>
+    <html lang="ko" data-brand={brand === "navy" ? undefined : brand} suppressHydrationWarning>
       <head>
         <InlineScript html={THEME_SCRIPT} />
       </head>

@@ -228,7 +228,7 @@ function Th({ className, children }: { className?: string; children?: React.Reac
   return (
     <th
       className={cx(
-        "border-b border-grid bg-panel-2 px-3 py-2 text-left text-[11px] font-medium tracking-wide text-ink-2",
+        "border-b border-grid bg-panel-2 px-3 py-2 text-left text-[11px] font-medium text-ink-2",
         className,
       )}
     >

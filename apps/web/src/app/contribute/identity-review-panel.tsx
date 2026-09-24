@@ -268,7 +268,7 @@ export function IdentityReviewPanel({ initialCandidates, query, view, page, hasN
       <div className="card border-brand/25 bg-brand-soft/20 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold tracking-[0.14em] text-brand">AI 표기 정비 작업대</p>
+            <p className="text-[11px] font-semibold text-brand">AI 표기 정비 작업대</p>
             <h3 id="identity-review-title" className="mt-1 text-base font-semibold text-ink">현재 표기를 기준에 맞게 정리하세요</h3>
             <p className="mt-1 max-w-3xl text-xs leading-5 text-ink-2">규칙으로 확실히 찾을 수 있는 문제와 도메인 문맥으로 보완할 수 있는 항목만 보여줍니다. AI 제안은 자동 저장되지 않으며, 승인한 값만 용어에 반영됩니다.</p>
           </div>

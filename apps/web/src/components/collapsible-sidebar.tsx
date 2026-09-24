@@ -45,7 +45,7 @@ export function CollapsibleSidebar({
     <aside
       data-sidebar-collapsed={collapsed}
       className={cx(
-        "sticky top-0 z-30 h-14 shrink-0 border-b border-line bg-panel/85 backdrop-blur",
+        "sidebar-surface sticky top-0 z-30 h-14 shrink-0 border-b border-line bg-panel",
         "lg:h-screen lg:border-b-0 lg:border-r",
         ready && "lg:transition-[width] lg:duration-200",
         collapsed ? "lg:w-[4.5rem]" : "lg:w-60",

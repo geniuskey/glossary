@@ -507,6 +507,41 @@ export const openApiSpec = {
         },
       },
     },
+    "/admin/brand": {
+      get: {
+        summary: "워크스페이스 대표 색 조회",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("{ preset: navy | ink | teal }", { type: "object", properties: { preset: { type: "string", enum: ["navy", "ink", "teal"] } } }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+      patch: {
+        summary: "워크스페이스 대표 색 수정",
+        description: "설치 전체의 브랜드 색 프리셋을 바꿉니다. 모든 사용자에게 같은 색이 적용됩니다.",
+        security: [{ sessionCookie: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["preset"],
+                additionalProperties: false,
+                properties: { preset: { type: "string", enum: ["navy", "ink", "teal"] } },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": json("저장된 대표 색", { type: "object", properties: { preset: { type: "string", enum: ["navy", "ink", "teal"] } } }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+    },
     "/admin/menu-settings": {
       get: {
         summary: "사이드바 메뉴 표시 설정 조회",
@@ -555,6 +590,7 @@ export const openApiSpec = {
                   import: { type: "boolean" },
                   statistics: { type: "boolean" },
                   homeMode: { type: "string", enum: ["search", "chat"] },
+                  brandPreset: { type: "string", enum: ["navy", "ink", "teal"] },
                 },
               },
             },

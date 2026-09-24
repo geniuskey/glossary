@@ -117,7 +117,7 @@ export function MeetingDocumentsPanel({ initialMeetings, confluenceUrl }: { init
       <section className="card overflow-hidden">
         {selected ? <>
           <div className="flex flex-wrap items-start gap-3 border-b border-line px-4 py-3">
-            <div className="min-w-0 flex-1"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-3">읽기 전용 레거시 자료</p><h3 className="mt-1 break-words text-base font-semibold text-ink">{selected.title}</h3><p className="mt-1 text-xs text-ink-3">리비전 {selected.revision} · {selected.source || "출처 미지정"} {selected.team ? `· ${selected.team}` : ""}</p></div>
+            <div className="min-w-0 flex-1"><p className="text-xs font-semibold text-ink-3">읽기 전용 레거시 자료</p><h3 className="mt-1 break-words text-base font-semibold text-ink">{selected.title}</h3><p className="mt-1 text-xs text-ink-3">리비전 {selected.revision} · {selected.source || "출처 미지정"} {selected.team ? `· ${selected.team}` : ""}</p></div>
             <div className="flex shrink-0 flex-wrap gap-2">
               {selectedSourceUrl && <a href={selectedSourceUrl} target="_blank" rel="noreferrer" className="btn-ghost btn-sm">원문 열기</a>}
               <Link href={draftHref} className="btn-primary btn-sm">위키 초안 만들기</Link>

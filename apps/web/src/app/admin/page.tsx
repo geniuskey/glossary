@@ -20,6 +20,7 @@ import { TermQualityPanel } from "./term-quality-panel";
 import { UsersPanel } from "./users-panel";
 import { DataExportPanel } from "./data-export-panel";
 import { SsoSettingsForm } from "@/app/settings/sso/sso-settings-form";
+import { BrandSettingsPanel } from "./brand-settings-panel";
 import { MenuSettingsPanel } from "./menu-settings-panel";
 import { AdminOverviewPanel } from "./admin-overview-panel";
 import { ADMIN_NAV_GROUPS, AdminNavigation, type AdminTab } from "./admin-navigation";
@@ -70,6 +71,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       aiAvailable={ai.enabled && ai.secretsReadable}
     />;
   }
+  else if (tab === "brand") panel = <BrandSettingsPanel initialPreset={(await getWorkspaceMenuSettings()).brandPreset} />;
   else if (tab === "menus") panel = <MenuSettingsPanel initialSettings={await getWorkspaceMenuSettings()} />;
   else if (tab === "quality") {
     const settings = await getTermQualitySettings();

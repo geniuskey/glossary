@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { loadTermForPage, termPageMetadata } from "@/lib/terms/page-metadata";
 import { TermForm, type TermFormInitial } from "@/components/term-form";
 import { getCurrentUser } from "@/lib/auth/current-user";
-import { getTermByIdOrSlug, termFacets } from "@/lib/terms/query";
+import { termFacets } from "@/lib/terms/query";
 import { listAssignableUsers } from "@/lib/terms/owners";
 import { listBusinessCategories } from "@/lib/terms/categories";
 import { listDomains } from "@/lib/terms/domains";
@@ -11,12 +12,16 @@ import { pickExplicitSurfaces } from "@/lib/terms/surfaces";
 import { listRevisions } from "@/lib/terms/update";
 import { displayName } from "@/lib/ui/format";
 
+export function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  return termPageMetadata(params, "편집");
+}
+
 export default async function EditTermPage({ params }: { params: Promise<{ slug: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const { slug } = await params;
-  const term = await getTermByIdOrSlug(slug);
+  const term = await loadTermForPage(slug);
   if (!term) notFound();
 
   // R109: 편집 폼은 지금 이 서버 렌더 시점의 리비전 번호를 expectedRevision으로

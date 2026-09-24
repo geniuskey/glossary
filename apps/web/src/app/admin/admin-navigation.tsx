@@ -7,6 +7,7 @@ export const ADMIN_NAV_GROUPS = [
     label: "서비스 구성",
     items: [
       { key: "home", label: "홈 콘텐츠", description: "첫 화면 문구" },
+      { key: "brand", label: "대표 색", description: "브랜드 프리셋" },
       { key: "menus", label: "메뉴 구성", description: "부가 기능 표시" },
       { key: "quality", label: "콘텐츠 완성도", description: "용어 작성 기준" },
     ],
@@ -54,7 +55,7 @@ export function AdminNavigation({ current }: { current: AdminTab }) {
   return (
     <aside className="mb-8 lg:mb-0" aria-label="관리자 메뉴">
       <div className="rounded-xl border border-line bg-panel p-3 lg:sticky lg:top-20 lg:border-0 lg:bg-transparent lg:p-0">
-        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-3">관리자 메뉴</p>
+        <p className="px-3 pb-2 text-[11px] font-semibold text-ink-3">관리자 메뉴</p>
         <nav className="grid gap-5 sm:grid-cols-2 lg:block" aria-label="관리자 하위 메뉴">
           <div>
             <Link
@@ -72,7 +73,7 @@ export function AdminNavigation({ current }: { current: AdminTab }) {
 
           {ADMIN_NAV_GROUPS.map((group) => (
             <section key={group.key} className="lg:mt-5" aria-labelledby={`admin-nav-${group.key}`}>
-              <h2 id={`admin-nav-${group.key}`} className="px-3 pb-1.5 text-[11px] font-semibold tracking-wide text-ink-3">{group.label}</h2>
+              <h2 id={`admin-nav-${group.key}`} className="px-3 pb-1.5 text-[11px] font-semibold text-ink-3">{group.label}</h2>
               <div className="space-y-0.5">
                 {group.items.map((item) => (
                   <Link

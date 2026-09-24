@@ -1,5 +1,5 @@
 import { z } from "zod/v3";
-import { workspaceHomeModes, workspaceMenuKeys } from "@glossary/db";
+import { workspaceBrandPresets, workspaceHomeModes, workspaceMenuKeys } from "@glossary/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAdminUser } from "@/lib/auth/require";
 import { getWorkspaceMenuSettings, saveWorkspaceMenuSettings } from "@/lib/workspace/menu-settings";
@@ -24,6 +24,9 @@ const menuSettingsSchema = z.object({
   // Older clients may not know about the home input mode. Preserve the
   // existing value when they update only sidebar visibility/order.
   homeMode: z.enum(workspaceHomeModes).optional(),
+  // 메뉴 화면은 설정 객체 전체를 되돌려 보낸다. strict 스키마에 빠져 있으면
+  // 대표 색이 추가된 뒤로 메뉴 저장이 전부 400이 된다.
+  brandPreset: z.enum(workspaceBrandPresets).optional(),
   order: z.array(z.enum(workspaceMenuKeys)).length(workspaceMenuKeys.length).refine(
     (value) => new Set(value).size === workspaceMenuKeys.length,
     "메뉴 순서에는 모든 메뉴가 한 번씩 포함되어야 합니다.",

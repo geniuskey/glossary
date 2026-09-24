@@ -384,7 +384,7 @@ export function MarkdownEditor({
               boxSizing: "border-box",
               padding: compact ? "0.75rem 0" : "1rem 0",
               caretColor: "rgb(var(--brand))",
-              fontFamily: '"Noto Sans KR Variable", "Noto Sans KR", Pretendard, sans-serif',
+              fontFamily: '"Pretendard Variable", Pretendard, sans-serif',
               fontSize: "14px",
               lineHeight: "1.75",
               letterSpacing: "-0.012em",
