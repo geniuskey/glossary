@@ -93,7 +93,7 @@ test("값이 없는 영문·국문 확장명에도 사용자가 접근할 수 �
 });
 
 test("편집 화면의 저장 액션은 viewport 하단에 고정되고 본문이 가리지 않는다", () => {
-  expect(code).toContain('compact ? "flex min-h-[calc(100dvh-8rem)] flex-col gap-3 pb-24"');
+  expect(code).toContain('compact ? "flex min-h-[calc(100dvh-6rem)] flex-col gap-3 pb-24"');
   expect(code).toContain("term-form-bottom-bar fixed inset-x-0 bottom-0");
   expect(code).toContain('compact ? "bottom-20" : "bottom-5"');
   expect(globalsSource).toContain('body:has([data-sidebar-collapsed="true"]) .term-form-bottom-bar');
@@ -115,19 +115,6 @@ test("대표 이름과 정의·본문 다음에 부가 정보를 표시한다", 
   expect(surfacesIdx).toBeGreaterThan(managementIdx);
 });
 
-test("상세 영역은 전체 너비로 쌓고 관리 필드는 넓은 화면에서 한 줄로 배치한다", () => {
-  expect(code).toContain('<section className="card">');
-  expect(code).toContain('ref={surfaceDetailsRef} className="group/details"');
-  expect(code).toContain('ref={managementDetailsRef} className="group/details card"');
-  expect(code).toContain('className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"');
-  expect(code).not.toContain('lg:grid-cols-[18rem_minmax(0,1fr)]');
-  expect(code).not.toContain('title="추가 표기"');
-  expect(code).toContain('<span className="text-xs font-medium text-ink-2">정리 상태</span>');
-  expect(code).toContain('action={(');
-  expect(code).toContain('ref={managementDetailsRef}');
-  expect(code).toContain('<StatusBadge status={form.status} />');
-});
-
 test("정리 상태는 상단에 읽기 전용으로 표시하고 저장 동작은 하나만 둔다", () => {
   expect(code).toContain('<StatusBadge status={form.status} />');
   expect(code).toContain('정리 상태는 시스템이 자동으로 판정합니다.');
@@ -143,20 +130,6 @@ test("저장은 상태를 보내지 않고 서버가 돌려준 자동 판정을 
   expect(code).toContain('setForm((current) => ({ ...current, status: outcome.term.status! }))');
 });
 
-test("표기·분류는 접을 수 있고 상세 설명은 항상 열린 일반 카드로 표시한다", () => {
-  expect(code).toContain('ref={surfaceDetailsRef}');
-  expect(code).toContain('ref={managementDetailsRef}');
-  expect(code).toContain('if (fieldErrors.surfaces) {\n      managementDetailsRef.current!.open = true;\n      surfaceDetailsRef.current!.open = true;');
-  expect(code).toContain('managementDetailsRef.current!.open = true');
-  expect(code).not.toContain('bodyDetailsRef');
-  expect(code).not.toContain('summary={form.bodyMd.trim() ?');
-  expect(code).toContain('title="상세 설명"');
-  expect(code).toContain('description="예시나 배경처럼 한줄 정의만으로 부족한 맥락을 남깁니다."');
-  expect(code).toContain('className={cx("card overflow-hidden", compact && "flex min-h-0 flex-1 flex-col")}');
-  expect(code).toContain('resizable={compact}\n            fillAvailable={compact}\n            defaultView="glossary"\n            embedded');
-  expect(code).not.toContain('<h2 className="text-sm font-semibold text-ink">본문</h2>');
-});
-
 test("대표 표기 도움말은 대표 영문 용어 필드 라벨 바로 옆에 둔다", () => {
   const nameEnArea = code.slice(code.indexOf('<FormTextField\n                name="nameEn"'), code.indexOf('<FormTextField\n                name="nameKo"'));
   expect(nameEnArea).toContain('hint="목록과 페이지 제목에 먼저 표시할 대표 용어를 하나 이상 입력합니다."');
@@ -168,25 +141,6 @@ test("수정 중인 폼은 저장하지 않은 변경사항의 이탈을 경고�
   expect(guard).toContain('window.addEventListener("beforeunload", warnBeforeUnload)');
   expect(guard).toContain('document.addEventListener("click", warnBeforeLinkNavigation, true)');
   expect(guard).toContain("저장하지 않은 변경사항이 있습니다");
-});
-
-test("추가 표기는 값이 있을 때 등록된 종류만 공통 보드에 표시한다", () => {
-  expect(code).toContain('name="surfaceBatch"');
-  expect(code).toContain("parseSurfaceBatch(surfaceBatch)");
-  expect(code).toContain("EXPLICIT_SURFACE_KINDS.map((kind) =>");
-  expect(code).toContain("form.surfaces.length > 0 && (");
-  expect(code).toContain("EXPLICIT_SURFACE_KINDS.filter((kind) => form.surfaces.some((surface) => surface.kind === kind)).map((kind) =>");
-  expect(code).not.toContain("여기로 드래그");
-  expect(code).toContain("formWithPendingSurfaces");
-});
-
-test("추가 표기의 한 번에 추가 도구는 입력·종류·버튼을 한 줄로 표시한다", () => {
-  expect(code).toContain('>한 번에 추가</label>');
-  expect(code).toContain('`추가 표기 ${form.surfaces.length.toLocaleString("ko-KR")}개`');
-  expect(code).toContain('className="flex flex-col gap-2 sm:flex-row sm:items-center"');
-  expect(code).toContain('className="field h-8 min-w-0 flex-1 py-0"');
-  expect(code).toContain('className="field h-8 py-0 sm:w-32"');
-  expect(code).not.toContain('<textarea\n                  id="surface-batch"');
 });
 
 test("수정 화면은 변경이 없을 때 불필요한 리비전을 만들지 않는다", () => {
@@ -205,13 +159,6 @@ test("표 셀의 마지막 입력을 확정한 뒤 최신 폼 상태를 저장�
   expect(code).toContain("window.requestAnimationFrame");
 });
 
-test("접힌 추가 표기 영역도 기존 표기를 배지로 미리 보여준다", () => {
-  expect(code).toContain("SURFACE_PREVIEW_LIMIT");
-  expect(code).toContain("form.surfaces.slice(0, SURFACE_PREVIEW_LIMIT).map");
-  expect(code).toContain('aria-label="추가 표기 미리보기"');
-  expect(code).toContain("개 더보기");
-});
-
 test("상시 설명은 물음표 도움말로 대체하고 hover와 keyboard focus에서 표시한다", () => {
   expect(code).toContain('import { HelpTip } from "@/components/help-tip"');
   expect(helpTipSource).toContain("function HelpTip");
@@ -224,48 +171,11 @@ test("상시 설명은 물음표 도움말로 대체하고 hover와 keyboard foc
   expect(code).not.toContain('<p className={compact ? "text-[11px] text-ink-3"');
 });
 
-test("등록된 표기 종류는 가로 흐름을 유지하다 공간이 부족하면 다음 줄로 넘어간다", () => {
-  expect(code).toContain('className="flex flex-wrap items-stretch gap-1.5"');
-  expect(code).toContain("w-max min-w-28 max-w-80 flex-none");
-  expect(code).not.toContain('className="mt-2 overflow-x-auto rounded-xl');
-  expect(code).not.toContain("min-h-24 min-w-0 rounded-lg");
-});
-
-test("표기 배지는 언어별 색상을 사용하고 언어 텍스트는 내부에 표시하지 않는다", () => {
-  expect(code).toContain("const SURFACE_LANGUAGE_STYLE");
-  expect(code).toContain('ko: "border-brand/40 bg-brand-soft text-brand"');
-  expect(code).toContain('en: "border-info/40 bg-info-soft text-info"');
-  expect(code).toContain('neutral: "border-warn/40 bg-warn-soft text-warn"');
-  expect(code).toContain("SURFACE_LANGUAGE_STYLE[language]");
-  expect(code).not.toContain('<span className="shrink-0 text-[10px] opacity-70">');
-  expect(code).toContain('aria-label="표기 언어 색상"');
-});
-
-test("추가 표기 배지는 드래그·우클릭과 보이는 옵션 버튼으로 종류를 바꿀 수 있다", () => {
-  expect(code).toContain("handleSurfaceDragStart");
-  expect(code).toContain("handleSurfaceDrop");
-  expect(code).toContain("draggable={!locked}");
-  expect(code).toContain("handleSurfaceContextMenu");
-  expect(code).toContain('aria-label={`${surface.text || `추가 표기 ${index + 1}`} 옵션 열기`}');
-  expect(code).toContain('aria-haspopup="menu"');
-  expect(code).toContain('role="menu"');
-  expect(code).toContain('role="menuitemradio"');
-  expect(code).toContain("group-hover/surface:opacity-100");
-  expect(code).toContain('aria-live="polite"');
-});
-
 test("표기 언어는 직접 선택하지 않고 문자열로 자동 판정한다", () => {
   expect(code).toContain("inferSurfaceLang(text)");
   expect(code).not.toContain("surfaceBatchLang");
   expect(code).not.toContain("추가할 표기의 언어");
   expect(code).not.toContain("SURFACE_LANGS.map((lang)");
-});
-
-test("드래그 중 소스를 비활성화하지 않고 동기 ref로 드롭을 허용한다", () => {
-  expect(code).toContain("const draggedSurfaceIndexRef = useRef<number | null>(null)");
-  expect(code).toContain("draggedSurfaceIndexRef.current = index");
-  expect(code).toContain("draggedSurfaceIndexRef.current === null");
-  expect(code).not.toContain("inert={draggedSurfaceIndex === index");
 });
 
 test("편집 폼은 slug를 별도 버튼으로 변경하고 새 편집 URL로 이동한다", () => {

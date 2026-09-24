@@ -9,10 +9,8 @@ import {
   useMemo,
   useRef,
   useState,
-  type DragEvent,
   type FormEvent,
   type KeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
 import { MarkdownEditor } from "@/components/markdown-editor";
@@ -21,12 +19,8 @@ import { TermAiReviewPanel } from "@/components/term-ai-review-panel";
 import { ClassificationMultiSelect } from "@/components/classification-multi-select";
 import { StatusBadge } from "@/components/term-badges";
 import {
-  EXPLICIT_SURFACE_KINDS,
-  SURFACE_KIND_LABEL,
   TERM_STATUS_HINT,
   TERM_STATUS_LABEL,
-  type ExplicitSurfaceKindLiteral,
-  type SurfaceLangLiteral,
 } from "@/lib/terms/enums";
 import { buildTermPayload, newTermFormState, parseSurfaceBatch, type SurfaceDraft, type TermFormState } from "@/lib/terms/form-payload";
 import type { EditReviewField } from "@/lib/ai/edit-review-values";
@@ -48,18 +42,6 @@ export interface TermFormInitial extends TermFormState {
 
 // F6/P1(query.ts의 규약): `Record<유니온, T>` + 폴백 없음. 화면에 "neutral"이
 // 그대로 노출되면 사용자는 그게 언어 코드인지 상태인지 알 수 없다.
-const LANG_LABEL: Record<SurfaceLangLiteral, string> = {
-  en: "영문",
-  ko: "국문",
-  neutral: "공통",
-};
-
-const SURFACE_LANGUAGE_STYLE: Record<SurfaceLangLiteral, string> = {
-  ko: "border-brand/40 bg-brand-soft text-brand",
-  en: "border-info/40 bg-info-soft text-info",
-  neutral: "border-warn/40 bg-warn-soft text-warn",
-};
-const SURFACE_LANGUAGE_ORDER = ["ko", "en", "neutral"] as const;
 const SURFACE_PREVIEW_LIMIT = 6;
 
 function commaSeparatedValues(value: string): string[] {
@@ -114,12 +96,7 @@ export function TermForm({
   const [slugDraft, setSlugDraft] = useState(editSlug ?? "");
   const [slugError, setSlugError] = useState<string | null>(null);
   const [surfaceBatch, setSurfaceBatch] = useState("");
-  const [surfaceBatchKind, setSurfaceBatchKind] = useState<ExplicitSurfaceKindLiteral>("alias");
   const [showFullNameFields, setShowFullNameFields] = useState(() => Boolean(initial?.fullNameEn || initial?.fullNameKo));
-  const [draggedSurfaceIndex, setDraggedSurfaceIndex] = useState<number | null>(null);
-  const [dragOverSurfaceKind, setDragOverSurfaceKind] = useState<ExplicitSurfaceKindLiteral | null>(null);
-  const [surfaceMenu, setSurfaceMenu] = useState<{ index: number; x: number; y: number } | null>(null);
-  const [surfaceAnnouncement, setSurfaceAnnouncement] = useState("");
   // R108: 경고가 딸린 저장이 끝나면 이 슬러그가 채워지고, 그때부터 폼은
   // 잠긴다(입력도 비활성화되고 제출 버튼도 링크로 바뀐다) — 그래서 사용자가
   // "저장이 됐는지 몰라서" 또는 "경고를 읽었지만 무심코" 다시 제출해 같은
@@ -138,12 +115,8 @@ export function TermForm({
   const aiReviewButtonRef = useRef<HTMLButtonElement>(null);
   const aiReviewCloseRef = useRef<HTMLButtonElement>(null);
   const aiReviewDrawerRef = useRef<HTMLElement>(null);
-  const surfaceMenuRef = useRef<HTMLDivElement>(null);
   const surfaceDetailsRef = useRef<HTMLDetailsElement>(null);
   const managementDetailsRef = useRef<HTMLDetailsElement>(null);
-  // dragover는 dragstart 직후 React 상태가 반영되기 전에도 발생할 수 있으므로
-  // 드롭 허용 여부와 원본 인덱스는 동기적으로 갱신되는 ref를 기준으로 삼는다.
-  const draggedSurfaceIndexRef = useRef<number | null>(null);
   const initialSnapshotRef = useRef(JSON.stringify(buildTermPayload(initial ?? newTermFormState())));
 
   const locked = saving || deleting || renamingSlug || savedSlug !== null;
@@ -166,9 +139,9 @@ export function TermForm({
     ...form,
     surfaces: [
       ...form.surfaces,
-      ...pendingSurfaceValues.map((text) => ({ text, lang: inferSurfaceLang(text), kind: surfaceBatchKind })),
+      ...pendingSurfaceValues.map((text) => ({ text, lang: inferSurfaceLang(text), kind: "alias" })),
     ],
-  }), [form, pendingSurfaceValues, surfaceBatchKind]);
+  }), [form, pendingSurfaceValues]);
   const formSnapshot = useMemo(() => JSON.stringify(buildTermPayload(formWithPendingSurfaces)), [formWithPendingSurfaces]);
   const dirty = formSnapshot !== initialSnapshotRef.current;
   const latestSubmittedFormRef = useRef(formWithPendingSurfaces);
@@ -178,7 +151,7 @@ export function TermForm({
   const normalizedSlug = slugify(slugDraft);
   const slugChanged = editSlug !== undefined && normalizedSlug !== editSlug;
   const slugDraftIssue = slugValidationMessage(normalizedSlug);
-  const menuSurface = surfaceMenu ? form.surfaces[surfaceMenu.index] : undefined;
+  const ManagementContainer = compact ? "section" : "details";
   const surfaceCountLabel = form.surfaces.length > 0
     ? `추가 표기 ${form.surfaces.length.toLocaleString("ko-KR")}개`
     : "+ 추가 표기";
@@ -195,11 +168,11 @@ export function TermForm({
     if (!fieldErrors) return;
     if (fieldErrors.fullNameEn || fieldErrors.fullNameKo) setShowFullNameFields(true);
     if (fieldErrors.surfaces) {
-      managementDetailsRef.current!.open = true;
+      if (!compact) managementDetailsRef.current!.open = true;
       surfaceDetailsRef.current!.open = true;
     }
     if (["domain", "category", "topic", "ownerId"].some((field) => fieldErrors[field])) {
-      managementDetailsRef.current!.open = true;
+      if (!compact) managementDetailsRef.current!.open = true;
     }
     const firstField = Object.keys(fieldErrors)[0];
     const escapedField = firstField ? CSS.escape(firstField) : null;
@@ -241,28 +214,6 @@ export function TermForm({
     };
   }, [showAiReview]);
 
-  useEffect(() => {
-    if (!surfaceMenu) return;
-    const closeFromOutside = (event: PointerEvent) => {
-      if (surfaceMenuRef.current?.contains(event.target as Node)) return;
-      setSurfaceMenu(null);
-    };
-    const closeFromKeyboard = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") setSurfaceMenu(null);
-    };
-    const closeFromViewport = () => setSurfaceMenu(null);
-    document.addEventListener("pointerdown", closeFromOutside);
-    document.addEventListener("keydown", closeFromKeyboard);
-    window.addEventListener("resize", closeFromViewport);
-    window.addEventListener("scroll", closeFromViewport, true);
-    return () => {
-      document.removeEventListener("pointerdown", closeFromOutside);
-      document.removeEventListener("keydown", closeFromKeyboard);
-      window.removeEventListener("resize", closeFromViewport);
-      window.removeEventListener("scroll", closeFromViewport, true);
-    };
-  }, [surfaceMenu]);
-
   function updateField<K extends keyof TermFormState>(key: K, value: TermFormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
     setWarnings([]);
@@ -288,11 +239,10 @@ export function TermForm({
       ...current,
       surfaces: [
         ...current.surfaces,
-        ...values.map((text) => ({ text, lang: inferSurfaceLang(text), kind: surfaceBatchKind })),
+        ...values.map((text) => ({ text, lang: inferSurfaceLang(text), kind: "alias" })),
       ],
     }));
     setSurfaceBatch("");
-    setSurfaceAnnouncement(`${SURFACE_KIND_LABEL[surfaceBatchKind]}에 표기 ${values.length}개를 추가했습니다.`);
   }
 
   function applyAiSuggestion(field: EditReviewField, value: string | string[]) {
@@ -301,64 +251,18 @@ export function TermForm({
     setWarnings([]);
     setSaveToast(null);
     if (field === "fullNameEn" || field === "fullNameKo") setShowFullNameFields(true);
-    if (field === "domain" || field === "category" || field === "topic") managementDetailsRef.current!.open = true;
+    if (!compact && (field === "domain" || field === "category" || field === "topic")) managementDetailsRef.current!.open = true;
   }
 
   function removeSurface(index: number) {
     setForm((f) => ({ ...f, surfaces: f.surfaces.filter((_, i) => i !== index) }));
-    setSurfaceMenu(null);
-  }
-
-  function moveSurface(index: number, kind: ExplicitSurfaceKindLiteral) {
-    const surface = form.surfaces[index];
-    if (!surface || surface.kind === kind) return;
-    updateSurface(index, { kind });
-    setSurfaceAnnouncement(`${surface.text || `추가 표기 ${index + 1}`}을(를) ${SURFACE_KIND_LABEL[kind]}으로 이동했습니다.`);
+    setWarnings([]);
   }
 
   function handleSurfaceBatchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
     event.preventDefault();
     addSurfaceBatch();
-  }
-
-  function handleSurfaceDragStart(event: DragEvent<HTMLElement>, index: number) {
-    if (locked) {
-      event.preventDefault();
-      return;
-    }
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", String(index));
-    event.dataTransfer.setData("application/x-glossary-surface-index", String(index));
-    draggedSurfaceIndexRef.current = index;
-    setSurfaceMenu(null);
-    setDraggedSurfaceIndex(index);
-  }
-
-  function openSurfaceMenu(index: number, x: number, y: number) {
-    if (locked) return;
-    setSurfaceMenu({
-      index,
-      x: Math.max(8, Math.min(x, window.innerWidth - 232)),
-      y: Math.max(8, Math.min(y, window.innerHeight - 360)),
-    });
-  }
-
-  function handleSurfaceContextMenu(event: ReactMouseEvent<HTMLElement>, index: number) {
-    event.preventDefault();
-    openSurfaceMenu(index, event.clientX, event.clientY);
-  }
-
-  function handleSurfaceDrop(event: DragEvent<HTMLElement>, kind: ExplicitSurfaceKindLiteral) {
-    event.preventDefault();
-    event.stopPropagation();
-    const rawIndex = event.dataTransfer.getData("application/x-glossary-surface-index") || event.dataTransfer.getData("text/plain");
-    const transferred = rawIndex === "" ? Number.NaN : Number(rawIndex);
-    const index = Number.isInteger(transferred) ? transferred : draggedSurfaceIndexRef.current;
-    if (index !== null) moveSurface(index, kind);
-    draggedSurfaceIndexRef.current = null;
-    setDraggedSurfaceIndex(null);
-    setDragOverSurfaceKind(null);
   }
 
   function errorsFor(field: string): string[] | undefined {
@@ -536,7 +440,7 @@ export function TermForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className={cx("w-full", compact ? "flex min-h-[calc(100dvh-8rem)] flex-col gap-3 pb-24" : "space-y-5")}>
+    <form onSubmit={onSubmit} className={cx("w-full", compact ? "flex min-h-[calc(100dvh-6rem)] flex-col gap-3 pb-24" : "space-y-5")}>
       {conflict && (
         <div className="note note-warn" aria-live="polite">
           <p className="font-medium">{conflict.message}</p>
@@ -587,6 +491,8 @@ export function TermForm({
         </div>
       )}
 
+      <div className={cx(compact ? "grid min-h-0 flex-1 items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,20rem)]" : "space-y-5")}>
+      <div className={cx(compact ? "flex min-w-0 flex-col gap-3" : "space-y-5")}>
       <section className="card">
         <CompactSectionTitle
           compact={compact}
@@ -731,238 +637,90 @@ export function TermForm({
         </div>
       </section>
 
-      <details ref={managementDetailsRef} className="group/details card">
-            <CollapsibleSectionSummary
-              title="부가 정보"
-              summary={`${form.surfaces.length > 0 ? `추가 표기 ${form.surfaces.length}개` : "추가 표기 없음"} · ${managementSummary(form)}`}
-            />
+      </div>
+
+      <aside className="min-w-0" aria-label="용어 설정">
+      <ManagementContainer
+        ref={(node) => { managementDetailsRef.current = node instanceof HTMLDetailsElement ? node : null; }}
+        className="group/details card h-full"
+      >
+            {compact ? (
+              <header className="border-b border-line px-3 py-3">
+                <h2 className="text-sm font-semibold text-ink">용어 설정</h2>
+              </header>
+            ) : (
+              <CollapsibleSectionSummary
+                title="부가 정보"
+                summary={`${form.surfaces.length > 0 ? `추가 표기 ${form.surfaces.length}개` : "추가 표기 없음"} · ${managementSummary(form)}`}
+              />
+            )}
             <div className={compact ? "p-3 pt-0" : "p-4 pt-0 sm:p-5 sm:pt-0"}>
               <details ref={surfaceDetailsRef} className="group/details">
-                <summary className="btn-quiet btn-sm flex min-w-0 w-full cursor-pointer list-none flex-wrap items-center gap-1.5 text-left [&::-webkit-details-marker]:hidden">
-                  {form.surfaces.length > 0 ? (
-                    <>
-                      <span className="shrink-0 font-medium">{surfaceCountLabel}</span>
-                      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1" aria-label="추가 표기 미리보기">
-                        {form.surfaces.slice(0, SURFACE_PREVIEW_LIMIT).map((surface, index) => {
-                          const language = inferSurfaceLang(surface.text);
-                          return (
-                            <span
-                              key={`${surface.text}-${index}`}
-                              title={surface.text || "이름 없음"}
-                              className={`inline-flex min-w-0 max-w-44 items-center rounded-full border px-2 py-0.5 text-[11px] ${SURFACE_LANGUAGE_STYLE[language]}`}
-                            >
-                              <span className="truncate">{surface.text || "이름 없음"}</span>
-                            </span>
-                          );
-                        })}
-                        {form.surfaces.length > SURFACE_PREVIEW_LIMIT && (
-                          <span className="shrink-0 px-1 text-[11px] text-ink-3">+ {form.surfaces.length - SURFACE_PREVIEW_LIMIT}개 더보기</span>
-                        )}
-                      </span>
-                    </>
-                  ) : <span className="font-medium">{surfaceCountLabel}</span>}
+                <summary className="btn-quiet btn-sm flex min-w-0 w-full cursor-pointer list-none items-center gap-2 text-left [&::-webkit-details-marker]:hidden">
+                  <span className="font-medium">{surfaceCountLabel}</span>
+                  {form.surfaces.length > 0 && (
+                    <span className="min-w-0 flex-1 truncate text-xs text-ink-3">
+                      {form.surfaces.slice(0, SURFACE_PREVIEW_LIMIT).map((surface) => surface.text).join(", ")}
+                      {form.surfaces.length > SURFACE_PREVIEW_LIMIT ? "…" : ""}
+                    </span>
+                  )}
                   <span className="ml-auto shrink-0 text-ink-3 transition-transform group-open/details:rotate-180 motion-reduce:transition-none" aria-hidden="true">⌄</span>
                 </summary>
                 <div className="mt-2 rounded-xl border border-line bg-panel-2/20 p-3">
-                  <div>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <span className="inline-flex shrink-0 items-center gap-1.5">
-                          <label htmlFor="surface-batch" className="text-xs font-medium text-ink-2">한 번에 추가</label>
-                          <HelpTip text="쉼표로 여러 표기를 구분하고 Enter로 추가할 수 있습니다." />
-                        </span>
-                      <input
-                        id="surface-batch"
-                        name="surfaceBatch"
-                        autoComplete="off"
-                        value={surfaceBatch}
-                        maxLength={TERM_NAME_MAX * 10}
-                        disabled={locked}
-                        placeholder="예: T/O, TO, 티오…"
-                        onChange={(event) => setSurfaceBatch(event.target.value)}
-                        onKeyDown={handleSurfaceBatchKeyDown}
-                        className="field h-8 min-w-0 flex-1 py-0"
-                      />
-                        <select
-                          name="surfaceBatchKind"
-                          value={surfaceBatchKind}
-                          disabled={locked}
-                          aria-label="추가할 표기의 종류"
-                          onChange={(event) => setSurfaceBatchKind(event.target.value as ExplicitSurfaceKindLiteral)}
-                          className="field h-8 py-0 sm:w-32"
-                        >
-                          {EXPLICIT_SURFACE_KINDS.map((kind) => <option key={kind} value={kind}>{SURFACE_KIND_LABEL[kind]}</option>)}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={addSurfaceBatch}
-                          disabled={locked || pendingSurfaceValues.length === 0}
-                          className="btn-primary btn-sm h-8 shrink-0 touch-manipulation"
-                        >
-                          <IconPlus />표기 추가
-                        </button>
-                    </div>
-
-                    {form.surfaces.length > 0 && (
-                      <>
-                    <div className={cx("flex items-start justify-between gap-3", compact ? "mt-3" : "mt-4")}>
-                      <div className="inline-flex items-center gap-1.5">
-                        <h4 className="text-xs font-semibold text-ink-2">표기 종류</h4>
-                        <HelpTip text="배지를 끌어 종류를 바꾸거나 ⋯ 버튼에서 표기 옵션을 수정하세요." />
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2.5 text-[10px] text-ink-3" aria-label="표기 언어 색상">
-                        {SURFACE_LANGUAGE_ORDER.map((lang) => (
-                          <span key={lang} className="inline-flex items-center gap-1">
-                            <span className={cx("h-2 w-2 rounded-full border", SURFACE_LANGUAGE_STYLE[lang])} aria-hidden="true" />
-                            {LANG_LABEL[lang]}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="mt-2 rounded-xl border border-line-strong bg-panel-2/30 p-2 shadow-inner">
-                      <div className="flex flex-wrap items-stretch gap-1.5">
-                        {EXPLICIT_SURFACE_KINDS.filter((kind) => form.surfaces.some((surface) => surface.kind === kind)).map((kind) => {
-                          const entries = form.surfaces
-                            .map((surface, index) => ({ surface, index }))
-                            .filter(({ surface }) => surface.kind === kind);
-                          const isDragTarget = draggedSurfaceIndex !== null && dragOverSurfaceKind === kind;
-
-                          return (
-                            <section
-                              key={kind}
-                              aria-label={`${SURFACE_KIND_LABEL[kind]} 표기 ${entries.length}개`}
-                              onDragOver={(event) => {
-                                if (locked || draggedSurfaceIndexRef.current === null) return;
-                                event.preventDefault();
-                                event.dataTransfer.dropEffect = "move";
-                                setDragOverSurfaceKind(kind);
-                              }}
-                              onDrop={(event) => handleSurfaceDrop(event, kind)}
-                              className={`w-max min-w-28 max-w-80 flex-none rounded-lg border border-dashed p-1.5 transition-[width,border-color,background-color,box-shadow] ${
-                                isDragTarget ? "border-brand bg-brand-soft ring-2 ring-brand/20" : "border-line-strong bg-panel/70"
-                              }`}
-                            >
-                              <header className="mb-1 flex items-center justify-between gap-1">
-                                <h5 className="min-w-0 truncate text-xs font-semibold text-ink">{SURFACE_KIND_LABEL[kind]}</h5>
-                                <span className="shrink-0 rounded-full bg-panel-2 px-2 py-0.5 text-[10px] tabular-nums text-ink-3">{entries.length}</span>
-                              </header>
-                              <div className="flex flex-wrap gap-1.5">
-                                {entries.map(({ surface, index }) => {
-                                  const language = inferSurfaceLang(surface.text);
-                                  return (
-                                  <div
-                                    key={index}
-                                    title="드래그로 이동 · ⋯ 버튼으로 옵션 열기"
-                                    draggable={!locked}
-                                    onContextMenu={(event) => handleSurfaceContextMenu(event, index)}
-                                    onDragStart={(event) => handleSurfaceDragStart(event, index)}
-                                    onDragEnd={() => {
-                                      draggedSurfaceIndexRef.current = null;
-                                      setDraggedSurfaceIndex(null);
-                                      setDragOverSurfaceKind(null);
-                                    }}
-                                    className={`group/surface inline-flex max-w-full cursor-grab touch-none select-none items-center gap-1 rounded-full border py-1 pl-2.5 pr-1 text-xs shadow-sm transition hover:brightness-[0.97] hover:shadow active:cursor-grabbing ${SURFACE_LANGUAGE_STYLE[language]} ${
-                                      draggedSurfaceIndex === index ? "select-none opacity-50" : ""
-                                    }`}
-                                  >
-                                    <span className="truncate font-medium">{surface.text || "이름 없음"}</span>
-                                    <button
-                                      type="button"
-                                      draggable={false}
-                                      aria-label={`${surface.text || `추가 표기 ${index + 1}`} 옵션 열기`}
-                                      aria-haspopup="menu"
-                                      onPointerDown={(event) => event.stopPropagation()}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        const rect = event.currentTarget.getBoundingClientRect();
-                                        openSurfaceMenu(index, rect.right, rect.bottom + 4);
-                                      }}
-                                      disabled={locked}
-                                      className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-sm font-bold leading-none text-ink-2 transition hover:bg-panel/80 focus-visible:ring-2 focus-visible:ring-brand/40"
-                                    >
-                                      ⋯
-                                    </button>
-                                    <button
-                                      type="button"
-                                      draggable={false}
-                                      aria-label={`${surface.text || `추가 표기 ${index + 1}`} 삭제`}
-                                      title="표기 삭제"
-                                      onPointerDown={(event) => event.stopPropagation()}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        removeSurface(index);
-                                      }}
-                                      disabled={locked}
-                                      className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-sm leading-none text-ink-3 opacity-0 transition hover:bg-danger-soft hover:text-danger group-hover/surface:opacity-100 group-focus-within/surface:opacity-100"
-                                    >
-                                      ×
-                                    </button>
-                                  </div>
-                                  );
-                                })}
-                              </div>
-                            </section>
-                          );
-                        })}
-                      </div>
-                    </div>
-                      </>
-                    )}
-                    {surfaceMenu && menuSurface && (
-                      <div
-                        ref={surfaceMenuRef}
-                        role="menu"
-                        aria-label={`${menuSurface.text || "추가 표기"} 옵션`}
-                        className="fixed z-50 w-56 overflow-hidden rounded-xl border border-line-strong bg-panel shadow-2xl"
-                        style={{ left: surfaceMenu.x, top: surfaceMenu.y }}
-                      >
-                        <div className="border-b border-line bg-panel-2/70 p-2.5">
-                          <label className="label" htmlFor="surface-menu-text">표기</label>
+                  <div className="flex flex-col gap-2">
+                    <label htmlFor="surface-batch" className="text-xs font-medium text-ink-2">한 번에 추가</label>
+                    <input
+                      id="surface-batch"
+                      name="surfaceBatch"
+                      autoComplete="off"
+                      value={surfaceBatch}
+                      maxLength={TERM_NAME_MAX * 10}
+                      disabled={locked}
+                      placeholder="쉼표로 구분해 입력…"
+                      onChange={(event) => setSurfaceBatch(event.target.value)}
+                      onKeyDown={handleSurfaceBatchKeyDown}
+                      className="field h-8 min-w-0 py-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={addSurfaceBatch}
+                      disabled={locked || pendingSurfaceValues.length === 0}
+                      className="btn-primary btn-sm self-start touch-manipulation"
+                    >
+                      <IconPlus />표기 추가
+                    </button>
+                  </div>
+                  {form.surfaces.length > 0 && (
+                    <ul className="mt-3 space-y-2" aria-label="추가 표기 목록">
+                      {form.surfaces.map((surface, index) => (
+                        <li key={index} className="flex min-w-0 items-center gap-2">
                           <input
-                            id="surface-menu-text"
-                            name={`surface-${surfaceMenu.index}-text`}
+                            name={"surface-" + index + "-text"}
+                            aria-label={"추가 표기 " + (index + 1)}
                             autoComplete="off"
-                            value={menuSurface.text}
+                            value={surface.text}
                             maxLength={TERM_NAME_MAX}
-                            onChange={(event) => updateSurface(surfaceMenu.index, { text: event.target.value })}
-                            className="field py-1.5"
+                            disabled={locked}
+                            onChange={(event) => updateSurface(index, { text: event.target.value })}
+                            className="field h-8 min-w-0 flex-1 py-0"
                           />
-                        </div>
-                        <div className="p-2.5">
-                          <p className="mb-1.5 text-[11px] font-semibold text-ink-3">표기 종류</p>
-                          <div className="grid grid-cols-2 gap-1">
-                            {EXPLICIT_SURFACE_KINDS.map((kind) => (
-                              <button
-                                key={kind}
-                                type="button"
-                                role="menuitemradio"
-                                aria-checked={menuSurface.kind === kind}
-                                onClick={() => moveSurface(surfaceMenu.index, kind)}
-                                className={cx("btn-sm justify-start rounded-md", menuSurface.kind === kind ? "btn-primary" : "btn-quiet")}
-                              >
-                                {SURFACE_KIND_LABEL[kind]}
-                              </button>
-                            ))}
-                          </div>
                           <button
                             type="button"
-                            role="menuitem"
-                            onClick={() => removeSurface(surfaceMenu.index)}
-                            className="btn-danger btn-sm mt-3 w-full"
+                            aria-label={(surface.text || "추가 표기 " + (index + 1)) + " 삭제"}
+                            onClick={() => removeSurface(index)}
+                            disabled={locked}
+                            className="btn-ghost btn-sm shrink-0"
                           >
-                            이 표기 삭제
+                            삭제
                           </button>
-                        </div>
-                      </div>
-                    )}
-                    <p className="sr-only" aria-live="polite">
-                      {surfaceAnnouncement}
-                    </p>
-                  </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </details>
             <div className="mt-3 border-t border-line pt-3">
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className={cx("grid gap-3", !compact && "md:grid-cols-2 xl:grid-cols-4")}>
             <div>
               <ClassificationMultiSelect
                 name="domain"
@@ -1081,7 +839,9 @@ export function TermForm({
             )}
           </div>
           </div>
-      </details>
+      </ManagementContainer>
+      </aside>
+      </div>
 
       <div className={cx(
         compact
