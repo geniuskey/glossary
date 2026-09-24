@@ -265,7 +265,7 @@ export function CandidateCheckPanel({
 
       {view === "check" ? (
         <section className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-stretch">
-          <form className="flex min-w-0 flex-col rounded-xl border border-line bg-panel p-3 shadow-sm xl:h-[calc(100dvh-8.5rem)] xl:min-h-[36rem]" onSubmit={checkDocument}>
+          <form className="flex min-w-0 flex-col rounded-xl border border-line bg-panel-2 p-3 shadow-sm xl:h-[calc(100dvh-8.5rem)] xl:min-h-[36rem]" onSubmit={checkDocument}>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               {result ? <span className="text-sm font-semibold text-ink">문서 본문</span> : <label htmlFor="document-content" className="text-sm font-semibold text-ink">문서 본문</label>}
               <div className="flex items-center gap-3">
@@ -274,11 +274,11 @@ export function CandidateCheckPanel({
               </div>
             </div>
             {result ? (
-              <pre id="document-content" tabIndex={0} aria-label="점검된 문서 본문" className="field min-h-[30rem] min-w-0 flex-1 overflow-auto whitespace-pre-wrap break-words border-line-strong bg-panel-2 font-mono text-sm leading-7 text-ink xl:min-h-0">
+              <pre id="document-content" tabIndex={0} aria-label="점검된 문서 본문" className="field min-h-[30rem] min-w-0 flex-1 overflow-auto whitespace-pre-wrap break-words border-line-strong bg-panel font-mono text-sm leading-7 text-ink xl:min-h-0">
                 <HighlightedDocument content={content} highlights={highlights} selectedStart={selectedStart} onSelect={selectHighlight} />
               </pre>
             ) : (
-              <textarea id="document-content" name="content" value={content} onChange={(event) => setContent(event.target.value)} disabled={checking} aria-describedby={error ? "check-error" : undefined} className="field min-h-[30rem] min-w-0 flex-1 resize-y border-line-strong bg-panel-2 font-mono text-sm leading-7 shadow-sm xl:min-h-0" placeholder="# 문서 제목\n\n본문을 붙여 넣으세요…" maxLength={1_000_000} />
+              <textarea id="document-content" name="content" value={content} onChange={(event) => setContent(event.target.value)} disabled={checking} aria-describedby={error ? "check-error" : undefined} className="field min-h-[30rem] min-w-0 flex-1 resize-y border-line-strong bg-panel font-mono text-sm leading-7 shadow-sm xl:min-h-0" placeholder={"# 문서 제목\n\n본문을 붙여 넣으세요…"} maxLength={1_000_000} />
             )}
             {error && <p id="check-error" role="alert" className="mt-2 rounded-lg border border-danger/35 bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>}
             {!result && <div className="mt-2 flex flex-wrap items-center justify-between gap-3">

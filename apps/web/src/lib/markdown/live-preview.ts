@@ -475,7 +475,11 @@ export function buildLivePreviewDecorations(state: EditorState): DecorationSet {
       continue;
     }
 
-    if (active.has(number)) continue;
+    if (active.has(number)) {
+      const heading = /^( {0,3})(#{1,6})(?:\s+|$)/.exec(text);
+      if (heading) mark(ranges, line.from, line.to, LIVE_PREVIEW_DECORATIONS.heading[(heading[2] ?? "").length - 1]!);
+      continue;
+    }
 
     const mathEnd = findDisplayMathEnd(state, number);
     if (mathEnd !== null && !hasActiveLine(active, number, mathEnd) && !hasActiveLine(selected, number, mathEnd)) {

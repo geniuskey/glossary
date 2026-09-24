@@ -373,12 +373,16 @@ export function MarkdownEditor({
             ".cm-scroller": { overflow: "auto" },
             ".cm-content": {
               minHeight: resizable ? "100%" : compact ? "10rem" : "16rem",
-              padding: compact ? "0.75rem" : "1rem",
+              padding: compact ? "0.75rem 0" : "1rem 0",
               caretColor: "rgb(var(--brand))",
               fontFamily: '"Noto Sans KR Variable", "Noto Sans KR", Pretendard, sans-serif',
               fontSize: "14px",
               lineHeight: "1.75",
               letterSpacing: "-0.012em",
+            },
+            ".cm-line": {
+              paddingLeft: compact ? "calc(0.75rem + 6px)" : "calc(1rem + 6px)",
+              paddingRight: compact ? "calc(0.75rem + 2px)" : "calc(1rem + 2px)",
             },
             ".cm-gutters": { backgroundColor: "rgb(var(--panel-2))", color: "rgb(var(--ink-3))", border: "none" },
             ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "rgb(var(--brand) / 0.06)" },
@@ -532,7 +536,7 @@ export function MarkdownEditor({
 
         <div className="markdown-toolbar-view-segments ml-auto flex shrink-0 items-center rounded-lg border border-line bg-panel p-0.5" role="group" aria-label="본문 보기 방식">
           {([
-            { value: "glossary", label: "용어집 방식" },
+            { value: "glossary", label: "서식 편집" },
             { value: "text", label: "텍스트" },
             { value: "preview", label: "미리보기" },
           ] as const).map((item) => (
@@ -557,7 +561,7 @@ export function MarkdownEditor({
           }}
           className="markdown-toolbar-view-select field ml-auto !h-8 !w-[6.75rem] shrink-0 !px-2 !py-0 !pr-6 text-xs"
         >
-          <option value="glossary">용어집 방식</option>
+          <option value="glossary">서식 편집</option>
           <option value="text">텍스트 편집</option>
           <option value="preview">미리보기</option>
           <option value="fullscreen">{fullscreen ? "전체 화면 닫기" : "전체 화면"}</option>
@@ -577,7 +581,7 @@ export function MarkdownEditor({
       <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={chooseFiles} />
       {uploadError && <div className="border-b border-danger/35 bg-danger-soft px-3 py-2 text-xs text-danger" aria-live="polite">{uploadError}</div>}
       <div className={`grid ${fullscreen || resizable ? "min-h-0 flex-1" : ""}`}>
-        <div className={`${mode === "preview" ? "hidden" : "block"} h-full min-h-0 overflow-auto`} aria-label={mode === "glossary" ? "용어집 방식 Markdown 편집기" : "텍스트 Markdown 편집기"} ref={hostRef} />
+        <div className={`${mode === "preview" ? "hidden" : "block"} h-full min-h-0 overflow-auto`} aria-label={mode === "glossary" ? "서식 편집 Markdown 편집기" : "텍스트 Markdown 편집기"} ref={hostRef} />
         <div className={`${mode === "preview" ? "block" : "hidden"} ${resizable ? "min-h-0" : compact ? "min-h-40" : "min-h-[16rem]"} h-full overflow-auto ${compact ? "p-3" : "p-4"} ${fullscreen ? "min-h-0" : ""}`}>
           {value.trim() ? <MarkdownContent>{value}</MarkdownContent> : <p className="text-sm text-ink-3">미리보기가 여기에 표시됩니다.</p>}
         </div>

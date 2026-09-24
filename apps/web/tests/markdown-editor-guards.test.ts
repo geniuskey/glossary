@@ -28,7 +28,7 @@ test("전체 화면은 Esc로 닫히고 배경 스크롤을 복원한다", () =>
 
 test("본문 편집과 미리보기는 한 번에 하나만 보여 빈 패널을 만들지 않는다", () => {
   expect(source).toContain('mode === "preview" ? "hidden" : "block"');
-  expect(source).toContain('mode === "glossary" ? "용어집 방식 Markdown 편집기" : "텍스트 Markdown 편집기"');
+  expect(source).toContain('mode === "glossary" ? "서식 편집 Markdown 편집기" : "텍스트 Markdown 편집기"');
   expect(source).toContain('mode === "preview" ? "block" : "hidden"');
   expect(source).toContain('minHeight: compact ? "10rem" : "16rem"');
   expect(source).not.toContain('minHeight: "26rem"');
@@ -94,16 +94,16 @@ test("자주 쓰는 인라인 서식과 제목에는 키보드 단축키가 있�
   expect(source).toContain('event.altKey && /^[1-6]$/.test(key)');
 });
 
-test("용어집 방식은 한 화면 인라인 라이브 프리뷰를 사용한다", () => {
+test("서식 편집은 한 화면 인라인 라이브 프리뷰를 사용한다", () => {
   expect(editorSource).toContain('mode === "glossary" ? livePreviewExtension : []');
-  expect(editorSource).toContain('용어집 방식');
+  expect(editorSource).toContain('서식 편집');
   expect(editorSource).toContain('텍스트 편집');
   expect(editorSource).toContain('미리보기');
   expect(editorSource).not.toContain("grid-rows-[minmax(12rem,1fr)_minmax(12rem,1fr)]");
   expect(editorSource).not.toContain("커서가 있는 줄에서 Markdown 원문을 편집합니다");
   expect(livePreviewSource).toContain("function activeLineNumbers");
   expect(livePreviewSource).toContain("function selectedLineNumbers");
-  expect(livePreviewSource).toContain("if (active.has(number)) continue;");
+  expect(livePreviewSource).toContain("if (active.has(number)) {");
   expect(livePreviewSource).toContain("HIDDEN_MARKUP");
   expect(livePreviewSource).toContain("StateField.define<DecorationSet>");
   expect(livePreviewSource).not.toContain("ViewPlugin");
@@ -129,7 +129,7 @@ test("Markdown 제목과 서식은 메뉴바에 표시하고 보기 방식은 �
   expect(editorSource).toContain('aria-label="본문 보기 방식"');
   expect(editorSource).toContain('className="markdown-toolbar-view-segments ml-auto flex shrink-0 items-center rounded-lg border border-line bg-panel p-0.5"');
   expect(editorSource).toContain('aria-pressed={mode === item.value}');
-  expect(editorSource).toContain('{ value: "glossary", label: "용어집 방식" }');
+  expect(editorSource).toContain('{ value: "glossary", label: "서식 편집" }');
   expect(editorSource).toContain('{ value: "text", label: "텍스트" }');
   expect(editorSource).toContain('{ value: "preview", label: "미리보기" }');
   expect(editorSource.match(/<select\b/g)).toHaveLength(3);
@@ -165,7 +165,20 @@ test("커서가 있는 줄만 Markdown 원문을 유지한다", () => {
   firstLineDecorations.between(0, firstLineState.doc.line(1).to, (_from, _to, decoration) => {
     if (typeof decoration.spec.class === "string") firstLineClasses.push(decoration.spec.class);
   });
-  expect(firstLineClasses).not.toContain("cm-live-heading-1");
+  expect(firstLineClasses).toContain("cm-live-heading-1");
+});
+
+test("제목을 편집하는 동안 # 개수에 맞는 스타일을 바로 적용하고 원문을 유지한다", () => {
+  for (let level = 1; level <= 6; level += 1) {
+    const doc = `${"#".repeat(level)} 제목`;
+    const state = EditorState.create({ doc, selection: { anchor: level } });
+    const ranges: Array<{ from: number; to: number; className: unknown }> = [];
+    buildLivePreviewDecorations(state).between(0, doc.length, (from, to, decoration) => {
+      ranges.push({ from, to, className: decoration.spec.class });
+    });
+
+    expect(ranges).toEqual([{ from: 0, to: doc.length, className: `cm-live-heading-${level}` }]);
+  }
 });
 
 test("텍스트를 선택하는 동안에는 Markdown 문법이 인덴트처럼 다시 나타나지 않는다", () => {
