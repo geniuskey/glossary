@@ -118,10 +118,10 @@ export const IMPORT_COLUMNS: readonly ImportColumn[] = [
   },
   {
     field: "topic",
-    header: "주제",
-    otherHeaders: ["topic", "세부_주제"],
+    header: "태그",
+    otherHeaders: ["topic", "세부_주제", "주제", "tags"],
     requirement: "optional",
-    hint: "자유 입력 세부 주제. 예: 노출 제어",
+    hint: "쉼표나 줄바꿈으로 여러 태그를 입력. 예: 노출 제어, 영상",
     width: 18,
   },
   {

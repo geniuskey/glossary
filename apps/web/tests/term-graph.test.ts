@@ -20,6 +20,7 @@ function term(index: number, overrides: Partial<GraphTerm> = {}): GraphTerm {
     categoryLabel: null,
     categoryLabels: [],
     topic: null,
+    tags: overrides.tags ?? (overrides.topic ? [overrides.topic] : []),
     ownerId: null,
     ownerName: null,
     status: "active",
@@ -132,7 +133,7 @@ test("허브 제한으로 누락된 연결을 집계하고 전체 연결은 유�
   expect(termRelations(terms[19]!)).toEqual([
     { key: "d:Domain 19", label: "Domain 19", kind: "domain" },
     { key: "c:design", label: "설계", kind: "category" },
-    { key: "t:노출", label: "노출", kind: "topic" },
+    { key: "t:노출", label: "#노출", kind: "topic" },
   ]);
   const html = renderToStaticMarkup(createElement(TermGraph, { terms }));
   expect(html).toContain("생략했습니다");

@@ -11,7 +11,7 @@ export function graphFilterHref(pathname: string, values: FilterValues, view?: "
   const params = new URLSearchParams();
   if (view) params.set("view", view);
   for (const [name, value] of Object.entries(values)) {
-    if (value) params.set(name, value);
+    if (value) params.set(name === "topic" ? "tag" : name, value);
   }
   return params.size ? `${pathname}?${params}` : pathname;
 }
@@ -59,7 +59,7 @@ export function GraphFilterBar({
       <div className="graph-toolbar-filters-full w-max items-center gap-1.5">
         <FilterSelect name="domain" value={selected.domain} label="도메인" emptyLabel="전체" options={domains} onChange={change} />
         <FilterSelect name="category" value={selected.category} label="업무 분류" emptyLabel="전체" options={categories} onChange={change} />
-        <FilterSelect name="topic" value={selected.topic} label="주제" emptyLabel="전체" options={topics} onChange={change} />
+        <FilterSelect name="topic" value={selected.topic} label="태그" emptyLabel="전체" options={topics} onChange={change} />
         <button className="btn-ghost h-8 shrink-0 px-2.5 text-xs" type="button" onClick={reset} disabled={!filterCount || pending}>
           초기화
         </button>
@@ -74,7 +74,7 @@ export function GraphFilterBar({
           <div className="space-y-2">
             <FilterSelect idPrefix="compact" name="domain" value={selected.domain} label="도메인" emptyLabel="전체" options={domains} onChange={change} compact />
             <FilterSelect idPrefix="compact" name="category" value={selected.category} label="업무 분류" emptyLabel="전체" options={categories} onChange={change} compact />
-            <FilterSelect idPrefix="compact" name="topic" value={selected.topic} label="주제" emptyLabel="전체" options={topics} onChange={change} compact />
+            <FilterSelect idPrefix="compact" name="topic" value={selected.topic} label="태그" emptyLabel="전체" options={topics} onChange={change} compact />
           </div>
           <button className="btn-ghost mt-3 h-8 w-full px-2.5 text-xs" type="button" onClick={reset} disabled={!filterCount || pending}>
             필터 초기화

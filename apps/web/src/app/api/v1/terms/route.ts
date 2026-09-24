@@ -92,7 +92,7 @@ export const GET = withApiErrors(async (request: Request) => {
   const domain = url.searchParams.get("domain");
   const rawCategory = url.searchParams.get("category");
   const categoryIsKnown = rawCategory ? await businessCategoryExists(rawCategory) : false;
-  const topic = url.searchParams.get("topic") ?? (rawCategory && !categoryIsKnown ? rawCategory : null);
+  const topic = url.searchParams.get("tag") ?? url.searchParams.get("topic") ?? (rawCategory && !categoryIsKnown ? rawCategory : null);
   if (q && q.length > TERM_QUERY_MAX) {
     return apiError("validation_failed", `q는 ${TERM_QUERY_MAX}자 이하여야 합니다.`, 400, { field: "q" });
   }
@@ -103,7 +103,7 @@ export const GET = withApiErrors(async (request: Request) => {
     return apiError("validation_failed", `category는 ${DOMAIN_VALUE_MAX}자 이하여야 합니다.`, 400, { field: "category" });
   }
   if (topic && topic.length > DOMAIN_VALUE_MAX) {
-    return apiError("validation_failed", `topic은 ${DOMAIN_VALUE_MAX}자 이하여야 합니다.`, 400, { field: "topic" });
+    return apiError("validation_failed", `tag는 ${DOMAIN_VALUE_MAX}자 이하여야 합니다.`, 400, { field: "tag" });
   }
 
   const category: BusinessCategory | undefined = rawCategory && categoryIsKnown ? rawCategory : undefined;

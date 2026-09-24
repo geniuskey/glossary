@@ -47,9 +47,9 @@ export function CategoryBadges({ categories, labels = [] }: { categories: Busine
   );
 }
 
-export function TopicBadge({ topic }: { topic: string | null }) {
-  if (!topic) return null;
-  return <span className="chip">주제 · {topic}</span>;
+export function TagBadges({ tags }: { tags: string[] }) {
+  if (tags.length === 0) return null;
+  return <span className="flex flex-wrap gap-1">{tags.map((tag) => <span key={tag} className="chip">#{tag}</span>)}</span>;
 }
 
 export function OwnerBadge({ ownerName, mine = false }: { ownerName: string | null; mine?: boolean }) {

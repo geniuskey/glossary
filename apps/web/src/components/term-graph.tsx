@@ -154,7 +154,7 @@ export function termRelations(term: GraphTerm): { key: string; label: string; ki
   return [...new Map([
     ...term.domain.map((label) => ({ key: `d:${label}`, label, kind: "domain" as const })),
     ...termCategoryKeys(term).map((category) => ({ key: `c:${category}`, label: termCategoryLabel(term, category), kind: "category" as const })),
-    ...(term.topic ? [{ key: `t:${term.topic}`, label: term.topic, kind: "topic" as const }] : []),
+    ...term.tags.map((tag) => ({ key: `t:${tag}`, label: `#${tag}`, kind: "topic" as const })),
   ].map((relation) => [relation.key, relation])).values()];
 }
 
@@ -215,7 +215,7 @@ export function buildGraphModel(terms: readonly GraphTerm[]): GraphModel {
         kind: "category",
       });
     }
-    if (term.topic) hubDefs.set(`t:${term.topic}`, { label: term.topic, kind: "topic" });
+    for (const tag of term.tags) hubDefs.set(`t:${tag}`, { label: `#${tag}`, kind: "topic" });
   }
 
   const definitions = [...hubDefs.entries()].slice(0, HUB_LIMIT);
@@ -237,7 +237,7 @@ export function buildGraphModel(terms: readonly GraphTerm[]): GraphModel {
   const termNodes: GraphNode[] = terms.slice(0, TERM_LIMIT).map((term, index) => {
     const keys = [
       ...termCategoryKeys(term).map((category) => `c:${category}`),
-      ...(term.topic ? [`t:${term.topic}`] : []),
+      ...term.tags.map((tag) => `t:${tag}`),
       ...term.domain.map((domain) => `d:${domain}`),
     ].filter((key) => hubKeys.has(key));
     const anchor = hubs.find((hub) => hub.key === keys[0]);
@@ -352,7 +352,7 @@ function simulate(nodes: GraphNode[], edges: readonly GraphEdge[], alpha: number
 
 function kindLabel(kind: NodeKind): string {
   if (kind === "category") return "업무 분류";
-  if (kind === "topic") return "주제";
+  if (kind === "topic") return "태그";
   if (kind === "domain") return "도메인";
   return "용어";
 }
@@ -741,7 +741,7 @@ export function TermGraph({
         onPointerCancel={endPointer}
         onDoubleClick={() => setView({ x: 0, y: 0, scale: 1 })}
       >
-        <title id="term-graph-title">{mode === "semantic" ? "승인된 의미 관계도" : "도메인, 업무 분류와 주제로 연결한 용어 관계도"}</title>
+        <title id="term-graph-title">{mode === "semantic" ? "승인된 의미 관계도" : "도메인, 업무 분류와 태그로 연결한 용어 관계도"}</title>
         <desc id="term-graph-description">방향키로 이동, Home으로 전체 맞춤, Escape로 선택 해제. Tab으로 노드를 탐색하고 Enter 또는 Space로 선택하면 오른쪽 상세 패널이 열립니다.</desc>
         <rect width={WIDTH} height={HEIGHT} className="fill-transparent" />
         {mode === "semantic" && <defs><marker id={markerId} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" className="fill-ink-3" /></marker></defs>}
@@ -986,7 +986,7 @@ export function TermGraph({
         {mode !== "semantic" && <>
           <TermColorLegend hues={[...new Set(domainHues.values())].slice(0, 3)} label="도메인" variant="domain" />
           <TermColorLegend hues={categoryHues} label="업무 분류" variant="category" />
-          <LegendDot className="graph-topic-swatch border" label="주제" />
+          <LegendDot className="graph-topic-swatch border" label="태그" />
         </>}
         <TermColorLegend hues={[...new Set(termColorHues.values())].slice(0, 3)} label="용어 · 분류색 우선" variant="term" />
       </div>

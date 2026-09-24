@@ -1,6 +1,7 @@
 import type { BusinessCategoryLiteral, TermStatusLiteral } from "./enums";
 import { inferSurfaceLang } from "./surface-language";
 import type { TermQualityProfile } from "@/lib/workspace/term-quality-values";
+import { normalizeTags } from "./tags";
 
 // R116: term-form.tsx는 Client Component라 vitest.config.ts에 jsdom 환경이 없는
 // 이 저장소(R97)에서는 렌더 테스트를 할 수 없다. logout.ts/list-params.ts와
@@ -22,6 +23,7 @@ export interface TermFormState {
   domain: string;
   category: string;
   topic: string;
+  tags: string[];
   ownerId: string;
   status: TermStatusLiteral;
   definitionMd: string;
@@ -38,6 +40,7 @@ export interface TermWritePayload {
   domain: string[];
   category: BusinessCategoryLiteral[];
   topic: string | null;
+  tags?: string[];
   ownerId: string | null;
   definitionMd?: string;
   bodyMd?: string;
@@ -58,6 +61,7 @@ export function newTermFormState(searchQuery = ""): TermFormState {
     domain: "",
     category: "",
     topic: "",
+    tags: [],
     ownerId: "",
     status: "draft",
     definitionMd: "",
@@ -107,7 +111,8 @@ export function buildTermPayload(form: TermFormState, expectedRevision?: number)
       .split(",")
       .map((category) => category.trim())
       .filter(Boolean) as BusinessCategoryLiteral[],
-    topic: form.topic.trim() || null,
+    topic: normalizeTags(form.tags)[0] ?? null,
+    tags: normalizeTags(form.tags),
     ownerId: form.ownerId || null,
     definitionMd: form.definitionMd.trim() || undefined,
     bodyMd: form.bodyMd.trim() || undefined,

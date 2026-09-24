@@ -114,7 +114,7 @@ export function buildRagChunks(
     `추가 표기: ${surfaceLine(surfaces)}`,
     `도메인: ${term.domain.join(", ")}`,
     `업무 분류: ${term.category.join(", ")}`,
-    `주제: ${term.topic ?? ""}`,
+    `태그: ${term.tags.join(", ")}`,
     `상태: ${term.status}`,
   ].filter((line) => line.split(": ").at(1)).join("\n");
 

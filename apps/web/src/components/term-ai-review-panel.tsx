@@ -16,7 +16,7 @@ const FIELD_LABEL: Record<EditReviewField, string> = {
   bodyMd: "상세 설명",
   domain: "도메인",
   category: "업무 분류",
-  topic: "주제",
+  topic: "태그",
 };
 
 const FINDING_LABEL: Record<EditReviewResult["findings"][number]["kind"], string> = {

@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { TermForm, type TermFormInitial } from "@/components/term-form";
 import { getCurrentUser } from "@/lib/auth/current-user";
-import { getTermByIdOrSlug } from "@/lib/terms/query";
+import { getTermByIdOrSlug, termFacets } from "@/lib/terms/query";
 import { listAssignableUsers } from "@/lib/terms/owners";
 import { listBusinessCategories } from "@/lib/terms/categories";
 import { listDomains } from "@/lib/terms/domains";
@@ -22,11 +22,12 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
   // R109: 편집 폼은 지금 이 서버 렌더 시점의 리비전 번호를 expectedRevision으로
   // 들고 가야, 그 사이 다른 사람이 먼저 저장했을 때 PATCH가 조용히 덮어쓰지
   // 않고 409로 막을 수 있다. listRevisions는 최신순이므로 [0]이 현재 리비전이다.
-  const [revisions, assignees, domainOptions, categoryOptions] = await Promise.all([
+  const [revisions, assignees, domainOptions, categoryOptions, facets] = await Promise.all([
     listRevisions(term.id),
     listAssignableUsers(),
     listDomains(),
     listBusinessCategories(),
+    termFacets(),
   ]);
   const expectedRevision = revisions[0]?.revisionNumber ?? 0;
 
@@ -46,6 +47,7 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
     domain: term.domain.join(", "),
     category: term.categories.join(", "),
     topic: term.topic ?? "",
+    tags: term.tags,
     ownerId: term.ownerId ?? "",
     status: term.status,
     definitionMd: term.definitionMd ?? "",
@@ -82,6 +84,7 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
         assignees={assignees}
         domainOptions={domainOptions}
         categoryOptions={categoryOptions}
+        tagOptions={facets.topics.map((item) => item.value)}
         canDelete={user.role === "admin"}
       />
     </AppShell>

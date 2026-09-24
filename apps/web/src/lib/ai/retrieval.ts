@@ -360,6 +360,7 @@ async function retrieveSnapshot(
       domain: terms.domain,
       categories: terms.category,
       topic: terms.topic,
+      tags: terms.tags,
       status: terms.status,
       definitionMd: terms.definitionMd,
       bodyMd: terms.bodyMd,
@@ -396,7 +397,7 @@ async function retrieveSnapshot(
       body: extractMarkdownImages(term.bodyMd),
     };
     const allImages = [...new Map([...images.definition, ...images.body].map((image) => [image.url, image])).values()];
-    const metadata = `표기: ${[term.nameKo, term.nameEn].filter(Boolean).join(" / ")}; 확장명: ${[term.fullNameKo, term.fullNameEn].filter(Boolean).join(" / ")}; 도메인: ${term.domain.join(", ")}; 업무 분류: ${term.categories.join(", ")}; 주제: ${term.topic ?? ""}; 추가 표기: ${surfaceRows.filter((surface) => surface.termId === term.id).map((surface) => `${surface.text} (${surface.kind})`).join(", ")}`;
+    const metadata = `표기: ${[term.nameKo, term.nameEn].filter(Boolean).join(" / ")}; 확장명: ${[term.fullNameKo, term.fullNameEn].filter(Boolean).join(" / ")}; 도메인: ${term.domain.join(", ")}; 업무 분류: ${term.categories.join(", ")}; 태그: ${term.tags.join(", ")}; 추가 표기: ${surfaceRows.filter((surface) => surface.termId === term.id).map((surface) => `${surface.text} (${surface.kind})`).join(", ")}`;
     const vectorEvidence = vectorHits
       .filter((hit) => hit.termId === term.id && hit.revision === term.revision)
       .map((hit) => ({
@@ -423,6 +424,7 @@ async function retrieveSnapshot(
     domains: term.domain,
     businessCategories: term.categories,
     topic: term.topic,
+    tags: term.tags,
     definition: evidence.filter((item) => item.slug === term.slug && item.field === "definition").map((item) => item.excerpt).join("\n\n") || null,
     body: evidence.filter((item) => item.slug === term.slug && item.field === "body").map((item) => item.excerpt).join("\n\n") || null,
     images: {

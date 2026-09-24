@@ -27,7 +27,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
   const rawCategory = first(params.category);
   const [facets, domainOptions] = await Promise.all([termFacets(), listDomains()]);
   const category = facets.categories.some((facet) => facet.value === rawCategory) ? rawCategory : undefined;
-  const topic = first(params.topic) ?? (rawCategory && !category ? rawCategory : undefined);
+  const topic = first(params.tag ?? params.topic) ?? (rawCategory && !category ? rawCategory : undefined);
   // 기존 /graph?domain=... 링크는 분류 지도로 유지한다. 필터 없는 기본 화면은
   // 실제 승인 관계와 근거를 먼저 보여준다.
   const semantic = first(params.view) === "semantic" || (first(params.view) !== "classification" && !domain && !category && !topic);
@@ -53,7 +53,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
   const filters = new URLSearchParams();
   if (domain) filters.set("domain", domain);
   if (category) filters.set("category", category);
-  if (topic) filters.set("topic", topic);
+  if (topic) filters.set("tag", topic);
   filters.set("view", "classification");
   const classificationHref = `/graph?${filters}`;
   const focusQuery = focusTerm ? `&focus=${encodeURIComponent(focusTerm.slug)}` : "";

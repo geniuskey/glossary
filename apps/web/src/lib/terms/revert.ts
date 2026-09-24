@@ -39,6 +39,7 @@ const snapshotSchema = z.object({
     domain: z.array(z.string()).optional(),
     category: z.union([z.string(), z.array(z.string())]).nullable().optional(),
     topic: z.string().nullable().optional(),
+    tags: z.array(z.string()).optional(),
     ownerId: z.string().uuid().nullable().optional(),
     // R130: 옛 리비전에는 지금은 사라진 approved가 들어 있다. 스냅샷은 일부러
     // 고쳐 쓰지 않으므로 읽는 쪽에서 현재의 active로 옮긴다. draft는 다시 정식
@@ -107,6 +108,7 @@ function toPatch(snapshot: z.infer<typeof snapshotSchema>): TermUpdate {
     ...(t.domain !== undefined ? { domain: t.domain } : {}),
     ...(category !== undefined ? { category } : {}),
     ...(topic !== undefined ? { topic } : {}),
+    ...(t.tags !== undefined ? { tags: t.tags } : topic !== undefined ? { tags: topic ? [topic] : [] } : {}),
     ...(t.ownerId !== undefined ? { ownerId: t.ownerId } : {}),
     ...(status !== undefined ? { status } : {}),
     ...(t.definitionMd !== undefined ? { definitionMd: t.definitionMd ?? "" } : {}),

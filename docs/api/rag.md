@@ -1,6 +1,6 @@
 # RAG 검색 API
 
-용어집의 대표 표기·풀네임·추가 표기·도메인·업무 분류·주제·상태·정의·본문을 청크로
+용어집의 대표 표기·풀네임·추가 표기·도메인·업무 분류·태그·상태·정의·본문을 청크로
 나누어 `pgvector`에 저장하고, 질문을 같은 Embedding 공간으로 바꾸어 검색한다. 경로는
 모두 `/api/v1` 기준이다.
 
@@ -142,6 +142,7 @@ curl -s \
       "nameKo": "정산 예외",
       "domain": ["Finance"],
       "categories": ["process"],
+      "tags": ["정산"],
       "topic": "정산",
       "status": "active",
       "revision": 3,

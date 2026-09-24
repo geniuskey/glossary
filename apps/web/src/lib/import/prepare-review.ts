@@ -27,7 +27,7 @@ export const reviewRequestSchema = z.object({
 export function reviewedInput(row: ImportRow) {
   return {
     nameEn: row.nameEn, nameKo: row.nameKo, fullNameEn: row.fullNameEn, fullNameKo: row.fullNameKo,
-    domain: row.domain, category: row.category ? [row.category] : [], topic: row.topic, definitionMd: row.definitionMd, bodyMd: row.bodyMd,
+    domain: row.domain, category: row.category ? [row.category] : [], topic: row.topic, tags: row.tags, definitionMd: row.definitionMd, bodyMd: row.bodyMd,
     surfaces: [
       ...row.canonicalNames.map((text) => ({ text, kind: "canonical" as const })),
       ...row.abbreviations.map((text) => ({ text, kind: "abbreviation" as const })),

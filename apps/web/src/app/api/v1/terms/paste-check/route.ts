@@ -39,7 +39,8 @@ const FIELD_LABELS: Record<string, string> = {
   status: "상태",
   domain: "도메인",
   category: "업무 분류",
-  topic: "주제",
+  topic: "태그",
+  tags: "태그",
   definitionMd: "한줄 정의",
   bodyMd: "본문",
 };

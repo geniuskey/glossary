@@ -69,7 +69,7 @@ export function embedBaseQuery(params: ParsedListParams): string {
   if (params.q) query.set("q", params.q);
   if (params.domain) query.set("domain", params.domain);
   if (params.category) query.set("category", params.category);
-  if (params.topic) query.set("topic", params.topic);
+  if (params.topic) query.set("tag", params.topic);
   if (params.status) query.set("status", params.status);
   if (params.sort) query.set("sort", params.sort);
   if (params.dir) query.set("dir", params.dir);
@@ -87,8 +87,9 @@ export function buildEmbedPath(
   const query = new URLSearchParams(baseQuery);
   if (filters) {
     for (const [key, value] of Object.entries(filters)) {
-      if (value.trim()) query.set(key, value.trim());
-      else query.delete(key);
+      const queryKey = key === "topic" ? "tag" : key;
+      if (value.trim()) query.set(queryKey, value.trim());
+      else query.delete(queryKey);
     }
   }
   query.set("columns", columns.join(","));

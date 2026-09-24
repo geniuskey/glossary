@@ -12,6 +12,7 @@ import { inferSurfaceLang } from "./surface-language";
 import { slugify, slugValidationMessage } from "./slug";
 import { BUSINESS_CATEGORIES } from "./enums";
 import { TERM_QUALITY_PROFILES } from "@/lib/workspace/term-quality-values";
+import { normalizeTags } from "./tags";
 
 // R46: `.trim()`이 없으면 `z.string().min(1)`은 공백뿐인 문자열("   ")을 통과시킨다.
 // 그 값은 surfaceKeys(...).normLoose === ""로 정규화되는데, findDuplicates가
@@ -45,6 +46,7 @@ export function normalizeLegacyTermInput(raw: unknown): unknown {
   }
   if (typeof next.category === "string") next.category = next.category ? [next.category] : [];
   if (next.category === null) next.category = [];
+  if (next.tags === undefined && typeof next.topic === "string") next.tags = [next.topic];
   return next;
 }
 
@@ -59,6 +61,7 @@ export const termInputBaseSchema = z.object({
     z.string().trim().min(1).max(64).regex(/^[\p{Letter}\p{Number}]+(?:-[\p{Letter}\p{Number}]+)*$/u),
   ).max(TERM_DOMAIN_MAX).default([]),
   topic: z.string().trim().min(1).max(DOMAIN_VALUE_MAX).nullable().optional(),
+  tags: z.array(z.string().trim().min(1).max(DOMAIN_VALUE_MAX)).max(20).transform(normalizeTags).optional(),
   ownerId: z.string().uuid().nullable().optional(),
   // 이전 클라이언트의 필드는 전환 기간 동안 파싱하되 쓰기 서비스가 값을
   // 신뢰하지 않고 내용으로 다시 계산한다.

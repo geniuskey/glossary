@@ -5,7 +5,7 @@
 ## 목록 조회
 
 ```http
-GET /api/v1/terms?q=exposure&type=concept&domain=ISP&category=design&topic=노출%20제어&status=active&page=1&pageSize=20
+GET /api/v1/terms?q=exposure&type=concept&domain=ISP&category=design&tag=노출%20제어&status=active&page=1&pageSize=20
 ```
 
 | 파라미터 | 기본값 | 설명 |
@@ -14,7 +14,7 @@ GET /api/v1/terms?q=exposure&type=concept&domain=ISP&category=design&topic=노�
 | `type` | — | `concept` \| `proper_name` \| `identifier` \| `unit` |
 | `domain` | — | 도메인 태그 하나 |
 | `category` | — | 관리자가 구성한 업무 분류의 안정적인 key 하나 |
-| `topic` | — | 자유 입력 세부 주제 하나 |
+| `tag` | — | 해당 태그가 달린 용어. 기존 `topic` 쿼리도 지원 |
 | `status` | — | `active` \| `deprecated` \| `forbidden` |
 | `page` | 1 | |
 | `pageSize` | 20 | 1~100으로 클램프된다 |
@@ -23,8 +23,8 @@ GET /api/v1/terms?q=exposure&type=concept&domain=ISP&category=design&topic=노�
 { "items": [ /* TermSummary[] */ ], "total": 137, "page": 1, "pageSize": 20 }
 ```
 
-`TermSummary`는 `id`, `slug`, `nameEn`, `nameKo`, `domain`, `category`, `categoryLabel`, `topic`,
-`ownerId`, `ownerName`, `status`다.
+`TermSummary`는 `id`, `slug`, `nameEn`, `nameKo`, `domain`, `category`, `categoryLabel`, `tags`,
+`ownerId`, `ownerName`, `status`다. 호환용 `topic`에는 첫 태그가 담긴다.
 
 `category`는 URL·API용 key이고 `categoryLabel`은 현재 표시 이름이다. 관리자가 표시 이름을
 바꿔도 key와 기존 링크는 유지된다.
@@ -60,7 +60,7 @@ Content-Type: application/json
   "fullNameEn": "Auto Exposure",
   "domain": ["ISP"],
   "category": "design",
-  "topic": "노출 제어",
+  "tags": ["노출 제어", "카메라"],
   "ownerId": "11111111-1111-1111-1111-111111111111",
   "status": "active",
   "definitionMd": "장면 밝기에 따라 노출을 자동으로 맞추는 기능.",
@@ -73,6 +73,9 @@ Content-Type: application/json
 ```
 
 `nameEn` 또는 `nameKo` 중 **최소 하나**는 있어야 한다.
+
+`tags`는 용어에 붙일 태그 배열이다. 앞의 `#`와 공백은 정리되고 중복은 제거된다.
+기존 클라이언트의 `topic` 단일 값은 첫 태그로 받아들인다.
 
 ### 표기는 자동으로 파생된다
 

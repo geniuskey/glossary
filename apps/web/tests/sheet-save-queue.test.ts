@@ -22,11 +22,11 @@ test("빠른 연속 편집은 앞선 응답의 리비전으로 저장하고 두 
   const first = enqueue(async () => {
     revisions.push(current.revision);
     await response;
-    current = savedGridRow(current, { ...current, qualityProfile: "auto", categories: [], nameKo: "용어" }, "편집자");
+    current = savedGridRow(current, { ...current, qualityProfile: "auto", categories: [], tags: [], nameKo: "용어" }, "편집자");
   });
   const second = enqueue(async () => {
     revisions.push(current.revision);
-    current = savedGridRow(current, { ...current, qualityProfile: "auto", categories: [], definitionMd: "정의", status: "active" }, "편집자");
+    current = savedGridRow(current, { ...current, qualityProfile: "auto", categories: [], tags: [], definitionMd: "정의", status: "active" }, "편집자");
   });
   await Promise.resolve();
   expect(revisions).toEqual([3]);
@@ -47,7 +47,7 @@ test("실패한 저장이 다음 저장을 막지 않는다", async () => {
 test("서버가 판정한 상태와 정규화된 값, 수정 시각을 사용한다", () => {
   const before = row();
   const term = {
-    ...before, qualityProfile: "auto", categories: [], nameEn: "Normalized",
+    ...before, qualityProfile: "auto", categories: [], tags: [], nameEn: "Normalized",
     status: "active", updatedAt: "2026-09-10T01:02:03.000Z",
   } satisfies TermWire;
   expect(savedGridRow(before, term, "작성자")).toMatchObject({

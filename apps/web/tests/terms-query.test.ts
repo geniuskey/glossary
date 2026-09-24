@@ -33,6 +33,18 @@ test("관계도 총계는 표시 제한과 무관하며 도메인·분류·주�
   expect(empty).toEqual({ items: [], total: 0 });
 });
 
+test("여러 태그는 각각 필터와 태그 목록에서 재사용된다", async () => {
+  const tag = `태그-${Date.now()}`;
+  const created = await createTerm({ nameEn: `tag-probe-${Date.now()}`, domain: [], category: [], tags: [tag, "공통"], surfaces: [] }, null);
+  ids.push(created.term.id);
+  const detail = await getTermByIdOrSlug(created.term.id);
+  expect(detail?.tags).toEqual([tag, "공통"]);
+  const { items } = await listTerms({ topic: tag, page: 1, pageSize: 20 });
+  expect(items.map((term) => term.id)).toContain(created.term.id);
+  const facets = await termFacets();
+  expect(facets.topics.map((facet) => facet.value)).toContain(tag);
+});
+
 // R43: terms-create.test.ts도 nameEn "AE" -> slug "ae"로 같은 fixture를 만든다.
 // 파일은 순차 실행되지만(fileParallelism: false), 그 파일이 afterEach/afterAll을
 // 못 돌고 죽으면 "ae"가 남아있을 수 있다. 그러면 여기서 만드는 createTerm은
@@ -217,7 +229,7 @@ test("관련 용어는 같은 도메인·카테고리에서 찾고 자기 자신
 });
 
 test("도메인과 카테고리가 모두 없으면 관련 용어 조회는 빈 배열이다", async () => {
-  await expect(listRelatedTerms({ id: ids[3]!, domain: [], categories: [], category: null, topic: null })).resolves.toEqual([]);
+  await expect(listRelatedTerms({ id: ids[3]!, domain: [], categories: [], category: null, topic: null, tags: [] })).resolves.toEqual([]);
 });
 
 test("비권장 표기로 검색해도 해당 용어가 나온다", async () => {
@@ -324,7 +336,7 @@ test("상세 응답은 TermDetail 필드만 싣고 원본 테이블의 다른 �
   const keys = Object.keys(detail ?? {}).sort();
   expect(keys).toEqual(
     [
-      "id", "slug", "qualityProfile", "nameEn", "nameKo", "domain", "categories", "category", "categoryLabel", "categoryLabels", "topic",
+      "id", "slug", "qualityProfile", "nameEn", "nameKo", "domain", "categories", "category", "categoryLabel", "categoryLabels", "topic", "tags",
       "ownerId", "ownerName", "status",
       "fullNameEn", "fullNameKo", "definitionMd", "bodyMd", "updatedAt",
       "surfaces", "homonyms",

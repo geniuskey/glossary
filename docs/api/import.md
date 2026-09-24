@@ -96,7 +96,7 @@ Content-Type: multipart/form-data
 | `fullNameKo` | `full_name_ko`, `한글 풀네임` |
 | `domain` | `domain`, `도메인` |
 | `category` | `category`, `분류`, `업무 분류` |
-| `topic` | `topic`, `주제`, `세부 주제` |
+| `topic` (태그 목록) | `태그`, `tags`, `topic`, `주제`, `세부 주제` — 쉼표·줄바꿈으로 여러 값 입력 |
 | `status` | `status`, `상태` |
 | `definitionMd` | `definition`, `정의`, `설명` |
 | `canonicalNames` | `canonical_names`, `추가 표준 표기`, `추가 표준명` |

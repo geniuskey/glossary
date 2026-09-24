@@ -28,6 +28,7 @@ function row(rowNumber: number, nameEn: string, aliases: string[] = []): ImportR
     rowNumber,
     nameEn,
     domain: [],
+    tags: [],
     status: "active",
     canonicalNames: [],
     abbreviations: [],

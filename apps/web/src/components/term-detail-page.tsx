@@ -6,7 +6,7 @@ import { CopyTermButton } from "@/components/copy-term-button";
 import { HelpTip } from "@/components/help-tip";
 import { MarkdownContent } from "@/components/markdown-content";
 import { CompletionBadge, CompletionProgress, MissingFields } from "@/components/term-completion";
-import { CategoryBadges, DomainBadges, OwnerBadge, StatusBadge, TopicBadge } from "@/components/term-badges";
+import { CategoryBadges, DomainBadges, OwnerBadge, StatusBadge, TagBadges } from "@/components/term-badges";
 import { isUuid } from "@/lib/api-error";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { businessCategoryLabel } from "@/lib/terms/enums";
@@ -90,8 +90,8 @@ export async function TermDetailPage({
   const completion = termCompletion(term, qualitySettings);
   const graphHref = term.category
     ? `/graph?category=${encodeURIComponent(term.category)}`
-    : term.topic
-      ? `/graph?topic=${encodeURIComponent(term.topic)}`
+    : term.tags[0]
+      ? `/graph?tag=${encodeURIComponent(term.tags[0])}`
       : term.domain[0]
       ? `/graph?domain=${encodeURIComponent(term.domain[0])}`
       : "/graph";
@@ -167,7 +167,7 @@ export async function TermDetailPage({
           <StatusBadge status={term.status} />
           <DomainBadges domain={term.domain} />
           <CategoryBadges categories={term.categories} labels={term.categoryLabels} />
-          <TopicBadge topic={term.topic} />
+          <TagBadges tags={term.tags} />
         </div>
 
 
@@ -224,7 +224,7 @@ export async function TermDetailPage({
               <div>
                 <h2 id="related-terms-heading" className="inline-flex items-center gap-1.5 text-base font-semibold text-ink text-balance">
                   같이 보면 좋은 용어
-                  <HelpTip text="같은 도메인, 업무 분류나 주제에서 이어지는 개념입니다." />
+                  <HelpTip text="같은 도메인, 업무 분류나 태그에서 이어지는 개념입니다." />
                 </h2>
               </div>
               <Link href={graphHref} className="btn-ghost btn-sm shrink-0">
@@ -252,8 +252,8 @@ export async function TermDetailPage({
                       {related.sameCategory && related.category && (
                         <span className="rounded bg-brand-soft px-1.5 py-0.5 text-brand">같은 업무 분류 · {businessCategoryLabel(related.category, related.categoryLabel)}</span>
                       )}
-                      {related.sameTopic && related.topic && (
-                        <span className="rounded bg-warn-soft px-1.5 py-0.5 text-warn">같은 주제 · {related.topic}</span>
+                      {related.sameTopic && (
+                        <span className="rounded bg-warn-soft px-1.5 py-0.5 text-warn">공통 태그</span>
                       )}
                       {related.sharedDomains.map((domain) => (
                         <span key={domain} className="rounded bg-panel-2 px-1.5 py-0.5">같은 도메인 · {domain}</span>

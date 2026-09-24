@@ -96,7 +96,7 @@ const COLUMN_FILTER_NAME: Partial<Record<ColumnKey, SheetFilter["name"]>> = {
   status: "status",
   domain: "domain",
   category: "category",
-  topic: "topic",
+  topic: "tag",
 };
 
 /** enum 후보 목록의 값은 string이라 STATUS_TONE(유니온 키)에 바로 못 넣는다. */

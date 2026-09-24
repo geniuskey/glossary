@@ -12,6 +12,7 @@ export interface ImportRow {
   domain: string[];
   category?: BusinessCategoryLiteral;
   topic?: string;
+  tags: string[];
   status: TermStatusLiteral;
   definitionMd?: string;
   bodyMd?: string;
@@ -190,6 +191,7 @@ function parseWorksheet(
       : undefined;
     const status = STATUS_SET.has(raw.status ?? "") ? (raw.status as TermStatusLiteral) : "draft";
 
+    const tags = splitList(raw.topic || (raw.category && !categorySet.has(raw.category) ? raw.category : ""));
     rows.push({
       rowNumber,
       nameEn,
@@ -198,7 +200,8 @@ function parseWorksheet(
       fullNameKo: raw.fullNameKo || undefined,
       domain,
       category,
-      topic: raw.topic || (raw.category && !categorySet.has(raw.category) ? raw.category : undefined),
+      topic: tags[0],
+      tags,
       status,
       definitionMd: raw.definitionMd || undefined,
       bodyMd: raw.bodyMd || undefined,

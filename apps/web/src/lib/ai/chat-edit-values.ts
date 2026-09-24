@@ -1,5 +1,5 @@
 import type { TermInput } from "@/lib/terms/schema";
-export type ChatEditPatch = Partial<Pick<TermInput, "nameEn" | "nameKo" | "fullNameEn" | "fullNameKo" | "definitionMd" | "bodyMd" | "domain" | "category" | "topic" | "surfaces">>;
+export type ChatEditPatch = Partial<Pick<TermInput, "nameEn" | "nameKo" | "fullNameEn" | "fullNameKo" | "definitionMd" | "bodyMd" | "domain" | "category" | "topic" | "tags" | "surfaces">>;
 export interface ChatEditProposal {
   id: string;
   termId: string;
@@ -15,7 +15,7 @@ export interface ChatEditProposal {
 
 export const EDIT_FIELD_LABELS: Record<keyof ChatEditPatch, string> = {
   nameEn: "영문 표기", nameKo: "국문 표기", fullNameEn: "영문 확장명", fullNameKo: "국문 확장명",
-  definitionMd: "한줄 정의", bodyMd: "상세 설명", domain: "도메인", category: "업무 분류", topic: "주제", surfaces: "추가 표기",
+  definitionMd: "한줄 정의", bodyMd: "상세 설명", domain: "도메인", category: "업무 분류", topic: "태그", tags: "태그", surfaces: "추가 표기",
 };
 
 export function editValueText(value: unknown): string {

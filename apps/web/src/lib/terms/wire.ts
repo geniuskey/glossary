@@ -27,6 +27,7 @@ export interface TermWire {
   categories: BusinessCategory[];
   category: BusinessCategory | null;
   topic: string | null;
+  tags: string[];
   ownerId: string | null;
   status: TermStatus;
   definitionMd: string | null;
@@ -47,6 +48,7 @@ export function toTermWire(term: typeof terms.$inferSelect): TermWire {
     categories: term.category,
     category: term.category[0] ?? null,
     topic: term.topic,
+    tags: term.tags,
     ownerId: term.ownerId,
     status: term.status,
     definitionMd: term.definitionMd,

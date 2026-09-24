@@ -83,7 +83,7 @@ export function parseListParams(raw: RawSearchParams): ParsedListParams {
     q: firstTextValue(raw.q, TERM_QUERY_MAX),
     domain: firstTextValue(raw.domain, DOMAIN_VALUE_MAX),
     category: firstTextValue(raw.category, DOMAIN_VALUE_MAX),
-    topic: firstTextValue(raw.topic, DOMAIN_VALUE_MAX),
+    topic: firstTextValue(raw.tag ?? raw.topic, DOMAIN_VALUE_MAX),
     status: narrowEnum(raw.status, termStatusEnum.enumValues),
     sort: narrowEnum(raw.sort, SORT_KEYS),
     dir: narrowEnum(raw.dir, SORT_DIRS),
@@ -112,7 +112,7 @@ export function paginationInfo(page: number, total: number, pageSize: number): P
   };
 }
 
-export type FilterName = "q" | "domain" | "category" | "topic" | "status";
+export type FilterName = "q" | "domain" | "category" | "tag" | "status";
 type ParamName = FilterName | "sort" | "dir" | "pageSize";
 
 // R93/R94: 현재 활성 필터(빈 값이 아닌 것만)를 이름 붙은 목록으로 뽑는다.
@@ -124,7 +124,7 @@ export function activeFilters(params: ParsedListParams): Array<{ name: FilterNam
   if (params.q) out.push({ name: "q", value: params.q });
   if (params.domain) out.push({ name: "domain", value: params.domain });
   if (params.category) out.push({ name: "category", value: params.category });
-  if (params.topic) out.push({ name: "topic", value: params.topic });
+  if (params.topic) out.push({ name: "tag", value: params.topic });
   if (params.status) out.push({ name: "status", value: params.status });
   return out;
 }

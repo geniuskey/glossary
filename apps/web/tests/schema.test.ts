@@ -28,6 +28,13 @@ test("업무 분류는 복수 선택을 보존하고 기존 단일 문자열 요
   expect(termInputSchema.parse({ ...base(), category: "design" }).category).toEqual(["design"]);
 });
 
+test("태그는 여러 개를 정리해 저장하고 기존 주제 요청도 받아들인다", () => {
+  expect(termInputSchema.parse(base({ tags: [" 노출 ", "#영상", "노출"] })).tags).toEqual(["노출", "영상"]);
+  expect(termInputSchema.parse(base({ topic: "노출" })).tags).toEqual(["노출"]);
+  expect(termPatchSchema.parse({ tags: [] }).tags).toEqual([]);
+  expect(termInputSchema.safeParse(base({ tags: Array(21).fill("태그") })).success).toBe(false);
+});
+
 test("용어 입력의 문자열과 배열은 서버 자원을 보호하는 상한을 가진다", () => {
   expect(termInputSchema.safeParse(base({ nameEn: "x".repeat(TERM_NAME_MAX + 1) })).success).toBe(false);
   expect(termInputSchema.safeParse(base({ domain: ["x".repeat(DOMAIN_VALUE_MAX + 1)] })).success).toBe(false);

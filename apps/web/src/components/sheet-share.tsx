@@ -143,7 +143,7 @@ export function SheetShare({ baseQuery, filters, domains, categories, topics }: 
                   <ShareFilter label="정리 상태" value={shareFilters.status} onChange={(value) => updateFilter("status", value)} options={TERM_STATUSES.map((value) => ({ value, label: TERM_STATUS_LABEL[value] }))} />
                   <ShareFilter label="도메인" value={shareFilters.domain} onChange={(value) => updateFilter("domain", value)} options={domains.map((value) => ({ value, label: value }))} />
                   <ShareFilter label="업무 분류" value={shareFilters.category} onChange={(value) => updateFilter("category", value)} options={categories.map(({ key, label }) => ({ value: key, label }))} />
-                  <ShareFilter label="주제" value={shareFilters.topic} onChange={(value) => updateFilter("topic", value)} options={topics.map((value) => ({ value, label: value }))} />
+                  <ShareFilter label="태그" value={shareFilters.topic} onChange={(value) => updateFilter("topic", value)} options={topics.map((value) => ({ value, label: value }))} />
                 </div>
               </fieldset>
 

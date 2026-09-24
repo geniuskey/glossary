@@ -7,6 +7,7 @@ import { newTermFormState } from "@/lib/terms/form-payload";
 import { listAssignableUsers } from "@/lib/terms/owners";
 import { listBusinessCategories } from "@/lib/terms/categories";
 import { listDomains } from "@/lib/terms/domains";
+import { termFacets } from "@/lib/terms/query";
 
 export const metadata = { title: "새 용어" };
 
@@ -19,7 +20,7 @@ export default async function NewTermPage({ searchParams }: { searchParams: Prom
   if (!user) redirect("/login");
   const rawQuery = (await searchParams).q;
   const searchQuery = Array.isArray(rawQuery) ? rawQuery[0] : rawQuery;
-  const [assignees, domainOptions, categoryOptions] = await Promise.all([listAssignableUsers(), listDomains(), listBusinessCategories()]);
+  const [assignees, domainOptions, categoryOptions, facets] = await Promise.all([listAssignableUsers(), listDomains(), listBusinessCategories(), termFacets()]);
 
   return (
     <AppShell user={user} title="새 용어" current="sheet" roomy>
@@ -40,7 +41,7 @@ export default async function NewTermPage({ searchParams }: { searchParams: Prom
         </p>
       </header>
 
-      <TermForm initial={newTermFormState(searchQuery)} assignees={assignees} domainOptions={domainOptions} categoryOptions={categoryOptions} />
+      <TermForm initial={newTermFormState(searchQuery)} assignees={assignees} domainOptions={domainOptions} categoryOptions={categoryOptions} tagOptions={facets.topics.map((item) => item.value)} />
     </AppShell>
   );
 }

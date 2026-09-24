@@ -158,7 +158,7 @@ test("buildPageHref: 활성 필터(q/domain/category/topic/status)를 전부 보
   expect(url.searchParams.get("q")).toBe("AE");
   expect(url.searchParams.get("domain")).toBe("ISP");
   expect(url.searchParams.get("category")).toBe("design");
-  expect(url.searchParams.get("topic")).toBe("무선");
+  expect(url.searchParams.get("tag")).toBe("무선");
   expect(url.searchParams.get("status")).toBe("active");
   expect(url.searchParams.get("page")).toBe("2");
 });
@@ -179,7 +179,7 @@ test("hiddenSearchFields: q는 제외하고 domain/category/topic/status만 반�
   const parsed = parseListParams({ q: "AE", domain: "ISP", category: "design", topic: "무선", status: "active" });
   const fields = hiddenSearchFields(parsed);
   const names = fields.map((f) => f.name).sort();
-  expect(names).toEqual(["category", "domain", "status", "topic"]);
+  expect(names).toEqual(["category", "domain", "status", "tag"]);
   expect(fields.find((f) => f.name === "domain")?.value).toBe("ISP");
 });
 
@@ -193,7 +193,7 @@ test("activeFilters: 지정된 필터만, 지정 순서(q/domain/category/topic/
   expect(activeFilters(parsed)).toEqual([
     { name: "q", value: "gain" },
     { name: "category", value: "design" },
-    { name: "topic", value: "RF" },
+    { name: "tag", value: "RF" },
     { name: "status", value: "active" },
   ]);
 });
@@ -243,7 +243,7 @@ test("buildSortHref: 활성 필터를 전부 보존하고 page는 1로 되돌린
   expect(usp.get("q")).toBe("AE");
   expect(usp.get("domain")).toBe("ISP");
   expect(usp.get("category")).toBe("design");
-  expect(usp.get("topic")).toBe("무선");
+  expect(usp.get("tag")).toBe("무선");
   expect(usp.get("status")).toBe("active");
   // 정렬이 바뀌면 7페이지에 있던 행들은 그 자리에 없다.
   expect(usp.get("page")).toBe("1");
@@ -255,6 +255,11 @@ test("buildPageHref: 정렬도 함께 보존한다(필터만 보존하면 페이
   expect(usp.get("sort")).toBe("nameKo");
   expect(usp.get("dir")).toBe("asc");
   expect(usp.get("page")).toBe("3");
+});
+
+test("tag 쿼리가 기존 topic보다 우선하고 기존 링크도 읽는다", () => {
+  expect(parseListParams({ tag: "신규", topic: "이전" }).topic).toBe("신규");
+  expect(parseListParams({ topic: "이전" }).topic).toBe("이전");
 });
 
 test("페이지 크기는 페이지 이동·필터·정렬에서 유지되고 크기를 바꾸면 1페이지로 돌아간다", () => {

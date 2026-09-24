@@ -109,6 +109,7 @@ interface MatchRow {
   categoryLabel: string | null;
   categoryLabels: string[];
   topic: string | null;
+  tags: string[];
   ownerId: string | null;
   ownerName: string | null;
   status: TermStatus;
@@ -138,6 +139,7 @@ export async function lookupTerms(texts: string[]): Promise<LookupResult[]> {
           categoryLabel: sql<string | null>`(select ${businessCategories.label} from ${businessCategories} where ${businessCategories.key} = ${terms.category}[1])`,
           categoryLabels: sql<string[]>`coalesce((select array_agg(category_catalog.label order by selected.ordinality) from unnest(${terms.category}) with ordinality selected(category_key, ordinality) join business_categories category_catalog on category_catalog.key = selected.category_key), array[]::text[])`,
           topic: terms.topic,
+          tags: terms.tags,
           ownerId: terms.ownerId,
           ownerName: ownerDisplayLabelSql,
           status: terms.status,
@@ -173,7 +175,7 @@ export async function lookupTerms(texts: string[]): Promise<LookupResult[]> {
         id: m.id, slug: m.slug, qualityProfile: m.qualityProfile,
         nameEn: m.nameEn, nameKo: m.nameKo, domain: m.domain,
         categories: m.categories, category: m.category, categoryLabel: m.categoryLabel, categoryLabels: m.categoryLabels,
-        topic: m.topic, ownerId: m.ownerId, ownerName: m.ownerName, status: m.status,
+        topic: m.topic, tags: m.tags, ownerId: m.ownerId, ownerName: m.ownerName, status: m.status,
       });
     }
 

@@ -6,7 +6,7 @@ import { graphFilterHref } from "../src/components/graph-filter-bar.js";
 
 test("관계도 필터 URL은 선택된 값만 유지하고 모두 비우면 기본 화면이 된다", () => {
   expect(graphFilterHref("/graph", { domain: "IT", category: "", topic: "API" }))
-    .toBe("/graph?domain=IT&topic=API");
+    .toBe("/graph?domain=IT&tag=API");
   expect(graphFilterHref("/graph", { domain: "", category: "", topic: "" })).toBe("/graph");
 });
 

@@ -23,6 +23,7 @@ beforeAll(async () => {
       nameEn: "SystemOnChipXSRCH",
       nameKo: "시스템온칩XSRCH",
       domain: ["HW"],
+      tags: ["칩", "시스템"],
       status: "active",
       definitionMd: "하나의 칩에 시스템 전체를 올린 것.",
       surfaces: [{ text: "SoCXSRCH", lang: "en", kind: "alias" }],
@@ -98,6 +99,7 @@ test("별칭으로 찾아도 개념에 닿고, 무엇으로 맞았는지 함께 
   // 가져오지 않으면 화면이 조용히 비어 보인다.
   expect(hit!.definitionMd).toContain("칩");
   expect(hit!.categoryLabel).toBeNull();
+  expect(hit!.tags).toEqual(["칩", "시스템"]);
   expect(hit).toHaveProperty("ownerId");
   expect(hit).toHaveProperty("ownerName");
 });

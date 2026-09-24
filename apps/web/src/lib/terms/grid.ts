@@ -90,7 +90,7 @@ export const GRID_COLUMNS: readonly GridColumn[] = [
   { key: "status", label: "정리 상태", kind: "readonly", width: 110, sortKey: "status" },
   { key: "domain", label: "도메인", kind: "list", width: 160 },
   { key: "category", label: "업무 분류", kind: "enum", width: 140, options: CATEGORY_OPTIONS },
-  { key: "topic", label: "주제", kind: "text", width: 180, hiddenByDefault: true },
+  { key: "topic", label: "태그", kind: "readonly", width: 180, hiddenByDefault: true },
   { key: "ownerName", label: "담당자", kind: "readonly", width: 140 },
   { key: "definitionMd", label: "한줄 정의", kind: "longtext", width: 300 },
   // 본문은 문서 한 편이 통째로 들어가는 칸이라 기본으로는 접어 둔다 — 켜 두면
@@ -313,7 +313,7 @@ export function patchForCell(
       return { patch: { bodyMd: value } };
 
     case "topic":
-      return { patch: { topic: value === "" ? null : value } };
+      return { error: "태그는 용어 편집 화면에서 수정할 수 있습니다." };
 
     case "category": {
       if (value === "") return { patch: { category: null } };

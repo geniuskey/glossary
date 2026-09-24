@@ -43,7 +43,7 @@ describe("시트 공유 URL", () => {
 
     expect(Object.fromEntries(params)).toMatchObject({
       category: "security",
-      topic: "인증",
+      tag: "인증",
       sort: "nameEn",
       dir: "asc",
     });

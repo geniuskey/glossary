@@ -184,6 +184,7 @@ export async function applyImport(
         domain: row.domain,
         category: row.category ? [row.category] : [],
         topic: row.topic,
+        tags: row.tags,
         status: row.status,
         definitionMd: row.definitionMd,
         bodyMd: row.bodyMd,

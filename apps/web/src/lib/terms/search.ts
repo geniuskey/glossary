@@ -67,7 +67,7 @@ export async function searchTerms(query: string, limit = 20): Promise<SearchHit[
            coalesce((SELECT array_agg(category_catalog.label ORDER BY selected.ordinality)
              FROM unnest(t.category) WITH ORDINALITY selected(category_key, ordinality)
              JOIN business_categories category_catalog ON category_catalog.key = selected.category_key), array[]::text[]) AS "categoryLabels",
-           t.topic AS "topic", t.owner_id AS "ownerId",
+           t.topic AS "topic", t.tags AS "tags", t.owner_id AS "ownerId",
            (SELECT CASE
               WHEN coalesce(cardinality(owner_user.sso_groups), 0) > 0
               THEN owner_user.name || ' · ' || array_to_string(owner_user.sso_groups, ', ')

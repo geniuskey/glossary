@@ -44,6 +44,7 @@ export interface TermSummary {
   categoryLabel: string | null;
   categoryLabels: string[];
   topic: string | null;
+  tags: string[];
   ownerId: string | null;
   ownerName: string | null;
   status: TermStatus;
@@ -100,6 +101,7 @@ const summaryColumns = {
   categoryLabel: categoryLabelSql,
   categoryLabels: categoryLabelsSql,
   topic: terms.topic,
+  tags: terms.tags,
   ownerId: terms.ownerId,
   ownerName: ownerDisplayLabelSql,
   status: terms.status,
@@ -186,13 +188,13 @@ export interface RelatedTerm extends TermSummary {
  * 다시 구현해 화면과 DB 사이에 별도 규칙을 만들지 않기 위해서다.
  */
 export async function listRelatedTerms(
-  source: Pick<TermSummary, "id" | "domain" | "categories" | "category" | "topic">,
+  source: Pick<TermSummary, "id" | "domain" | "categories" | "category" | "topic" | "tags">,
   limit = 6,
 ): Promise<RelatedTerm[]> {
   const relationshipFilters = [
     ...source.domain.map((domain) => arrayContains(terms.domain, [domain])),
     ...source.categories.map((category) => arrayContains(terms.category, [category])),
-    ...(source.topic ? [eq(terms.topic, source.topic)] : []),
+    ...source.tags.map((tag) => arrayContains(terms.tags, [tag])),
   ];
   if (relationshipFilters.length === 0) return [];
 
@@ -215,7 +217,7 @@ export async function listRelatedTerms(
       ...term,
       sharedDomains,
       sameCategory: sharedCategories.length > 0,
-      sameTopic: Boolean(source.topic && term.topic === source.topic),
+      sameTopic: source.tags.some((tag) => term.tags.includes(tag)),
     };
   });
 
@@ -256,7 +258,7 @@ function listFilters(params: ListParams) {
   if (params.status) filters.push(eq(terms.status, params.status));
   if (params.domain) filters.push(arrayContains(terms.domain, [params.domain]));
   if (params.category) filters.push(arrayContains(terms.category, [params.category]));
-  if (params.topic) filters.push(eq(terms.topic, params.topic));
+  if (params.topic) filters.push(arrayContains(terms.tags, [params.topic]));
   if (params.ownerId) filters.push(eq(terms.ownerId, params.ownerId));
 
   if (params.q) {
@@ -345,6 +347,7 @@ async function listTermRowData(params: ListParams, includeDraft: boolean): Promi
     db
       .select({
         ...summaryColumns,
+        topic: sql<string | null>`nullif(array_to_string(${terms.tags}, ', '), '')`,
         fullNameEn: terms.fullNameEn,
         fullNameKo: terms.fullNameKo,
         definitionMd: terms.definitionMd,
@@ -548,6 +551,7 @@ export async function termFacets(): Promise<TermFacets> {
   // domain은 text[]다. unnest는 집합 반환 함수라 GROUP BY와 같은 SELECT 목록에
   // 둘 수 없다(Postgres 10+) — 먼저 펼친 서브쿼리를 만들고 그 결과를 센다.
   const unnested = db.select({ value: sql<string>`unnest(${terms.domain})`.as("value") }).from(terms).where(sql`${terms.replacedById} is null`).as("d");
+  const unnestedTags = db.select({ value: sql<string>`unnest(${terms.tags})`.as("value") }).from(terms).where(sql`${terms.replacedById} is null`).as("tag_values");
 
   const [domains, categories, topics, statuses, [counted], [contribution]] = await Promise.all([
     db
@@ -567,12 +571,11 @@ export async function termFacets(): Promise<TermFacets> {
       .groupBy(businessCategories.key, businessCategories.label, businessCategories.sortOrder)
       .orderBy(businessCategories.sortOrder, businessCategories.key),
     db
-      .select({ value: sql<string>`${terms.topic}`, count: sql<number>`count(*)::int` })
-      .from(terms)
-      .where(sql`${terms.topic} is not null and ${terms.replacedById} is null`)
-      .groupBy(terms.topic)
-      .orderBy(sql`count(*) desc`, terms.topic)
-      .limit(80),
+      .select({ value: unnestedTags.value, count: sql<number>`count(*)::int` })
+      .from(unnestedTags)
+      .groupBy(unnestedTags.value)
+      .orderBy(sql`count(*) desc`, unnestedTags.value)
+      .limit(200),
     db
       .select({ value: terms.status, count: sql<number>`count(*)::int` })
       .from(terms)

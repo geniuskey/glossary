@@ -79,11 +79,11 @@ test("activeCellScrollDelta: 고정 머리글과 열 뒤에 가린 셀만 보이
   ).toEqual({ left: 44, top: 16 });
 });
 
-test("업무 분류는 enum만 받고 주제는 자유롭게 수정하며 담당자 열은 읽기 전용이다", () => {
+test("업무 분류는 enum만 받고 태그와 담당자 열은 읽기 전용이다", () => {
   expect(patchForCell("category", "design")).toEqual({ patch: { category: "design" } });
   expect(patchForCell("category", "노출 제어")).toHaveProperty("error");
   expect(patchForCell("category", "   ")).toEqual({ patch: { category: null } });
-  expect(patchForCell("topic", "  노출 제어 ")).toEqual({ patch: { topic: "노출 제어" } });
+  expect(patchForCell("topic", "  노출 제어 ")).toHaveProperty("error");
   expect(patchForCell("ownerName", "다른 사람")).toEqual({ error: "이 열은 수정할 수 없습니다." });
 });
 
@@ -180,7 +180,7 @@ test("기본 숨김 열은 실제로 hiddenByDefault가 붙은 열들이다", ()
   expect(defaultHiddenColumns().length).toBeLessThan(GRID_COLUMNS.length);
 });
 
-test("ID 선택이 필요한 담당자를 제외한 상세 폼 필드는 표에서도 수정할 수 있다", () => {
+test("담당자와 복수 태그를 제외한 상세 폼 필드는 표에서도 수정할 수 있다", () => {
   // "시트에서도 모두 수정 가능"의 기준을 term-form.tsx가 편집하는 필드 집합에
   // 맞춰 고정한다. 담당자는 이름을 ID로 바꿔야 하므로 상세 폼의 사용자 선택기를 쓴다.
   const editable = GRID_COLUMNS.filter((c) => c.kind !== "readonly").map((c) => c.key);
@@ -194,17 +194,16 @@ test("ID 선택이 필요한 담당자를 제외한 상세 폼 필드는 표에�
       "fullNameKo",
       "nameEn",
       "nameKo",
-      "topic",
     ].sort(),
   );
 });
 
-test("담당자 표시·slug·최근 수정은 읽기 전용이다", () => {
+test("태그·담당자 표시·slug·최근 수정은 읽기 전용이다", () => {
   // slug 변경은 충돌과 이동을 함께 처리하는 상세 편집 폼의 전용 작업이다.
   // 표의 셀 단위 PATCH에서는 실수로 주소가 바뀌지 않도록 읽기 전용으로 둔다.
   // updatedAt은 저장할 때 서버가 찍는 값이다.
   const readonly = GRID_COLUMNS.filter((c) => c.kind === "readonly").map((c) => c.key);
-  expect(readonly).toEqual(["status", "ownerName", "slug", "updatedAt"]);
+  expect(readonly).toEqual(["status", "topic", "ownerName", "slug", "updatedAt"]);
   for (const key of readonly) {
     expect(patchForCell(key, "아무 값")).toHaveProperty("error");
   }

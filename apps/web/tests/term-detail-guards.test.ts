@@ -34,7 +34,7 @@ test("같은 개념의 표기는 다른 페이지로 오해하지 않도록 비�
 });
 
 test("관련 용어의 부연 설명은 상시 문구 대신 도움말로 제공한다", () => {
-  expect(detailSource).toContain('<HelpTip text="같은 도메인, 업무 분류나 주제에서 이어지는 개념입니다." />');
+  expect(detailSource).toContain('<HelpTip text="같은 도메인, 업무 분류나 태그에서 이어지는 개념입니다." />');
 });
 
 test("정의, 표기, 자세한 설명 순서로 읽고 관리 정보는 마지막에 확인한다", () => {

@@ -31,6 +31,7 @@ export interface RagSearchHit {
   domain: string[];
   categories: string[];
   topic: string | null;
+  tags: string[];
   status: "draft" | "active";
   revision: number;
   sourceField: string;
@@ -78,6 +79,7 @@ export async function searchRag(query: string, options: RagSearchOptions = {}): 
     domain: terms.domain,
     categories: terms.category,
     topic: terms.topic,
+    tags: terms.tags,
     status: terms.status,
     revision: ragDocuments.revision,
     sourceField: ragDocuments.sourceField,

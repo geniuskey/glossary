@@ -99,8 +99,8 @@ export default async function TermsPage({
       options: facets.categories.map((facet) => ({ value: facet.value, label: facet.label, count: facet.count })),
     },
     {
-      name: "topic",
-      label: "주제",
+      name: "tag",
+      label: "태그",
       value: parsed.topic,
       valueLabel: parsed.topic,
       options: facets.topics.map((facet) => ({ value: facet.value, label: facet.value, count: facet.count })),

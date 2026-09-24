@@ -24,7 +24,7 @@
 각 Term은 다음 정보를 일관되게 가져야 한다.
 
 - 대표 표기, 확장명, alias·abbreviation·discouraged·forbidden 표기
-- domain, 업무 분류, topic, owner, 상태와 현재 리비전
+- domain, 업무 분류, tags, owner, 상태와 현재 리비전
 - 정의와 본문 안의 적용 범위·예외·금지 조건
 - `is_a`, `part_of`, `used_in`, `prerequisite_of`, `replaces` 같은 승인 관계
 - 근거 문서와 검토자, 마지막 검토 시점

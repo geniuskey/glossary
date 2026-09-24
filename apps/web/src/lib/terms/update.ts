@@ -236,7 +236,11 @@ export async function updateTerm(
           ...(input.fullNameKo !== undefined ? { fullNameKo: input.fullNameKo } : {}),
           ...(input.domain !== undefined ? { domain: input.domain } : {}),
           ...(input.category !== undefined ? { category: input.category } : {}),
-          ...(input.topic !== undefined ? { topic: input.topic } : {}),
+          ...(input.tags !== undefined
+            ? { tags: input.tags, topic: input.tags[0] ?? null }
+            : input.topic !== undefined
+              ? { tags: input.topic ? [input.topic] : [], topic: input.topic }
+              : {}),
           ...(input.ownerId !== undefined ? { ownerId: input.ownerId } : {}),
           status,
           ...(input.definitionMd !== undefined ? { definitionMd: input.definitionMd } : {}),

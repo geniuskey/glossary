@@ -12,7 +12,7 @@ const term: ContributionTerm = {
   id: "00000000-0000-4000-8000-000000000001", slug: "cache", nameEn: "Cache", nameKo: "캐시",
   fullNameEn: null, fullNameKo: null, definitionMd: null, bodyMd: null,
   domain: [], categories: [], category: null, categoryLabel: null, categoryLabels: [],
-  qualityProfile: "context", topic: null, ownerId: null, ownerName: null, status: "draft",
+  qualityProfile: "context", topic: null, tags: [], ownerId: null, ownerName: null, status: "draft",
   revision: 2, updatedAt: "2026-09-10T00:00:00Z", completion: termCompletion({ domain: [] }),
 };
 

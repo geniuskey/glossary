@@ -30,6 +30,7 @@ import type { AssignableUser } from "@/lib/terms/owners";
 import type { BusinessCategoryOption } from "@/lib/terms/categories";
 import { slugify, slugValidationMessage } from "@/lib/terms/slug";
 import { inferSurfaceLang } from "@/lib/terms/surface-language";
+import { normalizeTags } from "@/lib/terms/tags";
 import { cx } from "@/lib/ui/format";
 
 export interface TermFormInitial extends TermFormState {
@@ -50,7 +51,7 @@ function managementSummary(form: TermFormState): string {
   const parts = [
     domainCount > 0 ? `도메인 ${domainCount.toLocaleString("ko-KR")}개` : null,
     categoryCount > 0 ? `업무 분류 ${categoryCount.toLocaleString("ko-KR")}개` : null,
-    form.topic.trim() ? "주제 있음" : null,
+    form.tags.length > 0 ? `태그 ${form.tags.length}개` : null,
     form.ownerId ? "담당자 지정" : null,
   ].filter((part): part is string => Boolean(part));
   return parts.length > 0 ? parts.join(" · ") : "분류·담당자 미지정";
@@ -67,12 +68,14 @@ export function TermForm({
   assignees = [],
   domainOptions = [],
   categoryOptions = [],
+  tagOptions = [],
   canDelete = false,
 }: {
   initial?: TermFormInitial;
   assignees?: AssignableUser[];
   domainOptions?: Array<{ label: string; labelEn: string | null }>;
   categoryOptions?: BusinessCategoryOption[];
+  tagOptions?: string[];
   canDelete?: boolean;
 }) {
   const router = useRouter();
@@ -92,6 +95,7 @@ export function TermForm({
   const [slugDraft, setSlugDraft] = useState(editSlug ?? "");
   const [slugError, setSlugError] = useState<string | null>(null);
   const [surfaceBatch, setSurfaceBatch] = useState("");
+  const [tagDraft, setTagDraft] = useState("");
   const [showFullNameFields, setShowFullNameFields] = useState(() => Boolean(initial?.fullNameEn || initial?.fullNameKo));
   // R108: 경고가 딸린 저장이 끝나면 이 슬러그가 채워지고, 그때부터 폼은
   // 잠긴다(입력도 비활성화되고 제출 버튼도 링크로 바뀐다) — 그래서 사용자가
@@ -122,7 +126,8 @@ export function TermForm({
     fullNameKo: "국문 확장명",
     domain: "도메인",
     category: "업무 분류",
-    topic: "주제",
+    topic: "태그",
+    tags: "태그",
     ownerId: "담당자",
     status: "정리 상태",
     definitionMd: "한줄 정의",
@@ -132,11 +137,12 @@ export function TermForm({
   const pendingSurfaceValues = useMemo(() => parseSurfaceBatch(surfaceBatch), [surfaceBatch]);
   const formWithPendingSurfaces = useMemo<TermFormState>(() => ({
     ...form,
+    tags: normalizeTags([...form.tags, ...tagDraft.split(/[,\n]+/)]),
     surfaces: [
       ...form.surfaces,
       ...pendingSurfaceValues.map((text) => ({ text, lang: inferSurfaceLang(text), kind: "alias" })),
     ],
-  }), [form, pendingSurfaceValues]);
+  }), [form, pendingSurfaceValues, tagDraft]);
   const formSnapshot = useMemo(() => JSON.stringify(buildTermPayload(formWithPendingSurfaces)), [formWithPendingSurfaces]);
   const dirty = formSnapshot !== initialSnapshotRef.current;
   const latestSubmittedFormRef = useRef(formWithPendingSurfaces);
@@ -161,7 +167,7 @@ export function TermForm({
     if (fieldErrors.surfaces) {
       if (!compact) managementDetailsRef.current!.open = true;
     }
-    if (["domain", "category", "topic", "ownerId"].some((field) => fieldErrors[field])) {
+    if (["domain", "category", "tags", "topic", "ownerId"].some((field) => fieldErrors[field])) {
       if (!compact) managementDetailsRef.current!.open = true;
     }
     const firstField = Object.keys(fieldErrors)[0];
@@ -226,7 +232,9 @@ export function TermForm({
 
   function applyAiSuggestion(field: EditReviewField, value: string | string[]) {
     const normalized = Array.isArray(value) ? value.join(", ") : value;
-    setForm((current) => ({ ...current, [field]: normalized }));
+    setForm((current) => field === "topic"
+      ? { ...current, tags: normalizeTags([normalized, ...current.tags.slice(1)]) }
+      : { ...current, [field]: normalized });
     setWarnings([]);
     setSaveToast(null);
     if (field === "fullNameEn" || field === "fullNameKo") setShowFullNameFields(true);
@@ -236,6 +244,13 @@ export function TermForm({
   function removeSurface(index: number) {
     setForm((f) => ({ ...f, surfaces: f.surfaces.filter((_, i) => i !== index) }));
     setWarnings([]);
+  }
+
+  function addTags() {
+    const values = normalizeTags([...form.tags, ...tagDraft.split(/[,\n]+/)]);
+    if (locked) return;
+    if (values.length !== form.tags.length) updateField("tags", values);
+    setTagDraft("");
   }
 
   function handleSurfaceBatchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -722,17 +737,45 @@ export function TermForm({
               />
               <FormFieldError id="category-error" errors={errorsFor("category")} />
             </div>
-            <FormTextField
-              name="topic"
-              label="주제"
-              value={form.topic}
-              errors={errorsFor("topic")}
-              maxLength={TERM_NAME_MAX}
-              disabled={locked}
-              placeholder="예: 노출 제어…"
-              hint="기존 자유 입력 카테고리는 주제로 보존됩니다."
-              onChange={(value) => updateField("topic", value)}
-            />
+            <div>
+              <label htmlFor="term-tag-input" className="label">태그</label>
+              <div className="flex min-w-0 gap-2">
+                <input
+                  id="term-tag-input"
+                  data-field-name="tags"
+                  aria-label="태그 입력"
+                  aria-invalid={errorsFor("tags") ? true : undefined}
+                  aria-describedby={errorsFor("tags") ? "tags-error" : undefined}
+                  list="term-tag-options"
+                  value={tagDraft}
+                  maxLength={TERM_NAME_MAX * 20}
+                  onChange={(event) => setTagDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+                    event.preventDefault();
+                    addTags();
+                  }}
+                  disabled={locked}
+                  placeholder="태그 입력…"
+                  className="field min-w-0 flex-1"
+                />
+                <datalist id="term-tag-options">
+                  {tagOptions.map((tag) => <option key={tag} value={tag} />)}
+                </datalist>
+                <button type="button" onClick={addTags} disabled={locked || !tagDraft.trim()} className="btn-ghost btn-sm shrink-0">추가</button>
+              </div>
+              {form.tags.length > 0 && (
+                <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="태그 목록">
+                  {form.tags.map((tag) => (
+                    <li key={tag} className="inline-flex max-w-full items-center gap-1 rounded-md border border-line bg-panel px-2 py-1 text-xs text-ink-2">
+                      <span className="break-all">#{tag}</span>
+                      <button type="button" aria-label={`${tag} 태그 삭제`} onClick={() => updateField("tags", form.tags.filter((value) => value !== tag))} disabled={locked} className="grid h-5 w-5 shrink-0 place-items-center rounded hover:bg-panel-2 focus-visible:ring-2 focus-visible:ring-brand/40">×</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <FormFieldError id="tags-error" errors={errorsFor("tags") ?? errorsFor("topic")} />
+            </div>
 
             <label className="block">
               <span className="label">담당자</span>

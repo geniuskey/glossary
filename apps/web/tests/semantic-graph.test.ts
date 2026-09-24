@@ -7,7 +7,7 @@ import type { SemanticRelation } from "../src/lib/terms/relation-values.js";
 
 function term(id: string): GraphTerm {
   return { id, slug: id, nameEn: id, nameKo: null, qualityProfile: "auto", domain: ["QA"], categories: [], category: null,
-    categoryLabel: null, categoryLabels: [], topic: null, ownerId: null, ownerName: null, status: "active", definitionMd: null };
+    categoryLabel: null, categoryLabels: [], topic: null, tags: [], ownerId: null, ownerName: null, status: "active", definitionMd: null };
 }
 const relation: SemanticRelation = { id: "edge-1", sourceTermId: "a", targetTermId: "b", relationType: "part_of", evidenceMd: "A는 B의 구성 요소다." };
 

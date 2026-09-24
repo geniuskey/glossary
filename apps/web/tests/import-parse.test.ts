@@ -41,6 +41,22 @@ test("도메인과 별칭의 쉼표 구분을 분리한다", async () => {
   expect(rows[0]!.aliases).toEqual(["gain value", "이득"]);
 });
 
+test("태그 열의 여러 값을 읽고 기존 주제 열도 받아들인다", async () => {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("glossary");
+  ws.addRow(["name_en", "태그"]);
+  ws.addRow(["Tag Probe", "노출, 영상"]);
+  const parsed = await parseGlossaryWorkbook((await wb.xlsx.writeBuffer()) as ArrayBuffer);
+  expect(parsed.rows[0]?.tags).toEqual(["노출", "영상"]);
+
+  const legacy = new ExcelJS.Workbook();
+  const legacyWs = legacy.addWorksheet("glossary");
+  legacyWs.addRow(["name_en", "주제"]);
+  legacyWs.addRow(["Old Topic", "노출"]);
+  const legacyParsed = await parseGlossaryWorkbook((await legacy.xlsx.writeBuffer()) as ArrayBuffer);
+  expect(legacyParsed.rows[0]?.tags).toEqual(["노출"]);
+});
+
 test("표준 표기가 둘 다 비면 에러 행으로 분류한다", async () => {
   const buf = await workbook([["", "", "", "ISP", "active", "설명만 있음", ""]]);
   const { rows, errors } = await parseGlossaryWorkbook(buf);

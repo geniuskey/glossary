@@ -78,9 +78,10 @@ export const terms = pgTable(
     // 도메인처럼 하나의 용어가 여러 업무 분류에 걸칠 수 있다. 카탈로그 존재
     // 여부는 쓰기 API에서 검증하고, 분류 삭제 시 연결 배열에서도 함께 제거한다.
     category: text("category").array().notNull().default([]),
-    // 기존 자유 입력 카테고리는 세부 주제였다. 통제형 업무 분류와 섞지 않고
-    // 그대로 보존해 검색·관계 탐색에서 계속 쓸 수 있게 한다.
+    // 기존 API의 단일 주제 필드는 첫 태그를 담아 호환성을 유지한다.
     topic: text("topic"),
+    // 용어별 자유 입력 태그. 기존 주제 값은 마이그레이션에서 첫 태그로 옮긴다.
+    tags: text("tags").array().notNull().default([]),
     ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
     status: termStatusEnum("status").notNull().default("draft"),
     definitionMd: text("definition_md"),
@@ -96,6 +97,7 @@ export const terms = pgTable(
     statusIdx: index("terms_status_idx").on(t.status),
     categoryIdx: index("terms_category_idx").using("gin", t.category),
     topicIdx: index("terms_topic_idx").on(t.topic),
+    tagsIdx: index("terms_tags_idx").using("gin", t.tags),
     ownerIdx: index("terms_owner_idx").on(t.ownerId),
   }),
 );

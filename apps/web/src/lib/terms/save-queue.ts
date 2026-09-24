@@ -11,5 +11,5 @@ export function createSaveQueue() {
   };
 }
 export function savedGridRow(before: TermRow, term: TermWriteResponse["term"], editorName: string): TermRow {
-  return { ...before, ...term, revision: before.revision + 1, editorName };
+  return { ...before, ...term, topic: term.tags.join(", ") || null, revision: before.revision + 1, editorName };
 }
