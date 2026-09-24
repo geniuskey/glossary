@@ -80,9 +80,9 @@ test("Markdown 툴바는 H1~H6와 주요 GFM 블록을 선택 영역에 적용�
 });
 
 test("Markdown 툴바는 수식과 Mermaid 예제를 삽입한다", () => {
-  expect(source).toContain('label="인라인 수식"');
-  expect(source).toContain('label="블록 수식 삽입"');
-  expect(source).toContain('label="Mermaid 다이어그램 삽입"');
+  expect(source).toContain('{ action: "inline-math", label: "인라인 수식" }');
+  expect(source).toContain('{ action: "block-math", label: "블록 수식" }');
+  expect(source).toContain('{ action: "mermaid", label: "Mermaid 다이어그램" }');
   expect(source).toContain('```mermaid');
   expect(source).toContain('\\\\sum_{i=1}^{n}');
 });
@@ -116,15 +116,33 @@ test("용어집 방식은 한 화면 인라인 라이브 프리뷰를 사용한�
   expect(livePreviewSource).toContain("if (root) setTimeout(() => root.unmount(), 0);");
 });
 
-test("Markdown 도구 막대의 오른쪽에 보기 전환과 전체 화면을 둔다", () => {
+test("Markdown 제목과 서식은 메뉴바에 표시하고 보기 방식은 세그먼트로 전환한다", () => {
   expect(editorSource).toContain('role="toolbar" aria-label="Markdown 서식 도구"');
-  expect(editorSource).toContain('className="ml-auto flex shrink-0 items-center gap-1 border-l border-line pl-1"');
-  expect(editorSource).toContain('ref={fullscreenButtonRef}');
+  expect(editorSource).toContain('className="markdown-editor-toolbar flex min-w-0 items-center gap-1 border-b border-line bg-panel-2 px-2 py-1.5"');
+  expect(editorSource).toContain('[1, 2, 3, 4, 5, 6].map((level) => (');
+  expect(editorSource).toContain('aria-label={`제목 ${level}`}');
+  expect(editorSource).toContain('onClick={() => run((text, from, to) => toggleHeadingMarkdown(text, from, to, level))}');
+  expect(editorSource).not.toContain('toggleToolbarMenu');
+  expect(editorSource).toContain('className="markdown-toolbar-format-buttons flex shrink-0 items-center gap-0.5"');
+  expect(editorSource).toContain('aria-label="서식"');
+  expect(editorSource).toContain('aria-label="삽입 도구"');
   expect(editorSource).toContain('aria-label="본문 보기 방식"');
-  expect(editorSource).toContain('aria-pressed={mode === "glossary"}');
-  expect(editorSource).toContain('aria-pressed={mode === "text"}');
-  expect(editorSource).toContain('aria-pressed={mode === "preview"}');
-  expect(editorSource).not.toContain('className="flex flex-wrap items-center gap-2 border-b border-line/70 px-2 py-1.5"');
+  expect(editorSource).toContain('className="markdown-toolbar-view-segments ml-auto flex shrink-0 items-center rounded-lg border border-line bg-panel p-0.5"');
+  expect(editorSource).toContain('aria-pressed={mode === item.value}');
+  expect(editorSource).toContain('{ value: "glossary", label: "용어집 방식" }');
+  expect(editorSource).toContain('{ value: "text", label: "텍스트" }');
+  expect(editorSource).toContain('{ value: "preview", label: "미리보기" }');
+  expect(editorSource.match(/<select\b/g)).toHaveLength(3);
+  expect(editorSource).not.toContain('<optgroup label="서식">');
+  expect(editorSource).not.toContain('<optgroup label="화면">');
+  expect(editorSource).toContain('<option value="">삽입</option>');
+  expect(editorSource).not.toContain('<option value="">더보기</option>');
+  expect(editorSource).not.toContain('overflow-x-auto border-b border-line bg-panel-2');
+  expect(editorSource).toContain('ref={fullscreenButtonRef}');
+  expect(editorSource).toContain('value={mode}');
+  expect(editorSource).toContain('>•</ToolbarButton>');
+  expect(editorSource).toContain('>1.</ToolbarButton>');
+  expect(editorSource).toContain('>☑</ToolbarButton>');
 });
 
 test("커서가 있는 줄만 Markdown 원문을 유지한다", () => {

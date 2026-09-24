@@ -469,6 +469,73 @@
     @apply rounded-xl border border-line bg-panel;
   }
 
+  .markdown-editor-shell {
+    container-type: inline-size;
+  }
+
+  .markdown-editor-toolbar .markdown-toolbar-format-select {
+    display: none;
+  }
+
+  .markdown-editor-toolbar .markdown-toolbar-view-select {
+    display: none;
+  }
+
+  @container (max-width: 64rem) {
+    .markdown-editor-toolbar .markdown-toolbar-format-buttons {
+      display: none;
+    }
+
+    .markdown-editor-toolbar .markdown-toolbar-format-select {
+      display: block;
+    }
+  }
+
+  @container (max-width: 40rem) {
+    .markdown-editor-toolbar .markdown-toolbar-heading button {
+      width: 1.5rem;
+    }
+
+    .markdown-editor-toolbar .markdown-toolbar-format-select,
+    .markdown-editor-toolbar .markdown-toolbar-insert {
+      width: 4rem !important;
+    }
+  }
+
+  @container (max-width: 36rem) {
+    .markdown-editor-toolbar .markdown-toolbar-view-segments {
+      display: none;
+    }
+
+    .markdown-editor-toolbar .markdown-toolbar-view-select {
+      display: block;
+    }
+  }
+
+  @container (max-width: 30rem) {
+    .markdown-editor-toolbar .markdown-toolbar-view-select {
+      width: 4rem !important;
+    }
+  }
+
+  @container (max-width: 26rem) {
+    .markdown-editor-toolbar .markdown-toolbar-fullscreen {
+      display: none;
+    }
+  }
+
+  @container (max-width: 22rem) {
+    .markdown-editor-toolbar .markdown-toolbar-heading button {
+      width: 1.25rem;
+    }
+
+    .markdown-editor-toolbar .markdown-toolbar-format-select,
+    .markdown-editor-toolbar .markdown-toolbar-insert,
+    .markdown-editor-toolbar .markdown-toolbar-view-select {
+      width: 3.25rem !important;
+    }
+  }
+
   .field {
     @apply w-full rounded-lg border border-line bg-panel px-3 py-2 text-base sm:text-sm text-ink
       placeholder:text-ink-3 focus:border-brand focus:outline-none

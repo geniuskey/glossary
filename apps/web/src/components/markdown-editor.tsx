@@ -54,6 +54,28 @@ function imageAlt(file: File): string {
 
 type MarkdownCommand = (source: string, from: number, to: number) => MarkdownEdit;
 
+const FORMAT_MENU_ITEMS = [
+  { action: "bold", label: "굵게" },
+  { action: "italic", label: "기울임" },
+  { action: "strike", label: "취소선" },
+  { action: "inline-code", label: "인라인 코드" },
+  { action: "link", label: "링크" },
+  { action: "inline-math", label: "인라인 수식" },
+  { action: "quote", label: "인용" },
+  { action: "bullet", label: "• 글머리" },
+  { action: "ordered", label: "1. 번호" },
+  { action: "task", label: "☑ 체크" },
+  { action: "code-block", label: "코드 블록" },
+] as const;
+
+const INSERT_MENU_ITEMS = [
+  { action: "table", label: "표" },
+  { action: "block-math", label: "블록 수식" },
+  { action: "mermaid", label: "Mermaid 다이어그램" },
+  { action: "rule", label: "구분선" },
+  { action: "image", label: "이미지" },
+] as const;
+
 function maxLengthExtension(limit: number | undefined) {
   return limit === undefined
     ? []
@@ -130,6 +152,7 @@ export function MarkdownEditor({
   const [fullscreen, setFullscreen] = useState(false);
   const fullscreenRootRef = useRef<HTMLDivElement>(null);
   const fullscreenButtonRef = useRef<HTMLButtonElement>(null);
+  const viewSelectRef = useRef<HTMLSelectElement>(null);
 
   onChangeRef.current = onChange;
 
@@ -146,7 +169,7 @@ export function MarkdownEditor({
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    fullscreenButtonRef.current?.focus({ preventScroll: true });
+    (fullscreenButtonRef.current?.getClientRects().length ? fullscreenButtonRef.current : viewSelectRef.current)?.focus({ preventScroll: true });
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Tab") {
         const controls = Array.from(fullscreenRootRef.current?.querySelectorAll<HTMLElement>(
@@ -171,7 +194,7 @@ export function MarkdownEditor({
     return () => {
       window.removeEventListener("keydown", closeOnEscape);
       document.body.style.overflow = previousOverflow;
-      fullscreenButtonRef.current?.focus({ preventScroll: true });
+      (fullscreenButtonRef.current?.getClientRects().length ? fullscreenButtonRef.current : viewSelectRef.current)?.focus({ preventScroll: true });
     };
   }, [fullscreen]);
 
@@ -409,6 +432,27 @@ export function MarkdownEditor({
     event.target.value = "";
   }
 
+  function runToolbarAction(action: string) {
+    switch (action) {
+      case "bold": run((text, from, to) => wrapMarkdown(text, from, to, "**", "**", "굵은 텍스트")); break;
+      case "italic": run((text, from, to) => wrapMarkdown(text, from, to, "*", "*", "기울임 텍스트")); break;
+      case "strike": run((text, from, to) => wrapMarkdown(text, from, to, "~~", "~~", "취소선 텍스트")); break;
+      case "inline-code": run((text, from, to) => wrapMarkdown(text, from, to, "`", "`", "코드")); break;
+      case "link": run((text, from, to) => wrapMarkdown(text, from, to, "[", "](https://example.com)", "링크 텍스트")); break;
+      case "inline-math": run((text, from, to) => wrapMarkdown(text, from, to, "$", "$", "E = mc^2")); break;
+      case "quote": run(toggleQuoteMarkdown); break;
+      case "bullet": run((text, from, to) => toggleListMarkdown(text, from, to, "bullet")); break;
+      case "ordered": run((text, from, to) => toggleListMarkdown(text, from, to, "ordered")); break;
+      case "task": run((text, from, to) => toggleListMarkdown(text, from, to, "task")); break;
+      case "code-block": run(toggleCodeBlockMarkdown); break;
+      case "table": run((text, from, to) => insertMarkdownBlock(text, from, to, "| 열 1 | 열 2 | 열 3 |\n| --- | --- | --- |\n| 내용 | 내용 | 내용 |")); break;
+      case "block-math": run((text, from, to) => insertMarkdownBlock(text, from, to, "$$\n\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}\n$$")); break;
+      case "mermaid": run((text, from, to) => insertMarkdownBlock(text, from, to, "```mermaid\nflowchart LR\n  A[시작] --> B[완료]\n```")); break;
+      case "rule": run((text, from, to) => insertMarkdownBlock(text, from, to, "---")); break;
+      case "image": setMode("text"); fileRef.current?.click(); break;
+    }
+  }
+
   return (
     <div
       ref={fullscreenRootRef}
@@ -416,7 +460,7 @@ export function MarkdownEditor({
       role={fullscreen ? "dialog" : undefined}
       aria-modal={fullscreen || undefined}
       aria-label={fullscreen ? `${label} 전체 화면 편집기` : undefined}
-      className={fullscreen
+      className={cx("markdown-editor-shell", fullscreen
         ? "fixed inset-0 z-[100] flex h-[100dvh] flex-col overflow-hidden bg-panel"
         : cx(
           "overflow-hidden bg-panel",
@@ -425,89 +469,110 @@ export function MarkdownEditor({
           resizable && (fillAvailable
             ? "flex min-h-64 min-w-0 flex-1 flex-col resize-y"
             : "flex h-80 min-h-64 max-h-[75dvh] flex-col resize-y"),
-        )}
+        ))}
     >
-      <div role="toolbar" aria-label="Markdown 서식 도구" className="flex items-center gap-1 overflow-x-auto border-b border-line bg-panel-2 px-2 py-1.5">
-          <div className="flex shrink-0 items-center gap-0.5" aria-label="제목">
-            {[1, 2, 3, 4, 5, 6].map((level) => (
-              <ToolbarButton
-                key={level}
-                label={`제목 ${level}`}
-                title={`제목 ${level} 적용/해제 (Ctrl+Alt+${level})`}
-                disabled={disabled}
-                onClick={() => run((text, from, to) => toggleHeadingMarkdown(text, from, to, level))}
-              >
-                H{level}
-              </ToolbarButton>
-            ))}
-          </div>
-
-          <ToolbarDivider />
-          <div className="flex shrink-0 items-center gap-0.5" aria-label="인라인 서식">
-            <ToolbarButton label="굵게" title="굵게 (Ctrl+B)" disabled={disabled} onClick={() => run((text, from, to) => wrapMarkdown(text, from, to, "**", "**", "굵은 텍스트"))}><strong>B</strong></ToolbarButton>
-            <ToolbarButton label="기울임" title="기울임 (Ctrl+I)" disabled={disabled} onClick={() => run((text, from, to) => wrapMarkdown(text, from, to, "*", "*", "기울임 텍스트"))}><em>I</em></ToolbarButton>
-            <ToolbarButton label="취소선" title="취소선" disabled={disabled} onClick={() => run((text, from, to) => wrapMarkdown(text, from, to, "~~", "~~", "취소선 텍스트"))}><span className="line-through">S</span></ToolbarButton>
-            <ToolbarButton label="인라인 코드" title="인라인 코드" disabled={disabled} onClick={() => run((text, from, to) => wrapMarkdown(text, from, to, "`", "`", "코드"))}><span className="font-mono">&lt;/&gt;</span></ToolbarButton>
-            <ToolbarButton label="링크" title="링크 (Ctrl+K)" disabled={disabled} onClick={() => run((text, from, to) => wrapMarkdown(text, from, to, "[", "](https://example.com)", "링크 텍스트"))}>링크</ToolbarButton>
-            <ToolbarButton label="인라인 수식" title="인라인 수식 삽입" disabled={disabled} onClick={() => run((text, from, to) => wrapMarkdown(text, from, to, "$", "$", "E = mc^2"))}>$x$</ToolbarButton>
-          </div>
-
-          <ToolbarDivider />
-          <div className="flex shrink-0 items-center gap-0.5" aria-label="블록 서식">
-            <ToolbarButton label="인용문" title="인용문 적용/해제" disabled={disabled} onClick={() => run(toggleQuoteMarkdown)}>인용</ToolbarButton>
-            <ToolbarButton label="글머리 목록" title="글머리 목록 적용/해제" disabled={disabled} onClick={() => run((text, from, to) => toggleListMarkdown(text, from, to, "bullet"))}>• 목록</ToolbarButton>
-            <ToolbarButton label="번호 목록" title="번호 목록 적용/해제" disabled={disabled} onClick={() => run((text, from, to) => toggleListMarkdown(text, from, to, "ordered"))}>1. 목록</ToolbarButton>
-            <ToolbarButton label="체크리스트" title="체크리스트 적용/해제" disabled={disabled} onClick={() => run((text, from, to) => toggleListMarkdown(text, from, to, "task"))}>☑ 목록</ToolbarButton>
-            <ToolbarButton label="코드 블록" title="코드 블록 적용/해제" disabled={disabled} onClick={() => run(toggleCodeBlockMarkdown)}>코드 블록</ToolbarButton>
-          </div>
-
-          <ToolbarDivider />
-          <div className="flex shrink-0 items-center gap-0.5" aria-label="삽입">
-            <ToolbarButton
-              label="표 삽입"
-              title="3열 표 삽입"
+      <div role="toolbar" aria-label="Markdown 서식 도구" className="markdown-editor-toolbar flex min-w-0 items-center gap-1 border-b border-line bg-panel-2 px-2 py-1.5">
+        <div className="markdown-toolbar-heading flex shrink-0 items-center rounded-lg border border-line bg-panel p-0.5" aria-label="제목 수준">
+          {[1, 2, 3, 4, 5, 6].map((level) => (
+            <button
+              key={level}
+              type="button"
+              aria-label={`제목 ${level}`}
+              title={`제목 ${level} 적용/해제 (Ctrl+Alt+${level})`}
               disabled={disabled}
-              onClick={() => run((text, from, to) => insertMarkdownBlock(text, from, to, "| 열 1 | 열 2 | 열 3 |\n| --- | --- | --- |\n| 내용 | 내용 | 내용 |"))}
-            >표</ToolbarButton>
-            <ToolbarButton
-              label="블록 수식 삽입"
-              title="KaTeX 블록 수식 삽입"
-              disabled={disabled}
-              onClick={() => run((text, from, to) => insertMarkdownBlock(text, from, to, "$$\n\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}\n$$"))}
-            >수식</ToolbarButton>
-            <ToolbarButton
-              label="Mermaid 다이어그램 삽입"
-              title="Mermaid 흐름도 삽입"
-              disabled={disabled}
-              onClick={() => run((text, from, to) => insertMarkdownBlock(text, from, to, "```mermaid\nflowchart LR\n  A[시작] --> B[완료]\n```"))}
-            >Mermaid</ToolbarButton>
-            <ToolbarButton label="구분선 삽입" title="구분선 삽입" disabled={disabled} onClick={() => run((text, from, to) => insertMarkdownBlock(text, from, to, "---"))}>구분선</ToolbarButton>
-            <ToolbarButton
-              label="이미지 첨부"
-              title="이미지 첨부 · 붙여넣기와 드롭도 가능"
-              disabled={disabled || uploadCount > 0}
-              onClick={() => { setMode("text"); fileRef.current?.click(); }}
+              onClick={() => run((text, from, to) => toggleHeadingMarkdown(text, from, to, level))}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-[11px] font-semibold text-ink-2 hover:bg-panel-2 hover:text-ink focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"
             >
-              {uploadCount > 0 ? `변환 중 ${uploadCount}` : "이미지"}
-            </ToolbarButton>
+              H{level}
+            </button>
+          ))}
         </div>
-        <div className="ml-auto flex shrink-0 items-center gap-1 border-l border-line pl-1">
-          <div className="flex" aria-label="본문 보기 방식">
-            <button type="button" aria-pressed={mode === "glossary"} className={`btn-sm ${mode === "glossary" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("glossary")}>용어집 방식</button>
-            <button type="button" aria-pressed={mode === "text"} className={`btn-sm ${mode === "text" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("text")}>텍스트 편집</button>
-            <button type="button" aria-pressed={mode === "preview"} className={`btn-sm ${mode === "preview" ? "btn-primary" : "btn-quiet"}`} onClick={() => setMode("preview")}>미리보기</button>
-          </div>
-          <button
-            ref={fullscreenButtonRef}
-            type="button"
-            className="btn-ghost btn-sm"
-            aria-pressed={fullscreen}
-            title={fullscreen ? "전체 화면 닫기 (Esc)" : "전체 화면으로 편집"}
-            onClick={() => setFullscreen((current) => !current)}
-          >
-            {fullscreen ? "전체 화면 닫기" : "전체 화면"}
-          </button>
+
+        <div className="markdown-toolbar-format-buttons flex shrink-0 items-center gap-0.5" aria-label="서식">
+          <ToolbarButton label="굵게" title="굵게 (Ctrl+B)" disabled={disabled} onClick={() => runToolbarAction("bold")}><strong>B</strong></ToolbarButton>
+          <ToolbarButton label="기울임" title="기울임 (Ctrl+I)" disabled={disabled} onClick={() => runToolbarAction("italic")}><em>I</em></ToolbarButton>
+          <ToolbarButton label="취소선" title="취소선" disabled={disabled} onClick={() => runToolbarAction("strike")}><span className="line-through">S</span></ToolbarButton>
+          <ToolbarButton label="인라인 코드" title="인라인 코드" disabled={disabled} onClick={() => runToolbarAction("inline-code")}><span className="font-mono">&lt;/&gt;</span></ToolbarButton>
+          <ToolbarButton label="링크" title="링크 (Ctrl+K)" disabled={disabled} onClick={() => runToolbarAction("link")}>링크</ToolbarButton>
+          <ToolbarButton label="인라인 수식" title="인라인 수식" disabled={disabled} onClick={() => runToolbarAction("inline-math")}>$x$</ToolbarButton>
+          <span className="mx-1 h-5 w-px bg-line" aria-hidden="true" />
+          <ToolbarButton label="인용" title="인용문 적용/해제" disabled={disabled} onClick={() => runToolbarAction("quote")}>인용</ToolbarButton>
+          <ToolbarButton label="글머리 목록" title="글머리 목록 적용/해제" disabled={disabled} onClick={() => runToolbarAction("bullet")}>•</ToolbarButton>
+          <ToolbarButton label="번호 목록" title="번호 목록 적용/해제" disabled={disabled} onClick={() => runToolbarAction("ordered")}>1.</ToolbarButton>
+          <ToolbarButton label="체크리스트" title="체크리스트 적용/해제" disabled={disabled} onClick={() => runToolbarAction("task")}>☑</ToolbarButton>
+          <ToolbarButton label="코드 블록" title="코드 블록 적용/해제" disabled={disabled} onClick={() => runToolbarAction("code-block")}>코드</ToolbarButton>
         </div>
+
+        <select
+          aria-label="서식"
+          defaultValue=""
+          disabled={disabled}
+          onChange={(event) => {
+            runToolbarAction(event.currentTarget.value);
+            event.currentTarget.value = "";
+          }}
+          className="markdown-toolbar-format-select field !h-8 !w-[5rem] shrink-0 !px-2 !py-0 !pr-6 text-xs"
+        >
+          <option value="">서식</option>
+          {FORMAT_MENU_ITEMS.map((item) => <option key={item.action} value={item.action}>{item.label}</option>)}
+        </select>
+
+        <select
+          aria-label="삽입 도구"
+          defaultValue=""
+          onChange={(event) => {
+            runToolbarAction(event.currentTarget.value);
+            event.currentTarget.value = "";
+          }}
+          className="markdown-toolbar-insert field !h-8 !w-[5.5rem] shrink-0 !px-2 !py-0 !pr-6 text-xs"
+        >
+          <option value="">삽입</option>
+          {INSERT_MENU_ITEMS.map((item) => <option key={item.action} value={item.action} disabled={disabled || (item.action === "image" && uploadCount > 0)}>{item.label}</option>)}
+        </select>
+
+        <div className="markdown-toolbar-view-segments ml-auto flex shrink-0 items-center rounded-lg border border-line bg-panel p-0.5" role="group" aria-label="본문 보기 방식">
+          {([
+            { value: "glossary", label: "용어집 방식" },
+            { value: "text", label: "텍스트" },
+            { value: "preview", label: "미리보기" },
+          ] as const).map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              aria-pressed={mode === item.value}
+              onClick={() => setMode(item.value)}
+              className={cx("rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-brand/40", mode === item.value ? "bg-brand-soft text-brand" : "text-ink-3 hover:bg-panel-2 hover:text-ink")}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <select
+          ref={viewSelectRef}
+          aria-label="본문 보기 방식"
+          value={mode}
+          onChange={(event) => {
+            if (event.currentTarget.value === "fullscreen") setFullscreen((current) => !current);
+            else setMode(event.currentTarget.value as MarkdownView);
+          }}
+          className="markdown-toolbar-view-select field ml-auto !h-8 !w-[6.75rem] shrink-0 !px-2 !py-0 !pr-6 text-xs"
+        >
+          <option value="glossary">용어집 방식</option>
+          <option value="text">텍스트 편집</option>
+          <option value="preview">미리보기</option>
+          <option value="fullscreen">{fullscreen ? "전체 화면 닫기" : "전체 화면"}</option>
+        </select>
+        <button
+          ref={fullscreenButtonRef}
+          type="button"
+          className="markdown-toolbar-fullscreen btn-ghost btn-sm h-8 w-8 shrink-0 !px-0"
+          aria-label={fullscreen ? "전체 화면 닫기" : "전체 화면"}
+          aria-pressed={fullscreen}
+          title={fullscreen ? "전체 화면 닫기 (Esc)" : "전체 화면으로 편집"}
+          onClick={() => setFullscreen((current) => !current)}
+        >
+          <span aria-hidden="true">{fullscreen ? "✕" : "⛶"}</span>
+        </button>
       </div>
       <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={chooseFiles} />
       {uploadError && <div className="border-b border-danger/35 bg-danger-soft px-3 py-2 text-xs text-danger" aria-live="polite">{uploadError}</div>}
@@ -526,6 +591,7 @@ export function MarkdownEditor({
           {value.length.toLocaleString()} / {maxLength.toLocaleString()}{value.length >= maxLength ? " · 최대 글자 수" : ""}
         </div>
       )}
+
     </div>
   );
 }
@@ -551,8 +617,4 @@ function ToolbarButton({ label, title, disabled, onClick, children }: ToolbarBut
       {children}
     </button>
   );
-}
-
-function ToolbarDivider() {
-  return <span className="mx-0.5 h-5 w-px shrink-0 bg-line" aria-hidden="true" />;
 }

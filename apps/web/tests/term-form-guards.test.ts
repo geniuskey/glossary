@@ -99,25 +99,25 @@ test("편집 화면의 저장 액션은 viewport 하단에 고정되고 본문�
   expect(globalsSource).toContain('body:has([data-sidebar-collapsed="true"]) .term-form-bottom-bar');
 });
 
-test("대표 표기 다음에 확장명·추가 표기 동작이 있고 한줄 정의와 관리·본문으로 이어진다", () => {
-  const basicInfoIdx = code.indexOf('title="용어 기본 정보"');
+test("대표 이름과 정의·본문 다음에 부가 정보를 표시한다", () => {
+  const basicInfoIdx = code.indexOf('title="이름과 정의"');
   const primaryNameIdx = code.indexOf('name="nameEn"');
   const definitionIdx = code.indexOf('name="definitionMd"');
   const surfacesIdx = code.indexOf('ref={surfaceDetailsRef}');
-  const managementIdx = code.indexOf('title="분류 및 관리"');
+  const managementIdx = code.indexOf('title="부가 정보"');
   const bodyIdx = code.indexOf('label="용어 본문"');
 
   expect(basicInfoIdx).toBeGreaterThan(-1);
   expect(primaryNameIdx).toBeGreaterThan(basicInfoIdx);
-  expect(surfacesIdx).toBeGreaterThan(primaryNameIdx);
-  expect(definitionIdx).toBeGreaterThan(surfacesIdx);
-  expect(managementIdx).toBeGreaterThan(definitionIdx);
-  expect(bodyIdx).toBeGreaterThan(managementIdx);
+  expect(definitionIdx).toBeGreaterThan(primaryNameIdx);
+  expect(bodyIdx).toBeGreaterThan(definitionIdx);
+  expect(managementIdx).toBeGreaterThan(bodyIdx);
+  expect(surfacesIdx).toBeGreaterThan(managementIdx);
 });
 
 test("상세 영역은 전체 너비로 쌓고 관리 필드는 넓은 화면에서 한 줄로 배치한다", () => {
   expect(code).toContain('<section className="card">');
-  expect(code).toContain('ref={surfaceDetailsRef} className="group/details sm:col-span-2"');
+  expect(code).toContain('ref={surfaceDetailsRef} className="group/details"');
   expect(code).toContain('ref={managementDetailsRef} className="group/details card"');
   expect(code).toContain('className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"');
   expect(code).not.toContain('lg:grid-cols-[18rem_minmax(0,1fr)]');
@@ -146,7 +146,7 @@ test("저장은 상태를 보내지 않고 서버가 돌려준 자동 판정을 
 test("표기·분류는 접을 수 있고 상세 설명은 항상 열린 일반 카드로 표시한다", () => {
   expect(code).toContain('ref={surfaceDetailsRef}');
   expect(code).toContain('ref={managementDetailsRef}');
-  expect(code).toContain('if (fieldErrors.surfaces) surfaceDetailsRef.current!.open = true');
+  expect(code).toContain('if (fieldErrors.surfaces) {\n      managementDetailsRef.current!.open = true;\n      surfaceDetailsRef.current!.open = true;');
   expect(code).toContain('managementDetailsRef.current!.open = true');
   expect(code).not.toContain('bodyDetailsRef');
   expect(code).not.toContain('summary={form.bodyMd.trim() ?');
@@ -297,7 +297,7 @@ test("관리자 편집 폼은 확인 후 DELETE 요청을 보내는 삭제 버�
   expect(code).toContain("window.confirm");
   expect(code).toContain('method: "DELETE"');
   expect(code).toContain('router.replace("/sheet")');
-  expect(code).toContain('className="btn-danger"');
+  expect(code).toContain('className="btn-danger btn-sm"');
   expect(code).toContain("editSlug !== undefined && canDelete");
 });
 

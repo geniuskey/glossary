@@ -50,6 +50,7 @@ test("용어 등록부터 별칭 검색, 문서 점검과 이력 되돌리기까
   await page.getByLabel("대표 영문 용어").fill(nameEn);
   await page.getByLabel("대표 국문 용어").fill(nameKo);
   await page.getByRole("textbox", { name: "한줄 정의", exact: true }).fill(originalDefinition);
+  await page.getByText("부가 정보", { exact: true }).click();
   await page.getByText("+ 추가 표기", { exact: true }).click();
   await page.getByLabel("한 번에 추가").fill(alias);
   await page.getByRole("button", { name: "표기 추가" }).click();

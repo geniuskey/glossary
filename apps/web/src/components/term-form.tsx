@@ -75,7 +75,7 @@ function managementSummary(form: TermFormState): string {
     form.topic.trim() ? "주제 있음" : null,
     form.ownerId ? "담당자 지정" : null,
   ].filter((part): part is string => Boolean(part));
-  return parts.length > 0 ? parts.join(" · ") : "+ 분류·담당자 추가";
+  return parts.length > 0 ? parts.join(" · ") : "분류·담당자 미지정";
 }
 
 // 성공 변형의 warnings 필드 타입만 뽑아낸다. FormOutcome이 이미 유니온이므로
@@ -133,7 +133,11 @@ export function TermForm({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]> | null>(null);
   const [conflict, setConflict] = useState<{ message: string; currentRevision: number | null } | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
+  const [showAiReview, setShowAiReview] = useState(false);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
+  const aiReviewButtonRef = useRef<HTMLButtonElement>(null);
+  const aiReviewCloseRef = useRef<HTMLButtonElement>(null);
+  const aiReviewDrawerRef = useRef<HTMLElement>(null);
   const surfaceMenuRef = useRef<HTMLDivElement>(null);
   const surfaceDetailsRef = useRef<HTMLDetailsElement>(null);
   const managementDetailsRef = useRef<HTMLDetailsElement>(null);
@@ -190,7 +194,10 @@ export function TermForm({
   useEffect(() => {
     if (!fieldErrors) return;
     if (fieldErrors.fullNameEn || fieldErrors.fullNameKo) setShowFullNameFields(true);
-    if (fieldErrors.surfaces) surfaceDetailsRef.current!.open = true;
+    if (fieldErrors.surfaces) {
+      managementDetailsRef.current!.open = true;
+      surfaceDetailsRef.current!.open = true;
+    }
     if (["domain", "category", "topic", "ownerId"].some((field) => fieldErrors[field])) {
       managementDetailsRef.current!.open = true;
     }
@@ -201,6 +208,38 @@ export function TermForm({
       : null;
     (control ?? errorSummaryRef.current)?.focus();
   }, [fieldErrors]);
+
+  useEffect(() => {
+    if (!showAiReview) return;
+    aiReviewCloseRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowAiReview(false);
+        aiReviewButtonRef.current?.focus();
+      } else if (event.key === "Tab") {
+        const focusable = [...(aiReviewDrawerRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) ?? [])].filter((element) => element.getClientRects().length > 0);
+        if (focusable.length === 0) return;
+        const first = focusable[0]!;
+        const last = focusable[focusable.length - 1]!;
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showAiReview]);
 
   useEffect(() => {
     if (!surfaceMenu) return;
@@ -551,7 +590,7 @@ export function TermForm({
       <section className="card">
         <CompactSectionTitle
           compact={compact}
-          title="용어 기본 정보"
+          title="이름과 정의"
           description="대표 이름과 짧은 정의처럼 가장 자주 확인하는 정보를 관리합니다."
           action={(
             <div className="ml-auto flex items-center gap-1.5">
@@ -621,7 +660,84 @@ export function TermForm({
                   </button>
                 </div>
               )}
-              <details ref={surfaceDetailsRef} className="group/details sm:col-span-2">
+
+            </div>
+
+            <div className={cx("border-t border-line", compact ? "pt-3" : "pt-4")}>
+              <div className={cx("flex items-baseline gap-2", compact ? "mb-2" : "mb-3")}>
+                <h3 className="text-sm font-medium text-ink">한줄 정의</h3>
+                <HelpTip text="검색 결과에서 먼저 읽히는 짧은 설명입니다." />
+              </div>
+              <textarea
+                name="definitionMd"
+                autoComplete="off"
+                value={form.definitionMd}
+                maxLength={TERM_MARKDOWN_MAX}
+                onChange={(event) => updateField("definitionMd", event.target.value)}
+                disabled={locked}
+                aria-label="한줄 정의"
+                aria-invalid={errorsFor("definitionMd") ? true : undefined}
+                aria-describedby={errorsFor("definitionMd") ? "definitionMd-error" : undefined}
+                rows={compact ? 2 : 3}
+                placeholder="한두 문장으로 이 용어가 무엇인지…"
+                className="field korean-editor-font"
+              />
+              <FormFieldError id="definitionMd-error" errors={errorsFor("definitionMd")} />
+            </div>
+        </div>
+      </section>
+
+      <section id="term-body" className={cx("card overflow-hidden", compact && "flex min-h-0 flex-1 flex-col")}>
+        <CompactSectionTitle
+          compact={compact}
+          title="상세 설명"
+          description="예시나 배경처럼 한줄 정의만으로 부족한 맥락을 남깁니다."
+          action={editSlug !== undefined ? (
+            <button
+              ref={aiReviewButtonRef}
+              type="button"
+              onClick={() => setShowAiReview(true)}
+              disabled={locked || imageUploading}
+              className="btn-ghost btn-sm ml-auto"
+              aria-haspopup="dialog"
+              aria-controls="term-ai-review-drawer"
+            >
+              AI 검토
+            </button>
+          ) : undefined}
+        />
+        <div className={cx(compact && "flex min-h-0 flex-1 flex-col")}>
+          <MarkdownEditor
+            name="bodyMd"
+            label="용어 본문"
+            describedBy={errorsFor("bodyMd") ? "bodyMd-error" : undefined}
+            invalid={Boolean(errorsFor("bodyMd"))}
+            value={form.bodyMd}
+            maxLength={TERM_MARKDOWN_MAX}
+            onChange={(bodyMd) => updateField("bodyMd", bodyMd)}
+            disabled={locked}
+            compact={compact}
+            resizable={compact}
+            fillAvailable={compact}
+            defaultView="glossary"
+            embedded
+            onUploadingChange={setImageUploading}
+          />
+          {errorsFor("bodyMd") && (
+            <div className="px-3 pb-3">
+              <FormFieldError id="bodyMd-error" errors={errorsFor("bodyMd")} />
+            </div>
+          )}
+        </div>
+      </section>
+
+      <details ref={managementDetailsRef} className="group/details card">
+            <CollapsibleSectionSummary
+              title="부가 정보"
+              summary={`${form.surfaces.length > 0 ? `추가 표기 ${form.surfaces.length}개` : "추가 표기 없음"} · ${managementSummary(form)}`}
+            />
+            <div className={compact ? "p-3 pt-0" : "p-4 pt-0 sm:p-5 sm:pt-0"}>
+              <details ref={surfaceDetailsRef} className="group/details">
                 <summary className="btn-quiet btn-sm flex min-w-0 w-full cursor-pointer list-none flex-wrap items-center gap-1.5 text-left [&::-webkit-details-marker]:hidden">
                   {form.surfaces.length > 0 ? (
                     <>
@@ -845,39 +961,7 @@ export function TermForm({
                   </div>
                 </div>
               </details>
-            </div>
-
-            <div className={cx("border-t border-line", compact ? "pt-3" : "pt-4")}>
-              <div className={cx("flex items-baseline gap-2", compact ? "mb-2" : "mb-3")}>
-                <h3 className="text-sm font-medium text-ink">한줄 정의</h3>
-                <HelpTip text="검색 결과에서 먼저 읽히는 짧은 설명입니다." />
-              </div>
-              <textarea
-                name="definitionMd"
-                autoComplete="off"
-                value={form.definitionMd}
-                maxLength={TERM_MARKDOWN_MAX}
-                onChange={(event) => updateField("definitionMd", event.target.value)}
-                disabled={locked}
-                aria-label="한줄 정의"
-                aria-invalid={errorsFor("definitionMd") ? true : undefined}
-                aria-describedby={errorsFor("definitionMd") ? "definitionMd-error" : undefined}
-                rows={compact ? 2 : 3}
-                placeholder="한두 문장으로 이 용어가 무엇인지…"
-                className="field korean-editor-font"
-              />
-              <FormFieldError id="definitionMd-error" errors={errorsFor("definitionMd")} />
-            </div>
-        </div>
-      </section>
-
-      <details ref={managementDetailsRef} className="group/details card">
-            <CollapsibleSectionSummary
-              title="분류 및 관리"
-              summary={managementSummary(form)}
-            />
-            <div className={compact ? "p-3 pt-0" : "p-4 pt-0 sm:p-5 sm:pt-0"}>
-            <div className="border-t border-line pt-3">
+            <div className="mt-3 border-t border-line pt-3">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div>
               <ClassificationMultiSelect
@@ -988,49 +1072,16 @@ export function TermForm({
                 </div>
               </details>
             )}
+            {editSlug !== undefined && canDelete && (
+              <div className="mt-3 border-t border-line pt-3">
+                <button type="button" onClick={() => void deleteCurrentTerm()} disabled={locked} className="btn-danger btn-sm">
+                  {deleting ? "삭제 중…" : "용어 삭제"}
+                </button>
+              </div>
+            )}
           </div>
           </div>
       </details>
-
-      {editSlug !== undefined && (
-        <TermAiReviewPanel
-          termSlug={editSlug}
-          payload={buildTermPayload(formWithPendingSurfaces)}
-          disabled={locked || imageUploading}
-          onApply={applyAiSuggestion}
-        />
-      )}
-
-      <section id="term-body" className={cx("card overflow-hidden", compact && "flex min-h-0 flex-1 flex-col")}>
-        <CompactSectionTitle
-          compact={compact}
-          title="상세 설명"
-          description="예시나 배경처럼 한줄 정의만으로 부족한 맥락을 남깁니다."
-        />
-        <div className={cx(compact && "flex min-h-0 flex-1 flex-col")}>
-          <MarkdownEditor
-            name="bodyMd"
-            label="용어 본문"
-            describedBy={errorsFor("bodyMd") ? "bodyMd-error" : undefined}
-            invalid={Boolean(errorsFor("bodyMd"))}
-            value={form.bodyMd}
-            maxLength={TERM_MARKDOWN_MAX}
-            onChange={(bodyMd) => updateField("bodyMd", bodyMd)}
-            disabled={locked}
-            compact={compact}
-            resizable={compact}
-            fillAvailable={compact}
-            defaultView="glossary"
-            embedded
-            onUploadingChange={setImageUploading}
-          />
-          {errorsFor("bodyMd") && (
-            <div className="px-3 pb-3">
-              <FormFieldError id="bodyMd-error" errors={errorsFor("bodyMd")} />
-            </div>
-          )}
-        </div>
-      </section>
 
       <div className={cx(
         compact
@@ -1042,11 +1093,6 @@ export function TermForm({
             {deleting ? "삭제 중…" : saving ? "저장 중…" : savedSlug ? "저장 완료" : editSlug === undefined ? "새 용어 작성 중" : dirty ? "저장하지 않은 변경사항이 있습니다" : "변경사항 없음"}
           </p>
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            {editSlug !== undefined && canDelete && (
-              <button type="button" onClick={() => void deleteCurrentTerm()} disabled={locked} className="btn-danger">
-                {deleting ? "삭제 중…" : "삭제"}
-              </button>
-            )}
             <Link href={editSlug !== undefined ? `/g/${editSlug}` : "/sheet"} className="btn-quiet">
               취소
             </Link>
@@ -1062,6 +1108,57 @@ export function TermForm({
           </div>
         </div>
       </div>
+
+      {editSlug !== undefined && (
+        <>
+          <button
+            type="button"
+            tabIndex={showAiReview ? 0 : -1}
+            aria-label="AI 검토 닫기"
+            onClick={() => {
+              setShowAiReview(false);
+              aiReviewButtonRef.current?.focus();
+            }}
+            className={cx("fixed inset-0 z-[70] bg-black/45", showAiReview ? "block" : "hidden")}
+          />
+          <aside
+            ref={aiReviewDrawerRef}
+            id="term-ai-review-drawer"
+            role="dialog"
+            aria-modal={showAiReview ? "true" : undefined}
+            aria-label="AI 검토"
+            inert={!showAiReview}
+            className={cx(
+              "fixed inset-y-0 right-0 z-[71] w-full max-w-xl flex-col overflow-y-auto overscroll-contain border-l border-line bg-panel p-4 shadow-2xl sm:p-6",
+              showAiReview ? "flex" : "hidden",
+            )}
+          >
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-ink">AI 검토</h2>
+                <p className="mt-1 text-xs text-ink-3">제안을 반영한 뒤 변경사항을 저장하세요.</p>
+              </div>
+              <button
+                ref={aiReviewCloseRef}
+                type="button"
+                onClick={() => {
+                  setShowAiReview(false);
+                  aiReviewButtonRef.current?.focus();
+                }}
+                className="btn-quiet btn-sm"
+              >
+                닫기
+              </button>
+            </div>
+            <TermAiReviewPanel
+              termSlug={editSlug}
+              payload={buildTermPayload(formWithPendingSurfaces)}
+              disabled={locked || imageUploading}
+              onApply={applyAiSuggestion}
+            />
+          </aside>
+        </>
+      )}
 
       {saveToast && (
         <div className={cx("fixed right-5 z-[80] flex max-w-sm items-center gap-3 rounded-lg border border-ok/35 bg-ok-soft px-4 py-3 text-sm text-ok shadow-pop animate-fade-up", compact ? "bottom-20" : "bottom-5")} role="status" aria-live="polite">
