@@ -51,9 +51,11 @@ test("용어 등록부터 별칭 검색, 문서 점검과 이력 되돌리기까
   await page.getByLabel("대표 국문 용어").fill(nameKo);
   await page.getByRole("textbox", { name: "한줄 정의", exact: true }).fill(originalDefinition);
   await page.getByText("부가 정보", { exact: true }).click();
-  await page.getByText("+ 추가 표기", { exact: true }).click();
-  await page.getByLabel("한 번에 추가").fill(alias);
+  await expect(page.getByRole("heading", { name: "추가 표기" })).toBeVisible();
+  await page.getByRole("textbox", { name: "추가 표기 입력" }).fill(alias);
   await page.getByRole("button", { name: "표기 추가" }).click();
+  await expect(page.getByRole("list", { name: "추가 표기 목록" })).toContainText(alias);
+  await expect(page.getByRole("button", { name: `${alias} 삭제` })).toBeVisible();
   await page.getByRole("button", { name: "용어 저장" }).click();
   await expect(page).toHaveURL(new RegExp(`/g/${slug}$`));
   await expect(page.getByText(originalDefinition)).toBeVisible();

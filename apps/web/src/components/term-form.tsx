@@ -22,7 +22,7 @@ import {
   TERM_STATUS_HINT,
   TERM_STATUS_LABEL,
 } from "@/lib/terms/enums";
-import { buildTermPayload, newTermFormState, parseSurfaceBatch, type SurfaceDraft, type TermFormState } from "@/lib/terms/form-payload";
+import { buildTermPayload, newTermFormState, parseSurfaceBatch, type TermFormState } from "@/lib/terms/form-payload";
 import type { EditReviewField } from "@/lib/ai/edit-review-values";
 import { interpretResponse, type FormOutcome } from "@/lib/terms/form-response";
 import { TERM_DOMAIN_TEXT_MAX, TERM_MARKDOWN_MAX, TERM_NAME_MAX, TERM_SLUG_MAX } from "@/lib/terms/limits";
@@ -39,10 +39,6 @@ export interface TermFormInitial extends TermFormState {
   // .extend()로 받는다).
   expectedRevision?: number;
 }
-
-// F6/P1(query.ts의 규약): `Record<유니온, T>` + 폴백 없음. 화면에 "neutral"이
-// 그대로 노출되면 사용자는 그게 언어 코드인지 상태인지 알 수 없다.
-const SURFACE_PREVIEW_LIMIT = 6;
 
 function commaSeparatedValues(value: string): string[] {
   return [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
@@ -115,7 +111,6 @@ export function TermForm({
   const aiReviewButtonRef = useRef<HTMLButtonElement>(null);
   const aiReviewCloseRef = useRef<HTMLButtonElement>(null);
   const aiReviewDrawerRef = useRef<HTMLElement>(null);
-  const surfaceDetailsRef = useRef<HTMLDetailsElement>(null);
   const managementDetailsRef = useRef<HTMLDetailsElement>(null);
   const initialSnapshotRef = useRef(JSON.stringify(buildTermPayload(initial ?? newTermFormState())));
 
@@ -152,10 +147,6 @@ export function TermForm({
   const slugChanged = editSlug !== undefined && normalizedSlug !== editSlug;
   const slugDraftIssue = slugValidationMessage(normalizedSlug);
   const ManagementContainer = compact ? "section" : "details";
-  const surfaceCountLabel = form.surfaces.length > 0
-    ? `추가 표기 ${form.surfaces.length.toLocaleString("ko-KR")}개`
-    : "+ 추가 표기";
-
   useUnsavedChanges(dirty && savedSlug === null);
 
   useEffect(() => {
@@ -169,7 +160,6 @@ export function TermForm({
     if (fieldErrors.fullNameEn || fieldErrors.fullNameKo) setShowFullNameFields(true);
     if (fieldErrors.surfaces) {
       if (!compact) managementDetailsRef.current!.open = true;
-      surfaceDetailsRef.current!.open = true;
     }
     if (["domain", "category", "topic", "ownerId"].some((field) => fieldErrors[field])) {
       if (!compact) managementDetailsRef.current!.open = true;
@@ -218,17 +208,6 @@ export function TermForm({
     setForm((f) => ({ ...f, [key]: value }));
     setWarnings([]);
     setSaveToast(null);
-  }
-
-  function updateSurface(index: number, patch: Partial<SurfaceDraft>) {
-    setForm((f) => ({
-      ...f,
-      surfaces: f.surfaces.map((surface, i) => {
-        if (i !== index) return surface;
-        const next = { ...surface, ...patch };
-        return { ...next, lang: inferSurfaceLang(next.text) };
-      }),
-    }));
   }
 
   function addSurfaceBatch() {
@@ -655,70 +634,52 @@ export function TermForm({
               />
             )}
             <div className={compact ? "p-3 pt-0" : "p-4 pt-0 sm:p-5 sm:pt-0"}>
-              <details ref={surfaceDetailsRef} className="group/details">
-                <summary className="btn-quiet btn-sm flex min-w-0 w-full cursor-pointer list-none items-center gap-2 text-left [&::-webkit-details-marker]:hidden">
-                  <span className="font-medium">{surfaceCountLabel}</span>
-                  {form.surfaces.length > 0 && (
-                    <span className="min-w-0 flex-1 truncate text-xs text-ink-3">
-                      {form.surfaces.slice(0, SURFACE_PREVIEW_LIMIT).map((surface) => surface.text).join(", ")}
-                      {form.surfaces.length > SURFACE_PREVIEW_LIMIT ? "…" : ""}
-                    </span>
-                  )}
-                  <span className="ml-auto shrink-0 text-ink-3 transition-transform group-open/details:rotate-180 motion-reduce:transition-none" aria-hidden="true">⌄</span>
-                </summary>
-                <div className="mt-2 rounded-xl border border-line bg-panel-2/20 p-3">
-                  <div className="flex flex-col gap-2">
-                    <label htmlFor="surface-batch" className="text-xs font-medium text-ink-2">한 번에 추가</label>
-                    <input
-                      id="surface-batch"
-                      name="surfaceBatch"
-                      autoComplete="off"
-                      value={surfaceBatch}
-                      maxLength={TERM_NAME_MAX * 10}
-                      disabled={locked}
-                      placeholder="쉼표로 구분해 입력…"
-                      onChange={(event) => setSurfaceBatch(event.target.value)}
-                      onKeyDown={handleSurfaceBatchKeyDown}
-                      className="field h-8 min-w-0 py-0"
-                    />
-                    <button
-                      type="button"
-                      onClick={addSurfaceBatch}
-                      disabled={locked || pendingSurfaceValues.length === 0}
-                      className="btn-primary btn-sm self-start touch-manipulation"
-                    >
-                      <IconPlus />표기 추가
-                    </button>
-                  </div>
-                  {form.surfaces.length > 0 && (
-                    <ul className="mt-3 space-y-2" aria-label="추가 표기 목록">
-                      {form.surfaces.map((surface, index) => (
-                        <li key={index} className="flex min-w-0 items-center gap-2">
-                          <input
-                            name={"surface-" + index + "-text"}
-                            aria-label={"추가 표기 " + (index + 1)}
-                            autoComplete="off"
-                            value={surface.text}
-                            maxLength={TERM_NAME_MAX}
-                            disabled={locked}
-                            onChange={(event) => updateSurface(index, { text: event.target.value })}
-                            className="field h-8 min-w-0 flex-1 py-0"
-                          />
-                          <button
-                            type="button"
-                            aria-label={(surface.text || "추가 표기 " + (index + 1)) + " 삭제"}
-                            onClick={() => removeSurface(index)}
-                            disabled={locked}
-                            className="btn-ghost btn-sm shrink-0"
-                          >
-                            삭제
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </details>
+              <section aria-labelledby="surfaces-heading" className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-2">
+                <h3 id="surfaces-heading" className="col-span-2 text-sm font-medium text-ink">추가 표기</h3>
+                <input
+                  id="surface-batch"
+                  name="surfaceBatch"
+                  data-field-name="surfaces"
+                  aria-label="추가 표기 입력"
+                  autoComplete="off"
+                  value={surfaceBatch}
+                  maxLength={TERM_NAME_MAX * 10}
+                  disabled={locked}
+                  aria-invalid={errorsFor("surfaces") ? true : undefined}
+                  aria-describedby={errorsFor("surfaces") ? "surfaces-error" : undefined}
+                  placeholder="쉼표로 구분해 입력…"
+                  onChange={(event) => setSurfaceBatch(event.target.value)}
+                  onKeyDown={handleSurfaceBatchKeyDown}
+                  className="field h-8 min-w-0 py-0"
+                />
+                <button
+                  type="button"
+                  onClick={addSurfaceBatch}
+                  disabled={locked || pendingSurfaceValues.length === 0}
+                  className="btn-primary btn-sm touch-manipulation"
+                >
+                  <IconPlus />표기 추가
+                </button>
+                {form.surfaces.length > 0 && (
+                  <ul className="col-span-2 flex flex-wrap gap-2" aria-label="추가 표기 목록">
+                    {form.surfaces.map((surface, index) => (
+                      <li key={index} className="inline-flex max-w-full items-center gap-1 rounded-md border border-line bg-panel px-2 py-1 text-xs font-medium text-ink-2">
+                        <span className="min-w-0 break-all">{surface.text}</span>
+                        <button
+                          type="button"
+                          aria-label={(surface.text || "추가 표기 " + (index + 1)) + " 삭제"}
+                          onClick={() => removeSurface(index)}
+                          disabled={locked}
+                          className="-mr-1 grid h-5 w-5 shrink-0 place-items-center rounded hover:bg-panel-2 focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <span aria-hidden="true">×</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <FormFieldError id="surfaces-error" errors={errorsFor("surfaces")} className="col-span-2" />
+              </section>
             <div className="mt-3 border-t border-line pt-3">
             <div className={cx("grid gap-3", !compact && "md:grid-cols-2 xl:grid-cols-4")}>
             <div>
@@ -1030,10 +991,10 @@ function FormTextField({
   );
 }
 
-function FormFieldError({ id, errors }: { id: string; errors?: string[] }) {
+function FormFieldError({ id, errors, className }: { id: string; errors?: string[]; className?: string }) {
   if (!errors || errors.length === 0) return null;
   return (
-    <span id={id} className="mt-1.5 block text-xs leading-5 text-danger">
+    <span id={id} className={cx("mt-1.5 block text-xs leading-5 text-danger", className)}>
       {errors.join(" ")}
     </span>
   );

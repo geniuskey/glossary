@@ -103,7 +103,7 @@ test("대표 이름과 정의·본문 다음에 부가 정보를 표시한다", 
   const basicInfoIdx = code.indexOf('title="이름과 정의"');
   const primaryNameIdx = code.indexOf('name="nameEn"');
   const definitionIdx = code.indexOf('name="definitionMd"');
-  const surfacesIdx = code.indexOf('ref={surfaceDetailsRef}');
+  const surfacesIdx = code.indexOf('id="surfaces-heading"');
   const managementIdx = code.indexOf('title="부가 정보"');
   const bodyIdx = code.indexOf('label="용어 본문"');
 
