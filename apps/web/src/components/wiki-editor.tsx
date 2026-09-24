@@ -188,9 +188,9 @@ export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: 
     router.back();
   }
 
-  return <form onSubmit={submit} className={editing ? "space-y-5 pb-24" : "space-y-5"}>
-    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,20rem)]">
-      <div className="min-w-0 space-y-4">
+  return <form onSubmit={submit} className={editing ? "space-y-5 pb-24 lg:flex lg:min-h-[calc(100dvh-3rem)] lg:flex-col" : "space-y-5 lg:flex lg:min-h-[calc(100dvh-6rem)] lg:flex-col"}>
+    <div className="grid items-stretch gap-5 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,20rem)]">
+      <div className="min-w-0 space-y-4 lg:flex lg:flex-col">
         <label className="block"><span className="label">제목</span><input name="title" autoComplete="off" className="field" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={240} placeholder="예: 실험 설계 원칙" required /></label>
         {matchingTerms.length > 0 && <div className="note note-warn" role="status">
           <p className="font-medium">이 제목과 일치하는 용어가 있습니다.</p>
@@ -200,7 +200,7 @@ export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: 
           </li>)}</ul>
         </div>}
         <label className="block"><span className="label">요약</span><textarea name="summary" autoComplete="off" className="field min-h-20 resize-y" value={summary} onChange={(event) => setSummary(event.target.value)} maxLength={600} placeholder="이 문서가 어떤 업무 판단에 도움을 주는지 한두 문장으로 적어 주세요…" /></label>
-        <div>
+        <div className="flex h-80 min-h-64 flex-col lg:h-auto lg:flex-1">
           <span className="label">본문</span>
           <MarkdownEditor
             name="content"
@@ -213,6 +213,7 @@ export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: 
             maxLength={200_000}
             defaultView="glossary"
             resizable
+            fillAvailable
             onUploadingChange={setImageUploading}
           />
         </div>

@@ -141,6 +141,8 @@ export function MarkdownEditor({
   const viewRef = useRef<EditorView | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const onChangeRef = useRef(onChange);
+  const disabledRef = useRef(disabled);
+  const maxLengthRef = useRef(maxLength);
   const readOnlyCompartmentRef = useRef(new Compartment());
   const attributesCompartmentRef = useRef(new Compartment());
   const maxLengthCompartmentRef = useRef(new Compartment());
@@ -155,6 +157,8 @@ export function MarkdownEditor({
   const viewSelectRef = useRef<HTMLSelectElement>(null);
 
   onChangeRef.current = onChange;
+  disabledRef.current = disabled;
+  maxLengthRef.current = maxLength;
 
   // 부모 상태 변경은 React가 state updater를 평가하는 도중이 아니라 commit 뒤에
   // 전달한다. setUploadCount((count) => ...) 안에서 onUploadingChange를 호출하면
@@ -223,9 +227,10 @@ export function MarkdownEditor({
     const source = view.state.doc.toString();
     const from = source.indexOf(marker);
     if (from < 0) return false;
-    if (maxLength !== undefined && source.length - marker.length + replacement.length > maxLength) {
+    const limit = maxLengthRef.current;
+    if (limit !== undefined && source.length - marker.length + replacement.length > limit) {
       view.dispatch({ changes: { from, to: from + marker.length, insert: "" } });
-      setUploadError(`이미지를 넣으면 최대 ${maxLength.toLocaleString()}자를 초과합니다.`);
+      setUploadError(`이미지를 넣으면 최대 ${limit.toLocaleString()}자를 초과합니다.`);
       return false;
     }
     view.dispatch({ changes: { from, to: from + marker.length, insert: replacement } });
@@ -233,7 +238,7 @@ export function MarkdownEditor({
   }
 
   async function upload(files: File[]) {
-    if (disabled || files.length === 0) return;
+    if (disabledRef.current || files.length === 0) return;
     setUploadError(null);
     const markers = files.map(() => `<!-- glossary-image-upload-${Date.now()}-${uploadSequenceRef.current++} -->`);
     const markerBlock = `\n${markers.join("\n")}\n`;
@@ -241,8 +246,9 @@ export function MarkdownEditor({
     if (!view) return;
     const selection = view.state.selection.main;
     const nextLength = view.state.doc.length - (selection.to - selection.from) + markerBlock.length;
-    if (maxLength !== undefined && nextLength > maxLength) {
-      setUploadError(`이미지를 넣으면 최대 ${maxLength.toLocaleString()}자를 초과합니다.`);
+    const limit = maxLengthRef.current;
+    if (limit !== undefined && nextLength > limit) {
+      setUploadError(`이미지를 넣으면 최대 ${limit.toLocaleString()}자를 초과합니다.`);
       return;
     }
     setUploadCount((count) => count + files.length);
@@ -286,10 +292,11 @@ export function MarkdownEditor({
           }),
           EditorView.domEventHandlers({
             keydown(event, view) {
-              if (disabled) return false;
+              if (disabledRef.current) return false;
               return handleMarkdownShortcut(event, view);
             },
             paste(event) {
+              if (disabledRef.current) return false;
               const files = imageFiles(Array.from(event.clipboardData?.files ?? []));
               if (files.length === 0) return false;
               event.preventDefault();
@@ -297,6 +304,7 @@ export function MarkdownEditor({
               return true;
             },
             drop(event, view) {
+              if (disabledRef.current) return false;
               const files = imageFiles(Array.from(event.dataTransfer?.files ?? []));
               if (files.length === 0) return false;
               event.preventDefault();
@@ -369,10 +377,11 @@ export function MarkdownEditor({
             ".cm-live-table-fallback": { margin: "0", whiteSpace: "pre-wrap" },
           }),
           EditorView.theme({
-            "&": { height: resizable ? "100%" : "auto", minHeight: compact ? "10rem" : "16rem", backgroundColor: "transparent", color: "rgb(var(--ink))" },
+            "&": { height: resizable ? "100%" : "auto", minHeight: resizable ? "0" : compact ? "10rem" : "16rem", backgroundColor: "transparent", color: "rgb(var(--ink))" },
             ".cm-scroller": { overflow: "auto" },
             ".cm-content": {
               minHeight: resizable ? "100%" : compact ? "10rem" : "16rem",
+              boxSizing: "border-box",
               padding: compact ? "0.75rem 0" : "1rem 0",
               caretColor: "rgb(var(--brand))",
               fontFamily: '"Noto Sans KR Variable", "Noto Sans KR", Pretendard, sans-serif',
@@ -524,6 +533,7 @@ export function MarkdownEditor({
         <select
           aria-label="삽입 도구"
           defaultValue=""
+          disabled={disabled}
           onChange={(event) => {
             runToolbarAction(event.currentTarget.value);
             event.currentTarget.value = "";
@@ -581,7 +591,7 @@ export function MarkdownEditor({
       <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={chooseFiles} />
       {uploadError && <div className="border-b border-danger/35 bg-danger-soft px-3 py-2 text-xs text-danger" aria-live="polite">{uploadError}</div>}
       <div className={`grid ${fullscreen || resizable ? "min-h-0 flex-1" : ""}`}>
-        <div className={`${mode === "preview" ? "hidden" : "block"} h-full min-h-0 overflow-auto`} aria-label={mode === "glossary" ? "서식 편집 Markdown 편집기" : "텍스트 Markdown 편집기"} ref={hostRef} />
+        <div className={`${mode === "preview" ? "hidden" : "block"} h-full min-h-0 overflow-hidden`} aria-label={mode === "glossary" ? "서식 편집 Markdown 편집기" : "텍스트 Markdown 편집기"} ref={hostRef} />
         <div className={`${mode === "preview" ? "block" : "hidden"} ${resizable ? "min-h-0" : compact ? "min-h-40" : "min-h-[16rem]"} h-full overflow-auto ${compact ? "p-3" : "p-4"} ${fullscreen ? "min-h-0" : ""}`}>
           {value.trim() ? <MarkdownContent>{value}</MarkdownContent> : <p className="text-sm text-ink-3">미리보기가 여기에 표시됩니다.</p>}
         </div>
