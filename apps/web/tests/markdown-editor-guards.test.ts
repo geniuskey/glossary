@@ -30,7 +30,8 @@ test("본문 편집과 미리보기는 한 번에 하나만 보여 빈 패널을
   expect(source).toContain('mode === "preview" ? "hidden" : "block"');
   expect(source).toContain('mode === "glossary" ? "서식 편집 Markdown 편집기" : "텍스트 Markdown 편집기"');
   expect(source).toContain('mode === "preview" ? "block" : "hidden"');
-  expect(source).toContain('minHeight: compact ? "10rem" : "16rem"');
+  // 크기 조절 모드는 부모 높이를 채우고, 그 밖에서는 빈 편집기도 최소 높이를 지킨다.
+  expect(source).toContain('minHeight: resizable ? "0" : compact ? "10rem" : "16rem"');
   expect(source).not.toContain('minHeight: "26rem"');
 });
 

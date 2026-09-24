@@ -99,6 +99,9 @@ const PROTO_B_ALLOWLIST = new Set<string>([
   path.join("support", "page.tsx"),
   path.join("about", "page.tsx"),
   path.join("legal", "page.tsx"),
+  // 플랫폼 통계는 누구나 보는 공개 화면이다(비로그인 메뉴에도 노출 — app-shell.test).
+  // 집계 수치만 보여 주고, user가 null이면 셸이 계정 메뉴를 그리지 않는다.
+  path.join("statistics", "page.tsx"),
 ]);
 
 test('PROTO B: 허용목록 밖의 모든 page.tsx는 getCurrentUser(와 redirect("/login")를 모두 포함한다 (R3/R6)', () => {
