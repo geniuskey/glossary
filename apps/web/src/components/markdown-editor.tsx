@@ -501,14 +501,14 @@ export function MarkdownEditor({
           ))}
         </div>
 
-        <div className="markdown-toolbar-format-buttons flex shrink-0 items-center gap-0.5" aria-label="서식">
+        <div className="markdown-toolbar-format-buttons flex shrink-0 items-center rounded-lg border border-line bg-panel p-0.5" aria-label="서식">
           <ToolbarButton label="굵게" title="굵게 (Ctrl+B)" disabled={disabled} onClick={() => runToolbarAction("bold")}><strong>B</strong></ToolbarButton>
           <ToolbarButton label="기울임" title="기울임 (Ctrl+I)" disabled={disabled} onClick={() => runToolbarAction("italic")}><em>I</em></ToolbarButton>
           <ToolbarButton label="취소선" title="취소선" disabled={disabled} onClick={() => runToolbarAction("strike")}><span className="line-through">S</span></ToolbarButton>
           <ToolbarButton label="인라인 코드" title="인라인 코드" disabled={disabled} onClick={() => runToolbarAction("inline-code")}><span className="font-mono">&lt;/&gt;</span></ToolbarButton>
           <ToolbarButton label="링크" title="링크 (Ctrl+K)" disabled={disabled} onClick={() => runToolbarAction("link")}>링크</ToolbarButton>
           <ToolbarButton label="인라인 수식" title="인라인 수식" disabled={disabled} onClick={() => runToolbarAction("inline-math")}>$x$</ToolbarButton>
-          <span className="mx-1 h-5 w-px bg-line" aria-hidden="true" />
+          <span className="mx-0.5 h-5 w-px bg-line" aria-hidden="true" />
           <ToolbarButton label="인용" title="인용문 적용/해제" disabled={disabled} onClick={() => runToolbarAction("quote")}>인용</ToolbarButton>
           <ToolbarButton label="글머리 목록" title="글머리 목록 적용/해제" disabled={disabled} onClick={() => runToolbarAction("bullet")}>•</ToolbarButton>
           <ToolbarButton label="번호 목록" title="번호 목록 적용/해제" disabled={disabled} onClick={() => runToolbarAction("ordered")}>1.</ToolbarButton>
@@ -626,7 +626,7 @@ function ToolbarButton({ label, title, disabled, onClick, children }: ToolbarBut
       title={title}
       disabled={disabled}
       onClick={onClick}
-      className="inline-flex h-8 min-w-8 shrink-0 touch-manipulation items-center justify-center rounded-md px-2 text-xs text-ink-2 transition-colors hover:bg-panel hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-50"
+      className="inline-flex h-7 w-7 shrink-0 touch-manipulation items-center justify-center rounded-md text-[11px] text-ink-2 transition-colors hover:bg-panel-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>

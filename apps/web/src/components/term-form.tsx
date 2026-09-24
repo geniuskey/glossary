@@ -19,6 +19,7 @@ import { TermAiReviewPanel } from "@/components/term-ai-review-panel";
 import { ClassificationMultiSelect } from "@/components/classification-multi-select";
 import { StatusBadge } from "@/components/term-badges";
 import {
+  SURFACE_KIND_LABEL,
   TERM_STATUS_HINT,
   TERM_STATUS_LABEL,
 } from "@/lib/terms/enums";
@@ -40,6 +41,15 @@ export interface TermFormInitial extends TermFormState {
   // .extend()로 받는다).
   expectedRevision?: number;
 }
+
+const SURFACE_BADGE_TONE: Record<TermFormState["surfaces"][number]["kind"], string> = {
+  canonical: "border-brand/30 bg-brand-soft text-brand",
+  abbreviation: "border-info/30 bg-info-soft text-info",
+  full_name: "border-brand/30 bg-brand-soft text-brand",
+  alias: "border-brand/30 bg-brand-soft text-brand",
+  discouraged: "border-warn/35 bg-warn-soft text-warn",
+  forbidden: "border-danger/35 bg-danger-soft text-danger",
+};
 
 function commaSeparatedValues(value: string): string[] {
   return [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
@@ -639,7 +649,7 @@ export function TermForm({
         className="group/details card h-full"
       >
             {compact ? (
-              <header className="border-b border-line px-3 py-3">
+              <header className="border-b border-line bg-panel-2/50 px-3 py-3">
                 <h2 className="text-sm font-semibold text-ink">용어 설정</h2>
               </header>
             ) : (
@@ -648,9 +658,12 @@ export function TermForm({
                 summary={`${form.surfaces.length > 0 ? `추가 표기 ${form.surfaces.length}개` : "추가 표기 없음"} · ${managementSummary(form)}`}
               />
             )}
-            <div className={compact ? "p-3 pt-0" : "p-4 pt-0 sm:p-5 sm:pt-0"}>
-              <section aria-labelledby="surfaces-heading" className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-2">
-                <h3 id="surfaces-heading" className="col-span-2 text-sm font-medium text-ink">추가 표기</h3>
+            <div className={compact ? "p-3" : "p-4 sm:p-5"}>
+              <section aria-labelledby="surfaces-heading" className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-2 border-b border-line pb-4">
+                <div className="col-span-2 flex items-baseline justify-between gap-2">
+                  <h3 id="surfaces-heading" className="text-sm font-semibold text-ink">추가 표기</h3>
+                  <span className="text-xs tabular-nums text-ink-3">{form.surfaces.length}개</span>
+                </div>
                 <input
                   id="surface-batch"
                   name="surfaceBatch"
@@ -676,16 +689,17 @@ export function TermForm({
                   <IconPlus />표기 추가
                 </button>
                 {form.surfaces.length > 0 && (
-                  <ul className="col-span-2 flex flex-wrap gap-2" aria-label="추가 표기 목록">
+                  <ul className="col-span-2 flex flex-wrap gap-1.5 pt-1" aria-label="추가 표기 목록">
                     {form.surfaces.map((surface, index) => (
-                      <li key={index} className="inline-flex max-w-full items-center gap-1 rounded-md border border-line bg-panel px-2 py-1 text-xs font-medium text-ink-2">
+                      <li key={index} className={cx("inline-flex max-w-full items-center gap-1 rounded-lg border py-0.5 pl-2.5 pr-0.5 text-xs font-medium", SURFACE_BADGE_TONE[surface.kind])}>
                         <span className="min-w-0 break-all">{surface.text}</span>
+                        <span className="shrink-0 text-[10px] opacity-75">{SURFACE_KIND_LABEL[surface.kind as keyof typeof SURFACE_KIND_LABEL] ?? "추가 표기"}</span>
                         <button
                           type="button"
                           aria-label={(surface.text || "추가 표기 " + (index + 1)) + " 삭제"}
                           onClick={() => removeSurface(index)}
                           disabled={locked}
-                          className="-mr-1 grid h-5 w-5 shrink-0 place-items-center rounded hover:bg-panel-2 focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="grid h-6 w-6 shrink-0 touch-manipulation place-items-center rounded-md hover:bg-panel/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <span aria-hidden="true">×</span>
                         </button>
@@ -695,7 +709,8 @@ export function TermForm({
                 )}
                 <FormFieldError id="surfaces-error" errors={errorsFor("surfaces")} className="col-span-2" />
               </section>
-            <div className="mt-3 border-t border-line pt-3">
+            <div className="pt-4">
+            <h3 className="mb-3 text-sm font-semibold text-ink">분류와 담당</h3>
             <div className={cx("grid gap-3", !compact && "md:grid-cols-2 xl:grid-cols-4")}>
             <div>
               <ClassificationMultiSelect

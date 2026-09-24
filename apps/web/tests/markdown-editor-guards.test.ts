@@ -123,7 +123,7 @@ test("Markdown 제목과 서식은 메뉴바에 표시하고 보기 방식은 �
   expect(editorSource).toContain('aria-label={`제목 ${level}`}');
   expect(editorSource).toContain('onClick={() => run((text, from, to) => toggleHeadingMarkdown(text, from, to, level))}');
   expect(editorSource).not.toContain('toggleToolbarMenu');
-  expect(editorSource).toContain('className="markdown-toolbar-format-buttons flex shrink-0 items-center gap-0.5"');
+  expect(editorSource).toContain('className="markdown-toolbar-format-buttons flex shrink-0 items-center rounded-lg border border-line bg-panel p-0.5"');
   expect(editorSource).toContain('aria-label="서식"');
   expect(editorSource).toContain('aria-label="삽입 도구"');
   expect(editorSource).toContain('aria-label="본문 보기 방식"');
