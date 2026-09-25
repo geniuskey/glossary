@@ -46,8 +46,8 @@ export const securityHeaders = [
 
 const config: NextConfig = {
   output: "standalone",
-  // 개발 중 Tailscale 주소로 접속할 때 Next dev 리소스와 클라이언트 하이드레이션을 허용한다.
-  allowedDevOrigins: ["100.89.133.22", "edwin-macstudio"],
+  // 개발 중 Tailscale 주소나 Mac 호스트 별칭으로 접속할 때 Next dev 리소스와 하이드레이션을 허용한다.
+  allowedDevOrigins: ["100.89.133.22", "macstudio"],
   redirects: async () => [...legacyRedirects],
   headers: async () => [{ source: "/:path*", headers: [...securityHeaders] }],
   // 모노레포에서는 트레이싱 루트를 워크스페이스 최상단으로 올려야
