@@ -38,7 +38,7 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-5 space-y-4">
+    <form method="post" onSubmit={onSubmit} className="mt-5 space-y-4">
       <div>
         <label htmlFor="login-email" className="label">
           이메일
