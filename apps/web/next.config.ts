@@ -13,6 +13,25 @@ try {
   // 파일이 없으면(운영·CI) 컨테이너/셸 환경변수를 그대로 쓴다.
 }
 
+const developmentOriginHosts = [
+  // allowedDevOrigins에는 scheme과 port 없이 hostname만 적는다.
+  "localhost",
+  "100.89.133.22",
+  "macstudio",
+  "macstudio.tail04f41b.ts.net",
+];
+
+const developmentOriginConfig: Partial<NextConfig> =
+  process.env.NODE_ENV === "development"
+    ? {
+        experimental: {
+          serverActions: {
+            allowedOrigins: developmentOriginHosts.map((host) => `${host}:3000`),
+          },
+        },
+      }
+    : {};
+
 /**
  * R135: 용어 주소를 `/g/<slug>`로 분리하면서(`/w/<slug>`는 위키), 옛
  * `/terms/*` 주소를 전부 살려 둔다. 용어 링크는 이슈·위키·메신저에 이미 붙어
@@ -45,9 +64,10 @@ export const securityHeaders = [
 ] as const;
 
 const config: NextConfig = {
+  ...developmentOriginConfig,
   output: "standalone",
-  // 개발 중 Tailscale 주소나 Mac 호스트 별칭으로 접속할 때 Next dev 리소스와 하이드레이션을 허용한다.
-  allowedDevOrigins: ["100.89.133.22", "macstudio"],
+  // 개발 origin 제한은 위 호스트들로만 완화한다. localhost는 기본 허용이지만 명시해 둔다.
+  allowedDevOrigins: developmentOriginHosts,
   redirects: async () => [...legacyRedirects],
   headers: async () => [{ source: "/:path*", headers: [...securityHeaders] }],
   // 모노레포에서는 트레이싱 루트를 워크스페이스 최상단으로 올려야

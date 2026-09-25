@@ -43,9 +43,9 @@ export function isAllowedCsrfOrigin(request: Request, origin: string | null): bo
 export function enforceCsrf(request: Request): Response | null {
   if (SAFE_METHODS.has(request.method.toUpperCase())) return null;
 
-  // Route tests intentionally exercise handlers without browser headers. The
-  // production path is always enforced; dedicated CSRF tests cover the guard.
-  if (process.env.NODE_ENV === "test") return null;
+  // 개발 중에는 localhost와 Tailscale 호스트를 오가므로 Origin 검사를 건너뛴다.
+  // 인증(requireAuth)과 권한 검사는 그대로 유지하고, 운영에서는 항상 아래 검사를 한다.
+  if (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") return null;
 
   const origin = request.headers.get("origin");
   const referer = request.headers.get("referer");
