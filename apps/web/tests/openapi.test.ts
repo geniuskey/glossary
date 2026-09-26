@@ -102,7 +102,8 @@ test("용어 검색 상태와 등록 입력 스키마가 실제 Zod 계약과 �
   expect(list.required).toEqual(["items", "total", "page", "pageSize"]);
   expect(list.properties.items.items.$ref).toBe("#/components/schemas/TermSummary");
 
-  const create = terms.post.requestBody.content["application/json"].schema;
+  expect(terms.post.requestBody.content["application/json"].schema.$ref).toBe("#/components/schemas/TermCreateInput");
+  const create = spec.components.schemas.TermCreateInput;
   expect(create.anyOf).toEqual([
     { required: ["nameEn"], properties: { nameEn: { type: "string", minLength: 1 } } },
     { required: ["nameKo"], properties: { nameKo: { type: "string", minLength: 1 } } },
@@ -118,6 +119,19 @@ test("용어 검색 상태와 등록 입력 스키마가 실제 Zod 계약과 �
   expect(spec.paths["/terms/{idOrSlug}"].patch.responses["200"].content["application/json"].schema.$ref).toBe("#/components/schemas/TermWrite");
 });
 
+test("일괄 입력과 결과의 용어 필드가 상세 스키마를 참조한다", () => {
+  const spec = openApiSpec as unknown as { paths: Record<string, any>; components: { schemas: Record<string, any> } };
+  const batch = spec.paths["/terms/batch"].post;
+  const row = batch.requestBody.content["application/json"].schema.properties.items.items;
+  expect(row.properties.term.anyOf).toEqual([
+    { $ref: "#/components/schemas/TermCreateInput" },
+    { $ref: "#/components/schemas/TermPatchInput" },
+  ]);
+  const result = batch.responses["200"].content["application/json"].schema.properties.results.items;
+  expect(result.properties.term.$ref).toBe("#/components/schemas/TermWire");
+  expect(spec.components.schemas.TermWire.properties.id.format).toBe("uuid");
+});
+
 test("용어 쓰기 응답의 필수 필드가 실제 wire 변환 결과와 일치한다", () => {
   const schemas = openApiSpec.components.schemas as Record<string, any>;
   const term = toTermWire({
@@ -128,7 +142,8 @@ test("용어 쓰기 응답의 필수 필드가 실제 wire 변환 결과와 일�
     createdBy: null, updatedBy: null, replacedById: null,
     updatedAt: new Date("2026-01-01T00:00:00Z"),
   } as Parameters<typeof toTermWire>[0]);
-  expect(Object.keys(term).sort()).toEqual([...schemas.TermWrite.properties.term.required].sort());
+  expect(schemas.TermWrite.properties.term.$ref).toBe("#/components/schemas/TermWire");
+  expect(Object.keys(term).sort()).toEqual([...schemas.TermWire.required].sort());
   const surface = toSurfaceWire({ id: "s", text: "AE", lang: "en", kind: "abbreviation", caseSensitive: true } as Parameters<typeof toSurfaceWire>[0]);
   expect(Object.keys(surface).sort()).toEqual([...schemas.Surface.required].sort());
   const warning = toWarningWire({ surfaceText: "AE", conflictingSlug: "other" } as Parameters<typeof toWarningWire>[0]);

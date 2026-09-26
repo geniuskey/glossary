@@ -95,6 +95,35 @@ export const openApiSpec = {
     },
     schemas: {
       Error: errorEnvelope,
+      TermCreateInput: {
+        type: "object",
+        properties: {
+          qualityProfile: termQualityProfileSchema,
+          nameEn: { type: ["string", "null"], minLength: 1, maxLength: 500 },
+          nameKo: { type: ["string", "null"], minLength: 1, maxLength: 500 },
+          fullNameEn: { type: ["string", "null"], minLength: 1, maxLength: 500 },
+          fullNameKo: { type: ["string", "null"], minLength: 1, maxLength: 500 },
+          definitionMd: { type: "string", maxLength: 100000 },
+          bodyMd: { type: "string", maxLength: 100000 },
+          domain: { type: "array", maxItems: 50, items: { type: "string", minLength: 1, maxLength: 100 } },
+          category: businessCategoryInputSchema,
+          topic: { type: ["string", "null"], description: "이전 클라이언트 호환용 단일 태그" },
+          tags: { type: "array", maxItems: 20, items: { type: "string", maxLength: 100 } },
+          ownerId: { type: ["string", "null"], format: "uuid" },
+          status: statusInputSchema,
+          surfaces: { type: "array", maxItems: 100, items: { type: "object", required: ["text", "kind"], properties: {
+            text: { type: "string", minLength: 1, maxLength: 500 },
+            lang: { type: "string", enum: ["en", "ko", "neutral"], description: "호환용 입력. 서버가 text에서 다시 판정합니다." },
+            kind: { type: "string", enum: ["canonical", "abbreviation", "full_name", "alias", "discouraged", "forbidden"] },
+            caseSensitive: { type: "boolean" },
+          } } },
+        },
+        anyOf: [
+          { required: ["nameEn"], properties: { nameEn: { type: "string", minLength: 1 } } },
+          { required: ["nameKo"], properties: { nameKo: { type: "string", minLength: 1 } } },
+        ],
+        description: "nameEn 또는 nameKo 중 하나는 null이 아닌 문자열이어야 합니다. 표기 충돌은 파생 표기까지 검증합니다.",
+      },
       TermSummary: {
         type: "object",
         required: ["id", "slug", "qualityProfile", "nameEn", "nameKo", "domain", "categories", "category", "categoryLabel", "categoryLabels", "topic", "tags", "ownerId", "ownerName", "status"],
@@ -130,20 +159,25 @@ export const openApiSpec = {
           caseSensitive: { type: "boolean" },
         },
       },
+      TermWire: {
+        type: "object",
+        required: ["id", "slug", "qualityProfile", "nameEn", "nameKo", "fullNameEn", "fullNameKo", "domain", "categories", "category", "topic", "tags", "ownerId", "status", "definitionMd", "bodyMd", "updatedAt"],
+        properties: {
+          id: { type: "string", format: "uuid" }, slug: { type: "string" }, qualityProfile: termQualityProfileSchema,
+          nameEn: { type: ["string", "null"] }, nameKo: { type: ["string", "null"] },
+          fullNameEn: { type: ["string", "null"] }, fullNameKo: { type: ["string", "null"] },
+          domain: { type: "array", items: { type: "string" } }, categories: businessCategoriesSchema,
+          category: businessCategorySchema, topic: { type: ["string", "null"] },
+          tags: { type: "array", items: { type: "string" } }, ownerId: { type: ["string", "null"], format: "uuid" },
+          status: statusSchema, definitionMd: { type: ["string", "null"] }, bodyMd: { type: ["string", "null"] },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
       TermWrite: {
         type: "object",
         required: ["term", "surfaces", "warnings"],
         properties: {
-          term: { type: "object", required: ["id", "slug", "qualityProfile", "nameEn", "nameKo", "fullNameEn", "fullNameKo", "domain", "categories", "category", "topic", "tags", "ownerId", "status", "definitionMd", "bodyMd", "updatedAt"], properties: {
-            id: { type: "string", format: "uuid" }, slug: { type: "string" }, qualityProfile: termQualityProfileSchema,
-            nameEn: { type: ["string", "null"] }, nameKo: { type: ["string", "null"] },
-            fullNameEn: { type: ["string", "null"] }, fullNameKo: { type: ["string", "null"] },
-            domain: { type: "array", items: { type: "string" } }, categories: businessCategoriesSchema,
-            category: businessCategorySchema, topic: { type: ["string", "null"] },
-            tags: { type: "array", items: { type: "string" } }, ownerId: { type: ["string", "null"], format: "uuid" },
-            status: statusSchema, definitionMd: { type: ["string", "null"] }, bodyMd: { type: ["string", "null"] },
-            updatedAt: { type: "string", format: "date-time" },
-          } },
+          term: { $ref: "#/components/schemas/TermWire" },
           surfaces: { type: "array", items: { $ref: "#/components/schemas/Surface" } },
           warnings: { type: "array", items: { type: "object", required: ["surfaceText", "conflictingSlug"], properties: {
             surfaceText: { type: "string" }, conflictingSlug: { type: "string" },
@@ -2037,35 +2071,7 @@ export const openApiSpec = {
           required: true,
           content: {
             "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  qualityProfile: termQualityProfileSchema,
-                  nameEn: { type: ["string", "null"], minLength: 1, maxLength: 500 },
-                  nameKo: { type: ["string", "null"], minLength: 1, maxLength: 500 },
-                  fullNameEn: { type: ["string", "null"], minLength: 1, maxLength: 500 },
-                  fullNameKo: { type: ["string", "null"], minLength: 1, maxLength: 500 },
-                  definitionMd: { type: "string", maxLength: 100000 },
-                  bodyMd: { type: "string", maxLength: 100000 },
-                  domain: { type: "array", maxItems: 50, items: { type: "string", minLength: 1, maxLength: 100 } },
-                  category: businessCategoryInputSchema,
-                  topic: { type: ["string", "null"], description: "이전 클라이언트 호환용 단일 태그" },
-                  tags: { type: "array", maxItems: 20, items: { type: "string", maxLength: 100 } },
-                  ownerId: { type: ["string", "null"], format: "uuid" },
-                  status: statusInputSchema,
-                  surfaces: { type: "array", maxItems: 100, items: { type: "object", required: ["text", "kind"], properties: {
-                    text: { type: "string", minLength: 1, maxLength: 500 },
-                    lang: { type: "string", enum: ["en", "ko", "neutral"], description: "호환용 입력. 서버가 text에서 다시 판정합니다." },
-                    kind: { type: "string", enum: ["canonical", "abbreviation", "full_name", "alias", "discouraged", "forbidden"] },
-                    caseSensitive: { type: "boolean" },
-                  } } },
-                },
-                anyOf: [
-                  { required: ["nameEn"], properties: { nameEn: { type: "string", minLength: 1 } } },
-                  { required: ["nameKo"], properties: { nameKo: { type: "string", minLength: 1 } } },
-                ],
-                description: "nameEn 또는 nameKo 중 하나는 null이 아닌 문자열이어야 합니다. 표기 충돌은 파생 표기까지 검증합니다.",
-              },
+              schema: { $ref: "#/components/schemas/TermCreateInput" },
             },
           },
         },
@@ -2085,7 +2091,7 @@ export const openApiSpec = {
           "200": { ...json("전체 카탈로그", { type: "object", required: ["catalogVersion", "items"], properties: {
             catalogVersion: { type: "string" },
             items: { type: "array", items: { allOf: [
-              { $ref: "#/components/schemas/TermWrite/properties/term" },
+              { $ref: "#/components/schemas/TermWire" },
               { type: "object", required: ["revision", "surfaces"], properties: {
                 revision: { type: "integer", minimum: 0 },
                 surfaces: { type: "array", items: { $ref: "#/components/schemas/Surface" } },
@@ -2108,7 +2114,10 @@ export const openApiSpec = {
               key: { type: "string", minLength: 1, maxLength: 100 },
               operation: { type: "string", enum: ["create", "update"] },
               idOrSlug: { type: "string" }, expectedRevision: { type: "integer", minimum: 1 },
-              term: { type: "object", description: "create는 POST /terms, update는 PATCH /terms/{idOrSlug} 입력" },
+              term: { anyOf: [
+                { $ref: "#/components/schemas/TermCreateInput" },
+                { $ref: "#/components/schemas/TermPatchInput" },
+              ], description: "operation=create면 TermCreateInput, update면 TermPatchInput을 사용합니다." },
             } } },
           },
         } } } },
@@ -2116,7 +2125,10 @@ export const openApiSpec = {
           "200": json("행별 판정·저장 결과", { type: "object", required: ["dryRun", "results"], properties: {
             dryRun: { type: "boolean" }, results: { type: "array", items: { type: "object", required: ["key", "outcome"], properties: {
               key: { type: "string" }, outcome: { type: "string", enum: ["would_create", "would_update", "created", "updated", "invalid", "duplicate", "not_found", "revision_conflict", "slug_conflict"] },
-              replayed: { type: "boolean" }, term: { type: "object" }, surfaces: { type: "array", items: { $ref: "#/components/schemas/Surface" } },
+              replayed: { type: "boolean" }, term: { $ref: "#/components/schemas/TermWire" }, surfaces: { type: "array", items: { $ref: "#/components/schemas/Surface" } },
+              revision: { type: "integer", minimum: 1 }, currentRevision: { type: "integer", minimum: 0 },
+              message: { type: "string" }, field: { type: "string" }, conflictingRowKey: { type: "string" },
+              unknown: { type: "array", items: { type: "string" } },
               warnings: { $ref: "#/components/schemas/TermWrite/properties/warnings" },
             } } },
           } }),
