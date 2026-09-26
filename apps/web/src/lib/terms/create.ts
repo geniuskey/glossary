@@ -157,6 +157,7 @@ export async function createTerm(
   input: TermInput,
   authorId: string | null,
   authorKeyId: string | null = null,
+  afterWrite?: (tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0], term: typeof terms.$inferSelect, surfaces: (typeof termSurfaces.$inferSelect)[], warnings: DuplicateWarning[]) => Promise<void>,
 ) {
   const db = getDb();
   const qualitySettings = await getTermQualitySettings();
@@ -245,6 +246,7 @@ export async function createTerm(
           authorKeyId,
         });
         await queueRagIndex(tx, insertedTerm!.id, 1);
+        await afterWrite?.(tx, insertedTerm!, savedSurfaces, warnings);
 
         return { term: insertedTerm!, savedSurfaces };
       });

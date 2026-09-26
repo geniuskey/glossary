@@ -3,6 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 import { openApiSpec } from "../src/lib/openapi.js";
+import { termInputSchema, surfaceInputSchema } from "../src/lib/terms/schema.js";
+import { toTermWire, toSurfaceWire, toWarningWire } from "../src/lib/terms/wire.js";
 
 // R129: OpenAPI 스펙은 AI-Lint 통합의 계약인데 손으로 유지된다. 손으로 유지되는
 // 리터럴은 구조 테스트로 잠근다 — R105(예약 slug), R107(라우트 디렉터리)와 같은
@@ -85,4 +87,50 @@ test("R129: 인증 수단이 세션 쿠키와 API 키 둘 다 문서화돼 있�
   expect(Object.keys(schemes).sort()).toEqual(["apiKey", "sessionCookie"]);
   // 쿠키 이름은 lib/auth/session.ts의 SESSION_COOKIE와 같아야 한다.
   expect(schemes.sessionCookie!.name).toBe("glossary_session");
+});
+
+test("용어 검색 상태와 등록 입력 스키마가 실제 Zod 계약과 맞는다", () => {
+  const spec = openApiSpec as unknown as { paths: Record<string, any>; components: { schemas: Record<string, any> } };
+  const terms = spec.paths["/terms"];
+  const params = terms.get.parameters as { name: string; schema: { enum?: string[] } }[];
+  expect(params.map((p) => p.name)).not.toContain("type");
+  expect(params.find((p) => p.name === "status")?.schema.enum).toEqual(["draft", "active"]);
+  expect(termInputSchema.safeParse({ nameEn: "Example", status: "active" }).success).toBe(true);
+  expect(termInputSchema.safeParse({ nameEn: "Example", status: "forbidden" }).success).toBe(false);
+
+  const list = terms.get.responses["200"].content["application/json"].schema;
+  expect(list.required).toEqual(["items", "total", "page", "pageSize"]);
+  expect(list.properties.items.items.$ref).toBe("#/components/schemas/TermSummary");
+
+  const create = terms.post.requestBody.content["application/json"].schema;
+  expect(create.anyOf).toEqual([
+    { required: ["nameEn"], properties: { nameEn: { type: "string", minLength: 1 } } },
+    { required: ["nameKo"], properties: { nameKo: { type: "string", minLength: 1 } } },
+  ]);
+  expect(termInputSchema.safeParse({}).success).toBe(false);
+  expect(termInputSchema.safeParse({ nameKo: "예시" }).success).toBe(true);
+  expect(create.properties.surfaces.items.required).toEqual(["text", "kind"]);
+  expect(surfaceInputSchema.safeParse({ text: "AE", kind: "abbreviation" }).success).toBe(true);
+  expect(surfaceInputSchema.safeParse({ text: "AE" }).success).toBe(false);
+  expect(terms.post.responses["201"].content["application/json"].schema.$ref).toBe("#/components/schemas/TermWrite");
+  expect(spec.components.schemas.TermWrite.required).toEqual(["term", "surfaces", "warnings"]);
+  expect(spec.paths["/terms/{idOrSlug}"].get.responses["200"].content["application/json"].schema.properties.term.$ref).toBe("#/components/schemas/TermDetail");
+  expect(spec.paths["/terms/{idOrSlug}"].patch.responses["200"].content["application/json"].schema.$ref).toBe("#/components/schemas/TermWrite");
+});
+
+test("용어 쓰기 응답의 필수 필드가 실제 wire 변환 결과와 일치한다", () => {
+  const schemas = openApiSpec.components.schemas as Record<string, any>;
+  const term = toTermWire({
+    id: "00000000-0000-0000-0000-000000000001", slug: "example", qualityProfile: "auto",
+    nameEn: "Example", nameKo: null, fullNameEn: null, fullNameKo: null,
+    domain: [], category: [], topic: null, tags: [], ownerId: null, status: "draft",
+    definitionMd: null, bodyMd: null, createdAt: new Date("2026-01-01T00:00:00Z"),
+    createdBy: null, updatedBy: null, replacedById: null,
+    updatedAt: new Date("2026-01-01T00:00:00Z"),
+  } as Parameters<typeof toTermWire>[0]);
+  expect(Object.keys(term).sort()).toEqual([...schemas.TermWrite.properties.term.required].sort());
+  const surface = toSurfaceWire({ id: "s", text: "AE", lang: "en", kind: "abbreviation", caseSensitive: true } as Parameters<typeof toSurfaceWire>[0]);
+  expect(Object.keys(surface).sort()).toEqual([...schemas.Surface.required].sort());
+  const warning = toWarningWire({ surfaceText: "AE", conflictingSlug: "other" } as Parameters<typeof toWarningWire>[0]);
+  expect(Object.keys(warning).sort()).toEqual([...schemas.TermWrite.properties.warnings.items.required].sort());
 });

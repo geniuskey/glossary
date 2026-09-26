@@ -122,7 +122,7 @@ export async function updateTerm(
   // R130: 되돌리기(revert.ts)가 같은 트랜잭션 규약을 그대로 쓰면서 리비전에만
   // 다른 메시지를 남길 수 있어야 한다. 이력 화면이 이 문자열을 그대로 보여준다.
   message = "updated",
-  afterWrite?: (tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0], revision: number) => Promise<void>,
+  afterWrite?: (tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0], revision: number, term: typeof terms.$inferSelect, surfaces: (typeof termSurfaces.$inferSelect)[], warnings: DuplicateWarning[]) => Promise<void>,
   database: ReturnType<typeof getDb> | Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0] = getDb(),
 ): Promise<UpdateTermResult> {
   const db = database;
@@ -331,7 +331,7 @@ export async function updateTerm(
         if (relationIds.length) await tx.update(termRelations).set({ sourceRevision: currentRevision + 1 })
           .where(and(inArray(termRelations.id, relationIds), eq(termRelations.sourceTermId, termId), eq(termRelations.sourceRevision, currentRevision), eq(termRelations.status, "proposed")));
       }
-      await afterWrite?.(tx, currentRevision + 1);
+      await afterWrite?.(tx, currentRevision + 1, updated, savedSurfaces, warnings);
 
       return { term: updated, surfaces: savedSurfaces, warnings };
     });

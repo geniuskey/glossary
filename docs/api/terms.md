@@ -12,17 +12,16 @@ slug도 되지 않는다. 화면 주소 `/g/sla`는 표기로 조회해, 뜻이 
 ## 목록 조회
 
 ```http
-GET /api/v1/terms?q=exposure&type=concept&domain=ISP&category=design&tag=노출%20제어&status=active&page=1&pageSize=20
+GET /api/v1/terms?q=exposure&domain=ISP&category=design&tag=노출%20제어&status=active&page=1&pageSize=20
 ```
 
 | 파라미터 | 기본값 | 설명 |
 |---|---|---|
 | `q` | — | 검색어. **Term이 아니라 Surface를 향한다** |
-| `type` | — | `concept` \| `proper_name` \| `identifier` \| `unit` |
 | `domain` | — | 도메인 태그 하나 |
 | `category` | — | 관리자가 구성한 업무 분류의 안정적인 key 하나 |
 | `tag` | — | 해당 태그가 달린 용어. 기존 `topic` 쿼리도 지원 |
-| `status` | — | `active` \| `deprecated` \| `forbidden` |
+| `status` | — | `draft` \| `active` |
 | `page` | 1 | |
 | `pageSize` | 20 | 1~100으로 클램프된다 |
 
@@ -30,11 +29,67 @@ GET /api/v1/terms?q=exposure&type=concept&domain=ISP&category=design&tag=노출%
 { "items": [ /* TermSummary[] */ ], "total": 137, "page": 1, "pageSize": 20 }
 ```
 
-`TermSummary`는 `id`, `slug`, `nameEn`, `nameKo`, `domain`, `category`, `categoryLabel`, `tags`,
-`ownerId`, `ownerName`, `status`다. 호환용 `topic`에는 첫 태그가 담긴다.
+`TermSummary`는 `id`, `slug`, `qualityProfile`, `nameEn`, `nameKo`, `domain`,
+`categories`, `category`, `categoryLabels`, `categoryLabel`, `tags`, `topic`,
+`ownerId`, `ownerName`, `status`를 담는다. 호환용 `topic`에는 첫 태그가 담긴다.
 
 `category`는 URL·API용 key이고 `categoryLabel`은 현재 표시 이름이다. 관리자가 표시 이름을
 바꿔도 key와 기존 링크는 유지된다.
+
+`type` 필터는 지원하지 않는다. `status`는 용어의 정리 상태(`draft`/`active`)이며
+비권장·금지 표기는 용어 상태가 아니라 표기의 `discouraged`·`forbidden` kind로 나타낸다.
+
+## 전체 카탈로그 내려받기
+
+```http
+GET /api/v1/terms/catalog
+Authorization: Bearer glk_...
+```
+
+`read` 권한 API 키로 현재 용어 전체를 JSON으로 읽는다. `items`의 각 항목은 대표명,
+풀네임, 정의, 본문, 도메인, 분류, 태그, 상태, `revision`, 모든 `surfaces`를 담는다.
+관리자 복원용 스냅샷과 달리 내부 감사·정규화 컬럼은 포함하지 않는다.
+
+응답의 `ETag`와 `catalogVersion`은 같은 내용 해시다. 다음 요청에
+`If-None-Match: "<catalogVersion>"`을 보내면 변경이 없을 때 `304`가 반환된다.
+이 API는 전체 카탈로그를 한 번에 직렬화하므로 큰 카탈로그에서는 응답 크기에 유의한다.
+
+## JSON 일괄 검토·반영
+
+```http
+POST /api/v1/terms/batch
+Content-Type: application/json
+Authorization: Bearer glk_...
+Idempotency-Key: import-2026-09-26-a
+
+{
+  "dryRun": false,
+  "items": [
+    { "key": "row-1", "operation": "create", "term": {
+      "nameEn": "Auto Exposure", "nameKo": "자동 노출", "domain": ["ISP"]
+    } },
+    { "key": "row-2", "operation": "update", "idOrSlug": "existing-slug",
+      "expectedRevision": 6, "term": { "definitionMd": "수정된 정의" } }
+  ]
+}
+```
+
+`dryRun` 기본값은 `true`다. 최대 100행, JSON 본문 최대 2MB이며 반영 요청에는
+`Idempotency-Key`가 필수다. `write` 권한이 필요하다. 각 행의 `key`는 요청 안에서
+고유해야 한다. 생성 입력은 단건 `POST /terms`, 수정 입력은 단건 `PATCH /terms/{idOrSlug}`의
+용어 필드를 사용한다. 수정에는 양수 `expectedRevision`이 필수다.
+
+`results`에는 행별 `outcome`이 담긴다. 검토 시 `would_create`/`would_update`, 반영 시
+`created`/`updated`, 문제 행은 `invalid`/`duplicate`/`not_found`/
+`revision_conflict`/`slug_conflict`다. 각 행을 순서대로 처리하며 문제 행은 저장하지
+않고 다음 행으로 진행한다. 생성 중복은 대표명과 기존 표기 충돌을 판정한다.
+다른 표기의 충돌은 동음이의어를 허용하는 기존 규칙대로 `warnings`에 싣는다.
+
+성공 행의 결과와 재시도 기록은 같은 트랜잭션에 저장된다. 응답을 받지 못한 경우
+동일한 `Idempotency-Key`, 행 `key`, 내용을 재전송하면 저장 없이 기록된 성공 결과와
+`replayed: true`를 받는다. 같은 키에 다른 행 내용을 보내면 `409 operation_conflict`다.
+성공 기록이 없는 실패 행은 재시도 때 다시 검사한다. 검토와 반영 사이에 다른 편집이 일어나면 판정이
+달라질 수 있으므로 반영 시 재검사한다.
 
 ::: tip 검색이 Surface를 향하는 이유
 "오토익스포저"나 `auto-exposure`로 검색해도 AE 개념 페이지에 도착해야 한다.
@@ -44,9 +99,9 @@ GET /api/v1/terms?q=exposure&type=concept&domain=ISP&category=design&tag=노출%
 
 ### 잘못된 파라미터의 처리
 
-- `?type=foo`처럼 **알 수 없는 enum 값** → 400 `validation_failed`.
+- `?status=foo`처럼 **알 수 없는 enum 값** → 400 `validation_failed`.
   `details`에 `field`와 `allowed`가 실린다.
-- `?type=`처럼 **빈 값** → "지정 안 함"으로 조용히 무시한다. `<select>`를 아무것도
+- `?status=`처럼 **빈 값** → "지정 안 함"으로 조용히 무시한다. `<select>`를 아무것도
   고르지 않고 제출한 폼이 이런 쿼리스트링을 만든다.
 - `?page=abc`, `?page=1e999` → 400 `validation_failed`. 재시도해도 성공하지 않는
   입력이므로 500이 아니다.
@@ -80,6 +135,8 @@ Content-Type: application/json
 ```
 
 `nameEn` 또는 `nameKo` 중 **최소 하나**는 있어야 한다.
+`status` 입력은 이전 클라이언트 호환용으로 받지만, 실제 저장 상태는 서버가 내용의
+완성도를 기준으로 다시 계산한다.
 
 `tags`는 용어에 붙일 태그 배열이다. 앞의 `#`와 공백은 정리되고 중복은 제거된다.
 기존 클라이언트의 `topic` 단일 값은 첫 태그로 받아들인다.
@@ -160,7 +217,7 @@ GET /api/v1/terms/ae
 PATCH /api/v1/terms/ae
 Content-Type: application/json
 
-{ "status": "deprecated", "definitionMd": "…", "expectedRevision": 6, "message": "정의 보강" }
+{ "definitionMd": "…", "expectedRevision": 6 }
 ```
 
 부분 갱신이라 표준 표기 필수 조건이 걸리지 않는다. 응답 형태는 [등록](#등록)과 같다

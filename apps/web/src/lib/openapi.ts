@@ -58,12 +58,15 @@ const businessCategoriesSchema = {
   items: { type: "string", maxLength: 64 },
   description: "분류 체계에 등록된 업무 분류 key 목록. 기존 단일 문자열 요청도 호환됩니다.",
 };
-  const statusSchema = {
+const businessCategoryInputSchema = { oneOf: [businessCategoriesSchema, { type: ["string", "null"] }] };
+const statusSchema = {
     type: "string",
     enum: ["draft", "active"],
     readOnly: true,
     description: "시스템이 용어 정리 기준 충족 여부를 자동 판정합니다. draft는 보완 필요, active는 기준 충족입니다.",
   };
+const statusInputSchema = { type: "string", enum: ["draft", "active"], description: "호환용 입력이며 저장 상태는 서버가 자동 판정합니다." };
+const statusFilterSchema = { type: "string", enum: ["draft", "active"] };
 
 export const openApiSpec = {
   openapi: "3.1.0",
@@ -94,7 +97,7 @@ export const openApiSpec = {
       Error: errorEnvelope,
       TermSummary: {
         type: "object",
-        required: ["id", "slug", "qualityProfile", "domain", "categories", "categoryLabels", "tags", "status"],
+        required: ["id", "slug", "qualityProfile", "nameEn", "nameKo", "domain", "categories", "category", "categoryLabel", "categoryLabels", "topic", "tags", "ownerId", "ownerName", "status"],
         properties: {
           id: { type: "string", format: "uuid" },
           slug: { type: "string" },
@@ -119,7 +122,7 @@ export const openApiSpec = {
         properties: {
           id: { type: "string", format: "uuid" },
           text: { type: "string" },
-          lang: { type: "string" },
+          lang: { type: "string", enum: ["en", "ko", "neutral"] },
           kind: {
             type: "string",
             enum: ["canonical", "abbreviation", "full_name", "alias", "discouraged", "forbidden"],
@@ -127,12 +130,32 @@ export const openApiSpec = {
           caseSensitive: { type: "boolean" },
         },
       },
+      TermWrite: {
+        type: "object",
+        required: ["term", "surfaces", "warnings"],
+        properties: {
+          term: { type: "object", required: ["id", "slug", "qualityProfile", "nameEn", "nameKo", "fullNameEn", "fullNameKo", "domain", "categories", "category", "topic", "tags", "ownerId", "status", "definitionMd", "bodyMd", "updatedAt"], properties: {
+            id: { type: "string", format: "uuid" }, slug: { type: "string" }, qualityProfile: termQualityProfileSchema,
+            nameEn: { type: ["string", "null"] }, nameKo: { type: ["string", "null"] },
+            fullNameEn: { type: ["string", "null"] }, fullNameKo: { type: ["string", "null"] },
+            domain: { type: "array", items: { type: "string" } }, categories: businessCategoriesSchema,
+            category: businessCategorySchema, topic: { type: ["string", "null"] },
+            tags: { type: "array", items: { type: "string" } }, ownerId: { type: ["string", "null"], format: "uuid" },
+            status: statusSchema, definitionMd: { type: ["string", "null"] }, bodyMd: { type: ["string", "null"] },
+            updatedAt: { type: "string", format: "date-time" },
+          } },
+          surfaces: { type: "array", items: { $ref: "#/components/schemas/Surface" } },
+          warnings: { type: "array", items: { type: "object", required: ["surfaceText", "conflictingSlug"], properties: {
+            surfaceText: { type: "string" }, conflictingSlug: { type: "string" },
+          } } },
+        },
+      },
       TermDetail: {
         allOf: [
           { $ref: "#/components/schemas/TermSummary" },
           {
             type: "object",
-            required: ["updatedAt", "surfaces", "homonyms"],
+            required: ["fullNameEn", "fullNameKo", "definitionMd", "bodyMd", "updatedAt", "surfaces", "homonyms"],
             properties: {
               fullNameEn: { type: ["string", "null"] },
               fullNameKo: { type: ["string", "null"] },
@@ -145,6 +168,31 @@ export const openApiSpec = {
             },
           },
         ],
+      },
+      TermPatchInput: {
+        type: "object",
+        properties: {
+          qualityProfile: termQualityProfileSchema,
+          nameEn: { type: ["string", "null"], minLength: 1, maxLength: 500 },
+          nameKo: { type: ["string", "null"], minLength: 1, maxLength: 500 },
+          fullNameEn: { type: ["string", "null"], minLength: 1, maxLength: 500 },
+          fullNameKo: { type: ["string", "null"], minLength: 1, maxLength: 500 },
+          domain: { type: "array", maxItems: 50, items: { type: "string", minLength: 1, maxLength: 100 } },
+          category: businessCategoryInputSchema,
+          topic: { type: ["string", "null"], maxLength: 100 },
+          tags: { type: "array", maxItems: 20, items: { type: "string", minLength: 1, maxLength: 100 } },
+          ownerId: { type: ["string", "null"], format: "uuid" },
+          status: statusInputSchema,
+          definitionMd: { type: "string", maxLength: 100000 },
+          bodyMd: { type: "string", maxLength: 100000 },
+          surfaces: { type: "array", maxItems: 100, items: { type: "object", required: ["text", "kind"], properties: {
+            text: { type: "string", minLength: 1, maxLength: 500 }, lang: { type: "string", enum: ["en", "ko", "neutral"] },
+            kind: { type: "string", enum: ["canonical", "abbreviation", "full_name", "alias", "discouraged", "forbidden"] },
+            caseSensitive: { type: "boolean" },
+          } } },
+          slug: { type: "string", description: "서버가 소문자·하이픈 형식으로 정규화합니다.", maxLength: 160 },
+          expectedRevision: { type: "integer", minimum: 1 },
+        },
       },
       WikiTermLink: {
         type: "object",
@@ -1968,16 +2016,20 @@ export const openApiSpec = {
       get: {
         summary: "용어 목록·검색",
         parameters: [
-          { name: "q", in: "query", schema: { type: "string" } },
-          { name: "domain", in: "query", schema: { type: "string" } },
+          { name: "q", in: "query", schema: { type: "string", maxLength: 500 } },
+          { name: "domain", in: "query", schema: { type: "string", maxLength: 100 } },
           { name: "category", in: "query", schema: businessCategorySchema },
           { name: "tag", in: "query", schema: { type: "string" }, description: "해당 태그가 붙은 용어를 조회합니다." },
           { name: "topic", in: "query", schema: { type: "string" }, deprecated: true, description: "기존 링크 호환용 태그 필터입니다." },
-          { name: "status", in: "query", schema: statusSchema },
-          { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
-          { name: "pageSize", in: "query", schema: { type: "integer" } },
+          { name: "status", in: "query", schema: statusFilterSchema },
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1, default: 1 } },
+          { name: "pageSize", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
         ],
-        responses: { "200": json("목록", { type: "object" }), "400": errorResponse("validation_failed") },
+        responses: { "200": json("목록", { type: "object", required: ["items", "total", "page", "pageSize"], properties: {
+          items: { type: "array", items: { $ref: "#/components/schemas/TermSummary" } },
+          total: { type: "integer", minimum: 0 }, page: { type: "integer", minimum: 1 },
+          pageSize: { type: "integer", minimum: 1, maximum: 100 },
+        } }), "400": errorResponse("validation_failed") },
       },
       post: {
         summary: "용어 등록",
@@ -1989,20 +2041,30 @@ export const openApiSpec = {
                 type: "object",
                 properties: {
                   qualityProfile: termQualityProfileSchema,
-                  nameEn: { type: ["string", "null"] },
-                  nameKo: { type: ["string", "null"] },
-                  fullNameEn: { type: ["string", "null"] },
-                  fullNameKo: { type: ["string", "null"] },
-                  definitionMd: { type: ["string", "null"] },
-                  bodyMd: { type: ["string", "null"] },
-                  domain: { type: "array", items: { type: "string" } },
-                  category: businessCategoriesSchema,
+                  nameEn: { type: ["string", "null"], minLength: 1, maxLength: 500 },
+                  nameKo: { type: ["string", "null"], minLength: 1, maxLength: 500 },
+                  fullNameEn: { type: ["string", "null"], minLength: 1, maxLength: 500 },
+                  fullNameKo: { type: ["string", "null"], minLength: 1, maxLength: 500 },
+                  definitionMd: { type: "string", maxLength: 100000 },
+                  bodyMd: { type: "string", maxLength: 100000 },
+                  domain: { type: "array", maxItems: 50, items: { type: "string", minLength: 1, maxLength: 100 } },
+                  category: businessCategoryInputSchema,
                   topic: { type: ["string", "null"], description: "이전 클라이언트 호환용 단일 태그" },
                   tags: { type: "array", maxItems: 20, items: { type: "string", maxLength: 100 } },
                   ownerId: { type: ["string", "null"], format: "uuid" },
-                  status: statusSchema,
-                  surfaces: { type: "array", items: { type: "object" } },
+                  status: statusInputSchema,
+                  surfaces: { type: "array", maxItems: 100, items: { type: "object", required: ["text", "kind"], properties: {
+                    text: { type: "string", minLength: 1, maxLength: 500 },
+                    lang: { type: "string", enum: ["en", "ko", "neutral"], description: "호환용 입력. 서버가 text에서 다시 판정합니다." },
+                    kind: { type: "string", enum: ["canonical", "abbreviation", "full_name", "alias", "discouraged", "forbidden"] },
+                    caseSensitive: { type: "boolean" },
+                  } } },
                 },
+                anyOf: [
+                  { required: ["nameEn"], properties: { nameEn: { type: "string", minLength: 1 } } },
+                  { required: ["nameKo"], properties: { nameKo: { type: "string", minLength: 1 } } },
+                ],
+                description: "nameEn 또는 nameKo 중 하나는 null이 아닌 문자열이어야 합니다. 표기 충돌은 파생 표기까지 검증합니다.",
               },
             },
           },
@@ -2010,8 +2072,56 @@ export const openApiSpec = {
         responses: {
           // 대표 영문·국문 표기 중복은 400으로 막는다. 추가 표기 중복은 기존처럼
           // 생성 결과의 warnings로 돌려 동음이의어 검토 경로를 남긴다.
-          "201": json("{ term, surfaces, warnings }", { type: "object" }),
+          "201": json("{ term, surfaces, warnings }", { $ref: "#/components/schemas/TermWrite" }),
           "400": errorResponse("validation_failed"),
+        },
+      },
+    },
+    "/terms/catalog": {
+      get: {
+        summary: "읽기 키로 전체 용어와 표기를 내려받기",
+        parameters: [{ name: "If-None-Match", in: "header", schema: { type: "string" } }],
+        responses: {
+          "200": { ...json("전체 카탈로그", { type: "object", required: ["catalogVersion", "items"], properties: {
+            catalogVersion: { type: "string" },
+            items: { type: "array", items: { allOf: [
+              { $ref: "#/components/schemas/TermWrite/properties/term" },
+              { type: "object", required: ["revision", "surfaces"], properties: {
+                revision: { type: "integer", minimum: 0 },
+                surfaces: { type: "array", items: { $ref: "#/components/schemas/Surface" } },
+              } },
+            ] } },
+          } }), headers: { ETag: { schema: { type: "string" } }, "X-Catalog-Version": { schema: { type: "string" } } } },
+          "304": { description: "카탈로그 버전이 변경되지 않음" },
+          "401": errorResponse("unauthorized"),
+        },
+      },
+    },
+    "/terms/batch": {
+      post: {
+        summary: "JSON 용어 일괄 검토·등록·수정",
+        parameters: [{ name: "Idempotency-Key", in: "header", schema: { type: "string", maxLength: 200 }, description: "dryRun=false일 때 필수. 같은 키와 행 key의 성공 결과를 재사용합니다." }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object", required: ["items"], additionalProperties: false, properties: {
+            dryRun: { type: "boolean", default: true },
+            items: { type: "array", minItems: 1, maxItems: 100, items: { type: "object", required: ["key", "operation", "term"], additionalProperties: false, properties: {
+              key: { type: "string", minLength: 1, maxLength: 100 },
+              operation: { type: "string", enum: ["create", "update"] },
+              idOrSlug: { type: "string" }, expectedRevision: { type: "integer", minimum: 1 },
+              term: { type: "object", description: "create는 POST /terms, update는 PATCH /terms/{idOrSlug} 입력" },
+            } } },
+          },
+        } } } },
+        responses: {
+          "200": json("행별 판정·저장 결과", { type: "object", required: ["dryRun", "results"], properties: {
+            dryRun: { type: "boolean" }, results: { type: "array", items: { type: "object", required: ["key", "outcome"], properties: {
+              key: { type: "string" }, outcome: { type: "string", enum: ["would_create", "would_update", "created", "updated", "invalid", "duplicate", "not_found", "revision_conflict", "slug_conflict"] },
+              replayed: { type: "boolean" }, term: { type: "object" }, surfaces: { type: "array", items: { $ref: "#/components/schemas/Surface" } },
+              warnings: { $ref: "#/components/schemas/TermWrite/properties/warnings" },
+            } } },
+          } }),
+          "400": errorResponse("validation_failed"), "409": errorResponse("operation_conflict"),
+          "413": errorResponse("payload_too_large"),
         },
       },
     },
@@ -2020,7 +2130,9 @@ export const openApiSpec = {
       get: {
         summary: "용어 상세",
         responses: {
-          "200": json("상세", { $ref: "#/components/schemas/TermDetail" }),
+          "200": json("상세", { type: "object", required: ["term"], properties: {
+            term: { $ref: "#/components/schemas/TermDetail" },
+          } }),
           "404": errorResponse("not_found"),
         },
       },
@@ -2030,25 +2142,12 @@ export const openApiSpec = {
           required: true,
           content: {
             "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  // R109: 편집 화면이 읽은 리비전 번호. 그 사이 남이 고쳤으면 409다.
-                  expectedRevision: { type: "integer" },
-                  slug: {
-                    type: "string",
-                    description: "새 URL slug. 서버가 소문자·하이픈 형식으로 정규화한다.",
-                    maxLength: 160,
-                  },
-                  message: { type: "string" },
-                },
-                additionalProperties: true,
-              },
+              schema: { $ref: "#/components/schemas/TermPatchInput" },
             },
           },
         },
         responses: {
-          "200": json("{ term, surfaces, warnings }", { type: "object" }),
+          "200": json("{ term, surfaces, warnings }", { $ref: "#/components/schemas/TermWrite" }),
           "400": errorResponse("validation_failed"),
           "404": errorResponse("not_found"),
           "409": errorResponse("revision_conflict 또는 slug_conflict"),
