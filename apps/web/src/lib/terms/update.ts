@@ -4,7 +4,7 @@ import type { ContributionSuggestion } from "@/lib/ai/contribution-suggestions";
 import { buildRuleSuggestions } from "@/lib/ai/contribution-suggestions";
 import { isUniqueViolation } from "@/lib/postgres-error";
 import {
-  aiReviewSuggestions, aiReviewQueue, classificationReviewSuggestions, termRelations, apiKeys, attachmentRefs, attachments, surfaceKeys, terms, termRevisions, termSurfaces, users,
+  aiReviewSuggestions, aiReviewQueue, classificationReviewSuggestions, termRelations, apiKeys, attachmentRefs, attachments, surfaceKeys, terms, termRevisions, termSlugAliases, termSurfaces, users,
 } from "@glossary/db";
 import { extractAttachmentHashes } from "@/lib/attachments/refs";
 import { getDb } from "@/lib/db";
@@ -206,7 +206,7 @@ export async function updateTerm(
 
   try {
     const result: UpdateTermResult = await db.transaction(async (tx): Promise<UpdateTermResult> => {
-      const [locked] = await tx.select({ replacedById: terms.replacedById }).from(terms).where(eq(terms.id, termId)).for("no key update");
+      const [locked] = await tx.select({ replacedById: terms.replacedById, slug: terms.slug }).from(terms).where(eq(terms.id, termId)).for("no key update");
       if (!locked) return { notFound: true };
       if (locked.replacedById) return { invalid: true, issues: ["병합된 용어입니다. 대표 용어를 편집해 주세요."] };
       // R53: 리비전 번호는 실제 insert 직전에 트랜잭션 안에서 다시 읽어야
@@ -220,6 +220,16 @@ export async function updateTerm(
 
       if (expectedRevision !== undefined && expectedRevision !== currentRevision) {
         return { conflict: true, currentRevision };
+      }
+
+      // 옛 slug를 남겨야 바깥에 퍼진 `/g/<옛 slug>` 링크가 새 주소로 넘어온다. 다른
+      // 용어가 남긴 옛 slug는 그 용어의 옛 링크라 가로채지 않는다. 자기 옛 slug로
+      // 되돌아가는 건 허용하고 기록만 지운다(활성 slug와 옛 slug가 겹치지 않게).
+      if (input.slug !== undefined && input.slug !== locked.slug) {
+        const [retired] = await tx.select({ termId: termSlugAliases.termId }).from(termSlugAliases).where(eq(termSlugAliases.slug, input.slug));
+        if (retired && retired.termId !== termId) return { slugConflict: true };
+        if (retired) await tx.delete(termSlugAliases).where(eq(termSlugAliases.slug, input.slug));
+        await tx.insert(termSlugAliases).values({ slug: locked.slug, termId }).onConflictDoNothing();
       }
 
       // R53: terms UPDATE / term_surfaces 교체 / term_revisions insert를 하나의

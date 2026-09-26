@@ -5,6 +5,7 @@ import {
   createDb,
   surfaceKeys,
   termRevisions,
+  termSlugAliases,
   termSurfaces,
   terms,
   users,
@@ -14,6 +15,7 @@ import {
   wikiRagIndexQueue,
 } from "@glossary/db";
 import { ensureDomains } from "../src/lib/terms/domain-catalog.js";
+import { slugSeed } from "../src/lib/terms/slug.js";
 
 try {
   process.loadEnvFile(path.join(import.meta.dirname, "../../../.env"));
@@ -27,42 +29,42 @@ const db = createDb(databaseUrl);
 
 const SAMPLE_TERMS = [
   {
-    slug: "api",
+    key: "api",
     nameKo: "응용 프로그램 인터페이스",
     nameEn: "API",
     fullNameEn: "Application Programming Interface",
     definitionMd: "프로그램끼리 기능과 데이터를 주고받기 위해 정해 둔 약속된 창구입니다.",
   },
   {
-    slug: "kpi",
+    key: "kpi",
     nameKo: "핵심성과지표",
     nameEn: "KPI",
     fullNameEn: "Key Performance Indicator",
     definitionMd: "목표를 얼마나 달성했는지 숫자로 확인하기 위해 정해 둔 지표입니다.",
   },
   {
-    slug: "ci",
+    key: "ci",
     nameKo: "지속적 통합",
     nameEn: "CI",
     fullNameEn: "Continuous Integration",
     definitionMd: "변경 사항을 자주 통합하고 자동 빌드와 테스트로 문제를 일찍 찾는 방식입니다.",
   },
   {
-    slug: "cd",
+    key: "cd",
     nameKo: "지속적 배포",
     nameEn: "CD",
     fullNameEn: "Continuous Delivery",
     definitionMd: "검증을 통과한 변경 사항을 언제든 배포할 수 있는 상태로 유지하는 방식입니다.",
   },
   {
-    slug: "sso",
+    key: "sso",
     nameKo: "통합 인증",
     nameEn: "SSO",
     fullNameEn: "Single Sign-On",
     definitionMd: "한 번 로그인하면 연결된 여러 서비스에 다시 로그인하지 않고 접근하는 방식입니다.",
   },
   {
-    slug: "runbook",
+    key: "runbook",
     nameKo: "운영 절차서",
     nameEn: "Runbook",
     fullNameEn: null,
@@ -77,7 +79,7 @@ const WIKI_SAMPLES = [
     summary: "서비스 변경을 안전하게 배포하기 위해 확인할 항목을 모은 샘플 문서입니다.",
     sourceUrl: "https://docs.example.com/engineering/release-checklist",
     domain: ["IT", "운영"],
-    termSlugs: ["api", "ci", "cd", "kpi"],
+    termKeys: ["api", "ci", "cd", "kpi"],
     status: "published" as const,
     content: `## 목적
 
@@ -117,7 +119,7 @@ ${"```"}
     summary: "장애를 발견한 뒤 복구하고 회고하기까지의 기본 흐름을 설명하는 샘플 문서입니다.",
     sourceUrl: "https://docs.example.com/operations/incident-response",
     domain: ["운영", "보안"],
-    termSlugs: ["runbook", "api", "kpi"],
+    termKeys: ["runbook", "api", "kpi"],
     status: "published" as const,
     content: `## 먼저 할 일
 
@@ -151,7 +153,7 @@ $$
     summary: "용어집과 위키를 함께 사용할 때의 작성 규칙을 확인하는 초안입니다.",
     sourceUrl: "https://docs.example.com/knowledge/writing-guide",
     domain: ["일반", "IT"],
-    termSlugs: ["api", "kpi", "sso"],
+    termKeys: ["api", "kpi", "sso"],
     status: "draft" as const,
     content: `## 용어집과 위키의 역할
 
@@ -195,16 +197,28 @@ await ensureDomains(db, ["IT"]);
 let termsCreated = 0;
 let termsReused = 0;
 
+// 샘플 용어의 slug는 예전엔 약어(`api`)였고 지금은 풀네임(`application-programming-interface`)이다.
+// 예전 DB에서 다시 돌려도 같은 개념을 두 번 만들지 않도록 두 주소와 옛 slug를 모두 본다.
+async function findSampleTerm(sample: (typeof SAMPLE_TERMS)[number]): Promise<string | null> {
+  const candidates = [slugSeed(sample), sample.key];
+  const [active] = await db.select({ id: terms.id }).from(terms).where(inArray(terms.slug, candidates)).limit(1);
+  if (active) return active.id;
+  const [retired] = await db.select({ id: termSlugAliases.termId }).from(termSlugAliases).where(inArray(termSlugAliases.slug, candidates)).limit(1);
+  return retired?.id ?? null;
+}
+
+const termIdsByKey = new Map<string, string>();
 for (const sample of SAMPLE_TERMS) {
-  const [existing] = await db.select({ id: terms.id }).from(terms).where(eq(terms.slug, sample.slug)).limit(1);
+  const existing = await findSampleTerm(sample);
   if (existing) {
+    termIdsByKey.set(sample.key, existing);
     termsReused += 1;
     continue;
   }
 
   await db.transaction(async (tx) => {
     const [created] = await tx.insert(terms).values({
-      slug: sample.slug,
+      slug: slugSeed(sample),
       qualityProfile: "auto",
       nameEn: sample.nameEn,
       nameKo: sample.nameKo,
@@ -217,7 +231,8 @@ for (const sample of SAMPLE_TERMS) {
       createdBy: authorId,
       updatedBy: authorId,
     }).returning();
-    if (!created) throw new Error(`용어를 저장하지 못했습니다: ${sample.slug}`);
+    if (!created) throw new Error(`용어를 저장하지 못했습니다: ${sample.key}`);
+    termIdsByKey.set(sample.key, created.id);
 
     const surfaces = [
       { termId: created.id, text: sample.nameEn, lang: "en" as const, kind: "abbreviation" as const, caseSensitive: true, ...surfaceKeys(sample.nameEn) },
@@ -236,10 +251,8 @@ for (const sample of SAMPLE_TERMS) {
   termsCreated += 1;
 }
 
-const requestedSlugs = [...new Set(WIKI_SAMPLES.flatMap((sample) => sample.termSlugs))];
-const termRows = await db.select({ id: terms.id, slug: terms.slug }).from(terms).where(inArray(terms.slug, requestedSlugs));
-const termIdsBySlug = new Map(termRows.map((row) => [row.slug, row.id]));
-const missingTerms = requestedSlugs.filter((slug) => !termIdsBySlug.has(slug));
+const requestedKeys = [...new Set(WIKI_SAMPLES.flatMap((sample) => sample.termKeys))];
+const missingTerms = requestedKeys.filter((key) => !termIdsByKey.has(key));
 if (missingTerms.length > 0) console.warn(`연결하지 못한 용어: ${missingTerms.join(", ")}`);
 
 let pagesCreated = 0;
@@ -252,8 +265,8 @@ for (const sample of WIKI_SAMPLES) {
     continue;
   }
 
-  const termIds = sample.termSlugs.flatMap((slug) => {
-    const id = termIdsBySlug.get(slug);
+  const termIds = sample.termKeys.flatMap((key) => {
+    const id = termIdsByKey.get(key);
     return id ? [id] : [];
   });
   const summary = sample.summary;

@@ -46,3 +46,13 @@ test("정의, 표기, 자세한 설명 순서로 읽고 관리 정보는 마지�
 test("공용 검색창은 모바일 키보드를 임의로 열지 않도록 자동 포커스가 기본 해제된다", () => {
   expect(searchSource).toContain("autoFocus = false");
 });
+
+test("옛 약어 slug로 들어오면 그 약어를 ?from=으로 넘겨 넘어옴을 보여준다", () => {
+  const canonicalRedirect = detailSource.slice(
+    detailSource.indexOf("const requested = decodeSlugParam(slug);"),
+    detailSource.indexOf("const fromKey"),
+  );
+  expect(canonicalRedirect).toContain("isUuid(requested)");
+  expect(canonicalRedirect).toContain("surfaceKeys(requested).normLoose");
+  expect(canonicalRedirect).toContain("?from=${encodeURIComponent(via)}");
+});

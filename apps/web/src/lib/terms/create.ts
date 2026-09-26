@@ -1,15 +1,14 @@
 import { and, eq, inArray, like, ne, sql } from "drizzle-orm";
 import { isUniqueViolation } from "@/lib/postgres-error";
 import {
-  attachmentRefs, attachments, surfaceKeys, terms, termRevisions, termSurfaces,
+  attachmentRefs, attachments, surfaceKeys, terms, termRevisions, termSlugAliases, termSurfaces,
 } from "@glossary/db";
-import { isUuid } from "@/lib/api-error";
 import { extractAttachmentHashes } from "@/lib/attachments/refs";
 import { getDb } from "@/lib/db";
 import { queueRagIndex } from "@/lib/rag/indexer";
 import { completionStatus } from "./completion";
 import { getTermQualitySettings } from "@/lib/workspace/term-quality";
-import { RESERVED_SLUGS, slugify } from "./slug";
+import { pickSlug, slugSeed } from "./slug";
 import { defaultCaseSensitive, deriveSurfaces } from "./surfaces";
 import type { SurfaceInput, TermInput } from "./schema";
 
@@ -25,7 +24,7 @@ export interface DuplicateWarning {
 // 용어는 `GET /api/v1/terms/lookup`이 이 정적 라우트로 가로채여 상세 조회가
 // 영원히 불가능해진다(그 라우트는 POST만 허용해 405가 나간다).
 // slugify("Lookup") === "lookup"이라 이런 이름의 용어를 만드는 순간 조용히
-// 발생한다 — 예약어는 uniqueSlug에서 "이미 사용 중"인 것처럼 취급해 피한다.
+// 발생한다 — 예약어는 pickSlug(slug.ts)에서 "이미 사용 중"인 것처럼 취급해 피한다.
 // R105: 손으로 유지되는 리터럴이라 라우트 파일시스템과 연결이 없다 — export해서
 // "app/api/v1/terms/ 밑 정적 세그먼트가 전부 여기 있는가"를 구조 테스트로
 // 잠근다(테스트: apps/web/tests/terms-lookup.test.ts).
@@ -53,20 +52,17 @@ export { RESERVED_SLUGS } from "./slug";
 // slug는 자기 자신으로는 절대 조회되지 않는다 — 목록 화면은 그 slug로 링크를
 // 렌더하는데 클릭하면 404가 되는, R92와 같은 형태의 조용한 도달 불가다.
 // RESERVED_SLUGS와 같은 자리에서 "이미 사용 중"으로 취급해 접미사를 붙인다.
-async function uniqueSlug(base: string): Promise<string> {
-  const seed = base || "term";
-  const existing = await getDb()
-    .select({ slug: terms.slug })
-    .from(terms)
-    .where(like(terms.slug, `${seed}%`));
-
-  const taken = new Set(existing.map((r) => r.slug));
-  if (!taken.has(seed) && !RESERVED_SLUGS.has(seed) && !isUuid(seed)) return seed;
-
-  for (let n = 2; ; n += 1) {
-    const candidate = `${seed}-${n}`;
-    if (!taken.has(candidate)) return candidate;
-  }
+async function uniqueSlug(seed: string, domains: readonly string[]): Promise<string> {
+  // 분야 한정어·번호 후보는 seed를 잘라 붙이므로(TERM_SLUG_MAX) seed 전체가 아니라
+  // 잘려도 남는 앞부분으로 찾아야 후보를 빠짐없이 본다.
+  const prefix = `${seed.slice(0, 50)}%`;
+  const db = getDb();
+  const [active, retired] = await Promise.all([
+    db.select({ slug: terms.slug }).from(terms).where(like(terms.slug, prefix)),
+    db.select({ slug: termSlugAliases.slug }).from(termSlugAliases).where(like(termSlugAliases.slug, prefix)),
+  ]);
+  const taken = new Set([...active, ...retired].map((r) => r.slug));
+  return pickSlug(seed, domains, (slug) => taken.has(slug));
 }
 
 // R56: 수정 경로(updateTerm)는 term 자신의 기존 표기까지 포함한 "파생 + 명시"
@@ -169,7 +165,7 @@ export async function createTerm(
   // R32: 중복 경고는 저장 결과에 영향을 주지 않는 읽기 전용 조회다. 원자적으로
   // 묶어야 하는 쓰기가 아니므로 트랜잭션 밖에서 수행한다.
   const warnings = await findDuplicates(surfaces);
-  const base = slugify(input.nameEn ?? input.nameKo ?? "");
+  const seed = slugSeed(input);
   const attachmentHashes = extractAttachmentHashes(input.bodyMd);
   const attachmentRows = attachmentHashes.length
     ? await db.select({ id: attachments.id }).from(attachments).where(inArray(attachments.sha256, attachmentHashes))
@@ -183,7 +179,7 @@ export async function createTerm(
   // 롤백되어 재사용할 수 없고, uniqueSlug도 새 트랜잭션 밖에서 매번 새로
   // 커밋된 상태를 읽어야 다음 후보가 의미가 있다.
   for (let attempt = 1; ; attempt += 1) {
-    const slug = await uniqueSlug(base);
+    const slug = await uniqueSlug(seed, input.domain);
     try {
       // R32: terms / term_surfaces / term_revisions 세 개의 insert를 하나의 트랜잭션으로
       // 묶는다. 이 셋을 독립된 statement로 실행하면 중간 실패 시 리비전이 0개인 term이나

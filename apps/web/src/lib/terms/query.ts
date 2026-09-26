@@ -5,6 +5,7 @@ import {
   surfaceKindEnum,
   terms,
   termRevisions,
+  termSlugAliases,
   termSurfaces,
   termStatusEnum,
   users,
@@ -134,6 +135,23 @@ function decodeTermIdentifier(value: string): string {
   }
 }
 
+// 위키처럼 slug로 용어를 가리키는 입력도 옛 slug를 받아야 한다 — 바깥 도구가 들고
+// 있는 slug는 주소가 바뀐 줄 모른다. 활성 slug가 옛 slug보다 먼저다.
+export async function termIdsBySlug(slugs: readonly string[]): Promise<Map<string, string>> {
+  const db = getDb();
+  const ids = new Map<string, string>();
+  if (slugs.length === 0) return ids;
+  for (const row of await db.select({ id: terms.id, slug: terms.slug }).from(terms).where(inArray(terms.slug, [...slugs]))) {
+    ids.set(row.slug, row.id);
+  }
+  const missing = slugs.filter((slug) => !ids.has(slug));
+  if (missing.length === 0) return ids;
+  for (const row of await db.select({ id: termSlugAliases.termId, slug: termSlugAliases.slug }).from(termSlugAliases).where(inArray(termSlugAliases.slug, missing))) {
+    ids.set(row.slug, row.id);
+  }
+  return ids;
+}
+
 export async function getTermByIdOrSlug(idOrSlug: string): Promise<TermDetail | null> {
   const db = getDb();
   const identifier = decodeTermIdentifier(idOrSlug);
@@ -141,7 +159,15 @@ export async function getTermByIdOrSlug(idOrSlug: string): Promise<TermDetail | 
     .select(detailColumns)
     .from(terms)
     .where(isUuid(identifier) ? eq(terms.id, identifier) : eq(terms.slug, identifier))
-    .limit(1);
+    .limit(1)
+    // slug가 바뀐 용어의 옛 링크. 활성 slug가 언제나 먼저다 — 둘이 겹치는 일은
+    // 생성·수정 경로가 막지만, 겹쳐도 지금 그 주소를 가진 개념이 이긴다.
+    .then(async (rows) => rows.length || isUuid(identifier) ? rows : db
+      .select(detailColumns)
+      .from(terms)
+      .innerJoin(termSlugAliases, eq(termSlugAliases.termId, terms.id))
+      .where(eq(termSlugAliases.slug, identifier))
+      .limit(1));
 
   if (!term) return null;
 

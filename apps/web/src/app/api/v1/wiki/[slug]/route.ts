@@ -3,8 +3,7 @@ import { wikiPageStatusEnum } from "@glossary/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAuth } from "@/lib/auth/require";
 import { recordAuditEvent } from "@/lib/audit";
-import { getDb } from "@/lib/db";
-import { terms } from "@glossary/db";
+import { termIdsBySlug } from "@/lib/terms/query";
 import { slugify } from "@/lib/terms/slug";
 import {
   getWikiPageBySlug,
@@ -12,7 +11,6 @@ import {
   toWikiPageWire,
   updateWikiPage,
 } from "@/lib/wiki/store";
-import { inArray } from "drizzle-orm";
 
 const ALLOWED_METHODS = ["GET", "PATCH"];
 const { POST, PUT, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -39,12 +37,10 @@ function decodeSlug(value: string): string {
 async function resolveTermIds(slugs: string[]): Promise<string[] | Response> {
   const requested = [...new Set(slugs.map((slug) => slug.trim()).filter(Boolean))];
   if (requested.length === 0) return [];
-  const rows = await getDb().select({ id: terms.id, slug: terms.slug }).from(terms).where(inArray(terms.slug, requested));
-  const found = new Set(rows.map((row) => row.slug));
-  const missing = requested.filter((slug) => !found.has(slug));
+  const ids = await termIdsBySlug(requested);
+  const missing = requested.filter((slug) => !ids.has(slug));
   if (missing.length > 0) return apiError("validation_failed", "연결하려는 용어를 찾을 수 없습니다.", 400, { missingTermSlugs: missing });
-  const ids = new Map(rows.map((row) => [row.slug, row.id]));
-  return requested.flatMap((slug) => ids.get(slug) ? [ids.get(slug)!] : []);
+  return [...new Set(requested.map((slug) => ids.get(slug)!))];
 }
 
 export const GET = withApiErrors(async (_request: Request, context: RouteContext) => {

@@ -124,6 +124,21 @@ export const termSurfaces = pgTable(
   }),
 );
 
+// slug는 사람이 고칠 수 있고, 약어 slug를 풀네임으로 옮기는 정리도 한다. 옛 slug를
+// 남기지 않으면 바깥에 퍼진 `/g/<옛 slug>` 링크가 조용히 404가 된다. 여기 남은 slug는
+// 새 용어의 자동 slug로도 재사용하지 않는다 — 재사용하면 옛 링크가 엉뚱한 개념으로 간다.
+export const termSlugAliases = pgTable(
+  "term_slug_aliases",
+  {
+    slug: text("slug").primaryKey(),
+    termId: uuid("term_id").notNull().references(() => terms.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    termIdx: index("term_slug_aliases_term_idx").on(t.termId),
+  }),
+);
+
 /** AI는 proposed만 만들고, 검색 그래프에는 사람이 승인한 관계만 들어간다. */
 export const termRelations = pgTable(
   "term_relations",

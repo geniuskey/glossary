@@ -11,7 +11,8 @@ import { isUuid } from "@/lib/api-error";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { businessCategoryLabel } from "@/lib/terms/enums";
 import { termCompletion } from "@/lib/terms/completion";
-import { listRelatedTerms, type SurfaceKind } from "@/lib/terms/query";
+import { lookupTerms } from "@/lib/terms/lookup";
+import { listRelatedTerms, type SurfaceKind, type TermSummary } from "@/lib/terms/query";
 import { loadTermForPage } from "@/lib/terms/page-metadata";
 import { displayName, relativeTime } from "@/lib/ui/format";
 import { getTermQualitySettings } from "@/lib/workspace/term-quality";
@@ -41,6 +42,38 @@ const KIND_TONE: Record<SurfaceKind, string> = {
 
 const LANG_LABEL: Record<string, string> = { en: "영문", ko: "국문", neutral: "공통" };
 
+function decodeSlugParam(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function SurfaceChooser({ user, text, terms }: { user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>; text: string; terms: TermSummary[] }) {
+  return (
+    <AppShell user={user} title={text}>
+      <article className="animate-fade-up rounded-2xl border border-line bg-panel p-5 sm:p-8">
+        <p className="mb-2 text-[11px] font-medium text-ink-3">동음이의어</p>
+        <h2 className="break-words text-3xl font-semibold tracking-[-0.035em]">{text}</h2>
+        <p className="mt-2 text-sm text-ink-2">이 표기는 용어 {terms.length}개에 쓰입니다. 뜻하는 용어를 골라 주세요.</p>
+        <ul className="mt-5 divide-y divide-line border-y border-line">
+          {terms.map((candidate) => (
+            <li key={candidate.id}>
+              <Link href={`/g/${candidate.slug}?from=${encodeURIComponent(text)}`} className="flex flex-wrap items-center gap-2 py-3 hover:text-brand">
+                <span className="font-medium">{displayName(candidate)}</span>
+                {candidate.nameEn && candidate.nameKo && <span className="text-sm text-ink-3">{candidate.nameKo}</span>}
+                <DomainBadges domain={candidate.domain} />
+                <StatusBadge status={candidate.status} />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </article>
+    </AppShell>
+  );
+}
+
 /**
  * R135: 주소는 `/g/<slug>`다(나무위키식). 짧은 것 말고도 얻는 게 있다 — 슬러그가
  * `/g/` 아래에만 살게 되면서 `new`·`import` 같은 화면 이름과 슬러그가 같은
@@ -59,14 +92,36 @@ export async function TermDetailPage({
 
   const { slug } = await params;
   const term = await loadTermForPage(slug);
-  if (!term) notFound();
+  const fromRaw = (await searchParams).from;
+  const fromText = (Array.isArray(fromRaw) ? fromRaw[0] : fromRaw)?.trim();
+  if (!term) {
+    // 약어는 어떤 개념의 slug도 아니다(slugSeed가 풀네임을 쓴다). `/g/sla`는
+    // 표기로 풀어 뜻이 하나면 그 개념으로, 여럿이면 고르는 화면으로 보낸다
+    // (Wikipedia의 동음이의 문서). 선점한 개념이 없으니 뜻이 늘어도 주소가 안 바뀐다.
+    const text = decodeSlugParam(slug);
+    const [match] = await lookupTerms([text]);
+    const candidates = match?.terms ?? [];
+    if (candidates.length === 1) redirect(`/g/${candidates[0]!.slug}?from=${encodeURIComponent(text)}`);
+    if (candidates.length > 1) return <SurfaceChooser user={user} text={text} terms={candidates} />;
+    notFound();
+  }
   const destination = await mergedDestination(term.id);
   if (destination) redirect(`/g/${destination}`);
 
   // R98: getTermByIdOrSlug는 UUID도 slug도 받으므로 같은 문서에 URL이 두 개
   // 생긴다. 위키에서 "용어 하나에 페이지 하나"는 링크와 중복 판단의 기반이라,
-  // UUID로 들어온 요청은 정식 slug URL로 정규화한다.
-  if (isUuid(slug)) redirect(`/g/${term.slug}`);
+  // UUID나 옛 slug로 들어온 요청은 정식 slug URL로 정규화한다. 308이 아니라 307인
+  // 이유: 자기 옛 slug로 되돌리면 옛/새가 뒤바뀌는데, 브라우저가 캐시한 308은
+  // 그때 리다이렉트 루프가 된다.
+  // 옛 약어 slug(`/g/sla`)로 들어왔으면 그 약어가 곧 "무슨 말로 찾아 들어왔는가"다.
+  // 나무위키 넘어옴처럼 ?from=으로 넘겨, 옛 링크로 온 사람도 이 개념의 약어라는 걸
+  // 보게 한다. `gain-2` 같은 옛 slug는 표기가 아니라 아래 표기 대조에서 걸러진다.
+  const requested = decodeSlugParam(slug);
+  if (term.slug !== requested) {
+    const requestedKey = isUuid(requested) ? "" : surfaceKeys(requested).normLoose;
+    const via = fromText || term.surfaces.find((s) => requestedKey && surfaceKeys(s.text).normLoose === requestedKey)?.text;
+    redirect(`/g/${term.slug}${via ? `?from=${encodeURIComponent(via)}` : ""}`);
+  }
 
   // R135: `?from=`은 "무슨 말로 찾아 들어왔는가"다(나무위키의 넘어옴 표시).
   // 이 사전에서는 그게 부가 정보가 아니라 답 자체다 — "SoC"를 친 사람은 자기가
@@ -76,8 +131,6 @@ export async function TermDetailPage({
   // 그대로 되뇌면 이 사전이 인정한 적 없는 표기를 이 용어의 표기인 것처럼
   // 보여주게 된다. 비교는 engine의 정규화(surfaceKeys)로 한다 — 화면에서
   // 소문자 비교 같은 걸 새로 만들면 DB의 norm_loose와 조용히 갈라진다.
-  const fromRaw = (await searchParams).from;
-  const fromText = (Array.isArray(fromRaw) ? fromRaw[0] : fromRaw)?.trim();
   const fromKey = fromText ? surfaceKeys(fromText).normLoose : "";
   const fromSurface = fromKey
     ? term.surfaces.find((s) => s.kind !== "canonical" && surfaceKeys(s.text).normLoose === fromKey)

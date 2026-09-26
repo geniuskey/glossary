@@ -56,9 +56,9 @@ test("merge retains spellings and descriptions, archives source history and reje
   expect(await currentRevisionNumber(other.id)).toBe(1);
 });
 
-test("same-name numbered slugs are included in duplicate candidates", async () => {
+test("same-name domain-qualified slugs are included in duplicate candidates", async () => {
   const first = await term("Duplicate");
   const second = await term("Duplicate");
-  expect(second.slug).toMatch(/-2$/);
+  expect(second.slug).toBe(`${first.slug}-qa`);
   expect((await duplicateCandidates({ id: second.id, slug: second.slug, nameEn: second.nameEn })).map((c) => c.id)).toContain(first.id);
 });
