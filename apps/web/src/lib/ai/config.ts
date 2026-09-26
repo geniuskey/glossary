@@ -100,7 +100,7 @@ export function validateAiConfigInput(input: AiConfigPatch, hasApiKey: boolean):
     problems.push("API 주소를 올바른 URL로 입력해 주세요.");
   }
   if (input.provider === "gemini" && input.enabled && !hasApiKey) problems.push("Gemini를 활성화하려면 API 키를 입력해 주세요.");
-  if (input.provider === "gemini" && input.customHeaders.length > 0) problems.push("Custom header는 OpenAI-compatible 연결에서만 사용할 수 있습니다.");
+  if (input.provider !== "openai_compatible" && input.customHeaders.length > 0) problems.push("Custom header는 OpenAI-compatible 연결에서만 사용할 수 있습니다.");
   if (input.customHeaders.length > 20) problems.push("Custom header는 최대 20개까지 설정할 수 있습니다.");
   const seen = new Set<string>();
   for (const header of input.customHeaders) {

@@ -1,9 +1,10 @@
-export const AI_PROVIDERS = ["gemini", "openai_compatible"] as const;
+export const AI_PROVIDERS = ["gemini", "openai_compatible", "ollama"] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];
 
 export const AI_PROVIDER_LABEL: Record<AiProvider, string> = {
   gemini: "Gemini API",
   openai_compatible: "OpenAI Compatible",
+  ollama: "Ollama",
 };
 
 export interface AiHeaderInput {

@@ -27,10 +27,12 @@ custom header는 이름과 `configured` 상태만 보여준다.
 `autoReviewEnabled`를 켜면 정리 대기 용어와 검색된 기존 용어 근거가 설정한 AI 공급자에
 전달될 수 있으며, 생성된 수정 제안은 사용자가 승인하기 전까지 원문에 반영되지 않는다.
 
-`provider`는 `gemini` 또는 `openai_compatible`이다. API Key를 생략하거나 빈 문자열로
-보내면 기존 값을 유지하고, `null`이면 삭제한다. 저장된 custom header 값도 화면에서
-받은 빈 값과 같은 이름을 결합해 유지한다. 위험한 hop-by-hop·proxy header와 줄바꿈이
-포함된 값은 거부한다.
+`provider`는 `gemini`, `openai_compatible`, `ollama` 중 하나다. Ollama는 API Key 없이
+사용할 수 있다. Base URL이 `/v1`로 끝나면 OpenAI-compatible API(`/chat/completions`,
+`/models`)를 사용하고, 그 외에는 Ollama API(`/api/chat`, `/api/tags`)를 사용한다.
+API Key를 생략하거나 빈 문자열로 보내면 기존 값을 유지하고, `null`이면 삭제한다.
+저장된 custom header 값도 화면에서 받은 빈 값과 같은 이름을 결합해 유지한다. 위험한
+hop-by-hop·proxy header와 줄바꿈이 포함된 값은 거부한다.
 
 ## AI 실행 모니터링
 
@@ -62,7 +64,9 @@ Reranker 실행의 호출 수, 성공·실패·실행 중 건수, 평균·P95 �
 
 입력한 새 비밀값과 DB에 저장된 기존 비밀값을 메모리에서 합쳐 모델을 조회하며 이 요청
 자체는 설정을 저장하지 않는다. Gemini는 `generateContent`를 지원하는 모델만 반환하고,
-OpenAI-compatible은 `/models`의 ID를 반환한다. 성공 응답은 다음 형태다.
+OpenAI-compatible은 `/models`의 ID를 반환한다. Ollama는 `/v1` Base URL에서 `/models`,
+기본 API Base URL에서는 `/api/tags`로 모델을 조회하며, embedding 전용 모델은 제외한다.
+성공 응답은 다음 형태다.
 
 ```json
 {

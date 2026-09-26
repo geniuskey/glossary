@@ -160,17 +160,28 @@ function requestHeaders(config: AiRuntimeConfig): Headers {
   return headers;
 }
 
+function ollamaUsesOpenAiCompatibility(config: AiRuntimeConfig): boolean {
+  if (config.provider !== "ollama") return false;
+  try {
+    return new URL(config.baseUrl).pathname.replace(/\/+$/, "").endsWith("/v1");
+  } catch {
+    return false;
+  }
+}
+
 function endpoint(config: AiRuntimeConfig): string {
   if (config.provider === "gemini") {
     return `${config.baseUrl.replace(/\/+$/, "")}/models/${encodeURIComponent(config.model)}:generateContent`;
   }
   const base = config.baseUrl.replace(/\/+$/, "");
+  if (config.provider === "ollama" && !ollamaUsesOpenAiCompatibility(config)) return `${base}/api/chat`;
   return base.endsWith("/chat/completions") ? base : `${base}/chat/completions`;
 }
 
 function modelsEndpoint(config: AiRuntimeConfig): string {
   const base = config.baseUrl.replace(/\/+$/, "");
   if (config.provider === "gemini") return `${base}/models?pageSize=1000`;
+  if (config.provider === "ollama" && !ollamaUsesOpenAiCompatibility(config)) return `${base}/api/tags`;
   const root = base.endsWith("/chat/completions") ? base.slice(0, -"/chat/completions".length) : base;
   return `${root}/models`;
 }
@@ -200,6 +211,15 @@ function body(config: AiRuntimeConfig, messages: AiMessage[], maxTokens: number,
       },
     };
   }
+  if (config.provider === "ollama" && !ollamaUsesOpenAiCompatibility(config)) {
+    return {
+      model: config.model,
+      messages,
+      stream: false,
+      options: { temperature: 0.2, num_predict: maxTokens },
+      ...(options.jsonOutput ? { format: "json" } : {}),
+    };
+  }
   return {
     model: config.model,
     messages,
@@ -222,6 +242,10 @@ function readText(config: AiRuntimeConfig, value: unknown): string | null {
       .join("")
       .trim();
     return text || null;
+  }
+  if (config.provider === "ollama" && !ollamaUsesOpenAiCompatibility(config)) {
+    const content = (value as { message?: { content?: unknown } }).message?.content;
+    return typeof content === "string" && content.trim() ? content.trim() : null;
   }
   const content = (value as { choices?: Array<{ message?: { content?: unknown } }> }).choices?.[0]?.message?.content;
   return typeof content === "string" && content.trim() ? content.trim() : null;
@@ -249,6 +273,16 @@ function providerUsage(config: AiRuntimeConfig, value: unknown): ProviderUsage {
       totalTokens: typeof usage?.totalTokenCount === "number" ? usage.totalTokenCount : null,
     };
   }
+  if (config.provider === "ollama" && !ollamaUsesOpenAiCompatibility(config)) {
+    const usage = value as { prompt_eval_count?: unknown; eval_count?: unknown };
+    const inputTokens = typeof usage.prompt_eval_count === "number" ? usage.prompt_eval_count : null;
+    const outputTokens = typeof usage.eval_count === "number" ? usage.eval_count : null;
+    return {
+      inputTokens,
+      outputTokens,
+      totalTokens: inputTokens !== null && outputTokens !== null ? inputTokens + outputTokens : null,
+    };
+  }
   const usage = (value as { usage?: { prompt_tokens?: unknown; completion_tokens?: unknown; total_tokens?: unknown } }).usage;
   return {
     inputTokens: typeof usage?.prompt_tokens === "number" ? usage.prompt_tokens : null,
@@ -261,6 +295,9 @@ function responseTruncated(config: AiRuntimeConfig, value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
   if (config.provider === "gemini") {
     return (value as { candidates?: Array<{ finishReason?: unknown }> }).candidates?.[0]?.finishReason === "MAX_TOKENS";
+  }
+  if (config.provider === "ollama" && !ollamaUsesOpenAiCompatibility(config)) {
+    return (value as { done_reason?: unknown }).done_reason === "length";
   }
   return (value as { choices?: Array<{ finish_reason?: unknown }> }).choices?.[0]?.finish_reason === "length";
 }
@@ -398,6 +435,7 @@ export async function listAiModels(config: AiRuntimeConfig, context?: AiRunConte
       }
 
       const geminiRows = (parsed as { models?: unknown })?.models;
+      const ollamaRows = (parsed as { models?: unknown })?.models;
       const openAiRows = (parsed as { data?: unknown })?.data;
       const models: AiModelOption[] = config.provider === "gemini"
         ? (Array.isArray(geminiRows) ? geminiRows as Array<{ name?: unknown; displayName?: unknown; supportedGenerationMethods?: unknown }> : [])
@@ -411,8 +449,18 @@ export async function listAiModels(config: AiRuntimeConfig, context?: AiRunConte
               : id;
             return [{ id, label }];
           })
+        : config.provider === "ollama" && !ollamaUsesOpenAiCompatibility(config)
+          ? (Array.isArray(ollamaRows) ? ollamaRows as Array<{ name?: unknown; model?: unknown; capabilities?: unknown }> : [])
+            .flatMap((item) => {
+              const id = typeof item.name === "string" ? item.name : typeof item.model === "string" ? item.model : "";
+              if (!id || id.length > 200) return [];
+              const capabilities = Array.isArray(item.capabilities) ? item.capabilities : [];
+              if (capabilities.includes("embedding") && !capabilities.includes("completion")) return [];
+              return [{ id, label: id }];
+            })
         : (Array.isArray(openAiRows) ? openAiRows as Array<{ id?: unknown }> : [])
           .flatMap((item) => typeof item.id === "string" && item.id.trim() && item.id.trim().length <= 200
+            && !(config.provider === "ollama" && /embed(?:ding)?/i.test(item.id))
             ? [{ id: item.id.trim(), label: item.id.trim() }]
             : []);
 

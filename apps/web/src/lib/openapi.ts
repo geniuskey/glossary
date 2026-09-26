@@ -770,7 +770,7 @@ export const openApiSpec = {
         },
       },
       patch: {
-        summary: "Gemini 또는 OpenAI-compatible 연결 설정 저장",
+        summary: "Gemini, OpenAI-compatible 또는 Ollama 연결 설정 저장",
         security: [{ sessionCookie: [] }],
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",
@@ -779,7 +779,7 @@ export const openApiSpec = {
           properties: {
             enabled: { type: "boolean" },
             autoReviewEnabled: { type: "boolean", description: "정리 대기 용어의 수정 제안을 백그라운드에서 미리 생성" },
-            provider: { type: "string", enum: ["gemini", "openai_compatible"] },
+            provider: { type: "string", enum: ["gemini", "openai_compatible", "ollama"] },
             baseUrl: { type: "string", format: "uri", maxLength: 2000 },
             model: { type: "string", minLength: 1, maxLength: 200 },
             apiKey: { type: ["string", "null"], description: "생략·빈 문자열이면 기존 값 유지, null이면 삭제" },
@@ -815,7 +815,7 @@ export const openApiSpec = {
           required: ["provider", "baseUrl", "customHeaders"],
           additionalProperties: false,
           properties: {
-            provider: { type: "string", enum: ["gemini", "openai_compatible"] },
+            provider: { type: "string", enum: ["gemini", "openai_compatible", "ollama"] },
             baseUrl: { type: "string", format: "uri", maxLength: 2000 },
             apiKey: { type: ["string", "null"], description: "생략·빈 문자열이면 저장된 키 사용" },
             customHeaders: { type: "array", maxItems: 20, items: { type: "object", required: ["name", "value"], properties: { name: { type: "string" }, value: { type: "string" }, configured: { type: "boolean" } } } },

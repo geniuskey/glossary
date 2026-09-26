@@ -58,8 +58,13 @@ AI 제안이 의심스러울 때는 바로 반영하지 말고 **오탐으로 �
   `https://generativelanguage.googleapis.com/v1beta`다.
 - **OpenAI Compatible** — `/chat/completions` 형식의 서버를 연결한다. Bearer API Key와
   공급자별 custom header를 최대 20개까지 설정할 수 있다.
+- **Ollama** — 로컬 Ollama 서버를 API Key 없이 연결한다. `http://localhost:11434/v1`처럼
+  `/v1` 주소를 쓰면 OpenAI-compatible API를 사용하고, `http://localhost:11434`처럼
+  기본 주소를 쓰면 Ollama의 `/api/chat` 및 `/api/tags` API를 사용한다.
 
-API Key를 입력하거나 저장된 키가 있으면 공급자의 모델 목록을 자동으로 불러온다.
+Gemini는 API Key가 필요하다. OpenAI Compatible은 공급자 설정에 따라 API Key 없이도
+연결할 수 있으며, Ollama는 API Key를 사용하지 않는다. 연결 가능한 설정이면 모델 목록을
+자동으로 불러온다.
 Gemini 목록에는 사람이 읽는 이름만 표시하지만 실제로는 모델 ID를 저장한다.
 `/models`를 제공하지 않는 호환 서버는 모델 ID를 직접 입력하고 저장할 수 있다.
 

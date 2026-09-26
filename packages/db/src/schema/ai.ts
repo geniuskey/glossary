@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import { users } from "./auth";
 import { terms } from "./terms";
 
-export const aiProviderEnum = pgEnum("ai_provider", ["gemini", "openai_compatible"]);
+export const aiProviderEnum = pgEnum("ai_provider", ["gemini", "openai_compatible", "ollama"]);
 export const aiReviewQueueStatusEnum = pgEnum("ai_review_queue_status", ["queued", "processing", "ready", "failed"]);
 export const aiReviewRequestModeEnum = pgEnum("ai_review_request_mode", ["automatic", "manual"]);
 

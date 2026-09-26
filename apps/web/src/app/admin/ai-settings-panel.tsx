@@ -25,12 +25,13 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
   const [message, setMessage] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
   const autoVerifyStarted = useRef(false);
   const usableKey = !clearApiKey && (Boolean(apiKey.trim()) || config.hasApiKey);
-  const headersReady = config.provider === "gemini" || headers.every((header) => Boolean(
+  const headersReady = config.provider !== "openai_compatible" || headers.every((header) => Boolean(
     header.name.trim() && (header.value || header.configured),
   ));
   const canLoadModels = Boolean(config.baseUrl.trim()) && config.secretsReadable && headersReady
-    && (config.provider === "openai_compatible" || usableKey);
-  const shouldAutoLoadModels = canLoadModels && (usableKey || headers.some((header) => Boolean(header.value || header.configured)));
+    && (config.provider !== "gemini" || usableKey);
+  const shouldAutoLoadModels = canLoadModels && (config.provider === "ollama" || usableKey || headers.some((header) => Boolean(header.value || header.configured)));
+  const needsSecretEncryption = config.provider === "gemini" || apiKey.trim().length > 0 || config.hasApiKey || headers.length > 0;
   useUnsavedChanges(dirty);
   const connectionFingerprint = JSON.stringify({
     provider: config.provider,
@@ -52,7 +53,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
         body: JSON.stringify({
           provider: config.provider,
           baseUrl: config.baseUrl,
-          apiKey: clearApiKey ? null : apiKey || undefined,
+          apiKey: config.provider === "ollama" ? null : clearApiKey ? null : apiKey || undefined,
           customHeaders: config.provider === "openai_compatible" ? headers : [],
         }),
         signal,
@@ -112,8 +113,12 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
       baseUrl: provider === "gemini"
         ? "https://generativelanguage.googleapis.com/v1beta"
         : current.provider === "gemini" ? "http://localhost:11434/v1" : current.baseUrl,
-      model: provider === "gemini" && current.provider !== "gemini" ? "gemini-3.6-flash" : current.model,
+      model: provider === current.provider ? current.model : provider === "gemini" ? "gemini-3.6-flash" : "",
     }));
+    if (provider === "ollama") {
+      setApiKey("");
+      setClearApiKey(false);
+    }
     setDirty(true);
     setMessage(null);
     setConnectionMessage(null);
@@ -143,7 +148,9 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
           provider: config.provider,
           baseUrl: config.baseUrl,
           model: config.model,
-          apiKey: clearApiKey ? null : apiKey || undefined,
+          apiKey: config.provider === "ollama"
+            ? config.hasApiKey ? null : undefined
+            : clearApiKey ? null : apiKey || undefined,
           customHeaders: config.provider === "openai_compatible" ? headers : [],
         }),
       });
@@ -212,7 +219,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
         )}
       </div>
 
-      {!config.encryptionReady && (
+      {!config.encryptionReady && needsSecretEncryption && (
         <div className="note note-warn mb-3" role="alert">
           서버에 <code>GLOSSARY_ENCRYPTION_KEY</code>를 32자 이상으로 설정해야 API 키와 header 값을 저장할 수 있습니다.
         </div>
@@ -248,11 +255,12 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
             </span>
             {models.length > 0 ? (
               <select id="ai-model" name="aiModel" value={config.model} onChange={(event) => update("model", event.target.value)} disabled={saving || loadingModels} className="field">
-                {!models.some((model) => model.id === config.model) && <option value={config.model}>{config.model} · 현재 입력값</option>}
+                {!config.model && <option value="">모델 선택…</option>}
+                {config.model && !models.some((model) => model.id === config.model) && <option value={config.model}>{config.model} · 현재 입력값</option>}
                 {models.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
               </select>
             ) : (
-              <input id="ai-model" name="aiModel" autoComplete="off" value={config.model} onChange={(event) => update("model", event.target.value)} disabled={saving} placeholder="API 키를 입력하면 모델 목록을 불러옵니다…" className="field" />
+              <input id="ai-model" name="aiModel" autoComplete="off" value={config.model} onChange={(event) => update("model", event.target.value)} disabled={saving} placeholder="모델 ID를 입력하거나 새로고침으로 불러오세요…" className="field" />
             )}
             {modelError && <p className="mt-1 text-[11px] leading-4 text-danger" role="alert">{modelError} 직접 입력한 모델 이름은 그대로 저장할 수 있습니다.</p>}
           </div>
@@ -260,13 +268,17 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
             <span className="label">API Base URL</span>
             <input name="aiBaseUrl" type="url" autoComplete="off" value={config.baseUrl} onChange={(event) => update("baseUrl", event.target.value)} disabled={saving} placeholder="예: https://api.example.com/v1…" className="field font-mono text-xs" />
           </label>
-          <label className="block sm:col-span-2">
-            <span className="label inline-flex items-center gap-1.5">API Key <HelpTip text="키를 입력하면 선택 가능한 모델을 자동으로 불러옵니다. 저장 후에는 값을 다시 표시하지 않으며, 빈 칸으로 저장하면 기존 키를 유지합니다." /></span>
-            <div className="flex gap-2">
-              <input name="aiApiKey" type="password" autoComplete="new-password" value={apiKey} onChange={(event) => { setApiKey(event.target.value); setClearApiKey(false); setDirty(true); setMessage(null); setConnectionMessage(null); setConnected(false); }} disabled={saving || clearApiKey} placeholder={config.hasApiKey ? "저장된 키 유지…" : "API Key…"} className="field min-w-0 flex-1 font-mono" />
-              {config.hasApiKey && <button type="button" className={cx("btn-sm", clearApiKey ? "btn-danger" : "btn-ghost")} onClick={() => { setClearApiKey((value) => !value); setDirty(true); setMessage(null); setConnectionMessage(null); setConnected(false); }} disabled={saving}>{clearApiKey ? "제거 예정" : "키 제거"}</button>}
-            </div>
-          </label>
+          {config.provider === "ollama" ? (
+            <p className="note sm:col-span-2">Ollama 연결은 API Key 없이 사용할 수 있습니다. Base URL에 Ollama 주소를 입력하세요. 예: <code>http://localhost:11434/v1</code></p>
+          ) : (
+            <label className="block sm:col-span-2">
+              <span className="label inline-flex items-center gap-1.5">API Key <HelpTip text="키는 선택 사항입니다. 입력하면 선택 가능한 모델을 자동으로 불러옵니다. 저장 후에는 값을 다시 표시하지 않으며, 빈 칸으로 저장하면 기존 키를 유지합니다." /></span>
+              <div className="flex gap-2">
+                <input name="aiApiKey" type="password" autoComplete="new-password" value={apiKey} onChange={(event) => { setApiKey(event.target.value); setClearApiKey(false); setDirty(true); setMessage(null); setConnectionMessage(null); setConnected(false); }} disabled={saving || clearApiKey} placeholder={config.hasApiKey ? "저장된 키 유지…" : "API Key (선택)…"} className="field min-w-0 flex-1 font-mono" />
+                {config.hasApiKey && <button type="button" className={cx("btn-sm", clearApiKey ? "btn-danger" : "btn-ghost")} onClick={() => { setClearApiKey((value) => !value); setDirty(true); setMessage(null); setConnectionMessage(null); setConnected(false); }} disabled={saving}>{clearApiKey ? "제거 예정" : "키 제거"}</button>}
+              </div>
+            </label>
+          )}
         </div>
 
         {config.provider === "openai_compatible" && (
