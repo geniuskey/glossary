@@ -108,6 +108,7 @@ export interface TermsGridProps {
   rows: TermRow[];
   /** 저장 직후 "최근 수정" 칸에 보여줄 이름. 서버를 다시 읽지 않기 위한 값이다. */
   viewerName: string;
+  canEdit: boolean;
   canDelete: boolean;
   /**
    * 현재 페이지 첫 행의 번호 - 1. 행 번호가 페이지마다 1부터 다시 시작하면
@@ -456,6 +457,7 @@ export function TermsGrid(props: TermsGridProps) {
    * 동시에 고치는 일이 실제로 일어나고, 그때 조용히 덮어쓰는 대신 409를 받는다.
    */
   function commit(plan: WritePlan, label: string, mode: CommitMode = "edit") {
+    if (!props.canEdit) return Promise.resolve();
     // 배치 사이도 직렬화한다. 한 배치 안의 서로 다른 행은 CONCURRENCY만큼
     // 병렬 저장하되, 다음 편집은 이전 응답의 리비전/상태가 반영된 뒤 시작한다.
     return saveQueue.current(() => commitQueued(plan, label, mode));
@@ -851,6 +853,7 @@ export function TermsGrid(props: TermsGridProps) {
   }
 
   function beginEdit(r: number, c: number, seed?: string) {
+    if (!props.canEdit) return;
     const column = columns[c];
     const row = rows[r];
     if (!column || !row || column.kind === "readonly") return;
@@ -1026,6 +1029,7 @@ export function TermsGrid(props: TermsGridProps) {
    * 새로 만들어 달라"는 뜻이고, 빈 표에서는 그 줄이 유일한 붙여넣기 자리다).
    */
   function onPaste(event: React.ClipboardEvent) {
+    if (!props.canEdit) return;
     if (editing) return;
     if (pasteBusy.current || creating) { event.preventDefault(); return; }
     const text = event.clipboardData.getData("text/plain");
@@ -1137,6 +1141,7 @@ export function TermsGrid(props: TermsGridProps) {
    * 유지된다.
    */
   async function createRows(creates: readonly PastedRow[]): Promise<number> {
+    if (!props.canEdit) return 0;
     if (creates.length === 0) return 0;
 
     const made: string[] = [];
@@ -1380,11 +1385,8 @@ export function TermsGrid(props: TermsGridProps) {
                         <span className="h-1.5 w-1.5 rounded-full bg-danger" title="저장 실패" />
                       ) : (
                         <Link
-                          // R135: 표에서 용어를 여는 사람은 고치러 온 사람이다
-                          // (읽으러 왔으면 홈에서 검색한다) — 보기 화면을 한 번
-                          // 거치게 하면 매번 "편집"을 한 번 더 눌러야 한다.
-                          href={`/edit/${row.slug}`}
-                          title="편집 페이지 열기"
+                          href={props.canEdit ? `/edit/${row.slug}` : `/g/${row.slug}`}
+                          title={props.canEdit ? "편집 페이지 열기" : "용어 상세 보기"}
                           className="text-ink-3 opacity-0 transition hover:text-brand focus-visible:opacity-100 group-hover:opacity-100"
                         >
                           <IconExpand />
@@ -1541,7 +1543,7 @@ export function TermsGrid(props: TermsGridProps) {
             {/* 엑셀의 마지막 빈 줄. 여기에 이름을 적고 Enter를 누르면 그대로 새
                 용어가 만들어진다 — "새로 만들기" 화면을 거치지 않아도 표 안에서
                 목록이 자란다. */}
-            <tr style={{ height: rowH }}>
+            {props.canEdit && <tr style={{ height: rowH }}>
               <td
                 className="sticky left-0 z-20 border-b border-r border-line-strong bg-panel-2/60 text-center text-ink-3"
                 style={scrolledX ? { boxShadow: "6px 0 8px -8px rgb(0 0 0 / 0.45)" } : undefined}
@@ -1590,7 +1592,7 @@ export function TermsGrid(props: TermsGridProps) {
                   <span className="text-[11px] text-ink-3">Enter로 계속 추가 · 엑셀 헤더까지 복사하면 열 순서와 관계없이 새 용어로 가져옵니다</span>
                 </span>
               </td>
-            </tr>
+            </tr>}
           </tbody>
         </table>
       </div>

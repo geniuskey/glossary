@@ -185,7 +185,7 @@ AI가 찾은 관계는 바로 검색 그래프에 넣지 않고 `proposed`로 �
 
 ## 인증 테이블
 
-- **users** — `email`(유니크), `name`, `password_hash`, `role`(`admin` \| `editor`),
+- **users** — `email`(유니크), `name`, `password_hash`, `role`(`admin` \| `editor` \| `viewer`),
   `external_id`(OIDC/OAuth 사용자 식별자), `sso_groups`.
 - **sessions** — `id`(쿠키에 실리는 값), `user_id`, `expires_at`.
 - **api_keys** — 해시만 저장한다. `prefix`(유니크)로 식별하고 `scopes`로 제한하며

@@ -15,7 +15,7 @@ export interface CurrentUser {
   id: string;
   email: string;
   name: string;
-  role: "admin" | "editor";
+  role: "admin" | "editor" | "viewer";
   /** SSO 그룹의 첫 항목. 계정 메뉴에 표시할 조직 이름이다. */
   organization?: string | null;
 }

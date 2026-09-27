@@ -11,18 +11,18 @@ import { SearchBox } from "./search-box";
 
 export type NavKey = "contribute" | "check" | "field-completion" | "sheet" | "classifications" | "graph" | "chat" | "meetings" | "wiki" | "api" | "import" | "statistics" | "settings" | "admin";
 
-export const APP_NAV_ITEMS: Array<{ key: NavKey; href: string; label: string; hint: string; icon: ReactNode; adminOnly?: true; alwaysOn?: true }> = [
-  { key: "contribute", href: "/contribute", label: "함께 정리", hint: "미완성", icon: <IconContribute /> },
-  { key: "check", href: "/check", label: "문서 점검", hint: "미등록 후보", icon: <IconCheck /> },
-  { key: "field-completion", href: "/contribute/fields", label: "필드 보완", hint: "정의 · 분류", icon: <IconFields /> },
+export const APP_NAV_ITEMS: Array<{ key: NavKey; href: string; label: string; hint: string; icon: ReactNode; adminOnly?: true; editorOnly?: true; alwaysOn?: true }> = [
+  { key: "contribute", href: "/contribute", label: "함께 정리", hint: "미완성", icon: <IconContribute />, editorOnly: true },
+  { key: "check", href: "/check", label: "문서 점검", hint: "미등록 후보", icon: <IconCheck />, editorOnly: true },
+  { key: "field-completion", href: "/contribute/fields", label: "필드 보완", hint: "정의 · 분류", icon: <IconFields />, editorOnly: true },
   { key: "sheet", href: "/sheet", label: "시트", hint: "표 편집", icon: <IconGrid />, alwaysOn: true },
-  { key: "classifications", href: "/classifications", label: "분류 체계", hint: "도메인 · 업무", icon: <IconClassification /> },
+  { key: "classifications", href: "/classifications", label: "분류 체계", hint: "도메인 · 업무", icon: <IconClassification />, editorOnly: true },
   { key: "graph", href: "/graph", label: "관계도", hint: "맥락 탐색", icon: <IconGraph /> },
   { key: "chat", href: "/chat", label: "용어 챗봇", hint: "AI 질문", icon: <IconChat /> },
   { key: "meetings", href: "/meetings", label: "회의 지식", hint: "Confluence 출처", icon: <IconMeeting /> },
   { key: "wiki", href: "/w", label: "위키", hint: "업무 맥락", icon: <IconWiki /> },
   { key: "api", href: "/api", label: "API", hint: "개발자 연동", icon: <IconApi /> },
-  { key: "import", href: "/import", label: "가져오기", hint: "엑셀", icon: <IconImport /> },
+  { key: "import", href: "/import", label: "가져오기", hint: "엑셀", icon: <IconImport />, editorOnly: true },
   { key: "statistics", href: "/statistics", label: "통계", hint: "운영 현황", icon: <IconStatistics /> },
 ];
 
@@ -40,7 +40,8 @@ export async function getAppNavigation(user: CurrentUser | null, configuredSetti
     items: APP_NAV_ITEMS.filter((item) =>
       (group.keys as readonly string[]).includes(item.key)
       && (item.alwaysOn || (isWorkspaceMenuKey(item.key) && menuSettings[item.key]))
-      && (!item.adminOnly || user?.role === "admin"),
+      && (!item.adminOnly || user?.role === "admin")
+      && (!item.editorOnly || user?.role === "admin" || user?.role === "editor"),
     ).sort((left, right) => (order.get(left.key) ?? 99) - (order.get(right.key) ?? 99)),
   })).filter((group) => group.items.length > 0);
 }
@@ -158,10 +159,10 @@ export async function AppShell({
               </div>
             )}
             <div className="ml-auto flex shrink-0 items-center gap-2 lg:col-start-3 lg:ml-0 lg:justify-self-end">
-              <Link href="/new" className="btn-primary h-9 shrink-0 px-3" aria-label="새 용어 추가">
+              {user?.role !== "viewer" && <Link href="/new" className="btn-primary h-9 shrink-0 px-3" aria-label="새 용어 추가">
                 <IconPlus />
                 <span className="hidden sm:inline">용어 추가</span>
-              </Link>
+              </Link>}
               {user && <AccountMenu user={user} current={current} placement="topbar" />}
             </div>
           </div>

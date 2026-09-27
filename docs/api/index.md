@@ -20,7 +20,7 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | GET | `/openapi` | — | 이 스펙 자체 |
 | GET | `/health` | — | DB 연결 포함 상태 확인 |
 | POST | [`/setup`](/api/auth#최초-설정) | — | 최초 관리자 계정 생성 (사용자 0명일 때만) |
-| POST | [`/auth/register`](/api/auth#계정-만들기) | — | 계정 만들기 (누구나, 역할은 editor 고정) |
+| POST | [`/auth/register`](/api/auth#계정-만들기) | — | 계정 만들기 (누구나, 역할은 viewer 고정) |
 | POST | [`/auth/login`](/api/auth#로그인) | — | 세션 쿠키 발급 |
 | PATCH | [`/account`](/api/auth#내-표시-이름-변경) | 세션 | 내 표시 이름 변경 |
 | POST | [`/account/sso-refresh`](/api/auth#sso-정보-다시-가져오기) | 세션 | 내 SSO 이름·이메일·그룹 다시 가져오기 |
@@ -123,7 +123,8 @@ API 키는 해시만 저장한다. 평문 토큰은 발급 응답에서만 볼 �
 ### scope
 
 키마다 `read` / `write` / `validate` 중 하나 이상을 갖는다. 요구 scope가 없으면
-403 `forbidden`이다. 세션 사용자는 scope 대신 `role`(`admin` \| `editor`)로 갈린다.
+403 `forbidden`이다. 세션 사용자는 scope 대신 `role`(`admin` \| `editor` \| `viewer`)로 갈린다.
+viewer는 read/validate 요청만 할 수 있고, editor와 admin은 write scope도 사용할 수 있다.
 용어 삭제와 `/admin/*`의 홈·AI·사용자 설정처럼 명시된 관리 작업은 `admin` 전용이다.
 
 ## 에러 규약

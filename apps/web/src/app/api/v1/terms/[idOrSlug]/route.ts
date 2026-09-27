@@ -124,8 +124,8 @@ export const PATCH = withApiErrors(
   },
 );
 
-// 역할은 admin | editor다. 삭제는 admin 전용 — API 키에는 역할 개념이 없으므로
-// (스코프만 있다) 사용자 인증이 아니면 무조건 거부한다.
+// 쓰기는 editor 이상, 삭제는 admin 전용이다. API 키는 write scope가 있어도
+// 키 소유자가 viewer이면 requireAuth에서 차단된다.
 export const DELETE = withApiErrors(
   async (request: Request, ctx: { params: Promise<{ idOrSlug: string }> }) => {
     const auth = await requireAuth(request, "write");

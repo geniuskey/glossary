@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, index, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
-export const userRoleEnum = pgEnum("user_role", ["admin", "editor"]);
+export const userRoleEnum = pgEnum("user_role", ["admin", "editor", "viewer"]);
 export const ssoProtocolEnum = pgEnum("sso_protocol", ["oidc", "oauth2"]);
 export const ssoModeEnum = pgEnum("sso_mode", ["disabled", "oidc", "oauth2", "oauth2-proxy"]);
 

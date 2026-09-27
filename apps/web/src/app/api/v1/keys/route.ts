@@ -46,6 +46,9 @@ export const POST = withApiErrors(async (request: Request) => {
   if (!parsed.success) {
     return apiError("validation_failed", "키 이름과 scope가 필요합니다.", 400, parsed.error.flatten());
   }
+  if (user.role === "viewer" && parsed.data.scopes.includes("write")) {
+    return apiError("forbidden", "뷰어는 읽기 또는 검증 전용 API 키만 만들 수 있습니다.", 403);
+  }
 
   const { token, prefix, hash } = generateApiKey();
   // R28: prefix 유니크 인덱스 충돌(23505)은 여기서 잡지 않는다 — withApiErrors가

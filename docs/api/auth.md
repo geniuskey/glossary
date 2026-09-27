@@ -40,8 +40,8 @@ Content-Type: application/json
 
 ## 계정 만들기
 
-로그인 화면의 "계정 만들기"가 부르는 창구다. 승인 워크플로우 없이 로그인한 사람이면
-누구나 편집하는 위키라, 계정 발급을 관리자가 쥐고 있지 않다.
+로그인 화면의 "계정 만들기"가 부르는 창구다. 가입 뒤 바로 읽을 수 있고, 편집 권한은
+관리자가 역할을 승격해 부여한다.
 
 ```http
 POST /api/v1/auth/register
@@ -61,9 +61,9 @@ Content-Type: application/json
 409  email_taken — 이미 가입된 이메일
 ```
 
-- **역할은 언제나 `editor`다.** 요청에 `role`을 실어도 무시한다. 관리자는 최초
-  설정(`/setup`)과 `scripts/seed-admin.ts`로만 생긴다 — 그렇지 않으면 가입 폼에 필드
-  하나 추가하는 것으로 누구나 용어 삭제 권한을 갖게 된다.
+- **역할은 언제나 `viewer`다.** 요청에 `role`을 실어도 무시한다. viewer는 읽기만 할 수 있고,
+  관리자가 사용자 관리 화면에서 editor로 승격해야 편집할 수 있다. 관리자는 최초 설정
+  (`/setup`)과 `scripts/seed-admin.ts`로만 생긴다.
 - **이메일은 대소문자를 구분하지 않는다.** `Kim@Example.com`으로 가입하면
   `kim@example.com`으로 저장되고, 로그인도 두 형태 모두 같은 계정을 찾는다
   (`users_email_lower_unique`가 유일성을 소문자 기준으로 강제한다).
@@ -71,8 +71,9 @@ Content-Type: application/json
   잘못됐는지 말해주지 않으면 사용자는 같은 이메일로 계속 다시 시도한다.
 
 ::: warning 가입은 열려 있다
-사내망 설치를 전제로 누구나 가입할 수 있다. 레이트 리밋도 이메일 도메인 제한도 아직
-없다(M2). 그때까지는 망 접근 통제가 유일한 울타리다.
+비밀번호 가입은 ID/비밀번호 로그인이 켜져 있는 동안 가능하며 신규 사용자는 viewer로 생성된다.
+레이트 리밋은 적용하지만 이메일 도메인 제한은 없다. Google Workspace 조직 전용 사용은
+Google OAuth 앱의 Internal audience 설정으로 제한한다.
 :::
 
 ## 로그인
@@ -84,7 +85,7 @@ Content-Type: application/json
 { "email": "admin@example.com", "password": "..." }
 ```
 
-관리자 패널의 **로그인 · SSO → ID/비밀번호 로그인 허용**을 끄면 이 창구와 가입·비밀번호 최초
+관리자 패널의 **로그인 방식 → ID/비밀번호 로그인 허용**을 끄면 이 창구와 가입·비밀번호 최초
 설정 창구는 `403 password_login_disabled`를 반환한다. DB 설정이 아직 없는 최초 부팅만
 `PASSWORD_LOGIN_ENABLED` 환경변수를 초기값으로 사용한다.
 
@@ -139,10 +140,11 @@ POST /api/v1/auth/logout
 GET이 아니라 POST다. 상태 변경 요청은 `Origin` 또는 `Referer`가 허용된 출처와
 일치해야 하며, `SameSite=Lax` 쿠키도 함께 사용한다. 상태를 바꾸는 GET은 만들지 않는다.
 
-## SSO (OpenID Connect / OAuth 2.0)
+## 외부 계정 로그인 (OpenID Connect / OAuth 2.0)
 
-회사 계정으로 로그인하는 경로다. 붙이는 방법과 claim 매핑 설명은
-[SSO 연결](/guide/sso)에 있고, 여기서는 창구만 적는다.
+Google 계정 로그인 또는 회사 SSO 경로다. Google 로그인은 제품 화면에서 별도 방식으로 표시하며,
+두 로그인 모두 OIDC/OAuth 2.0 흐름을 공유한다. 설정과 claim 매핑 설명은
+[회사 SSO 연결](/guide/sso)에 있고, 여기서는 창구만 적는다.
 
 브라우저가 오가는 두 자리는 **`/api/v1` 바깥**이다. 화면 이동으로만 답하는 자리라
 JSON 에러 봉투를 쓸 수 없다 — 이 저장소의 "모든 에러는 JSON, 예외 없음" 규약을

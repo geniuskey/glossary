@@ -36,7 +36,7 @@ export const POST = withApiErrors(async (request: Request) => {
       adminGroups: cfg.adminGroups,
     });
     if (!access.allowed) {
-      return apiError("forbidden", "이 사전에 접근이 허용된 SSO 그룹이 아닙니다.", 403);
+      return apiError("forbidden", "이 사전에 접근이 허용된 외부 계정 그룹이 아닙니다.", 403);
     }
 
     const bootstrapAdmin = isInitialAdminEmail(inspection.identity.email);
@@ -48,13 +48,13 @@ export const POST = withApiErrors(async (request: Request) => {
       expectedUserId: auth.user.id,
     });
     if (!result.ok) {
-      return apiError("operation_conflict", "현재 로그인한 계정과 SSO 계정이 일치하지 않습니다.", 409);
+      return apiError("operation_conflict", "현재 로그인한 계정과 외부 계정이 일치하지 않습니다.", 409);
     }
     return Response.json({ user: result.user, refreshed: true });
   }
 
   if (mode !== "oidc" && mode !== "oauth2") {
-    return apiError("operation_conflict", "현재 SSO 로그인을 사용하지 않습니다.", 409);
+    return apiError("operation_conflict", "현재 외부 계정 로그인을 사용하지 않습니다.", 409);
   }
 
   const [account] = await getDb()
@@ -63,10 +63,10 @@ export const POST = withApiErrors(async (request: Request) => {
     .where(eq(users.id, auth.user.id))
     .limit(1);
   if (!account?.externalId) {
-    return apiError("operation_conflict", "SSO로 연결된 계정에서만 정보를 다시 가져올 수 있습니다.", 409);
+    return apiError("operation_conflict", "외부 계정으로 연결된 사용자만 계정 정보를 다시 가져올 수 있습니다.", 409);
   }
   if (!cfg.authorizationEndpoint || !cfg.clientId) {
-    return apiError("operation_conflict", "사용할 수 있는 SSO 연결이 없습니다. 관리자에게 문의하세요.", 409);
+    return apiError("operation_conflict", "사용할 수 있는 외부 계정 연결이 없습니다. 관리자에게 문의하세요.", 409);
   }
 
   return Response.json({ redirectTo: "/auth/sso/start?refresh=1", refreshed: false });

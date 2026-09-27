@@ -19,7 +19,7 @@ export default async function ApiKeysPage() {
           외부 도구에서 사용할 키를 용도별로 발급하고, 더 쓰지 않는 키는 폐기하세요.
         </p>
       </header>
-      <ApiKeysPanel />
+      <ApiKeysPanel canWrite={user.role !== "viewer"} />
     </AppShell>
   );
 }

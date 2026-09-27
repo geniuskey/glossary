@@ -21,6 +21,7 @@ export default async function EditTermPage({ params }: { params: Promise<{ slug:
   if (!user) redirect("/login");
 
   const { slug } = await params;
+  if (user.role === "viewer") redirect(`/g/${slug}`);
   const term = await loadTermForPage(slug);
   if (!term) notFound();
 

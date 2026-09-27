@@ -74,7 +74,7 @@ export async function applySsoLogin(input: {
         passwordHash: null,
         externalId: identity.subject,
         ssoGroups: identity.groups,
-        role: isAdmin ? "admin" : "editor",
+        role: isAdmin ? "admin" : "viewer",
       })
       .returning({ id: users.id, email: users.email, name: users.name, role: users.role });
     if (!created) throw new Error("SSO 계정 생성에 실패했습니다.");

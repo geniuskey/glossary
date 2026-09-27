@@ -4,16 +4,14 @@ import { getDb } from "@/lib/db";
 import { hashPassword } from "./password";
 
 /**
- * R131: 로그인 화면에서 누구나 계정을 만든다. 승인 워크플로우가 없는 개방 편집
- * 위키라 "누가 고쳤는지"를 남기려고 로그인만 요구하는 것이고, 그 로그인 계정을
- * 관리자가 일일이 발급해야 한다면 개방이 아니다.
+ * 로그인 화면에서 사용자가 계정을 만든다. 신규 계정은 읽기 전용으로 시작하고,
+ * 관리자가 편집 권한을 부여한 뒤에 glossary 데이터를 바꿀 수 있다.
  *
- * 역할은 언제나 `editor`다 — 관리자는 최초 설정(/setup)과 scripts/seed-admin.ts
- * 로만 생긴다. 여기서 role을 입력으로 받으면 가입 폼에 필드 하나 추가하는 것으로
- * 누구나 관리자가 된다(삭제 권한이 그대로 열린다).
+ * 역할은 언제나 `viewer`다. 여기서 role을 입력으로 받으면 가입 폼에 필드 하나
+ * 추가하는 것으로 누구나 관리자나 편집자가 될 수 있다.
  */
 export type RegisterResult =
-  | { ok: true; user: { id: string; email: string; name: string; role: "admin" | "editor" } }
+  | { ok: true; user: { id: string; email: string; name: string; role: "admin" | "editor" | "viewer" } }
   | { ok: false; reason: "email_taken" };
 
 /** 표시용 원문은 사람이 친 그대로 두고, 저장·조회 키만 소문자로 맞춘다. */
@@ -46,7 +44,7 @@ export async function registerUser(input: {
   try {
     const [created] = await getDb()
       .insert(users)
-      .values({ email, name: input.name.trim() || email, passwordHash, role: "editor" })
+      .values({ email, name: input.name.trim() || email, passwordHash, role: "viewer" })
       .returning({ id: users.id, email: users.email, name: users.name, role: users.role });
     if (!created) throw new Error("계정 생성에 실패했습니다.");
     return { ok: true, user: created };

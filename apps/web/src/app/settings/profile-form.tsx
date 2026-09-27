@@ -18,8 +18,8 @@ export function ProfileForm({
   const [savedName, setSavedName] = useState(initialName);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const [refreshingSso, setRefreshingSso] = useState(false);
-  const [ssoMessage, setSsoMessage] = useState(initialSsoMessage ?? null);
+  const [refreshingLoginAccount, setRefreshingLoginAccount] = useState(false);
+  const [loginAccountMessage, setLoginAccountMessage] = useState(initialSsoMessage ?? null);
   useUnsavedChanges(name.trim() !== savedName);
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
@@ -47,10 +47,10 @@ export function ProfileForm({
     }
   }
 
-  async function refreshSso() {
-    if (refreshingSso) return;
-    setRefreshingSso(true);
-    setSsoMessage(null);
+  async function refreshLoginAccount() {
+    if (refreshingLoginAccount) return;
+    setRefreshingLoginAccount(true);
+    setLoginAccountMessage(null);
     try {
       const response = await fetch("/api/v1/account/sso-refresh", { method: "POST" });
       const body = await response.json().catch(() => null) as {
@@ -59,7 +59,7 @@ export function ProfileForm({
         error?: { message?: string };
       } | null;
       if (!response.ok) {
-        throw new Error(body?.error?.message ?? `SSO 정보를 가져오지 못했습니다 (${response.status}).`);
+        throw new Error(body?.error?.message ?? `로그인 계정 정보를 가져오지 못했습니다 (${response.status}).`);
       }
       if (body?.redirectTo === "/auth/sso/start?refresh=1") {
         window.location.assign(body.redirectTo);
@@ -69,15 +69,15 @@ export function ProfileForm({
         setName(body.user.name);
         setSavedName(body.user.name);
       }
-      setSsoMessage({ ok: true, text: "SSO 정보를 다시 가져왔습니다." });
+      setLoginAccountMessage({ ok: true, text: "로그인 계정 정보를 다시 가져왔습니다." });
       router.refresh();
     } catch (error) {
-      setSsoMessage({
+      setLoginAccountMessage({
         ok: false,
-        text: error instanceof Error ? error.message : "SSO 정보를 가져오지 못했습니다.",
+        text: error instanceof Error ? error.message : "로그인 계정 정보를 가져오지 못했습니다.",
       });
     } finally {
-      setRefreshingSso(false);
+      setRefreshingLoginAccount(false);
     }
   }
 
@@ -104,18 +104,18 @@ export function ProfileForm({
         <div className="mt-4 border-t border-line pt-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-medium text-ink">SSO 정보</p>
+              <p className="text-sm font-medium text-ink">외부 로그인 계정 정보</p>
               <p className="mt-0.5 text-xs leading-5 text-ink-3">
-                회사 계정의 이름·이메일·그룹을 다시 읽습니다. 현재 표시 이름도 SSO 값으로 덮어씁니다.
+                연결한 Google 또는 회사 계정의 이름·이메일·그룹을 다시 읽습니다. 현재 표시 이름도 계정 정보로 덮어씁니다.
               </p>
             </div>
-            <button type="button" onClick={refreshSso} disabled={refreshingSso} className="btn-ghost shrink-0 self-start sm:self-auto">
-              {refreshingSso ? "가져오는 중…" : "SSO 정보 다시 가져오기"}
+            <button type="button" onClick={refreshLoginAccount} disabled={refreshingLoginAccount} className="btn-ghost shrink-0 self-start sm:self-auto">
+              {refreshingLoginAccount ? "가져오는 중…" : "로그인 계정 정보 다시 가져오기"}
             </button>
           </div>
-          {ssoMessage && (
-            <p className={ssoMessage.ok ? "mt-2 text-xs text-ok" : "note-danger mt-2"} role={ssoMessage.ok ? "status" : "alert"}>
-              {ssoMessage.text}
+          {loginAccountMessage && (
+            <p className={loginAccountMessage.ok ? "mt-2 text-xs text-ok" : "note-danger mt-2"} role={loginAccountMessage.ok ? "status" : "alert"}>
+              {loginAccountMessage.text}
             </p>
           )}
         </div>

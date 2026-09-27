@@ -46,7 +46,7 @@ test("처음 온 사람의 계정을 만들고 비밀번호는 두지 않는다"
   expect(result.created).toBe(true);
   expect(row.externalId).toBe(id.subject);
   expect(row.ssoGroups).toEqual(id.groups);
-  expect(row.role).toBe("editor");
+  expect(row.role).toBe("viewer");
   // 임의의 해시를 채우면 "비밀번호가 있는 것처럼 보이지만 아무도 모르는 계정"이 된다.
   expect(row.passwordHash).toBeNull();
 });

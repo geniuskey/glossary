@@ -10,6 +10,7 @@ export const metadata = { title: "새 위키 문서" };
 export default async function NewWikiPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (user.role === "viewer") redirect("/w");
   const params = await searchParams;
   const fromMeeting = params.from === "meeting";
   const rawSourceUrl = Array.isArray(params.sourceUrl) ? params.sourceUrl[0] : params.sourceUrl;

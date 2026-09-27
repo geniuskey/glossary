@@ -35,8 +35,8 @@ cp .env.example .env
 | `DATABASE_URL_TEST` | `packages/db`와 `apps/web` 테스트 전용 DB |
 | `POSTGRES_PASSWORD` | 프로덕션 Compose에서만 쓴다 |
 | `OAUTH2_PROXY_ENABLED` | 이 배포가 oauth2-proxy의 검증된 헤더를 받을 수 있는지. 기본 `false`; 실제 방식은 설정 화면에서 선택 |
-| `PASSWORD_LOGIN_ENABLED` | 최초 부팅의 ID/비밀번호 로그인 초기값. 기본 `true`; 첫 관리자 로그인 후에는 관리자 패널 → 로그인 · SSO에서 관리 |
-| `INITIAL_ADMIN_EMAIL` | SSO로 최초 생성할 관리자 이메일. 대소문자를 구분하지 않음 |
+| `PASSWORD_LOGIN_ENABLED` | 최초 부팅의 ID/비밀번호 로그인 초기값. 기본 `true`; 첫 관리자 로그인 후에는 관리자 패널 → 로그인 방식에서 관리 |
+| `INITIAL_ADMIN_EMAIL` | 최초 관리자 이메일. 지정하면 `/setup`과 Google 계정 로그인 관리자 부트스트랩은 이 주소만 허용 |
 | `SSO_LOGIN_URL` | oauth2-proxy 로그인 진입점 재정의. 비우면 `/oauth2/start?rd=%2F` |
 | `GLOSSARY_ENCRYPTION_KEY` | AI·RAG API Key와 custom header 암호화 키. AI 또는 RAG 연결을 쓰면 32자 이상 고정값 필요 |
 | `GLOSSARY_ALLOWED_ORIGINS` | 로컬에서는 비워 두고, 운영 프록시 뒤에서는 쿠키 변경 요청을 허용할 실제 공개 HTTPS origin을 지정. 예: `https://glossary.example.com` |
@@ -96,7 +96,9 @@ http://localhost:3000 에서 뜬다.
 
 계정을 미리 시딩할 필요 없다. 사용자가 하나도 없으면 첫 접속에서 자동으로
 **`/setup`(관리자 만들기)** 화면으로 안내된다. 이메일·이름·비밀번호(8자 이상)를
-입력하면 관리자 계정이 만들어지고 바로 로그인된다.
+입력하면 관리자 계정이 만들어지고 바로 로그인된다. `.env`에 `INITIAL_ADMIN_EMAIL`을
+지정했다면 해당 주소로만 이 계정을 만들 수 있다. 새 계정은 viewer로 시작하며, 관리자가
+사용자 관리 화면에서 editor로 승격할 수 있다. 기존 admin/editor 계정은 그대로 유지된다.
 
 ::: tip
 `/setup`은 **사용자 테이블이 비어 있을 때만** 열린다. 첫 관리자가 생기면 그 뒤로는
@@ -116,20 +118,20 @@ unset ADMIN_PASSWORD
 
 ### 나머지 사람들은 스스로 가입한다
 
-관리자가 계정을 하나씩 발급하지 않는다. 로그인 화면의 **계정 만들기**로 누구나
-`/signup`에서 계정을 만들고 바로 편집할 수 있다. 만들어지는 계정은 언제나 `editor`이고,
-`admin`은 위의 최초 설정과 `seed-admin.ts`로만 생긴다(용어 삭제는 `admin`만 한다).
+관리자가 계정을 하나씩 발급하지 않아도 된다. 비밀번호 가입 또는 Google 로그인을 허용하면
+사용자가 직접 계정을 만들고 바로 읽을 수 있다. 새 계정은 `viewer`로 시작하며 관리자가
+사용자 관리 화면에서 `editor`로 승격해야 편집할 수 있다. `admin`은 최초 설정,
+`INITIAL_ADMIN_EMAIL`의 SSO 로그인, `seed-admin.ts` 경로로만 생긴다.
 
 ::: warning
 공개 가입은 비밀번호 로그인이 켜져 있는 동안 열려 있다. 사내 사용자가 자유롭게 참여하는
-운영 방식이 아니라면 첫 관리자 생성 직후 **관리자 패널 → 로그인 · SSO**에서 회사 계정
+운영 방식이 아니라면 첫 관리자 생성 직후 **관리자 패널 → 로그인 방식**에서 회사 계정
 로그인을 설정하고 비밀번호 로그인을 끈다.
 :::
 
-로그인을 요구하는 이유는 권한을 나누기 위해서가 아니라 **수정 이력에 이름을 남기기**
-위해서다. 승인 절차가 없는 대신 모든 수정이 이력에 남고 언제든 되돌릴 수 있다.
+로그인은 역할별 권한을 적용하고 수정 이력에 이름을 남긴다.
 
-회사 계정(OpenID Connect, OAuth 2.0 또는 oauth2-proxy)으로 로그인하게 하려면 관리자로 **관리자 패널 → 로그인 · SSO**에서 붙인다 —
+회사 계정(OpenID Connect, OAuth 2.0 또는 oauth2-proxy)으로 로그인하게 하려면 관리자로 **관리자 패널 → 로그인 방식**에서 붙인다 —
 [SSO 연결](/guide/sso). 재배포 없이 화면에서 고치는 값이고, 이름·그룹을 어떤 claim에서
 읽을지도 거기서 정한다(회사마다 `name` / `displayName` / `preferred_username`으로 갈린다).
 
@@ -202,7 +204,7 @@ RAG 연결은 이 흐름에 필요하지 않으며, 기본 사용을 확인한 �
 | `/` | 용어 검색 — 표기 하나를 지목해 찾는 홈 화면 |
 | `/setup` | 최초 관리자 만들기 (사용자 0명일 때만) |
 | `/login` | 로그인 |
-| `/signup` | 계정 만들기 (누구나, 역할은 editor 고정) |
+| `/signup` | 계정 만들기 (누구나, 역할은 viewer 고정) |
 | `/sheet` | 시트 — 표 편집, type/domain/status 필터, 검색, 페이징 |
 | `/new` | 용어 등록 |
 | `/g/[slug]` | 용어 상세 (`?from=<표기>`로 어떤 표기에서 왔는지 표시) |

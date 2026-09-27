@@ -137,6 +137,7 @@ export default async function TermsPage({
       <TermsGrid
         rows={items}
         viewerName={user.name || user.email}
+        canEdit={user.role !== "viewer"}
         canDelete={user.role === "admin"}
         rowOffset={(parsed.page - 1) * parsed.pageSize}
         sortHrefs={sortHrefs}
@@ -153,7 +154,7 @@ export default async function TermsPage({
         toolbarLeading={<SheetFilterBar query={parsed.q ?? ""} />}
         toolbarActions={(
           <>
-            {facets.needsContribution > 0 && (
+            {user.role !== "viewer" && facets.needsContribution > 0 && (
               <Link href="/contribute" className="chip border-warn/30 bg-warn-soft text-warn">
                 정리 필요 {facets.needsContribution}
               </Link>

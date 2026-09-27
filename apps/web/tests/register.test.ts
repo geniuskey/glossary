@@ -68,16 +68,15 @@ test("누구나 계정을 만들 수 있고 곧바로 세션 쿠키를 받는다
   expect(res.headers.get("set-cookie")).toContain("HttpOnly");
 });
 
-// 가입 폼에 role 필드 하나만 추가하면 누구나 관리자가 되고 삭제 권한이 열린다.
-// 역할은 입력이 아니라 이 창구의 상수여야 한다.
-test("가입으로 만든 계정은 언제나 editor다", async () => {
+// 가입 폼의 role 입력은 무시하고 모든 새 계정을 viewer로 만든다.
+test("가입으로 만든 계정은 언제나 viewer다", async () => {
   const email = uniqueEmail();
 
   const res = await register({ email, password: "hunter2hunter2", role: "admin" });
 
   expect(res.status).toBe(200);
   const body = await res.json();
-  expect(body.user.role).toBe("editor");
+  expect(body.user.role).toBe("viewer");
 });
 
 test("이름을 비우면 이메일이 표시 이름이 된다", async () => {

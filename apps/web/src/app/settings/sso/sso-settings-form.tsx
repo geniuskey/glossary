@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { GoogleLogo } from "@/components/google-logo";
 import { formatClaimList, parseClaimList } from "@/lib/auth/sso/claims";
+import { GOOGLE_ISSUER, isGoogleIssuer, isGoogleOidc } from "@/lib/auth/sso/provider";
 import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
 
 // api-keys-panel.tsx와 같은 이유로 상태를 갖는 이 조각만 Client Component다 —
@@ -73,7 +75,7 @@ interface ProxyHeaderCheck {
 export type SsoMode = "disabled" | "oidc" | "oauth2" | "oauth2-proxy";
 
 const MODE_LABEL: Record<SsoMode, string> = {
-  disabled: "SSO 사용하지 않음",
+  disabled: "외부 계정 로그인 사용 안 함",
   oidc: "OpenID Connect",
   oauth2: "OAuth 2.0",
   "oauth2-proxy": "oauth2-proxy",
@@ -181,6 +183,8 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
       setForm((prev) => prev ? { ...prev, mode, enabled: false } : prev);
       return;
     }
+    const switchingFromGoogle = Boolean(form && isGoogleIssuer(form.issuer));
+    if (switchingFromGoogle) setSecret("");
     setForm((prev) => {
       if (!prev) return prev;
       const scopes = parseClaimList(prev.scopes).filter((scope) => scope !== "openid");
@@ -189,9 +193,42 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
         mode,
         enabled: true,
         protocol: mode,
+        issuer: switchingFromGoogle ? "" : prev.issuer,
+        buttonLabel: switchingFromGoogle ? "회사 계정으로 로그인" : prev.buttonLabel,
+        jwksUri: switchingFromGoogle ? "" : prev.jwksUri,
+        authorizationEndpoint: switchingFromGoogle ? "" : prev.authorizationEndpoint,
+        tokenEndpoint: switchingFromGoogle ? "" : prev.tokenEndpoint,
+        userinfoEndpoint: switchingFromGoogle ? "" : prev.userinfoEndpoint,
+        clientId: switchingFromGoogle ? "" : prev.clientId,
         scopes: formatClaimList(mode === "oidc" ? ["openid", ...scopes] : scopes),
       };
     });
+  }
+
+  function selectGoogleLogin() {
+    const switchingToGoogle = !form || !isGoogleIssuer(form.issuer);
+    if (switchingToGoogle) setSecret("");
+    setForm((prev) => prev ? {
+      ...prev,
+      mode: "oidc",
+      enabled: true,
+      protocol: "oidc",
+      issuer: GOOGLE_ISSUER,
+      buttonLabel: "Google 계정으로 로그인",
+      jwksUri: switchingToGoogle ? "" : prev.jwksUri,
+      authorizationEndpoint: switchingToGoogle ? "" : prev.authorizationEndpoint,
+      tokenEndpoint: switchingToGoogle ? "" : prev.tokenEndpoint,
+      userinfoEndpoint: switchingToGoogle ? "" : prev.userinfoEndpoint,
+      clientId: switchingToGoogle ? "" : prev.clientId,
+      scopes: formatClaimList(["openid", "profile", "email"]),
+      allowedGroups: "",
+      adminGroups: "",
+    } : prev);
+  }
+
+  function selectLoginOption(mode: SsoMode | "google") {
+    if (mode === "google") selectGoogleLogin();
+    else selectMode(mode);
   }
 
   async function discover() {
@@ -239,6 +276,18 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
 
   async function save() {
     if (!form) return;
+    const nextGoogleLogin = form.mode === "oidc" && isGoogleOidc(form);
+    const savedGoogleLogin = Boolean(view && effectiveSsoMode(view) === "oidc" && isGoogleOidc(view));
+    const directLoginSelected = form.mode === "oidc" || form.mode === "oauth2";
+    if (directLoginSelected && nextGoogleLogin !== savedGoogleLogin && !secret) {
+      setMessage({
+        kind: "bad",
+        text: nextGoogleLogin
+          ? "Google 로그인으로 바꾸려면 Google OAuth 클라이언트 시크릿을 입력하세요."
+          : "회사 SSO로 바꾸려면 해당 회사 인증 서버의 클라이언트 시크릿을 입력하세요.",
+      });
+      return;
+    }
     setBusy(true);
     setMessage(null);
     try {
@@ -283,7 +332,11 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
       setRedirectUri(body.redirectUri);
       setMessage({
         kind: "ok",
-        text: form.mode === "oauth2-proxy" ? "oauth2-proxy와 SSO 접근 정책을 저장했습니다." : "SSO 설정을 저장했습니다.",
+        text: form.mode === "oauth2-proxy"
+          ? "oauth2-proxy 접근 정책을 저장했습니다."
+          : form.mode === "oidc" && isGoogleOidc(form)
+            ? "Google 로그인 설정을 저장했습니다."
+            : "회사 SSO 설정을 저장했습니다.",
       });
     } catch {
       setMessage({ kind: "bad", text: "네트워크 오류로 저장하지 못했습니다." });
@@ -322,14 +375,17 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
   const activeMode = effectiveSsoMode(view);
   const mode = effectiveSsoMode(form);
   const directMode = mode === "oidc" || mode === "oauth2";
+  const googleLogin = mode === "oidc" && isGoogleOidc(form);
+  const activeGoogleLogin = activeMode === "oidc" && isGoogleOidc(view);
   const modeChanged = activeMode !== mode;
+  const configurationChanged = modeChanged || googleLogin !== activeGoogleLogin;
 
   return (
     <div className="space-y-6">
       <section className="card p-5">
         <h2 className="text-sm font-semibold text-ink">ID/비밀번호 로그인</h2>
         <p className="mt-1 text-xs leading-5 text-ink-3">
-          로컬 이메일 계정의 로그인과 새 계정 가입을 허용할지 정합니다.
+          로컬 이메일 계정으로 로그인하고 새 계정을 만들 수 있게 할지 정합니다.
         </p>
         <label className="mt-4 flex items-start gap-3 rounded-xl border border-line bg-panel-2 p-3 text-sm text-ink">
           <input
@@ -342,24 +398,30 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
           <span>
             <span className="block font-medium">ID/비밀번호 로그인 허용</span>
             <span className="mt-1 block text-xs leading-5 text-ink-3">
-              끄면 로그인 화면의 이메일 폼과 가입 경로가 닫히고 회사 로그인만 사용할 수 있습니다.
+              끄면 이메일 폼과 가입 경로가 닫힙니다. 외부 계정 로그인도 함께 설정해 두세요.
             </span>
           </span>
         </label>
         {mode === "disabled" && form.passwordLoginEnabled && (
-          <p className="mt-2 text-xs text-ink-3">SSO를 사용하지 않는 동안에는 유일한 로그인 경로이므로 끌 수 없습니다.</p>
+          <p className="mt-2 text-xs text-ink-3">외부 계정 로그인을 사용하지 않는 동안에는 유일한 로그인 경로이므로 끌 수 없습니다.</p>
         )}
       </section>
 
       <section className="card p-5">
         <div className="flex flex-wrap items-start gap-3">
           <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-semibold text-ink">SSO 로그인 방식</h2>
+            <h2 className="text-sm font-semibold text-ink">
+              {googleLogin ? "Google 계정 로그인" : mode === "disabled" ? "외부 계정 로그인" : "회사 SSO 로그인 방식"}
+            </h2>
             <p className="mt-1 text-xs leading-5 text-ink-3">
-              네 가지 방식 중 현재 배포에 실제 적용되는 하나를 표시합니다.
+              {googleLogin
+                ? "Google 계정으로 본인 확인하는 로그인입니다. 회사 IdP를 이용하는 SSO와 별도 방식으로 표시합니다."
+                : mode === "disabled"
+                  ? "Google 계정이나 회사 ID 공급자 없이 이메일 계정만 사용합니다."
+                  : "회사에서 사용하는 ID 공급자와 연결하는 로그인입니다."}
             </p>
           </div>
-          <span className="chip shrink-0">적용 중 · {MODE_LABEL[activeMode]}</span>
+          <span className="chip shrink-0">적용 중 · {activeGoogleLogin ? "Google 계정 로그인" : MODE_LABEL[activeMode]}</span>
         </div>
 
         {runtime.authMode === "oauth2-proxy" ? (
@@ -372,66 +434,78 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
           </div>
         ) : runtime.proxyAvailable ? (
           <p className="note-ok mt-4 text-xs leading-5">
-            네 가지 로그인 방식 모두 이 화면에서 선택합니다. 이 배포는 oauth2-proxy 사용이 허용되어 있습니다.
+            {googleLogin
+              ? "Google 계정 로그인은 회사 SSO와 별도 방식으로 적용됩니다. 이 배포에서는 회사 SSO도 연결할 수 있습니다."
+              : "회사 SSO 연결 방식을 이 화면에서 선택합니다."} 이 배포는 oauth2-proxy 사용이 허용되어 있습니다.
           </p>
         ) : (
           <p className="note-warn mt-4 text-xs leading-5">
             oauth2-proxy를 선택하려면 배포 환경에 <code className="font-mono" translate="no">OAUTH2_PROXY_ENABLED=true</code>를 설정하고 앱을 다시 시작하세요.
-            나머지 세 방식은 지금 바로 선택할 수 있습니다.
+            Google 계정 로그인, 회사 OpenID Connect와 OAuth 2.0 방식은 지금 바로 선택할 수 있습니다.
           </p>
         )}
 
         <fieldset className="mt-4">
-          <legend className="sr-only">SSO 로그인 방식 선택</legend>
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <legend className="sr-only">외부 계정 로그인 방식 선택</legend>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            <ModeOption
+              value="google"
+              checked={googleLogin}
+              title="Google 계정 로그인"
+              description="Google 계정으로 용어집에 로그인합니다."
+              disabled={false}
+              onChange={selectLoginOption}
+            />
             <ModeOption
               value="disabled"
               checked={mode === "disabled"}
-              title="SSO 사용하지 않음"
-              description="회사 로그인 없이 로컬 계정만 사용합니다."
+              title="외부 계정 로그인 사용 안 함"
+              description="Google 또는 회사 IdP 없이 이메일 계정만 사용합니다."
               disabled={!form.passwordLoginEnabled}
               disabledHint={!form.passwordLoginEnabled ? "ID/비밀번호 로그인 허용 필요" : undefined}
-              onChange={selectMode}
+              onChange={selectLoginOption}
             />
             <ModeOption
               value="oidc"
-              checked={mode === "oidc"}
-              title="OpenID Connect"
-              description="ID 토큰의 서명과 표준 보안 claim을 검증합니다."
+              checked={mode === "oidc" && !googleLogin}
+              title="회사 SSO · OpenID Connect"
+              description="회사 IdP의 ID 토큰과 표준 보안 claim을 검증합니다."
               disabled={false}
-              onChange={selectMode}
+              onChange={selectLoginOption}
             />
             <ModeOption
               value="oauth2"
               checked={mode === "oauth2"}
               title="OAuth 2.0"
-              description="Access Token으로 사용자 정보 API를 호출합니다."
+              description="회사 IdP의 Access Token으로 사용자 정보 API를 호출합니다."
               disabled={false}
-              onChange={selectMode}
+              onChange={selectLoginOption}
             />
             <ModeOption
               value="oauth2-proxy"
               checked={mode === "oauth2-proxy"}
               title="oauth2-proxy"
-              description="앞단 프록시가 인증하고 검증된 헤더를 전달합니다."
+              description="회사 인증 프록시가 검증된 사용자 정보를 전달합니다."
               disabled={!runtime.proxyAvailable}
               disabledHint={runtime.proxyAvailable ? "이 배포에서 선택 가능" : "OAUTH2_PROXY_ENABLED 필요"}
-              onChange={selectMode}
+              onChange={selectLoginOption}
             />
           </div>
         </fieldset>
-        {modeChanged && (
+        {configurationChanged && (
           <p className="mt-3 text-xs font-medium text-brand" role="status">
-            {MODE_LABEL[mode]} 방식은 아래 저장 버튼을 누른 뒤 적용됩니다.
+            {(googleLogin ? "Google 계정 로그인" : MODE_LABEL[mode])} 방식은 아래 저장 버튼을 누른 뒤 적용됩니다.
           </p>
         )}
       </section>
 
       {directMode && (
         <section className="card p-5">
-          <h2 className="text-sm font-semibold text-ink">{MODE_LABEL[mode]} 연결</h2>
+          <h2 className="text-sm font-semibold text-ink">{googleLogin ? "Google 계정 연결" : `회사 ${MODE_LABEL[mode]} 연결`}</h2>
           <p className="mt-1 text-xs text-ink-3">
-            인증 서버에는 아래 리디렉션 URI를 등록하세요. 인가 코드 + PKCE를 사용합니다.
+            {googleLogin
+              ? "Google OAuth 클라이언트에 아래 URI를 등록하세요. 로그인 화면에는 Google 전용 버튼이 표시됩니다."
+              : "회사 인증 서버에 아래 리디렉션 URI를 등록하세요. 인가 코드 + PKCE를 사용합니다."}
           </p>
 
           <div className="mt-3 rounded-lg border border-line bg-panel-2 px-3 py-2">
@@ -440,11 +514,21 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
           </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <TextField label="버튼 문구" value={form.buttonLabel} onChange={(v) => set("buttonLabel", v)} />
+          {googleLogin ? (
+            <div>
+              <span className="label">로그인 화면 버튼</span>
+              <div className="flex h-10 items-center gap-2 rounded-lg border border-line bg-white px-3 text-sm font-medium text-[#3c4043]">
+                <GoogleLogo />
+                <span>Google 계정으로 로그인</span>
+              </div>
+            </div>
+          ) : (
+            <TextField label="버튼 문구" value={form.buttonLabel} onChange={(v) => set("buttonLabel", v)} />
+          )}
 
           <div className="sm:col-span-2">
             <label className="label" htmlFor="sso-issuer">
-              {form.protocol === "oidc" ? "OIDC Issuer" : "OAuth 인증 서버 URL"}
+              {googleLogin ? "Google OIDC Issuer" : form.protocol === "oidc" ? "회사 OIDC Issuer" : "OAuth 인증 서버 URL"}
             </label>
             <div className="flex gap-2">
               <input
@@ -457,7 +541,7 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
                 className="field font-mono text-xs"
                 value={form.issuer}
                 onChange={(e) => set("issuer", e.target.value)}
-                placeholder="https://login.example.com/realms/company…"
+                placeholder={googleLogin ? GOOGLE_ISSUER : "https://login.example.com/realms/company…"}
               />
               <button type="button" className="btn-ghost shrink-0" onClick={discover} disabled={busy || !form.issuer}>
                 메타데이터 불러오기
@@ -504,7 +588,11 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
               className="field font-mono text-xs"
               value={secret}
               onChange={(e) => setSecret(e.target.value)}
-              placeholder={view.hasClientSecret ? "저장됨 — 바꿀 때만 입력" : "IdP에서 발급받은 값"}
+              placeholder={view.hasClientSecret
+                ? googleLogin !== activeGoogleLogin
+                  ? `${googleLogin ? "Google" : "회사 SSO"} 시크릿을 입력하세요`
+                  : "저장됨 — 바꿀 때만 입력"
+                : `${googleLogin ? "Google OAuth" : "IdP"}에서 발급받은 값`}
             />
           </div>
 
@@ -592,10 +680,11 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
       </section>}
 
       {directMode && <section className="card p-5">
-        <h2 className="text-sm font-semibold text-ink">값 매핑</h2>
+        <h2 className="text-sm font-semibold text-ink">{googleLogin ? "Google 계정 정보" : "회사 계정 정보 매핑"}</h2>
         <p className="mt-1 text-xs leading-relaxed text-ink-3">
-          회사마다 같은 값을 다른 이름으로 줍니다(name / displayName / preferred_username). 후보를 쉼표로 여러 개
-          적으면 <strong className="font-medium text-ink-2">앞에서부터 값이 있는 것</strong>을 씁니다. 점 경로
+          {googleLogin
+            ? "Google 계정에서 받은 사용자 정보 claim을 확인하거나 조정합니다."
+            : "회사마다 같은 값을 다른 이름으로 줍니다(name / displayName / preferred_username)."} 후보를 쉼표로 여러 개 적으면 <strong className="font-medium text-ink-2">앞에서부터 값이 있는 것</strong>을 씁니다. 점 경로
           (<code className="font-mono">user.profile.name</code>)와 URI 형태의 claim 이름도 그대로 씁니다.
         </p>
 
@@ -622,8 +711,8 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
         <div className="mt-4 rounded-lg border border-line bg-panel-2 px-3 py-2.5">
           <span className="text-[11px] text-ink-3">
             {view.lastLoginAt
-              ? `마지막 SSO 로그인(${new Date(view.lastLoginAt).toLocaleString("ko-KR")})에서 IdP가 보낸 claim 이름`
-              : "아직 SSO 로그인이 없습니다. 한 번 시도하면 IdP가 보낸 claim 이름이 여기에 나옵니다."}
+              ? `마지막 ${activeGoogleLogin ? "Google 로그인" : "회사 SSO 로그인"}(${new Date(view.lastLoginAt).toLocaleString("ko-KR")})에서 받은 claim 이름`
+              : `아직 ${googleLogin ? "Google" : "회사 SSO"} 로그인이 없습니다. 한 번 시도하면 받은 claim 이름이 여기에 나옵니다.`}
           </span>
           {view.lastClaimKeys.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -638,14 +727,19 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
       </section>}
 
       {mode !== "disabled" && <section className="card p-5">
-        <h2 className="text-sm font-semibold text-ink">접근과 권한</h2>
+        <h2 className="text-sm font-semibold text-ink">{googleLogin ? "Google 계정 접근과 권한" : "회사 SSO 접근과 권한"}</h2>
+        {googleLogin && (
+          <p className="mt-1 text-xs leading-5 text-ink-3">
+            Google 계정으로 처음 로그인하면 viewer로 가입합니다. <code className="font-mono" translate="no">INITIAL_ADMIN_EMAIL</code>과 일치하는 계정은 관리자로 시작합니다. Workspace 사용자만 허용하려면 Google Cloud에서 앱 대상을 Internal로 설정하세요.
+          </p>
+        )}
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <TextField
             label="허용 그룹"
             mono
             value={form.allowedGroups}
             onChange={(v) => set("allowedGroups", v)}
-            hint="비우면 IdP로 로그인되는 사람 전원"
+            hint={googleLogin ? "Google은 그룹 claim을 보내지 않습니다. Workspace 제한은 Google 앱 대상에서 설정하세요." : "비우면 IdP로 로그인되는 사람 전원"}
           />
           <TextField
             label="관리자 그룹"
@@ -657,7 +751,7 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
         </div>
         <label className="mt-4 flex items-center gap-2 text-sm text-ink">
           <input type="checkbox" checked={form.autoCreate} onChange={(e) => set("autoCreate", e.target.checked)} />
-          처음 보는 사람의 계정을 자동으로 만들기
+          처음 보는 {googleLogin ? "Google 계정" : "회사 계정"}의 Glossary 계정을 자동으로 만들기
         </label>
       </section>}
 
@@ -674,8 +768,10 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
             : mode === "oauth2-proxy"
               ? "접근 정책 저장"
               : mode === "disabled"
-                ? "SSO 사용 안 함 저장"
-                : `${MODE_LABEL[mode]} 설정 저장`}
+                ? "외부 계정 로그인 사용 안 함 저장"
+                : googleLogin
+                  ? "Google 로그인 설정 저장"
+                  : `${MODE_LABEL[mode]} 설정 저장`}
         </button>
       </div>
     </div>
@@ -737,13 +833,13 @@ function ModeOption({
   disabledHint,
   onChange,
 }: {
-  value: SsoMode;
+  value: SsoMode | "google";
   checked: boolean;
   title: string;
   description: string;
   disabled: boolean;
   disabledHint?: string;
-  onChange: (value: SsoMode) => void;
+  onChange: (value: SsoMode | "google") => void;
 }) {
   return (
     <label className={`flex gap-3 rounded-xl border p-3 transition-colors ${

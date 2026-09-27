@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { and, eq, isNull, or, gt } from "drizzle-orm";
-import { apiKeys } from "@glossary/db";
+import { apiKeys, users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { apiError } from "@/lib/api-error";
 import { enforceCsrf } from "./csrf";
@@ -58,6 +58,16 @@ export async function requireAuth(request: Request, scope: Scope): Promise<AuthR
     if (!key.scopes.includes(scope)) {
       return apiError("forbidden", `이 키에는 ${scope} 권한이 없습니다.`, 403);
     }
+    if (scope === "write" && key.createdBy) {
+      const [owner] = await getDb()
+        .select({ role: users.role })
+        .from(users)
+        .where(eq(users.id, key.createdBy))
+        .limit(1);
+      if (owner?.role === "viewer") {
+        return apiError("forbidden", "편집자 이상만 쓰기 권한을 사용할 수 있습니다.", 403);
+      }
+    }
 
     await getDb().update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, key.id));
     return { kind: "key", keyId: key.id };
@@ -67,6 +77,9 @@ export async function requireAuth(request: Request, scope: Scope): Promise<AuthR
   if (!user) return apiError("unauthorized", "로그인이 필요합니다.", 401);
   const csrf = enforceCsrf(request);
   if (csrf) return csrf;
+  if (scope === "write" && user.role === "viewer") {
+    return apiError("forbidden", "편집자 이상만 변경할 수 있습니다.", 403);
+  }
   return { kind: "user", user };
 }
 

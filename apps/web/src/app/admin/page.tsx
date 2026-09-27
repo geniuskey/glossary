@@ -109,9 +109,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   else if (tab === "sso") panel = (
     <div>
       <header className="mb-6">
-        <h2 className="text-lg font-semibold tracking-tight text-ink">로그인 및 SSO</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-ink">로그인 방식</h2>
         <p className="mt-1.5 max-w-2xl text-sm leading-6 text-ink-2">
-          사용할 회사 로그인 방식을 고르고, 계정 정보와 그룹을 어떤 값에서 읽을지 설정합니다.
+          이메일·비밀번호 로그인과 Google 계정 로그인 또는 회사 SSO 연결을 설정합니다.
         </p>
       </header>
       <SsoSettingsForm

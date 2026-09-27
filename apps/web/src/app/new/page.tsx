@@ -18,6 +18,7 @@ export const metadata = { title: "새 용어" };
 export default async function NewTermPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (user.role === "viewer") redirect("/sheet");
   const rawQuery = (await searchParams).q;
   const searchQuery = Array.isArray(rawQuery) ? rawQuery[0] : rawQuery;
   const [assignees, domainOptions, categoryOptions, facets] = await Promise.all([listAssignableUsers(), listDomains(), listBusinessCategories(), termFacets()]);

@@ -11,6 +11,7 @@ export default async function EditWikiPage({ params }: { params: Promise<{ slug:
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   const { slug } = await params;
+  if (user.role === "viewer") redirect(`/w/${slug}`);
   const [page, domains, tags] = await Promise.all([getWikiPageBySlug(slug), listDomains(), listWikiTagOptions()]);
   if (!page) notFound();
   return <AppShell user={user} title={`${page.title} 편집`} current="wiki" roomy dense>

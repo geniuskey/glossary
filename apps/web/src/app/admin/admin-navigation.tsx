@@ -26,7 +26,7 @@ export const ADMIN_NAV_GROUPS = [
     label: "조직 · 접근",
     items: [
       { key: "users", label: "사용자", description: "역할 · 세션" },
-      { key: "sso", label: "로그인 · SSO", description: "인증 방식" },
+      { key: "sso", label: "로그인 방식", description: "Google · 회사 SSO" },
     ],
   },
   {

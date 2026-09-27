@@ -11,7 +11,7 @@ import { ProfileForm } from "./profile-form";
 
 export const metadata = { title: "설정" };
 
-const ROLE_LABEL = { admin: "관리자", editor: "편집자" } as const;
+const ROLE_LABEL = { admin: "관리자", editor: "편집자", viewer: "뷰어" } as const;
 
 export default async function SettingsPage({
   searchParams,
@@ -29,9 +29,9 @@ export default async function SettingsPage({
   const rawRefreshStatus = (await searchParams).ssoRefresh;
   const refreshStatus = Array.isArray(rawRefreshStatus) ? rawRefreshStatus[0] : rawRefreshStatus;
   const initialSsoMessage = refreshStatus === "success"
-    ? { ok: true, text: "SSO 정보를 다시 가져왔습니다." }
+    ? { ok: true, text: "로그인 계정 정보를 다시 가져왔습니다." }
     : refreshStatus
-      ? { ok: false, text: ssoErrorMessage(refreshStatus) ?? "SSO 정보를 가져오지 못했습니다." }
+      ? { ok: false, text: ssoErrorMessage(refreshStatus) ?? "로그인 계정 정보를 가져오지 못했습니다." }
       : undefined;
 
   const displayName = user.name || user.email;
@@ -85,7 +85,7 @@ export default async function SettingsPage({
             <p className="text-xs font-semibold text-brand">관리자 전용</p>
             <h2 id="workspace-heading" className="mt-1 font-semibold text-ink text-balance">관리자 패널</h2>
             <p className="mt-1 text-sm leading-6 text-ink-2">
-              사용자 역할과 로그인 세션을 관리하고 회사 로그인 설정으로 이동합니다.
+              사용자 역할과 로그인 세션을 관리하고 Google 로그인 또는 회사 SSO 설정으로 이동합니다.
             </p>
           </div>
           <Link href="/admin" className="btn-ghost shrink-0 self-start sm:self-auto">

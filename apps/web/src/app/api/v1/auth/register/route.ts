@@ -17,7 +17,7 @@ const ALLOWED_METHODS = ["POST"];
 const { GET, PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
 export { GET, PUT, PATCH, DELETE, OPTIONS };
 
-// R131: 개방 가입 창구. 로그인 화면에서 누구나 계정을 만들 수 있다.
+// 공개 가입 창구. 신규 계정은 viewer로 시작한다.
 export const POST = withApiErrors(async (request: Request) => {
   if (!(await loadPasswordLoginEnabled())) {
     return apiError("password_login_disabled", "비밀번호 계정 생성이 비활성화되어 있습니다.", 403);

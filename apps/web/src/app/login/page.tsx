@@ -2,12 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { BrandMark } from "@/components/app-shell";
+import { GoogleLogo } from "@/components/google-logo";
 import { InfoFooter } from "@/components/info-links";
 import { needsSetup } from "@/lib/auth/setup";
 import { loadSsoConfig, resolveLoginSsoMode, resolvePasswordLoginEnabled } from "@/lib/auth/sso/config";
 import { ssoErrorMessage } from "@/lib/auth/sso/errors";
 import { initialAdminEmail, isInitialAdminEmail, ssoLoginUrl } from "@/lib/auth/policy";
 import { inspectProxyHeaders } from "@/lib/auth/sso/proxy-headers";
+import { isGoogleOidc } from "@/lib/auth/sso/provider";
 import { LoginForm } from "./login-form";
 
 // needsSetup(DB 조회)이 빌드 시 프리렌더로 실행되지 않도록 런타임 렌더로 고정한다.
@@ -29,6 +31,7 @@ export default async function LoginPage({
   const passwordEnabled = resolvePasswordLoginEnabled(sso);
   const setupNeeded = await needsSetup();
   const ssoMode = resolveLoginSsoMode(sso, setupNeeded);
+  const googleLogin = ssoMode === "oidc" && isGoogleOidc(sso);
   const ssoHref = ssoLoginUrl(ssoMode);
   const ssoBootstrapReady = Boolean(initialAdminEmail() && ssoHref);
   const proxyIdentity = setupNeeded && ssoMode === "oauth2-proxy"
@@ -40,11 +43,13 @@ export default async function LoginPage({
   const ssoAccessDenied = configCode === "sso-access-denied";
   if (!passwordEnabled && ssoHref && !ssoError && !wrongBootstrapIdentity && !ssoAccessDenied && (!setupNeeded || ssoBootstrapReady)) redirect(ssoHref);
   const configurationError = ssoAccessDenied
-    ? "지정한 최초 관리자 계정은 확인됐지만 SSO 허용 그룹 정책을 통과하지 못했습니다. SSO 그룹 설정을 확인해 주세요."
+    ? googleLogin
+      ? "Google 계정의 접근 정책을 통과하지 못했습니다. Google 로그인 설정을 확인해 주세요."
+      : "지정한 최초 관리자 계정은 확인됐지만 회사 SSO 허용 그룹 정책을 통과하지 못했습니다. SSO 그룹 설정을 확인해 주세요."
     : wrongBootstrapIdentity
-    ? "INITIAL_ADMIN_EMAIL로 지정한 회사 계정이 먼저 로그인해야 합니다. 현재 oauth2-proxy 계정에서 로그아웃한 뒤 지정 계정으로 다시 접속해 주세요."
+    ? "INITIAL_ADMIN_EMAIL로 지정한 계정이 먼저 로그인해야 합니다. 현재 oauth2-proxy 계정에서 로그아웃한 뒤 지정 계정으로 다시 접속해 주세요."
     : !passwordEnabled && !ssoHref
-    ? "비밀번호 로그인이 꺼져 있지만 사용할 수 있는 SSO 연결이 없습니다. 배포 환경 변수를 확인해 주세요."
+    ? "비밀번호 로그인이 꺼져 있지만 사용할 수 있는 외부 계정 로그인 연결이 없습니다. 관리자 설정을 확인해 주세요."
     : setupNeeded && !passwordEnabled && !ssoBootstrapReady
       ? "비밀번호 로그인이 꺼져 있지만 INITIAL_ADMIN_EMAIL이 준비되지 않았습니다. 배포 환경 변수를 확인해 주세요."
       : null;
@@ -62,7 +67,11 @@ export default async function LoginPage({
 
         <div className="card p-6 shadow-pop">
           <h2 className="text-[15px] font-semibold tracking-tight text-ink">로그인</h2>
-          <p className="mt-1 text-xs text-ink-3">{passwordEnabled ? "등록된 계정으로 용어집에 들어갑니다." : "회사 계정으로 용어집에 들어갑니다."}</p>
+          <p className="mt-1 text-xs text-ink-3">
+            {googleLogin
+              ? passwordEnabled ? "Google 계정 또는 이메일로 로그인합니다." : "Google 계정으로 로그인합니다."
+              : passwordEnabled ? "등록된 계정으로 용어집에 들어갑니다." : "회사 계정으로 용어집에 들어갑니다."}
+          </p>
 
           {ssoError && (
             <p className="note-danger mt-4" role="alert">
@@ -75,8 +84,18 @@ export default async function LoginPage({
             <div className="mt-4">
               {/* 링크는 /api/가 아니라 /auth/sso/start다 — 브라우저 이동 창구는
                   JSON 에러 봉투를 쓸 수 없어 API 바깥에 둔다(PROTO A도 /api/ href를 금한다). */}
-              <a href={ssoHref} className="btn-ghost w-full py-2.5">
-                {ssoMode === "oidc" || ssoMode === "oauth2" ? sso.buttonLabel : "회사 계정으로 로그인"}
+              <a
+                href={ssoHref}
+                className={googleLogin
+                  ? "flex w-full items-center justify-center gap-3 rounded-lg border border-[#dadce0] bg-white px-4 py-2.5 text-sm font-medium text-[#3c4043] shadow-sm transition-colors hover:bg-[#f8faff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4285f4] focus-visible:ring-offset-2"
+                  : "btn-ghost w-full py-2.5"}
+              >
+                {googleLogin ? (
+                  <>
+                    <GoogleLogo />
+                    <span>Google 계정으로 로그인</span>
+                  </>
+                ) : ssoMode === "oidc" || ssoMode === "oauth2" ? sso.buttonLabel : "회사 계정으로 로그인"}
               </a>
               {passwordEnabled && <p className="mt-4 flex items-center gap-3 text-[11px] text-ink-3"><span className="h-px flex-1 bg-line" />또는 이메일로<span className="h-px flex-1 bg-line" /></p>}
             </div>

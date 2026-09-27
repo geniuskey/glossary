@@ -1,16 +1,16 @@
-# SSO 연결
+# 회사 SSO 연결
 
-회사 계정으로 로그인하게 만드는 설정이다. 관리자로 로그인해
-**관리자 패널 → 로그인 · SSO**(`/admin?tab=sso`)에서 현재 적용 방식을 확인한다. OIDC/OAuth 2.0 연결과
+회사 ID 공급자로 로그인하게 만드는 설정이다. 관리자로 로그인해
+**관리자 패널 → 로그인 방식**(`/admin?tab=sso`)에서 현재 적용 방식을 확인한다. OIDC/OAuth 2.0 연결과
 oauth2-proxy를 포함한 실제 로그인 방식과 공통 접근 정책은 화면에서 저장한다. `.env`는
 oauth2-proxy가 검증한 헤더를 안전하게 받을 수 있는 배포인지와 헤더 이름만 정한다.
 
-화면에는 **SSO 사용하지 않음**, **OpenID Connect(OIDC)**,
-**OAuth 2.0 + 사용자 정보 API**, **oauth2-proxy** 네 상태가 표시된다. oauth2-proxy로
+화면에서는 **Google 계정 로그인**과 회사 SSO를 구분한다. 회사 SSO에는 **OpenID Connect(OIDC)**,
+**OAuth 2.0 + 사용자 정보 API**, **oauth2-proxy**를 사용할 수 있고, 외부 계정 로그인을 끄고 이메일 계정만 쓸 수도 있다. oauth2-proxy로
 바꾸려면 먼저 배포 환경에서 proxy capability를 허용해야 하지만, 활성 방식 선택 자체는
 다른 세 방식과 똑같이 화면에서 한다.
 
-**SSO 사용하지 않음**은 비밀번호 로그인이 켜진 배포에서만 선택할 수 있다. SSO 전용
+**외부 계정 로그인 사용 안 함**은 비밀번호 로그인이 켜진 배포에서만 선택할 수 있다. 외부 계정 전용
 배포에서 이 옵션으로 저장해 모든 로그인 경로를 닫는 실수를 화면과 API가 함께 막는다.
 
 OIDC와 OAuth 2.0은 모두 인가 코드 흐름 + PKCE(S256)를 사용하며 SAML은 지원하지 않는다.
@@ -18,6 +18,40 @@ OIDC와 OAuth 2.0은 모두 인가 코드 흐름 + PKCE(S256)를 사용하며 SA
 - **OIDC(권장)**: `id_token`의 JWKS 서명, Issuer, Audience, 만료와 Nonce를 검증한다.
 - **OAuth 2.0**: Access Token으로 설정한 사용자 정보 API를 호출해 계정 claim을 얻는다.
   일반 OAuth 2.0만으로는 사용자 신원을 정의하지 않으므로 사용자 정보 엔드포인트가 필수다.
+
+## Google 계정 로그인
+
+Google 계정 로그인은 회사 SSO와 구별되는 로그인 옵션이다. Google은 표준 OIDC 인증을 사용하지만
+첫 화면에는 회사 로그인 대신 Google 로고와 **Google 계정으로 로그인** 버튼을 표시한다. 먼저 Glossary에 `INITIAL_ADMIN_EMAIL`을 지정하고 `/setup`에서
+같은 이메일로 최초 관리자를 만든다. 이 이메일은 `.env`에서 관리자 계정의 기준으로 사용된다.
+
+Google Cloud Console의 Google Auth Platform에서 OAuth 클라이언트를 만들 때 애플리케이션 유형은
+**Web application**으로 고른다. Authorized redirect URI에 Glossary 관리자 화면이 보여 주는
+주소를 그대로 넣는다. 운영 주소는 다음과 같다.
+
+```text
+https://glossary.euiyun.com/auth/sso/callback
+```
+
+관리자 화면에서 **관리자 패널 → 로그인 방식**으로 이동해 다음 값을 설정한다.
+
+1. 로그인 방식에서 **Google 계정 로그인**을 선택한다.
+2. OIDC Issuer: `https://accounts.google.com`을 입력하고 **메타데이터 불러오기**를 누른다.
+3. Google OAuth 클라이언트의 ID와 시크릿을 입력한다.
+4. 자동 계정 생성은 켜 두고 허용 그룹은 비운다. 새 Google 계정은 viewer로 만들어진다.
+5. 먼저 비밀번호 로그인을 유지한 채 Google 로그인으로 접속되는지 확인한다. 확인 후 같은 설정 화면에서 ID/비밀번호 로그인을 끄고 저장한다.
+
+Google OIDC 이메일이 확인된 계정만 받을 수 있다. `.env`의 `INITIAL_ADMIN_EMAIL`과 이메일이
+일치하는 Google 계정은 관리자로 부트스트랩되고, 그 외 신규 계정은 viewer가 된다. 공개
+Google OAuth 앱은 Google 계정이 있는 누구나 로그인할 수 있다. Workspace 구성원으로 제한하려면
+Google Cloud Console에서 프로젝트에 **Internal** audience를 설정한다. 이 옵션은 조직 소유
+프로젝트에서만 사용할 수 있다. Google은 그룹 claim을 보내지 않으므로 Glossary의 허용 그룹
+입력으로는 Workspace 조직을 제한할 수 없다.
+
+Google은 인가 코드 흐름에서 등록된 redirect URI와 요청 URI가 정확히 일치해야 한다. 자세한 내용은
+[Google OIDC 안내](https://developers.google.com/identity/openid-connect/openid-connect),
+[Google OAuth 클라이언트 설정](https://support.google.com/cloud/answer/15549257?hl=en),
+[앱 audience 설정](https://support.google.com/cloud/answer/15549945?hl=en)을 참고한다.
 
 ## oauth2-proxy 헤더 방식
 
@@ -41,7 +75,7 @@ OAUTH2_SUBJECT_FIELD=email
 ```
 
 최초 부팅에서 `PASSWORD_LOGIN_ENABLED=false`이면 로그인 API와 가입·비밀번호 최초 설정
-화면이 닫힌다. 첫 관리자가 SSO로 들어온 뒤에는 **관리자 패널 → 로그인 · SSO → ID/비밀번호 로그인**에서
+화면이 닫힌다. 첫 관리자가 SSO로 들어온 뒤에는 **관리자 패널 → 로그인 방식 → ID/비밀번호 로그인**에서
 허용 여부를 저장하며, DB 값이 환경변수보다 우선한다.
 로그인하지 않은 사용자가 홈이나 로그인 화면에 접속하면 곧바로 SSO로 이동한다. 기본
 진입점은 `/oauth2/start?rd=%2F`이며 프록시 경로가 다르면 `SSO_LOGIN_URL`에 완성된 내부
@@ -54,7 +88,7 @@ OAUTH2_SUBJECT_FIELD=email
 | `X-Forwarded-Groups` | 쉼표로 구분한 그룹. 전체는 권한 판단에 쓰고 **첫 번째 항목은 표시 조직**으로 쓴다 |
 
 `OAUTH2_PROXY_ENABLED=true`는 로그인 방식을 강제로 바꾸지 않는다. nginx와 네트워크가
-검증된 헤더를 전달할 수 있다는 **capability**만 연다. 앱을 다시 시작한 뒤 **관리자 패널 → 로그인 · SSO**에서
+검증된 헤더를 전달할 수 있다는 **capability**만 연다. 앱을 다시 시작한 뒤 **관리자 패널 → 로그인 방식**에서
 **oauth2-proxy**를 선택해 저장해야 활성화된다. 반대로 OIDC나 OAuth 2.0이 선택돼 있으면
 capability가 켜져 있어도 proxy 헤더로 인증하지 않는다.
 
@@ -126,7 +160,7 @@ Glossary의 3000 포트는 nginx만 접근할 수 있는 내부 네트워크에 
 헤더 경로의 기본 사용자 식별자는 이메일이다. OAuth2 인가 코드 흐름도 함께 쓰면
 `OAUTH2_SUBJECT_FIELD=email`을 설정한다. 그러면 OAuth2 userinfo의 `email`을 `sub`보다
 먼저 계정 식별자로 사용해 두 경로가 같은 `external_id`에 수렴한다. OIDC 코드 흐름과
-함께 쓸 때는 **관리자 패널 → 로그인 · SSO → 사용자 식별자(sub)**의 첫 후보를 `email`로 바꿔야 한다.
+함께 쓸 때는 **관리자 패널 → 로그인 방식 → 사용자 식별자(sub)**의 첫 후보를 `email`로 바꿔야 한다.
 기존 계정이 이미 다른 `sub`에 연결돼 있으면 앱은 자동으로 덮어쓰지 않고
 `email_conflict`로 막는다.
 

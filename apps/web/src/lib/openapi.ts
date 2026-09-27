@@ -1172,7 +1172,7 @@ export const openApiSpec = {
               schema: {
                 type: "object",
                 required: ["role"],
-                properties: { role: { type: "string", enum: ["admin", "editor"] } },
+                properties: { role: { type: "string", enum: ["admin", "editor", "viewer"] } },
                 additionalProperties: false,
               },
             },

@@ -4,6 +4,7 @@ import { normalizeEmail } from "@/lib/auth/register";
 import { createFirstAdmin, needsSetup } from "@/lib/auth/setup";
 import { createSession, isSecureRequest, sessionCookie } from "@/lib/auth/session";
 import { loadPasswordLoginEnabled } from "@/lib/auth/sso/config";
+import { initialAdminEmail, isInitialAdminEmail } from "@/lib/auth/policy";
 
 const bodySchema = z.object({
   email: z.string().trim().email().max(254),
@@ -35,6 +36,12 @@ export const POST = withApiErrors(async (request: Request) => {
   // R131: 가입 경로(register.ts)와 같은 형태로 저장한다 — 저장 형태가 창구마다
   // 다르면 users_email_lower_unique가 잡아내기 전까지 아무도 눈치채지 못한다.
   const email = normalizeEmail(parsed.data.email);
+  if (!initialAdminEmail()) {
+    return apiError("internal_error", ".env에 유효한 INITIAL_ADMIN_EMAIL을 지정해 주세요.", 503);
+  }
+  if (!isInitialAdminEmail(email)) {
+    return apiError("forbidden", "최초 관리자 이메일은 INITIAL_ADMIN_EMAIL과 일치해야 합니다.", 403);
+  }
   const result = await createFirstAdmin({
     email,
     name: parsed.data.name?.trim() || email,

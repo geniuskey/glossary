@@ -10,7 +10,7 @@ export async function needsSetup(): Promise<boolean> {
 }
 
 export type SetupResult =
-  | { ok: true; user: { id: string; email: string; name: string; role: "admin" | "editor" } }
+  | { ok: true; user: { id: string; email: string; name: string; role: "admin" | "editor" | "viewer" } }
   | { ok: false; reason: "already_setup" };
 
 /**

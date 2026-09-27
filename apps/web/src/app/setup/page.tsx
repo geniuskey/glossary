@@ -14,11 +14,34 @@ export const dynamic = "force-dynamic";
 // (tests/screen-guards.test.ts의 PROTO_B_ALLOWLIST에 등록되어 있다.)
 export default async function SetupPage() {
   if (!(await needsSetup())) redirect("/login");
+  const configuredAdminEmail = initialAdminEmail();
   const ssoConfig = await loadSsoConfig();
   if (!resolvePasswordLoginEnabled(ssoConfig)) {
     const ssoHref = ssoLoginUrl(resolveLoginSsoMode(ssoConfig, true));
     if (initialAdminEmail() && ssoHref) redirect(ssoHref);
     redirect("/login?config=sso-required");
+  }
+
+  if (!configuredAdminEmail) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-5 py-14">
+        <div className="w-full max-w-sm animate-fade-up">
+          <header className="mb-6 flex flex-col items-center text-center">
+            <BrandMark size={38} />
+            <h1 className="mt-3 text-xl font-semibold tracking-tight text-ink">Glossary</h1>
+            <p className="mt-2 text-sm text-ink-2">개념 하나에 표기 여럿, 함께 관리하는 사전</p>
+          </header>
+          <div className="card p-6 shadow-pop">
+            <span className="chip chip-on">최초 설정</span>
+            <h2 className="mt-3 text-[15px] font-semibold tracking-tight text-ink">관리자 이메일 설정이 필요합니다</h2>
+            <p className="note mt-4 border-line bg-panel-2 text-[13px] leading-relaxed text-ink-2">
+              <code>.env</code>에 <code>INITIAL_ADMIN_EMAIL</code>로 최초 관리자 Google 이메일을 지정하고 서비스를 다시 시작해 주세요.
+            </p>
+          </div>
+          <InfoFooter className="mt-6" />
+        </div>
+      </main>
+    );
   }
 
   // 로그인 화면과 같은 틀(브랜드 → 카드)을 쓰되, 한 번만 하는 일이라는 안내를
@@ -41,7 +64,7 @@ export default async function SetupPage() {
             계정이 하나도 없을 때만 열리는 화면입니다. 계정을 만들고 나면 다음부터는 로그인 화면이 열립니다.
           </p>
 
-          <SetupForm />
+          <SetupForm initialAdminEmail={configuredAdminEmail} />
         </div>
         <InfoFooter className="mt-6" />
       </div>

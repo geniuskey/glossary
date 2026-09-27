@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { ManagedUser, ManagedUserRole } from "@/lib/admin/users";
 import { cx } from "@/lib/ui/format";
 
-const ROLE_LABEL: Record<ManagedUserRole, string> = { admin: "관리자", editor: "편집자" };
+const ROLE_LABEL: Record<ManagedUserRole, string> = { admin: "관리자", editor: "편집자", viewer: "뷰어" };
 const DATE_FORMAT = new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "short", day: "numeric" });
 
 type BusyAction = { id: string; kind: "role" | "sessions" } | null;
@@ -21,12 +21,12 @@ export function UsersPanel({ initialUsers, viewerId }: { initialUsers: ManagedUs
     [normalizedQuery, users],
   );
   const admins = users.filter((user) => user.role === "admin").length;
-  const ssoUsers = users.filter((user) => user.authType === "sso").length;
+  const externalUsers = users.filter((user) => user.authType === "sso").length;
   const activeSessions = users.reduce((sum, user) => sum + user.activeSessions, 0);
 
   async function changeRole(user: ManagedUser, role: ManagedUserRole) {
     if (user.role === role || busy) return;
-    if (role === "editor" && !window.confirm(`${user.name || user.email} 사용자를 편집자로 변경할까요?`)) return;
+    if ((role === "editor" || role === "viewer") && !window.confirm(`${user.name || user.email} 사용자를 ${ROLE_LABEL[role]}로 변경할까요?`)) return;
 
     setBusy({ id: user.id, kind: "role" });
     setMessage(null);
@@ -79,7 +79,7 @@ export function UsersPanel({ initialUsers, viewerId }: { initialUsers: ManagedUs
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="사용자 현황">
         <StatCard label="전체 사용자" value={users.length} />
         <StatCard label="관리자" value={admins} />
-        <StatCard label="SSO 계정" value={ssoUsers} />
+        <StatCard label="외부 계정" value={externalUsers} />
         <StatCard label="활성 세션" value={activeSessions} />
       </section>
 
@@ -142,7 +142,7 @@ export function UsersPanel({ initialUsers, viewerId }: { initialUsers: ManagedUs
                         </span>
                       </div>
                     </td>
-                    <td className="px-3 py-3"><span className="chip">{user.authType === "sso" ? "SSO" : "비밀번호"}</span></td>
+                    <td className="px-3 py-3"><span className="chip">{user.authType === "sso" ? "외부 계정" : "비밀번호"}</span></td>
                     <td className="whitespace-nowrap px-3 py-3 text-xs text-ink-2">{DATE_FORMAT.format(new Date(user.createdAt))}</td>
                     <td className="px-3 py-3 font-mono text-xs tabular-nums text-ink-2">{user.activeSessions}</td>
                     <td className="px-3 py-3">
@@ -155,6 +155,7 @@ export function UsersPanel({ initialUsers, viewerId }: { initialUsers: ManagedUs
                         className="field min-w-28 py-1.5 text-xs"
                         title={isSelf ? "현재 로그인한 계정의 역할은 변경할 수 없습니다." : undefined}
                       >
+                        <option value="viewer">뷰어</option>
                         <option value="editor">편집자</option>
                         <option value="admin">관리자</option>
                       </select>

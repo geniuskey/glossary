@@ -32,7 +32,7 @@ function formatDate(value: string) {
 // 화면 전체가 아니라 상태를 갖는 이 조각만 Client Component다(logout-button.tsx와
 // 같은 이유) — 셸과 헤더는 서버에 남아 클라이언트 번들에 실리지 않고, 그 덕에
 // page.tsx가 getCurrentUser로 인증을 걸 수 있어 PROTO B 허용목록에서 빠졌다.
-export function ApiKeysPanel() {
+export function ApiKeysPanel({ canWrite }: { canWrite: boolean }) {
   const [keys, setKeys] = useState<KeyRow[]>([]);
   const [name, setName] = useState("");
   const [scopes, setScopes] = useState<string[]>(["read"]);
@@ -151,7 +151,7 @@ export function ApiKeysPanel() {
             키보드 초점은 focus-within으로 칩에 그대로 드러난다. */}
         <fieldset className="mt-3 flex flex-wrap items-center gap-2">
           <legend className="float-left mr-2 text-xs text-ink-3">권한</legend>
-          {ALL_SCOPES.map((sc) => {
+          {ALL_SCOPES.filter((sc) => canWrite || sc !== "write").map((sc) => {
             const on = scopes.includes(sc);
             return (
               <label
@@ -175,6 +175,7 @@ export function ApiKeysPanel() {
             );
           })}
         </fieldset>
+        {!canWrite && <p className="mt-2 text-[11px] text-ink-3">뷰어는 조회·검증 전용 키를 만들 수 있습니다. 편집 키는 관리자가 editor로 승격한 뒤 발급할 수 있습니다.</p>}
       </section>
 
       {error && (

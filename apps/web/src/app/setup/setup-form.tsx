@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function SetupForm() {
+export function SetupForm({ initialAdminEmail }: { initialAdminEmail: string }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -65,9 +65,12 @@ export function SetupForm() {
           maxLength={254}
           autoComplete="email"
           spellCheck={false}
+          defaultValue={initialAdminEmail}
+          readOnly={Boolean(initialAdminEmail)}
           placeholder="name@example.com…"
           className="field"
         />
+        {initialAdminEmail && <p className="mt-1 text-[11px] text-ink-3">.env의 INITIAL_ADMIN_EMAIL로 지정된 관리자 계정입니다.</p>}
       </div>
 
       {/* 선택 입력이라는 사실과 비웠을 때 무엇이 보이는지를 라벨 줄에서 함께 말한다 —

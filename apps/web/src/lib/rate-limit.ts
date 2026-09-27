@@ -49,6 +49,11 @@ export function rateLimitResponse(result: RateLimitResult, message: string): Res
 
 export function clientAddress(request: Request): string {
   if (process.env.GLOSSARY_TRUST_PROXY_HEADERS === "true") {
+    // Cloudflare appends to a client-supplied X-Forwarded-For value. Its
+    // single-address CF-Connecting-IP header is the reliable visitor address.
+    const cloudflare = request.headers.get("cf-connecting-ip")?.trim();
+    if (cloudflare) return cloudflare;
+
     const forwarded = request.headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim();
     const real = request.headers.get("x-real-ip")?.trim();
     if (forwarded || real) return forwarded || real!;

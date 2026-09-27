@@ -7,7 +7,7 @@ import { cx } from "@/lib/ui/format";
 import { LogoutButton } from "./logout-button";
 import { ThemeToggle } from "./theme-toggle";
 
-const ROLE_LABEL: Record<CurrentUser["role"], string> = { admin: "관리자", editor: "편집자" };
+const ROLE_LABEL: Record<CurrentUser["role"], string> = { admin: "관리자", editor: "편집자", viewer: "뷰어" };
 
 export function AccountMenu({
   user,

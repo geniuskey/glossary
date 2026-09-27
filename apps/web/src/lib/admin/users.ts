@@ -4,7 +4,7 @@ import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { sessions, users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 
-export type ManagedUserRole = "admin" | "editor";
+export type ManagedUserRole = "admin" | "editor" | "viewer";
 
 export interface ManagedUser {
   id: string;
@@ -60,7 +60,7 @@ export async function changeManagedUserRole(
     const [target] = await tx.select({ id: users.id, role: users.role }).from(users).where(eq(users.id, targetId)).limit(1);
     if (!target) return { ok: false, reason: "not_found" };
 
-    if (target.role === "admin" && role === "editor") {
+    if (target.role === "admin" && role !== "admin") {
       const [count] = await tx.select({ value: sql<number>`count(*)::int` }).from(users).where(eq(users.role, "admin"));
       if ((count?.value ?? 0) <= 1) return { ok: false, reason: "last_admin" };
     }

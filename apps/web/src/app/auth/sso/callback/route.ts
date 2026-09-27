@@ -16,7 +16,9 @@ import {
 } from "@/lib/auth/sso/flow";
 import { applySsoLogin } from "@/lib/auth/sso/login";
 import { isInitialAdminEmail } from "@/lib/auth/policy";
+import { needsSetup } from "@/lib/auth/setup";
 import { oauth2SubjectClaims } from "@/lib/auth/sso/proxy-headers";
+import { isGoogleIssuer } from "@/lib/auth/sso/provider";
 import { createSession, purgeExpiredSessions, sessionCookie } from "@/lib/auth/session";
 
 // start/route.ts와 같은 이유로 /api/v1 밖에 있고, 에러 응답 대신 302로만 답한다.
@@ -171,6 +173,15 @@ export async function GET(request: Request): Promise<Response> {
       claims = userinfo.claims;
     }
 
+    if (isGoogleIssuer(cfg.issuer) && claims.email_verified !== true) {
+      logSsoFailure("identity_mapping", {
+        protocol: cfg.protocol,
+        reason: "unverified_google_email",
+        claimKeys: claimKeys(claims),
+      });
+      return back(base, "unverified_email", refresh);
+    }
+
     const identity = resolveIdentity(claims, {
       ...cfg,
       subjectClaims: oauth2SubjectClaims(cfg.protocol, cfg.subjectClaims),
@@ -204,6 +215,10 @@ export async function GET(request: Request): Promise<Response> {
     }
 
     const bootstrapAdmin = isInitialAdminEmail(identity.identity.email);
+    if (await needsSetup() && !bootstrapAdmin) {
+      logSsoFailure("account_link", { protocol: cfg.protocol, reason: "initial_admin_required" });
+      return back(base, "no_account", refresh);
+    }
     const result = await applySsoLogin({
       identity: identity.identity,
       isAdmin: access.isAdmin || bootstrapAdmin,
