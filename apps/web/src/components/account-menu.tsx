@@ -108,7 +108,7 @@ export function AccountMenu({
             : "right-0 top-full mt-2",
         )}
       >
-        <AccountLink href="/settings" label="설정" hint="계정 · API" active={current === "settings"} onSelect={() => setOpen(false)}>
+        <AccountLink href="/settings" label="설정" hint="계정 · 화면" active={current === "settings"} onSelect={() => setOpen(false)}>
           <SettingsIcon />
         </AccountLink>
         {user.role === "admin" && (

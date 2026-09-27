@@ -90,7 +90,7 @@ export default async function ApiPage() {
           사내 챗봇·문서 린터·배포 검사기가 웹 화면과 같은 기준을 사용하도록 만들어 보세요.
         </p>
         <div className="mt-5 flex flex-wrap items-center gap-2">
-          <Link href="/settings#api-keys" className="btn-primary">API 키 발급·관리</Link>
+          <Link href="/settings/api-keys" className="btn-primary">API 키 발급·관리</Link>
           <span className="rounded-lg border border-line bg-panel-2/50 px-3 py-2 text-xs text-ink-2">
             OpenAPI 원문 <code className="ml-1 font-mono text-ink">GET /api/v1/openapi</code>
           </span>
@@ -174,7 +174,7 @@ export default async function ApiPage() {
             <h2 id="auth-heading" className="mt-1 text-lg font-semibold text-ink">인증과 권한</h2>
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <InfoCard title="API 키" value="Authorization: Bearer …">설정의 API 키 영역에서 발급합니다. 외부 자동화에는 API 키를 사용하세요. scope는 서로 포함하지 않습니다.</InfoCard>
+            <InfoCard title="API 키" value="Authorization: Bearer …">API 키 관리 화면에서 발급합니다. 외부 자동화에는 API 키를 사용하세요. scope는 서로 포함하지 않습니다.</InfoCard>
             <InfoCard title="read · 조회" value="GET /terms · POST /chat">검색·상세 조회·RAG 검색과 용어집 기반 AI 질문에 필요한 권한입니다.</InfoCard>
             <InfoCard title="write · 편집" value="POST · PATCH">용어·위키 등록과 수정, 일괄 반영, 가져오기처럼 데이터를 바꾸는 작업에 필요합니다.</InfoCard>
             <InfoCard title="validate · 검증" value="POST /validate">문서 본문의 용어 사용을 검사하고 미등록 후보를 모읍니다.</InfoCard>
@@ -245,7 +245,7 @@ export default async function ApiPage() {
             <p className="mt-3 text-sm leading-6 text-ink-2">
               <code className="font-mono text-ink">GET /api/v1/openapi</code> 응답은 현재 배포된 서버의 경로·파라미터·요청 본문·에러 응답을 그대로 설명합니다. JSON을 내려받아 Swagger UI나 Swagger Editor에서 열면 인터랙티브 문서로 볼 수 있습니다.
             </p>
-            <Link href="/settings#api-keys" className="btn-quiet btn-sm mt-4">API 키 발급 화면 열기</Link>
+            <Link href="/settings/api-keys" className="btn-quiet btn-sm mt-4">API 키 발급 화면 열기</Link>
           </div>
         </section>
       </div>

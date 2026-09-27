@@ -211,7 +211,8 @@ RAG 연결은 이 흐름에 필요하지 않으며, 기본 사용을 확인한 �
 | `/history/[slug]` | 수정 이력 |
 | `/import` | 엑셀 업로드 → dry-run 리포트 → 반영 |
 | `/statistics` | 용어·사용자 성장과 도메인/업무 분류별 관리 통계 (관리자 전용) |
-| `/settings` | 계정·화면 설정과 API 키 발급·폐기 |
+| `/settings` | 계정·화면 설정 |
+| `/settings/api-keys` | API 키 발급·폐기 |
 | `/classifications` | 도메인과 업무 분류 관리 |
 | `/contribute` | 함께 정리 — 정리 대기 표와 보완할 용어 필터 |
 | `/contribute?tab=agent` | 제안 검토 — 검토 대상 목록과 AI·규칙 제안 승인 |

@@ -194,7 +194,7 @@ curl -s -H "Authorization: Bearer glk_..." \
 
 인증은 두 갈래다 — 사람은 세션 쿠키, 도구는 `Authorization: Bearer glk_<prefix>_<secret>`.
 `/api/v1` 애플리케이션 에러는 `{ error: { code, message, details? } }` 봉투를 쓴다.
-API 키는 로그인 후 **설정 → API 키**에서 발급하고 위 조회에는 `read` scope를 부여한다.
+API 키는 로그인 후 **설정 → API 키 관리**에서 발급하고 위 조회에는 `read` scope를 부여한다.
 각 입력 표기는 1~500자이며 공백뿐인 문자열은 허용하지 않는다.
 
 자세한 것은 [API 레퍼런스](https://geniuskey.github.io/glossary/api/)를 본다.

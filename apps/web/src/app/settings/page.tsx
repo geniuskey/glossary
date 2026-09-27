@@ -7,7 +7,6 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { ssoErrorMessage } from "@/lib/auth/sso/errors";
 import { getDb } from "@/lib/db";
-import { ApiKeysPanel } from "./api-keys/api-keys-panel";
 import { ProfileForm } from "./profile-form";
 
 export const metadata = { title: "설정" };
@@ -95,16 +94,17 @@ export default async function SettingsPage({
         </section>
       )}
 
-      <section id="api-keys" className="scroll-mt-6 border-t border-line pt-8 mt-10" aria-labelledby="api-keys-heading">
-        <div className="mb-5">
+      <section id="api-keys" className="card mt-4 flex scroll-mt-6 flex-col gap-4 p-5 sm:flex-row sm:items-center" aria-labelledby="api-keys-heading">
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold text-brand">개발자 설정</p>
-          <h2 id="api-keys-heading" className="mt-1 text-lg font-semibold tracking-tight text-ink text-balance">API 키</h2>
-          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-ink-2">
-            AI 린트나 외부 도구가 이 사전을 조회하고 검사할 때 씁니다. 용도마다 별도 키를 발급하고,
-            더 쓰지 않는 키는 바로 폐기하세요.
+          <h2 id="api-keys-heading" className="mt-1 font-semibold text-ink text-balance">API 키</h2>
+          <p className="mt-1 text-sm leading-6 text-ink-2">
+            외부 도구에 사용할 키를 발급하고 관리합니다.
           </p>
         </div>
-        <ApiKeysPanel />
+        <Link href="/settings/api-keys" className="btn-ghost shrink-0 self-start sm:self-auto">
+          API 키 관리 열기 <span aria-hidden="true">→</span>
+        </Link>
       </section>
     </AppShell>
   );

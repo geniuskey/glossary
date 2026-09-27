@@ -29,20 +29,18 @@ test("Confluence frame-ancestors는 origin만 허용하고 헤더 삽입값은 �
 
 const appDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "app");
 
-test("설정 허브에서 계정·테마·API 키를 한 화면에 관리한다", () => {
+test("설정에서 API 키 관리 페이지로 이동한다", () => {
   const settingsPage = readFileSync(path.join(appDir, "settings", "page.tsx"), "utf8");
   const apiKeysPanel = readFileSync(path.join(appDir, "settings", "api-keys", "api-keys-panel.tsx"), "utf8");
+  const apiKeysPage = readFileSync(path.join(appDir, "settings", "api-keys", "page.tsx"), "utf8");
   expect(settingsPage).toContain("getCurrentUser(");
   expect(settingsPage).toContain("<ThemeToggle alwaysShowLabel />");
-  expect(settingsPage).toContain('<section id="api-keys"');
-  expect(settingsPage).toContain("<ApiKeysPanel />");
+  expect(settingsPage).toContain('href="/settings/api-keys"');
+  expect(settingsPage).not.toContain("<ApiKeysPanel />");
+  expect(apiKeysPage).toContain("getCurrentUser(");
+  expect(apiKeysPage).toContain("<ApiKeysPanel />");
   expect(apiKeysPanel).toContain('aria-label="발급받은 API 키 복사"');
-  expect(apiKeysPanel).toContain("navigator.clipboard.writeText(issued)");
-});
-
-test("기존 API 키 주소는 설정 허브의 API 키 영역으로 이어진다", () => {
-  const legacyPage = readFileSync(path.join(appDir, "settings", "api-keys", "page.tsx"), "utf8");
-  expect(legacyPage).toContain('redirect("/settings#api-keys")');
+  expect(apiKeysPanel).toContain("copyText(issued)");
 });
 
 test("공개 통계 화면은 성장 차트와 분류별 집계를 제공한다", () => {

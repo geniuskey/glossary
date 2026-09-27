@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { copyText } from "@/lib/ui/copy-text";
 import { cx } from "@/lib/ui/format";
 
 interface KeyRow {
@@ -114,19 +115,11 @@ export function ApiKeysPanel() {
     }
   }
 
-  // 평문 키는 이 화면에 딱 한 번 뜨고 사라진다 — 손으로 43자를 옮겨 적게 두면
-  // 오타로 실패한다. 클립보드 권한이 없는 브라우저에서는 아래 평문을 직접
-  // 선택해 복사할 수 있으므로 실패하면 직접 복사할 수 있다는 안내를 남긴다.
   async function copyIssued() {
     if (!issued) return;
-    try {
-      await navigator.clipboard.writeText(issued);
-      setCopied(true);
-      setError(null);
-    } catch {
-      setCopied(false);
-      setError("클립보드에 복사하지 못했습니다. 아래 키를 직접 선택해 복사하세요.");
-    }
+    const success = await copyText(issued);
+    setCopied(success);
+    setError(success ? null : "클립보드에 복사하지 못했습니다. 아래 키를 직접 선택해 복사하세요.");
   }
 
   return (
