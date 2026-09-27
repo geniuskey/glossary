@@ -48,6 +48,7 @@ export const syncWikiPageSchema = z.object({
   sourceUrl: nullableText,
   content: z.string().min(1),
   domain: z.array(z.string()),
+  tags: z.array(z.string().max(200)).max(20).optional(),
   status: z.enum(["draft", "published", "archived"]),
   termIds: z.array(z.string().uuid()),
   sourceRevision: z.number().int().positive(),
@@ -189,6 +190,7 @@ export function wikiPageContentHash(page: SyncWikiPage): string {
     content: page.content,
     domain: page.domain,
     status: page.status,
+    ...(page.tags?.length ? { tags: page.tags } : {}),
     termIds: [...page.termIds].sort(),
   }));
 }

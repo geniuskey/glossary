@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
+import { normalizeTags } from "@/lib/terms/tags";
+import { MAX_WIKI_TAG_LENGTH, MAX_WIKI_TAGS } from "@/lib/wiki/tags";
 
 interface WikiEditorPage {
   id?: string;
@@ -14,6 +16,7 @@ interface WikiEditorPage {
   sourceUrl?: string | null;
   content?: string;
   domain: string[];
+  tags: string[];
   status: "draft" | "published" | "archived";
   terms: Array<{ slug: string; title: string }>;
 }
@@ -37,7 +40,7 @@ function sortTerms(terms: WikiEditorPage["terms"]): WikiEditorPage["terms"] {
   return [...terms].sort((a, b) => termCollator.compare(a.title, b.title) || a.slug.localeCompare(b.slug));
 }
 
-export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: { initialPage: WikiEditorPage | null; domains: DomainOption[]; canPublish: boolean }) {
+export function WikiEditor({ initialPage, domains: domainOptions, tagOptions, canPublish }: { initialPage: WikiEditorPage | null; domains: DomainOption[]; tagOptions: string[]; canPublish: boolean }) {
   const router = useRouter();
   const editing = Boolean(initialPage?.id);
   const [slug, setSlug] = useState(initialPage?.slug ?? "");
@@ -45,6 +48,8 @@ export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: 
   const [summary, setSummary] = useState(initialPage?.summary ?? "");
   const [sourceUrl, setSourceUrl] = useState(initialPage?.sourceUrl ?? "");
   const [domainText, setDomainText] = useState(initialPage?.domain.join(", ") ?? "");
+  const [tags, setTags] = useState(initialPage?.tags ?? []);
+  const [tagDraft, setTagDraft] = useState("");
   const [selectedTerms, setSelectedTerms] = useState(sortTerms(initialPage?.terms ?? []));
   const [termQuery, setTermQuery] = useState("");
   const [termSearch, setTermSearch] = useState<{ query: string; items: MatchingTerm[] } | null>(null);
@@ -53,6 +58,12 @@ export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: 
   const [activeTerm, setActiveTerm] = useState(-1);
   const termListId = useId();
   const [content, setContent] = useState(initialPage?.content ?? "");
+  const pendingTags = normalizeTags([...tags, ...tagDraft.split(/[,\n]+/)]);
+  const tagError = pendingTags.length > MAX_WIKI_TAGS
+    ? "태그는 " + MAX_WIKI_TAGS + "개까지 입력할 수 있습니다."
+    : pendingTags.some((tag) => tag.length > MAX_WIKI_TAG_LENGTH)
+      ? "태그 하나는 " + MAX_WIKI_TAG_LENGTH + "자까지 입력할 수 있습니다."
+      : null;
   const [status, setStatus] = useState<WikiEditorPage["status"]>(canPublish ? (initialPage?.status ?? "draft") : "draft");
   const [saving, setSaving] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
@@ -64,6 +75,7 @@ export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: 
     || summary !== (initialPage?.summary ?? "")
     || sourceUrl !== (initialPage?.sourceUrl ?? "")
     || domainText !== (initialPage?.domain.join(", ") ?? "")
+    || JSON.stringify(pendingTags) !== JSON.stringify(initialPage?.tags ?? [])
     || selectedTerms.map((term) => term.slug).join(",") !== sortTerms(initialPage?.terms ?? []).map((term) => term.slug).join(",")
     || content !== (initialPage?.content ?? "")
     || status !== initialStatus;
@@ -123,6 +135,12 @@ export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: 
   const termSearchReady = termSearch?.query === termQuery.trim();
   const termDropdownOpen = termFocused && Boolean(termQuery.trim());
 
+  function addTags() {
+    if (tagError) return;
+    setTags(pendingTags);
+    setTagDraft("");
+  }
+
   function addTerm(term: MatchingTerm) {
     if (selectedTerms.length >= 20 || selectedTerms.some((selected) => selected.slug === term.slug)) return;
     setSelectedTerms((current) => sortTerms([...current, { slug: term.slug, title: term.nameKo || term.nameEn || term.matchedText || term.slug }]));
@@ -150,7 +168,7 @@ export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: 
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (saving || imageUploading || !title.trim() || !content.trim() || (editing && !dirty)) return;
+    if (saving || imageUploading || !title.trim() || !content.trim() || tagError || (editing && !dirty)) return;
     setSaving(true);
     setError(null);
     try {
@@ -161,6 +179,7 @@ export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: 
         sourceUrl: sourceUrl.trim() || null,
         content,
         domain: splitList(domainText),
+        tags: pendingTags,
         termSlugs: selectedTerms.map((term) => term.slug),
         status,
       };
@@ -222,6 +241,38 @@ export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: 
       <label className="block"><span className="label">주소</span><input name="slug" autoComplete="off" spellCheck={false} className="field font-mono" value={slug} onChange={(event) => setSlug(event.target.value)} maxLength={120} placeholder="비우면 제목으로 자동 생성…" /><span className="mt-1 block text-xs text-ink-3">/w/ 아래 주소입니다. 용어와 같은 주소는 자동으로 피합니다.</span></label>
       <label className="block"><span className="label">원문 출처 URL</span><input name="sourceUrl" autoComplete="off" spellCheck={false} className="field font-mono text-sm" type="url" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} maxLength={2_000} placeholder="https://…" /><span className="mt-1 block text-xs text-ink-3">Confluence 등 원문을 관리하는 곳의 링크입니다.</span></label>
       <label className="block"><span className="label">도메인</span><input name="domain" autoComplete="off" className="field" list="wiki-domain-options" value={domainText} onChange={(event) => setDomainText(event.target.value)} placeholder="예: 상품, 보안…" /><datalist id="wiki-domain-options">{domainOptions.map((item) => <option key={item.key} value={item.label} />)}</datalist><span className="mt-1 block text-xs text-ink-3">쉼표 또는 줄바꿈으로 구분합니다.</span></label>
+      <div>
+        <label htmlFor="wiki-tag-input" className="label">태그</label>
+        <div className="flex min-w-0 gap-2">
+          <input
+            id="wiki-tag-input"
+            list="wiki-tag-options"
+            value={tagDraft}
+            maxLength={MAX_WIKI_TAG_LENGTH * MAX_WIKI_TAGS + 20}
+            onChange={(event) => setTagDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+              event.preventDefault();
+              addTags();
+            }}
+            disabled={saving}
+            placeholder="태그 입력…"
+            className="field min-w-0 flex-1"
+          />
+          <datalist id="wiki-tag-options">
+            {tagOptions.map((tag) => <option key={tag} value={tag} />)}
+          </datalist>
+          <button type="button" onClick={addTags} disabled={saving || !tagDraft.trim() || Boolean(tagError)} className="btn-ghost btn-sm shrink-0">추가</button>
+        </div>
+        <p className="mt-1 text-xs text-ink-3">용어 태그처럼 자유롭게 입력합니다. 쉼표나 줄바꿈으로 여러 개를 넣을 수 있습니다.</p>
+        {tagError && <p className="mt-1 text-xs text-danger" role="alert">{tagError}</p>}
+        {tags.length > 0 && <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="태그 목록">
+          {tags.map((tag) => <li key={tag} className="inline-flex max-w-full items-center gap-1 rounded-md border border-line bg-panel px-2 py-1 text-xs text-ink-2">
+            <span className="break-all">#{tag}</span>
+            <button type="button" aria-label={tag + " 태그 삭제"} onClick={() => setTags((current) => current.filter((value) => value !== tag))} disabled={saving} className="grid h-5 w-5 shrink-0 place-items-center rounded hover:bg-panel-2 focus-visible:ring-2 focus-visible:ring-brand/40">×</button>
+          </li>)}
+        </ul>}
+      </div>
       <div className="block">
         <label htmlFor="wiki-term-search" className="label">연결할 용어</label>
         <div className="relative">
@@ -261,7 +312,7 @@ export function WikiEditor({ initialPage, domains: domainOptions, canPublish }: 
         <div className="flex flex-wrap items-center justify-end gap-2">
           <p className="mr-auto text-xs text-ink-3" aria-live="polite">{saving ? "저장 중…" : dirty ? "저장하지 않은 변경사항이 있습니다" : "변경사항 없음"}</p>
           <button type="button" className="btn-ghost" onClick={cancel} disabled={saving}>취소</button>
-          <button type="submit" className="btn-primary" disabled={saving || imageUploading || !title.trim() || !content.trim() || (editing && !dirty)}>{imageUploading ? "이미지 변환 중…" : saving ? "저장 중…" : editing ? "변경 저장" : "위키 문서 만들기"}</button>
+          <button type="submit" className="btn-primary" disabled={saving || imageUploading || !title.trim() || !content.trim() || Boolean(tagError) || (editing && !dirty)}>{imageUploading ? "이미지 변환 중…" : saving ? "저장 중…" : editing ? "변경 저장" : "위키 문서 만들기"}</button>
         </div>
       </div>
     </div>

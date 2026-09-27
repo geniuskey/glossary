@@ -42,6 +42,10 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
             <span>리비전 {page.revision} · 최근 수정 {relativeTime(page.updatedAt)}</span>
             {page.sourceUrl && <a href={page.sourceUrl} target="_blank" rel="noreferrer" className="link">원문 열기</a>}
           </div>
+          {page.tags.length > 0 && <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="위키 태그">
+            <span className="mr-1 text-xs text-ink-3">태그</span>
+            {page.tags.map((tag) => <Link key={tag} href={"/w?tag=" + encodeURIComponent(tag)} className="chip hover:border-brand/45 hover:text-brand">#{tag}</Link>)}
+          </div>}
         </header>
 
         {page.summary && <section className="card mt-6 p-4 sm:p-6" aria-labelledby="wiki-summary-heading">

@@ -111,6 +111,11 @@ export function AccountMenu({
         <AccountLink href="/settings" label="설정" hint="계정 · 화면" active={current === "settings"} onSelect={() => setOpen(false)}>
           <SettingsIcon />
         </AccountLink>
+        {placement === "topbar" && (
+          <AccountLink href="/settings/api-keys" label="API 키" hint="발급 · 관리" active={false} onSelect={() => setOpen(false)}>
+            <KeyIcon />
+          </AccountLink>
+        )}
         {user.role === "admin" && (
           <AccountLink href="/admin" label="관리자" hint="사용자 관리" active={current === "admin"} onSelect={() => setOpen(false)}>
             <AdminIcon />
@@ -185,6 +190,15 @@ function AdminIcon() {
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
       <circle cx="8" cy="5" r="2.5" />
       <path d="M3.5 13.5c.25-3 1.75-4.5 4.5-4.5s4.25 1.5 4.5 4.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function KeyIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <circle cx="5.25" cy="10.75" r="2.75" />
+      <path d="m7.2 8.8 6.3-6.3m-2 2 1.7 1.7m-3.7.3 1.7 1.7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

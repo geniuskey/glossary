@@ -61,10 +61,11 @@ function hashContent(value: string): string {
 }
 
 export function buildWikiRagChunks(
-  page: Pick<WikiPage, "id" | "slug" | "title" | "summary" | "domain" | "content" | "revision"> & { sourceUrl?: string | null; termTitles?: string[] },
+  page: Pick<WikiPage, "id" | "slug" | "title" | "summary" | "domain" | "content" | "revision"> & { sourceUrl?: string | null; tags?: string[]; termTitles?: string[] },
   config: Pick<WikiConfigRow, "chunkSize" | "chunkOverlap">,
 ): WikiRagChunk[] {
   const fullPrefix = [
+    "태그: " + (page.tags ?? []).join(", "),
     `위키 문서: ${page.title}`,
     `주소: /w/${page.slug}`,
     `요약: ${page.summary ?? ""}`,
@@ -89,6 +90,7 @@ export function buildWikiRagChunks(
         summary: page.summary,
         sourceUrl: page.sourceUrl,
         domain: page.domain,
+        tags: page.tags ?? [],
         termTitles: page.termTitles ?? [],
         revision: page.revision,
       },

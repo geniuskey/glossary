@@ -11,6 +11,7 @@ import {
   MAX_WIKI_CONTENT_LENGTH,
   toWikiPageWire,
 } from "@/lib/wiki/store";
+import { MAX_WIKI_TAG_LENGTH, MAX_WIKI_TAGS } from "@/lib/wiki/tags";
 
 const ALLOWED_METHODS = ["GET", "POST"];
 const { PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -24,6 +25,7 @@ const baseSchema = {
   sourceUrl: z.string().trim().max(2_000).refine((value) => /^https?:\/\//i.test(value), "출처 URL은 http 또는 https 주소여야 합니다.").nullable().optional().default(null),
   content: z.string().trim().min(1).max(MAX_WIKI_CONTENT_LENGTH),
   domain: z.array(z.string().trim().min(1).max(200)).max(20).optional().default([]),
+  tags: z.array(z.string().trim().min(1).max(MAX_WIKI_TAG_LENGTH)).max(MAX_WIKI_TAGS).optional().default([]),
   termSlugs: z.array(z.string().trim().min(1).max(120)).max(20).optional().default([]),
   status: z.enum(wikiPageStatusEnum.enumValues).optional().default("draft"),
 };
@@ -58,14 +60,17 @@ export const GET = withApiErrors(async (request: Request) => {
   if (isResponse(pageSize)) return pageSize;
   const q = url.searchParams.get("q")?.trim() || undefined;
   const domain = url.searchParams.get("domain")?.trim() || undefined;
+  const tag = url.searchParams.get("tag")?.trim() || undefined;
   const termId = url.searchParams.get("termId")?.trim() || undefined;
   if (q && q.length > 200) return apiError("validation_failed", "q는 200자 이하여야 합니다.", 400, { field: "q" });
   if (domain && domain.length > 200) return apiError("validation_failed", "domain은 200자 이하여야 합니다.", 400, { field: "domain" });
+  if (tag && tag.length > MAX_WIKI_TAG_LENGTH) return apiError("validation_failed", "tag는 " + MAX_WIKI_TAG_LENGTH + "자 이하여야 합니다.", 400, { field: "tag" });
   if (termId && !/^[0-9a-f-]{36}$/i.test(termId)) return apiError("validation_failed", "termId를 확인해 주세요.", 400, { field: "termId" });
   const result = await listWikiPages({
     query: q,
     status,
     domain,
+    tag,
     termId,
     page,
     pageSize,
@@ -90,6 +95,7 @@ export const POST = withApiErrors(async (request: Request) => {
     sourceUrl: parsed.data.sourceUrl,
     content: parsed.data.content,
     domain: parsed.data.domain,
+    tags: parsed.data.tags,
     termIds,
     status: parsed.data.status,
   }, auth.kind === "user" ? auth.user.id : null, auth.kind === "key" ? auth.keyId : null);

@@ -1,11 +1,13 @@
 import "server-only";
 
-import { and, asc, desc, eq, ilike, or, sql, type InferSelectModel } from "drizzle-orm";
+import { and, arrayContains, asc, desc, eq, ilike, ne, or, sql, type InferSelectModel } from "drizzle-orm";
 import { terms, wikiPageRevisions, wikiPages, wikiPageTerms, wikiPageStatusEnum } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { queueWikiIndex, scheduleWikiRagIndexing } from "@/lib/rag/wiki-indexer";
 import { slugify } from "@/lib/terms/slug";
+import { normalizeTags } from "@/lib/terms/tags";
 import { wikiContentHash } from "./content-hash";
+import { MAX_WIKI_TAG_LENGTH, MAX_WIKI_TAGS } from "./tags";
 
 const MAX_TITLE_LENGTH = 240;
 const MAX_SUMMARY_LENGTH = 600;
@@ -37,6 +39,7 @@ export interface WikiPageInput {
   sourceUrl?: string | null;
   content: string;
   domain: string[];
+  tags?: string[];
   termIds: string[];
   status?: WikiPageStatus;
 }
@@ -48,6 +51,7 @@ export interface WikiPagePatch {
   sourceUrl?: string | null;
   content?: string;
   domain?: string[];
+  tags?: string[];
   termIds?: string[];
   status?: WikiPageStatus;
 }
@@ -56,6 +60,7 @@ export interface ListWikiPagesOptions {
   query?: string;
   status?: WikiPageStatus;
   domain?: string;
+  tag?: string;
   termId?: string;
   page: number;
   pageSize: number;
@@ -100,6 +105,7 @@ function validateInput(input: WikiPageInput): void {
   if (input.sourceUrl && (input.sourceUrl.length > MAX_SOURCE_URL_LENGTH || !isHttpUrl(input.sourceUrl))) throw new Error("위키 출처 URL은 http 또는 https 주소여야 합니다.");
   if (!input.content.trim() || input.content.length > MAX_WIKI_CONTENT_LENGTH) throw new Error("위키 본문은 1자 이상 200,000자 이하여야 합니다.");
   if (input.domain.length > 20 || input.domain.some((value) => value.length > MAX_DOMAIN_LENGTH)) throw new Error("위키 도메인을 확인해 주세요.");
+  if ((input.tags?.length ?? 0) > MAX_WIKI_TAGS || input.tags?.some((value) => value.length > MAX_WIKI_TAG_LENGTH)) throw new Error("태그는 20개까지, 각 200자까지 입력할 수 있습니다.");
   if (input.termIds.length > MAX_TERM_LINKS) throw new Error("연결할 용어는 20개 이하여야 합니다.");
   if (input.slug !== undefined) validateSlug(input.slug);
 }
@@ -113,6 +119,7 @@ function normalizeInput(input: WikiPageInput): WikiPageInput {
     sourceUrl: normalizedSourceUrl(input.sourceUrl),
     content: input.content.replace(/\r\n?/g, "\n").trim(),
     domain: [...new Set(input.domain.map(normalized).filter(Boolean))],
+    tags: normalizeTags(input.tags ?? []),
     termIds: [...new Set(input.termIds)].sort(),
   };
 }
@@ -126,6 +133,7 @@ function normalizePatch(patch: WikiPagePatch): WikiPagePatch {
     ...(patch.sourceUrl !== undefined ? { sourceUrl: normalizedSourceUrl(patch.sourceUrl) } : {}),
     ...(patch.content !== undefined ? { content: patch.content.replace(/\r\n?/g, "\n").trim() } : {}),
     ...(patch.domain !== undefined ? { domain: [...new Set(patch.domain.map(normalized).filter(Boolean))] } : {}),
+    ...(patch.tags !== undefined ? { tags: normalizeTags(patch.tags) } : {}),
     ...(patch.termIds !== undefined ? { termIds: [...new Set(patch.termIds)].sort() } : {}),
   };
 }
@@ -189,6 +197,11 @@ export async function listWikiPages(options: ListWikiPagesOptions): Promise<{ it
       ilike(wikiPages.content, `%${options.query}%`),
     ) : undefined,
   ];
+  if (options.query) {
+    const queryFilter = filters.at(-1);
+    filters[filters.length - 1] = or(queryFilter, ilike(sql.raw("array_to_string(\"wiki_pages\".\"tags\", ' ')"), "%" + options.query + "%"));
+  }
+  if (options.tag) filters.push(arrayContains(wikiPages.tags, [options.tag]));
   const where = and(...filters);
   const db = getDb();
   const [totalRows, pages] = await Promise.all([
@@ -200,6 +213,23 @@ export async function listWikiPages(options: ListWikiPagesOptions): Promise<{ it
   ]);
   const items = await Promise.all(pages.map(async (page) => ({ ...page, terms: await termsForPage(page.id) })));
   return { items, total: totalRows[0]?.count ?? 0 };
+}
+
+export async function countWikiPages(): Promise<number> {
+  const [result] = await getDb().select({ count: sql<number>`count(*)::int` }).from(wikiPages);
+  return result?.count ?? 0;
+}
+
+export async function listWikiTagOptions(): Promise<Array<{ value: string; count: number }>> {
+  const db = getDb();
+  const value = sql.raw('unnest("wiki_pages"."tags")').mapWith(String).as("value");
+  const tags = db.select({ value }).from(wikiPages).where(ne(wikiPages.status, "archived")).as("wiki_page_tag_values");
+  const count = sql.raw("count(*)::int").mapWith(Number).as("count");
+  return db.select({ value: tags.value, count })
+    .from(tags)
+    .groupBy(tags.value)
+    .orderBy(desc(sql.raw("count(*)")), asc(tags.value))
+    .limit(200);
 }
 
 export async function listWikiPagesForTerm(termId: string, limit = 8): Promise<WikiPageWithTerms[]> {
@@ -222,6 +252,7 @@ function snapshotOf(page: WikiPage, termIds: string[]) {
       content: page.content,
       contentHash: page.contentHash,
       domain: page.domain,
+      tags: page.tags,
       revision: page.revision,
       status: page.status,
     },
@@ -244,6 +275,7 @@ export async function createWikiPage(input: WikiPageInput, authorId: string | nu
       content: prepared.content,
       contentHash: wikiContentHash(prepared),
       domain: prepared.domain,
+      tags: prepared.tags ?? [],
       revision: 1,
       status: prepared.status ?? "draft",
       createdBy: authorId,
@@ -295,12 +327,14 @@ export async function updateWikiPage(id: string, patch: WikiPagePatch, authorId:
       sourceUrl: normalizedPatch.sourceUrl === undefined ? current.sourceUrl : normalizedPatch.sourceUrl,
       content: normalizedPatch.content ?? current.content,
       domain: normalizedPatch.domain ?? current.domain,
+      tags: normalizedPatch.tags ?? current.tags,
       termIds: normalizedPatch.termIds ?? currentTerms.map((row) => row.termId),
       status: normalizedPatch.status ?? current.status,
     };
     validateInput(next);
     const contentChanged = next.slug !== current.slug || next.title !== current.title || next.summary !== current.summary || next.sourceUrl !== current.sourceUrl
       || next.content !== current.content || JSON.stringify(next.domain) !== JSON.stringify(current.domain)
+      || JSON.stringify(next.tags) !== JSON.stringify(current.tags)
       || JSON.stringify(next.termIds) !== JSON.stringify(currentTerms.map((row) => row.termId));
     const revision = contentChanged ? current.revision + 1 : current.revision;
     const [updated] = await tx.update(wikiPages).set({
@@ -311,6 +345,7 @@ export async function updateWikiPage(id: string, patch: WikiPagePatch, authorId:
       content: next.content,
       contentHash: wikiContentHash(next),
       domain: next.domain,
+      tags: next.tags ?? [],
       revision,
       status: next.status,
       updatedBy: authorId,
@@ -353,6 +388,7 @@ export function toWikiPageWire(page: WikiPageWithTerms, includeContent = false) 
     sourceUrl: page.sourceUrl,
     ...(includeContent ? { content: page.content } : {}),
     domain: page.domain,
+    tags: page.tags,
     revision: page.revision,
     status: page.status,
     terms: page.terms,

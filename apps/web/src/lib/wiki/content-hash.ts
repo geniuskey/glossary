@@ -6,6 +6,7 @@ export interface WikiHashInput {
   sourceUrl?: string | null;
   content: string;
   domain: string[];
+  tags?: string[];
   termIds: string[];
 }
 
@@ -17,6 +18,7 @@ export function wikiContentHash(input: WikiHashInput): string {
     sourceUrl: input.sourceUrl,
     content: input.content,
     domain: input.domain,
+    tags: input.tags ?? [],
     termIds: input.termIds,
   }), "utf8").digest("hex");
 }

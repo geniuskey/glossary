@@ -37,6 +37,7 @@ export const wikiPages = pgTable(
     content: text("content").notNull(),
     contentHash: text("content_hash").notNull(),
     domain: text("domain").array().notNull().default([]),
+    tags: text("tags").array().notNull().default([]),
     revision: integer("revision").notNull().default(1),
     status: wikiPageStatusEnum("status").notNull().default("draft"),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
@@ -51,6 +52,7 @@ export const wikiPages = pgTable(
     slugUnique: uniqueIndex("wiki_pages_slug_unique").on(t.slug),
     statusUpdatedIdx: index("wiki_pages_status_updated_idx").on(t.status, t.updatedAt),
     domainIdx: index("wiki_pages_domain_idx").using("gin", t.domain),
+    tagsIdx: index("wiki_pages_tags_idx").using("gin", t.tags),
     positiveRevision: check("wiki_pages_positive_revision", sql`${t.revision} > 0`),
   }),
 );

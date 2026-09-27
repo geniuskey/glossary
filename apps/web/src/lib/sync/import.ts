@@ -26,6 +26,7 @@ import { queueWikiIndex } from "@/lib/rag/wiki-indexer";
 import { completionStatus } from "@/lib/terms/completion";
 import { firstUnusedDomainColor } from "@/lib/terms/domain-colors";
 import { domainLabelKey } from "@/lib/terms/domain-label";
+import { normalizeTags } from "@/lib/terms/tags";
 import { DEFAULT_TERM_QUALITY } from "@/lib/workspace/term-quality-values";
 import { wikiContentHash } from "@/lib/wiki/content-hash";
 import {
@@ -525,18 +526,19 @@ export async function applySyncBundle(bundle: SyncBundle, options: SyncImportOpt
       }
 
       for (const incoming of bundle.data.wikiPages) {
-        const hash = wikiPageContentHash(incoming);
+        const normalizedPage = { ...incoming, tags: normalizeTags(incoming.tags ?? []) };
+        const hash = wikiPageContentHash(normalizedPage);
         const known = tracked.get(`wiki_page:${incoming.id}`);
         const local = localPages.get(incoming.id);
         const label = `${incoming.title} (/w/${incoming.slug})`;
         // 이 서버에 없는(충돌로 못 들어온) 용어와의 연결은 뺀다. 해시는 출처 기준이라
         // 그 용어가 나중에 들어와도 다음 번들에서 연결이 채워지지는 않는다 — 전체 번들로 맞춘다.
         const termIds = [...new Set(incoming.termIds)].filter((id) => existingTermIds.has(id)).sort();
-        const hashInput = { title: incoming.title, summary: incoming.summary, sourceUrl: incoming.sourceUrl, content: incoming.content, domain: incoming.domain, termIds };
+        const hashInput = { title: incoming.title, summary: incoming.summary, sourceUrl: incoming.sourceUrl, content: incoming.content, domain: incoming.domain, tags: normalizedPage.tags, termIds };
         const reviewedAt = incoming.status === "published" && incoming.reviewedAt ? new Date(incoming.reviewedAt) : null;
 
         if (local) {
-          const localHash = wikiPageContentHash({ ...incoming, ...local, termIds: localPageTerms.get(local.id) ?? [], reviewedAt: incoming.reviewedAt, createdAt: incoming.createdAt, updatedAt: incoming.updatedAt, sourceRevision: incoming.sourceRevision });
+          const localHash = wikiPageContentHash({ ...normalizedPage, ...local, tags: local.tags, termIds: localPageTerms.get(local.id) ?? [], reviewedAt: incoming.reviewedAt, createdAt: incoming.createdAt, updatedAt: incoming.updatedAt, sourceRevision: incoming.sourceRevision });
           if (localHash === hash) {
             report.counts.wikiPages.unchanged += 1;
             track("wiki_page", incoming.id, hash, local.revision);
@@ -565,6 +567,7 @@ export async function applySyncBundle(bundle: SyncBundle, options: SyncImportOpt
             content: incoming.content,
             contentHash: wikiContentHash(hashInput),
             domain: incoming.domain,
+            tags: normalizedPage.tags,
             revision,
             status: incoming.status,
             reviewedBy: null,
@@ -606,6 +609,7 @@ export async function applySyncBundle(bundle: SyncBundle, options: SyncImportOpt
           content: incoming.content,
           contentHash: wikiContentHash(hashInput),
           domain: incoming.domain,
+          tags: normalizedPage.tags,
           revision: 1,
           status: incoming.status,
           reviewedAt,
@@ -766,6 +770,7 @@ function wikiSnapshot(page: typeof wikiPages.$inferSelect, termIds: string[]) {
       content: page.content,
       contentHash: page.contentHash,
       domain: page.domain,
+      tags: page.tags,
       revision: page.revision,
       status: page.status,
     },

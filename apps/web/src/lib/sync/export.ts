@@ -154,6 +154,7 @@ export async function buildSyncBundle(options: BuildSyncBundleOptions): Promise<
     sourceUrl: page.sourceUrl,
     content: page.content,
     domain: page.domain,
+    tags: page.tags,
     status: page.status,
     termIds: (termIdsByPage.get(page.id) ?? []).map((row) => row.termId).sort(),
     sourceRevision: page.revision,

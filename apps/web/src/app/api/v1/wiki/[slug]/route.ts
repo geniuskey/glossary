@@ -11,6 +11,7 @@ import {
   toWikiPageWire,
   updateWikiPage,
 } from "@/lib/wiki/store";
+import { MAX_WIKI_TAG_LENGTH, MAX_WIKI_TAGS } from "@/lib/wiki/tags";
 
 const ALLOWED_METHODS = ["GET", "PATCH"];
 const { POST, PUT, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
@@ -24,6 +25,7 @@ const patchSchema = z.object({
   sourceUrl: z.string().trim().max(2_000).refine((value) => /^https?:\/\//i.test(value), "출처 URL은 http 또는 https 주소여야 합니다.").nullable().optional(),
   content: z.string().trim().min(1).max(MAX_WIKI_CONTENT_LENGTH).optional(),
   domain: z.array(z.string().trim().min(1).max(200)).max(20).optional(),
+  tags: z.array(z.string().trim().min(1).max(MAX_WIKI_TAG_LENGTH)).max(MAX_WIKI_TAGS).optional(),
   termSlugs: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
   status: z.enum(wikiPageStatusEnum.enumValues).optional(),
 }).strict();
