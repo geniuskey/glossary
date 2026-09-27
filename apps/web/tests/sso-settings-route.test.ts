@@ -32,6 +32,7 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   currentCookieValue = undefined;
   currentHeaders = new Headers();
   delete process.env.AUTH_MODE;
@@ -100,6 +101,8 @@ test("로그인하지 않으면 401, 편집자면 403이다", async () => {
 });
 
 test("관리자에게도 시크릿은 돌려주지 않고, 등록할 리디렉션 URI를 함께 준다", async () => {
+  vi.stubEnv("GLOSSARY_BASE_URL", "");
+  vi.stubEnv("GLOSSARY_ALLOWED_ORIGINS", "");
   await db.update(ssoConfig).set({ clientSecret: "s3cr3t", baseUrl: "" }).where(eq(ssoConfig.id, SSO_CONFIG_ID));
   await loginAs("admin");
 

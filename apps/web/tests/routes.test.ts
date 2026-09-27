@@ -38,7 +38,7 @@ test("설정에서 API 키 관리 페이지로 이동한다", () => {
   expect(settingsPage).toContain('href="/settings/api-keys"');
   expect(settingsPage).not.toContain("<ApiKeysPanel />");
   expect(apiKeysPage).toContain("getCurrentUser(");
-  expect(apiKeysPage).toContain("<ApiKeysPanel />");
+  expect(apiKeysPage).toContain('<ApiKeysPanel canWrite={user.role !== "viewer"} />');
   expect(apiKeysPanel).toContain('aria-label="발급받은 API 키 복사"');
   expect(apiKeysPanel).toContain("copyText(issued)");
 });

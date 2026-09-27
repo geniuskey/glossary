@@ -4,6 +4,7 @@ dist/
 .turbo/
 *.tsbuildinfo
 .env
+.env.backup*
 .env.local
 backups/
 docs/.vitepress/cache/

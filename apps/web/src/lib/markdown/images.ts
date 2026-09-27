@@ -9,6 +9,32 @@ export function isInternalAttachmentUrl(source: string): boolean {
   return INTERNAL_ATTACHMENT_RE.test(source);
 }
 
+export function isExternalImageUrl(source: string): boolean {
+  try {
+    const url = new URL(source);
+    return (url.protocol === "http:" || url.protocol === "https:")
+      && Boolean(url.hostname)
+      && !url.username
+      && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+export function markdownImageDimensions(title: string | null | undefined): { width?: number; height?: number } | null {
+  if (!title) return null;
+  const dimensions: { width?: number; height?: number } = {};
+  for (const attribute of title.trim().split(/\s+/)) {
+    const match = /^(width|height)=([1-9]\d*)$/i.exec(attribute);
+    if (!match?.[1] || !match[2]) return null;
+    const key = match[1].toLowerCase() as "width" | "height";
+    const value = Number(match[2]);
+    if (dimensions[key] !== undefined || !Number.isSafeInteger(value) || value > 10_000) return null;
+    dimensions[key] = value;
+  }
+  return Object.keys(dimensions).length ? dimensions : null;
+}
+
 export function internalAttachmentDimensions(source: string): { width: number; height: number } | null {
   const match = INTERNAL_ATTACHMENT_RE.exec(source);
   if (!match?.[1] || !match[2]) return null;

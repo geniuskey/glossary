@@ -195,7 +195,7 @@ test("AI 연결 화면은 자격 증명 입력 뒤 모델 목록을 불러와 se
   expect(content).toContain('fetch("/api/v1/admin/ai-config/models"');
   expect(content).toContain('models.length > 0 ? (');
   expect(content).toContain('<select id="ai-model"');
-  expect(content).toContain('API 키를 입력하면 모델 목록을 불러옵니다');
+  expect(content).toContain('입력하면 선택 가능한 모델을 자동으로 불러옵니다.');
 });
 
 test("AI 연결 화면은 테스트 성공을 녹색 Connected 상태로 표시한다", () => {
@@ -211,7 +211,8 @@ test("AI 연결 화면은 테스트 성공을 녹색 Connected 상태로 표시�
 
 test("용어 챗봇은 대화로 모은 등록안을 확인 후 용어로 추가한다", () => {
   const content = stripComments(readFileSync(path.join(componentsDir, "chat-panel.tsx"), "utf8"));
-  expect(content).toContain("teachingDraft: activeTeachingDraft()");
+  expect(content).toContain("const teachingDraft = activeTeachingDraft()");
+  expect(content).toContain("domain: searchDomain || null, teachingDraft,");
   expect(content).toContain('fetch("/api/v1/terms"');
   expect(content).toContain("용어로 추가");
   expect(content).toContain("용어 등록안");

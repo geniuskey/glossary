@@ -27,6 +27,14 @@ const createdUserIds: string[] = [];
 
 beforeAll(async () => {
   original = await loadSsoConfig();
+  // 콜백 통합 테스트는 설정이 끝난 앱을 대상으로 한다. 깨끗한 CI DB에서는
+  // 첫 사용자 제한이 켜져 있으므로, 테스트용 기존 관리자를 만들어 둔다.
+  const [setupUser] = await db.insert(users).values({
+    email: `sso-callback-setup-${Date.now()}@example.com`,
+    name: "테스트 관리자",
+    role: "admin",
+  }).returning({ id: users.id });
+  if (setupUser) createdUserIds.push(setupUser.id);
 });
 
 afterAll(async () => {
@@ -347,7 +355,7 @@ test("userinfo의 sub가 다르면 그 그룹으로 권한을 주지 않는다",
 
   expect(location(res)).toBe(`${BASE}/`);
   const row = await userByEmail(email);
-  expect(row?.role).toBe("editor");
+  expect(row?.role).toBe("viewer");
 });
 
 test("자동 생성이 꺼져 있으면 없는 계정은 만들지 않는다", async () => {

@@ -1,9 +1,9 @@
-import { isValidElement, type ComponentPropsWithoutRef, type ReactNode } from "react";
+import { isValidElement, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import { internalAttachmentDimensions, isInternalAttachmentUrl } from "@/lib/markdown/images";
+import { internalAttachmentDimensions, isExternalImageUrl, isInternalAttachmentUrl, markdownImageDimensions } from "@/lib/markdown/images";
 import { normalizeDisplayMath } from "@/lib/markdown/normalize";
 import { MermaidDiagram } from "./mermaid-diagram";
 
@@ -21,13 +21,16 @@ const components: Components = {
       </a>
     );
   },
-  img({ src, alt, ...props }: ComponentPropsWithoutRef<"img">) {
-    if (typeof src !== "string" || !isInternalAttachmentUrl(src)) {
-      return <span className="text-sm text-danger">외부 이미지는 표시하지 않습니다: {alt || String(src ?? "")}</span>;
+  img({ src, alt, title, node: _node, ...props }) {
+    const internal = typeof src === "string" && isInternalAttachmentUrl(src);
+    const external = typeof src === "string" && isExternalImageUrl(src);
+    if (typeof src !== "string" || (!internal && !external)) {
+      return <span className="text-sm text-danger">이미지 URL이 안전하지 않아 표시할 수 없습니다{alt ? `: ${alt}` : ""}</span>;
     }
-    const dimensions = internalAttachmentDimensions(src);
+    const markdownDimensions = markdownImageDimensions(title);
+    const dimensions = (internal ? internalAttachmentDimensions(src) : null) ?? markdownDimensions;
     // 새 첨부 URL은 저장된 크기를 포함해 로드 전에도 레이아웃 공간을 확보한다.
-    return <img {...props} src={src} alt={alt ?? ""} width={dimensions?.width} height={dimensions?.height} loading="lazy" className="my-4 h-auto max-h-[70vh] max-w-full rounded-lg border border-line" />;
+    return <img {...props} {...(markdownDimensions ? {} : { title })} src={src} alt={alt ?? ""} width={dimensions?.width} height={dimensions?.height} loading="lazy" {...(external ? { referrerPolicy: "no-referrer" } : {})} className="my-4 h-auto max-h-[70vh] max-w-full rounded-lg border border-line" />;
   },
   table({ children }) {
     return <div className="my-4 overflow-x-auto"><table>{children}</table></div>;

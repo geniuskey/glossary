@@ -29,6 +29,7 @@ const CFG = {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 test("PKCE 챌린지는 검증자의 SHA-256(base64url)이다", () => {
@@ -80,6 +81,12 @@ test("흐름 쿠키는 HttpOnly이고 지울 때 Max-Age=0이다", () => {
 // 프록시 뒤에서는 Host가 내부 주소다. redirect_uri가 인가 요청과 토큰 요청에서
 // 한 글자라도 다르면 IdP가 거절하므로 두 라우트가 같은 함수로 만든다.
 test("외부 주소는 설정값 → X-Forwarded-* → 요청 origin 순으로 정해진다", () => {
+  // 운영 origin 환경변수는 리다이렉트 우선순위 테스트에 영향을 주지 않게 비운다.
+  vi.stubEnv("GLOSSARY_BASE_URL", "");
+  vi.stubEnv("GLOSSARY_ALLOWED_ORIGINS", "");
+  vi.stubEnv("GLOSSARY_TRUST_PROXY_HEADERS", "");
+  vi.stubEnv("NODE_ENV", "test");
+
   const plain = new Request("http://localhost:3000/auth/sso/start", { headers: { host: "localhost:3000" } });
   expect(resolveBaseUrl(plain, { baseUrl: "" })).toBe("http://localhost:3000");
 
