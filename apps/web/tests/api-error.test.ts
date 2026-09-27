@@ -14,6 +14,8 @@ import * as keysRoute from "../src/app/api/v1/keys/route.js";
 import * as keyIdRoute from "../src/app/api/v1/keys/[id]/route.js";
 import * as termsRoute from "../src/app/api/v1/terms/route.js";
 import * as termLookupRoute from "../src/app/api/v1/terms/lookup/route.js";
+import * as termBatchRoute from "../src/app/api/v1/terms/batch/route.js";
+import * as termCatalogRoute from "../src/app/api/v1/terms/catalog/route.js";
 import * as termSuggestRoute from "../src/app/api/v1/terms/suggest/route.js";
 import * as termPasteCheckRoute from "../src/app/api/v1/terms/paste-check/route.js";
 import * as termIdOrSlugRoute from "../src/app/api/v1/terms/[idOrSlug]/route.js";
@@ -31,6 +33,9 @@ import * as adminHomeContentRoute from "../src/app/api/v1/admin/home-content/rou
 import * as adminHomeModeRoute from "../src/app/api/v1/admin/home-mode/route.js";
 import * as adminBrandRoute from "../src/app/api/v1/admin/brand/route.js";
 import * as adminTermExportRoute from "../src/app/api/v1/admin/exports/terms/route.js";
+import * as adminSyncRoute from "../src/app/api/v1/admin/sync/route.js";
+import * as adminSyncExportRoute from "../src/app/api/v1/admin/sync/export/route.js";
+import * as adminSyncImportRoute from "../src/app/api/v1/admin/sync/import/route.js";
 import * as adminTermQualityRoute from "../src/app/api/v1/admin/term-quality/route.js";
 import * as adminMenuSettingsRoute from "../src/app/api/v1/admin/menu-settings/route.js";
 import * as adminTermDefinitionsRoute from "../src/app/api/v1/admin/term-definitions/route.js";
@@ -114,6 +119,8 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   // GET/PUT/PATCH/DELETE의 405 스텁 누락을 아무 테스트도 못 잡는다 — 이 구멍이
   // 이 저장소에서 네 번째로 반복되는 실수였다(Task 8 P7, Task 9 R58, Task 10 F1).
   { name: "terms/lookup", mod: termLookupRoute, allowed: ["POST"], allow: "POST" },
+  { name: "terms/batch", mod: termBatchRoute, allowed: ["POST"], allow: "POST" },
+  { name: "terms/catalog", mod: termCatalogRoute, allowed: ["GET"], allow: "GET, HEAD" },
   // R136: 자동완성 라우트는 GET만 처리한다.
   { name: "terms/suggest", mod: termSuggestRoute, allowed: ["GET"], allow: "GET, HEAD" },
   { name: "terms/paste-check", mod: termPasteCheckRoute, allowed: ["POST"], allow: "POST" },
@@ -153,6 +160,9 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "admin/home-mode", mod: adminHomeModeRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
   { name: "admin/brand", mod: adminBrandRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
   { name: "admin/exports/terms", mod: adminTermExportRoute, allowed: ["GET"], allow: "GET, HEAD" },
+  { name: "admin/sync", mod: adminSyncRoute, allowed: ["GET", "DELETE"], allow: "GET, HEAD, DELETE" },
+  { name: "admin/sync/export", mod: adminSyncExportRoute, allowed: ["GET"], allow: "GET, HEAD" },
+  { name: "admin/sync/import", mod: adminSyncImportRoute, allowed: ["POST"], allow: "POST" },
   { name: "admin/menu-settings", mod: adminMenuSettingsRoute, allowed: ["GET", "PATCH"], allow: "GET, HEAD, PATCH" },
   { name: "admin/term-quality", mod: adminTermQualityRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "admin/term-definitions", mod: adminTermDefinitionsRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },

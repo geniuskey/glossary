@@ -15,3 +15,4 @@ export * from "./ai-observability";
 export * from "./security";
 export * from "./candidates";
 export * from "./ontology";
+export * from "./sync";

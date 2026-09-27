@@ -22,7 +22,55 @@ GET /api/v1/admin/exports/terms
 이 파일은 일반 `POST /api/v1/import`의 xlsx 데이터와 다른 **백업·검토용 형식**이다.
 파일 이름을 바꾸거나 `dryRun=false`를 보내도 서버가 표식을 확인해 `validation_failed`로
 거부하므로 자동으로 기존 용어를 덮어쓰지 않는다. 복원이 필요하면 별도의 관리자 복원
-절차에서 차이와 적용 대상을 검토한 뒤 진행해야 한다.
+절차에서 차이와 적용 대상을 검토한 뒤 진행해야 한다. 다른 서버로 데이터를 옮기려면
+아래 동기화 번들을 쓴다.
+
+## 서버 간 동기화 번들
+
+네트워크로 연결되지 않은 서버 사이에서 용어·표기·옛 주소·도메인·업무 분류·승인된 관계·위키·본문
+이미지를 한 방향으로 옮긴다. 모든 엔드포인트는 관리자 세션만 허용한다. 운영 절차와 CLI는
+[운영 안내서](/operations#서버-간-동기화-오프라인)에 있다.
+
+```http
+GET /api/v1/admin/sync/export?mode=full
+GET /api/v1/admin/sync/export?mode=incremental&base={bundleId}
+```
+
+`application/gzip` 번들(`<label>-<시각>-<mode>.glossary-sync.json.gz`)을 내려준다. 번들에는
+`format: "geniuskey.glossary.sync"`, `version: 1`, 출처 서버 식별자, 전체 항목의 내용 해시 목록
+(manifest)이 들어 있다. `incremental`은 기준 번들(`base`, 생략하면 직전 내보내기) 이후 해시가
+달라진 항목만 싣고, manifest와 분류 체계는 항상 전부 싣는다. 이전 내보내기 기록이 없으면 400이다.
+사용자 계정, 담당자, AI 설정, 승인되지 않은 관계는 포함하지 않는다.
+
+```http
+POST /api/v1/admin/sync/import?dryRun=true&localEdits=source
+Content-Type: application/gzip
+
+<번들 파일 바이트>
+```
+
+번들을 multipart가 아니라 본문 그대로 보낸다(최대 512MB). 기본은 `dryRun=true`로, 전체를
+트랜잭션 안에서 계산한 뒤 되돌려 결과만 알려 준다. `dryRun=false`면 반영한다. 응답의 `report`는
+항목별 `created`·`updated`·`deleted`·`unchanged` 수와 다음 목록을 담는다.
+
+| 목록 | 뜻 |
+|---|---|
+| `conflicts` | 주소가 이 서버의 다른 항목과 겹치거나 연결 용어가 없어 건너뜀 |
+| `overwritten` | 양쪽이 모두 바뀌어 출처 내용으로 덮음(이력에 남음) |
+| `kept` | `localEdits=keep`이라 이 서버에서 고친 내용을 남김 |
+| `stale` | manifest와 어긋남 — 번들을 빠뜨렸으니 전체 번들로 다시 맞춰야 함 |
+
+자기 서버가 만든 번들이나 이미 반영한 것보다 오래된 번들은 `409 operation_conflict`,
+형식이 다른 파일은 `400 validation_failed`다.
+
+```http
+GET /api/v1/admin/sync
+DELETE /api/v1/admin/sync?source={instanceId}
+```
+
+`GET`은 이 서버의 식별자, 최근 내보내기 10건, 출처 서버별 마지막 번들과 적용 결과를 돌려준다.
+`DELETE`는 출처 서버의 추적 기록만 지운다. 이미 들어온 데이터는 남고 이후로는 이 서버의
+데이터로 취급한다.
 
 ## 영문·한글 두 열 가져오기
 

@@ -255,10 +255,15 @@ docker compose -f docker-compose.prod.yml up -d --build
 기동, 백업, 복구, TLS와 CSRF의 현재 상태는
 [운영 안내서](https://geniuskey.github.io/glossary/operations)에 있다.
 
+인터넷이 막힌 사내 서버는 외부 서버에 쌓인 용어·위키를 번들 파일로 계속 받아 올 수 있다.
+보내는 쪽이 전체 또는 변경분 번들을 내보내고 받는 쪽이 가져오면 추가·수정·삭제가 한 번에
+반영된다(관리자 > 서버 동기화, 또는 `scripts/sync.ts`). 절차와 규칙은
+[서버 간 동기화](https://geniuskey.github.io/glossary/operations#서버-간-동기화-오프라인)에 있다.
+
 ## 진행 상황
 
 - **M1 사전 코어** — 구현됨. DB 스키마, 정규화, 인증·API Key, 용어 CRUD, 검색,
-  중복 경고, 엑셀 임포트(dry-run), 프로덕션 Docker, 백업·복구.
+  중복 경고, 엑셀 임포트(dry-run), 프로덕션 Docker, 백업·복구, 오프라인 서버 간 동기화.
 - **M2 검증 엔진 — 구현됨**: `packages/engine`의 문서 검증 코어, `/validate`, `/validate/batch`, `/lexicon`, `/check`와 후보 등록·무시 흐름이 구현됨. CI 연동은 남아 있다.
 - **M3 위키 완성도** — CodeMirror Markdown 편집·GFM 미리보기, 이미지 붙여넣기·WebP 첨부,
   Mermaid·수식 렌더링, 리비전 조회/revert는 구현됨. diff 화면, 위키 링크·역참조, 병합 UI는 남음.

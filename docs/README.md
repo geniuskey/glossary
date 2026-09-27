@@ -11,7 +11,7 @@
 | `help.md`, `guide/collaboration.md`, `guide/ai.md`, `guide/data-model.md` | 사용자 작업과 개념 |
 | `guide/getting-started.md`, `guide/architecture.md`, `guide/testing.md` | 개발 환경과 구현 구조 |
 | `api/` | API 계약과 호출 예시 |
-| `operations.md`, `guide/sso.md` | 설치·인증 설정·백업·복구 |
+| `operations.md`, `guide/sso.md` | 설치·인증 설정·백업·복구·서버 간 동기화 |
 | `guide/roadmap.md` | 구현 상태와 후속 계획 |
 | `support.md` | 문의와 오류 신고 |
 | `superpowers/`, `reviews/`, `product-review-*.md`, `CODEX_HANDOFF.md` | 당시의 설계·검토·인계 기록. 공개 빌드와 검색에서 제외 |

@@ -1,11 +1,11 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
 import { and, asc, desc, eq, ilike, or, sql, type InferSelectModel } from "drizzle-orm";
 import { terms, wikiPageRevisions, wikiPages, wikiPageTerms, wikiPageStatusEnum } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { queueWikiIndex, scheduleWikiRagIndexing } from "@/lib/rag/wiki-indexer";
 import { slugify } from "@/lib/terms/slug";
+import { wikiContentHash } from "./content-hash";
 
 const MAX_TITLE_LENGTH = 240;
 const MAX_SUMMARY_LENGTH = 600;
@@ -82,17 +82,6 @@ function isHttpUrl(value: string): boolean {
   } catch {
     return false;
   }
-}
-
-function hashContent(input: Pick<WikiPageInput, "title" | "summary" | "sourceUrl" | "content" | "domain" | "termIds">): string {
-  return createHash("sha256").update(JSON.stringify({
-    title: input.title,
-    summary: input.summary,
-    sourceUrl: input.sourceUrl,
-    content: input.content,
-    domain: input.domain,
-    termIds: input.termIds,
-  }), "utf8").digest("hex");
 }
 
 function titleOf(term: { nameKo: string | null; nameEn: string | null }): string {
@@ -253,7 +242,7 @@ export async function createWikiPage(input: WikiPageInput, authorId: string | nu
       summary: prepared.summary,
       sourceUrl: prepared.sourceUrl,
       content: prepared.content,
-      contentHash: hashContent(prepared),
+      contentHash: wikiContentHash(prepared),
       domain: prepared.domain,
       revision: 1,
       status: prepared.status ?? "draft",
@@ -320,7 +309,7 @@ export async function updateWikiPage(id: string, patch: WikiPagePatch, authorId:
       summary: next.summary,
       sourceUrl: next.sourceUrl,
       content: next.content,
-      contentHash: hashContent(next),
+      contentHash: wikiContentHash(next),
       domain: next.domain,
       revision,
       status: next.status,

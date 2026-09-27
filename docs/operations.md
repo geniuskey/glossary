@@ -308,6 +308,45 @@ bash scripts/restore.sh --force /srv/glossary-backups/glossary-20260828-030000.d
 > 사실을 DB를 이미 지운 뒤에 알게 되는 순서였다. 게다가 `app`이 연결을 붙들고
 > 있으면 `DROP DATABASE`가 실패한다 — 성공해도 위험하고 실패해도 혼란스러웠다(R126).
 
+## 서버 간 동기화 (오프라인)
+
+인터넷이 막힌 사내 서버가 외부 서버(예: 집의 Mac Studio)에 쌓인 용어·위키를 **한 방향으로**
+받아야 할 때 쓴다. 두 서버는 통신하지 않고, 보내는 쪽이 만든 번들 파일(`*.glossary-sync.json.gz`)을
+사람이 옮긴다. 옮기는 대상은 용어·표기·옛 주소·도메인·업무 분류·승인된 관계·위키·본문 이미지다.
+사용자 계정, 담당자, AI 설정, 검토 대기열은 옮기지 않는다.
+
+- **관리자 화면:** 관리자 > 서버 동기화. 보내는 쪽에서 "전체 번들" 또는 "변경분"을 내려받고,
+  받는 쪽에서 미리보기 → 반영한다.
+- **CLI (소스 설치):** `pnpm --filter @glossary/web exec tsx scripts/sync.ts <export|import|status>`
+- **CLI (Docker 설치):** worker 이미지에 들어 있다.
+
+```bash
+# 보내는 쪽 — 처음 한 번은 전체, 이후는 변경분
+docker compose -f docker-compose.hub.yml run --rm -v "$PWD/sync-out:/sync" rag-worker \
+  node sync.mjs export --incremental --out /sync --label macstudio
+
+# 받는 쪽 — 폴더를 주면 안의 번들을 내보낸 순서대로 적용한다. --apply가 없으면 미리보기다.
+docker compose -f docker-compose.hub.yml run --rm -v "$PWD/sync-in:/sync" rag-worker \
+  node sync.mjs import /sync --apply
+```
+
+지속 동기화는 보내는 쪽에서 `export --incremental`을 cron/launchd로 주기 실행하고, 쌓인 파일을
+받는 쪽 폴더에 옮겨 `import <폴더> --apply`를 돌리면 된다. 받는 쪽은 번들마다 내보낸 시각을
+기억해 이미 반영한 것보다 오래된 번들은 건너뛰므로, 같은 폴더를 여러 번 돌려도 안전하다.
+
+동작 규칙:
+
+- 항목은 출처의 UUID로 식별한다. 내용 해시가 같으면 아무것도 쓰지 않고, 달라지면 받는 쪽에
+  새 리비전(`sync: <출처> r<번호>`)을 남긴다. 검색 색인은 worker가 이어서 갱신한다.
+- 출처에서 삭제된 용어·문서는 받는 쪽에서도 지운다. **받는 쪽에서 직접 만든 항목은 건드리지 않는다.**
+- 받는 쪽에서 고친 항목은 출처가 그대로인 한 유지된다. 양쪽이 모두 바뀌면 기본은 출처 내용으로
+  덮고(이력에서 되돌릴 수 있다), `--keep-local-edits`(화면의 "덮지 않음")면 남긴다.
+- 주소(slug)가 받는 쪽의 다른 용어와 겹치면 그 항목만 건너뛰고 "충돌"로 보고한다.
+- 변경분 번들은 달라진 항목만 싣지만 전체 목록(manifest)은 항상 싣는다. 받는 쪽이 번들 하나를
+  빠뜨려 manifest와 어긋나면 "누락"으로 보고하고 CLI는 종료 코드 2를 낸다. 이때 보내는 쪽에서
+  전체 번들을 한 번 보내면 다시 맞춰진다.
+- 가져오기 전체가 한 트랜잭션이다. 도중에 실패하면 아무것도 반영되지 않는다.
+
 ## OpenAPI 스펙
 
 `GET /api/v1/openapi`가 스펙을 JSON으로 돌려준다. 인증이 필요 없다.

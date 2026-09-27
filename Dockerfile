@@ -42,6 +42,15 @@ RUN pnpm exec esbuild apps/web/scripts/rag-worker.ts \
       --target=node22 \
       --minify \
       --outfile=/app/worker-dist/rag-worker.mjs
+# 서버 간 동기화 CLI도 같은 방식으로 묶는다. 운영 이미지에는 tsx가 없어서 이렇게
+# 해야 `docker compose run --rm rag-worker node sync.mjs export`로 번들을 만들 수 있다.
+RUN pnpm exec esbuild apps/web/scripts/sync.ts \
+      --bundle \
+      --platform=node \
+      --format=esm \
+      --target=node22 \
+      --minify \
+      --outfile=/app/worker-dist/sync.mjs
 
 # ---- 운영 런타임 ----
 FROM base AS runner
@@ -75,6 +84,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 RUN addgroup -g 1001 -S nodejs && adduser -S -u 1001 -G nodejs nextjs
 COPY --from=builder --chown=nextjs:nodejs /app/worker-dist/rag-worker.mjs ./rag-worker.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/worker-dist/sync.mjs ./sync.mjs
 USER nextjs
 CMD ["node", "rag-worker.mjs"]
 

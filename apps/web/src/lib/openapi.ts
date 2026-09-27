@@ -518,6 +518,77 @@ export const openApiSpec = {
         },
       },
     },
+    "/admin/sync": {
+      get: {
+        summary: "서버 간 동기화 상태 조회",
+        description:
+          "이 서버의 동기화 식별자, 최근 내보낸 번들, 가져온 출처 서버별 마지막 적용 결과를 돌려준다.",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("{ instanceId, label, exports[], sources[] }", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+      delete: {
+        summary: "출처 서버와의 동기화 연결 해제",
+        description: "추적 기록만 지운다. 이미 들어온 용어·위키는 남고 이후로는 이 서버의 데이터로 취급한다.",
+        security: [{ sessionCookie: [] }],
+        parameters: [{ name: "source", in: "query", required: true, schema: { type: "string", format: "uuid" } }],
+        responses: {
+          "204": { description: "연결 해제됨" },
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+          "404": errorResponse("not_found"),
+        },
+      },
+    },
+    "/admin/sync/export": {
+      get: {
+        summary: "동기화 번들 내보내기",
+        description:
+          "용어·표기·분류·승인된 관계·위키·첨부 이미지를 gzip JSON 번들로 내려받는다. " +
+          "incremental은 기준 번들(base, 생략 시 직전 내보내기) 이후 달라진 항목만 싣지만 manifest는 항상 전체다.",
+        security: [{ sessionCookie: [] }],
+        parameters: [
+          { name: "mode", in: "query", schema: { type: "string", enum: ["full", "incremental"], default: "full" } },
+          { name: "base", in: "query", schema: { type: "string", format: "uuid" } },
+          { name: "label", in: "query", schema: { type: "string" } },
+        ],
+        responses: {
+          "200": { description: "application/gzip 동기화 번들", content: { "application/gzip": { schema: { type: "string", format: "binary" } } } },
+          "400": errorResponse("validation_failed — 기준 번들 없음 등"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+    },
+    "/admin/sync/import": {
+      post: {
+        summary: "동기화 번들 가져오기",
+        description:
+          "요청 본문에 번들 파일을 그대로 싣는다. 기본은 dryRun=true(적용하지 않고 결과만 계산). " +
+          "localEdits=keep이면 마지막 동기화 이후 이 서버에서 고친 항목을 덮지 않는다.",
+        security: [{ sessionCookie: [] }],
+        parameters: [
+          { name: "dryRun", in: "query", schema: { type: "boolean", default: true } },
+          { name: "localEdits", in: "query", schema: { type: "string", enum: ["source", "keep"], default: "source" } },
+        ],
+        requestBody: {
+          required: true,
+          content: { "application/gzip": { schema: { type: "string", format: "binary" } } },
+        },
+        responses: {
+          "200": json("{ report } — 항목별 생성·수정·삭제 수와 충돌·누락 목록", { type: "object" }),
+          "400": errorResponse("validation_failed — 번들 형식 오류"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+          "409": errorResponse("operation_conflict — 자기 번들 또는 이미 더 최신 번들이 적용됨"),
+          "413": errorResponse("payload_too_large"),
+        },
+      },
+    },
     "/admin/home-content": {
       get: {
         summary: "홈 첫 화면 소개 문구 조회",

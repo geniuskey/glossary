@@ -60,6 +60,10 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | GET | [`/wiki/{slug}`](/api/rag#위키-지식) | `read` | 위키 문서 조회 |
 | PATCH | [`/wiki/{slug}`](/api/rag#위키-지식) | `write` | 위키 문서 수정·RAG 색인 예약 |
 | GET | [`/admin/exports/terms`](/api/import#관리자용-전체-스냅샷) | 세션(admin) | 서버 전체 용어집 읽기 전용 스냅샷 다운로드 |
+| GET | [`/admin/sync`](/api/import#서버-간-동기화-번들) | 세션(admin) | 동기화 식별자·최근 내보내기·출처 서버별 마지막 적용 결과 |
+| DELETE | [`/admin/sync?source={id}`](/api/import#서버-간-동기화-번들) | 세션(admin) | 출처 서버와의 동기화 연결 해제(데이터는 유지) |
+| GET | [`/admin/sync/export`](/api/import#서버-간-동기화-번들) | 세션(admin) | 전체·변경분 동기화 번들(gzip) 다운로드 |
+| POST | [`/admin/sync/import`](/api/import#서버-간-동기화-번들) | 세션(admin) | 동기화 번들 미리보기(기본)·반영 |
 | GET | `/admin/menu-settings` | 세션(admin) | 사이드바 메뉴 표시 설정 조회 |
 | PATCH | `/admin/menu-settings` | 세션(admin) | 워크스페이스 전체의 부가 메뉴 표시 여부 저장 |
 | GET | [`/admin/term-quality`](/api/ai#콘텐츠-완성도) | 세션(admin) | 콘텐츠 완성도 조회 |

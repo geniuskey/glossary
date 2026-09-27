@@ -7,6 +7,7 @@ import { getAiObservabilitySnapshot } from "@/lib/ai/telemetry";
 import { listReviewQueue } from "@/lib/ai/auto-review";
 import { loadRagConfig, publicRagConfig } from "@/lib/rag/config";
 import { getRagIndexStats } from "@/lib/rag/indexer";
+import { getSyncStatus } from "@/lib/sync/status";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { authMode, oauth2ProxyEnabled, proxyHeaderNames } from "@/lib/auth/sso/proxy-headers";
 import { getHomeContent } from "@/lib/workspace/home-content";
@@ -19,6 +20,7 @@ import { HomeContentPanel } from "./home-content-panel";
 import { TermQualityPanel } from "./term-quality-panel";
 import { UsersPanel } from "./users-panel";
 import { DataExportPanel } from "./data-export-panel";
+import { SyncPanel } from "./sync-panel";
 import { SsoSettingsForm } from "@/app/settings/sso/sso-settings-form";
 import { BrandSettingsPanel } from "./brand-settings-panel";
 import { MenuSettingsPanel } from "./menu-settings-panel";
@@ -103,6 +105,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     panel = <RagSettingsPanel initialConfig={publicRagConfig(config, stats)} />;
   }
   else if (tab === "data") panel = <DataExportPanel />;
+  else if (tab === "sync") panel = <SyncPanel initialStatus={await getSyncStatus()} />;
   else if (tab === "sso") panel = (
     <div>
       <header className="mb-6">

@@ -34,6 +34,7 @@ export const ADMIN_NAV_GROUPS = [
     label: "데이터",
     items: [
       { key: "data", label: "데이터 내보내기", description: "용어집 스냅샷" },
+      { key: "sync", label: "서버 동기화", description: "번들 내보내기 · 가져오기" },
     ],
   },
 ] as const;
