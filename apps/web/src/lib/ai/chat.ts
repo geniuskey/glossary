@@ -34,17 +34,20 @@ export async function answerGlossaryQuestion(
   previousEdit: ChatEditProposal | null = null,
   domain?: string,
   telemetry?: AiRunContext,
+  onProgress?: (message: string) => void,
 ): Promise<GlossaryChatResult> {
   const row = await loadAiConfig();
   if (!row.enabled) throw new Error("AI_NOT_ENABLED");
   const config = runtimeAiConfig(row);
 
+  onProgress?.("요청 유형과 대화 맥락을 파악하는 중…");
   const classified = await classifyChatIntent(config, question, history, previousEdit, teachingDraft, telemetry);
   if (!classified.success) return { answer: "요청을 해석하지 못했습니다. 질문 또는 수정할 용어와 내용을 다시 알려주세요.", sources: [] };
   const intent = classified.data.intent === "ask" && looksLikeMeetingRequest(question) ? "meeting" : classified.data.intent;
   if (intent === "unsupported") return { answer: "현재 챗에서는 용어 생성과 정의·표기·분류 수정을 지원합니다. 관계 제안은 [정리 대기의 AI 검토](/contribute?tab=agent)에서 확인할 수 있습니다. 관계 변경·삭제·병합 실행은 현재 챗에서 지원하지 않습니다.", sources: [] };
 
   if (intent === "meeting") {
+    onProgress?.("회의 내용에서 결정사항과 실행 항목을 분석하는 중…");
     const result = await analyzeMeeting(config, question, history, domain, telemetry);
     return {
       answer: result.answer,
@@ -54,12 +57,15 @@ export async function answerGlossaryQuestion(
   }
 
   if (intent === "edit") {
+    onProgress?.("수정할 용어와 현재 내용을 찾는 중…");
     const grounding = await retrieveGlossaryContext(classified.data.query, 12, { domain, passageQuery: question, vectorSearch: true, includeMeetingDocuments: false, includeWikiDocuments: true, telemetry });
+    onProgress?.("요청한 변경 내용을 반영해 수정안을 작성하는 중…");
     const result = await proposeChatEdit(config, question, history, grounding, previousEdit, telemetry);
     return { ...result, sources: grounding.sources };
   }
 
   if (teachingDraft && intent === "create") {
+    onProgress?.("용어 등록에 필요한 정보를 정리하는 중…");
     const teaching = await collectTermTeaching(config, question, history, teachingDraft, telemetry);
     return {
       answer: teaching.answer,
@@ -69,6 +75,7 @@ export async function answerGlossaryQuestion(
   }
 
   if (intent === "create" && looksLikeGlossaryPaste(question)) {
+    onProgress?.("붙여넣은 용어 목록에서 항목을 추출하는 중…");
     const pasted = await extractPastedGlossary(config, question, telemetry);
     return {
       answer: pasted.answer,
@@ -78,12 +85,14 @@ export async function answerGlossaryQuestion(
   }
 
   if (intent === "create") {
+    onProgress?.("용어 등록에 필요한 정보를 정리하는 중…");
     const teaching = await collectTermTeaching(config, question, history, null, telemetry);
     return { answer: teaching.answer, sources: [], ...(teaching.draft ? { teaching: { draft: teaching.draft, ready: teaching.ready } } : {}) };
   }
 
   const retrievalQuestion = classified.data.query;
   const queries = [retrievalQuestion];
+  onProgress?.("관련 용어와 참고 자료를 찾는 중…");
   let grounding = await retrieveGlossaryContext(retrievalQuestion, 12, { domain, passageQuery: question, vectorSearch: true, includeWikiDocuments: true, telemetry });
   if (!grounding.sources.length && retrievalQuestion !== question) {
     grounding = await retrieveGlossaryContext(question, 12, { domain, passageQuery: question, vectorSearch: true, includeWikiDocuments: true, telemetry });
@@ -98,5 +107,6 @@ export async function answerGlossaryQuestion(
     };
   }
 
+  onProgress?.("찾은 근거를 확인하고 답변을 정리하는 중…");
   return answerWithEvidence(config, question, history, grounding, queries, { domain, vectorSearch: true, telemetry }, telemetry);
 }

@@ -23,6 +23,18 @@ import type { ChatConversationSummary, ChatHistoryResponse, StoredChatMessage } 
 interface Source { slug: string; title: string; definition: string | null; status: "draft" | "active" }
 interface Teaching { draft: TermTeachingDraft; ready: boolean }
 type Message = StoredChatMessage;
+interface ChatPostBody {
+  sessionId?: string;
+  answer?: string;
+  messages?: Message[];
+  grounded?: GroundedChatAnswer;
+  meeting?: MeetingAnalysis;
+  edit?: ChatEditProposal;
+  sources?: Source[];
+  teaching?: Teaching;
+  teachingBatch?: TermTeachingBatch;
+  error?: { message?: string; details?: { sessionId?: string } };
+}
 
 const EXAMPLES = ["IT와 SW는 무엇을 뜻해?", "회의록을 붙여넣고 결정사항과 액션 아이템을 정리해줘", "T/O라는 새 용어를 등록하고 싶어", "AE의 정의를 수정하고 싶어", "AE에 자동노출이라는 별칭을 추가해줘"];
 
@@ -42,6 +54,7 @@ export function ChatPanel({ enabled, initialSessionId, initialQuestion }: { enab
   const [domains, setDomains] = useState<string[]>([]);
   const [searchDomain, setSearchDomain] = useState("");
   const [sending, setSending] = useState(false);
+  const [processingText, setProcessingText] = useState("요청 유형과 대화 맥락을 파악하는 중…");
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [historyRetry, setHistoryRetry] = useState(0);
@@ -167,42 +180,80 @@ export function ChatPanel({ enabled, initialSessionId, initialQuestion }: { enab
     if (!text || busy || historyLoading || historyError || !enabled) return;
     const submittedSessionId = routeSessionId;
     const history = messages.slice(-8).map(({ role, content }) => ({ role, content: content.slice(-4_000) }));
+    const teachingDraft = activeTeachingDraft();
     const userId = nextId++;
     setMessages((current) => [...current, { id: userId, role: "user", content: text, searchDomain: searchDomain || null }]);
     setQuestion("");
+    setProcessingText("요청 유형과 대화 맥락을 파악하는 중…");
     setSending(true);
     try {
       const response = await fetch("/api/v1/chat", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question: text, history, domain: searchDomain || null, teachingDraft: activeTeachingDraft(), ...(currentSessionId ? { sessionId: currentSessionId } : {}) }),
+        headers: { "content-type": "application/json", accept: "text/event-stream" },
+        body: JSON.stringify({ question: text, history, domain: searchDomain || null, teachingDraft, ...(currentSessionId ? { sessionId: currentSessionId } : {}) }),
       });
-      const body = await response.json().catch(() => null) as { sessionId?: string; answer?: string; messages?: Message[]; grounded?: GroundedChatAnswer; meeting?: MeetingAnalysis; edit?: ChatEditProposal; sources?: Source[]; teaching?: Teaching; teachingBatch?: TermTeachingBatch; error?: { message?: string; details?: { sessionId?: string } } } | null;
+      let body: ChatPostBody | null = null;
+      let responseOk = response.ok;
+      let responseStatus = response.status;
+      if (response.headers.get("content-type")?.includes("text/event-stream")) {
+        if (!response.body) throw new Error("진행 정보를 받지 못했습니다.");
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let completed = false;
+        const readEvent = (frame: string) => {
+          const data = frame.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart()).join("\n");
+          if (!data) return;
+          const event = JSON.parse(data) as { type?: string; message?: string; ok?: boolean; status?: number; body?: ChatPostBody | null };
+          if (event.type === "progress" && event.message) setProcessingText(event.message);
+          if (event.type === "complete") {
+            completed = true;
+            responseOk = Boolean(event.ok);
+            responseStatus = event.status ?? response.status;
+            body = event.body ?? null;
+          }
+        };
+        while (true) {
+          const { value, done } = await reader.read();
+          buffer += decoder.decode(value, { stream: !done });
+          let boundary = buffer.indexOf("\n\n");
+          while (boundary >= 0) {
+            readEvent(buffer.slice(0, boundary));
+            buffer = buffer.slice(boundary + 2);
+            boundary = buffer.indexOf("\n\n");
+          }
+          if (done) break;
+        }
+        if (buffer.trim()) readEvent(buffer);
+        if (!completed) throw new Error("답변 처리 상태를 받지 못했습니다.");
+      } else {
+        body = await response.json().catch(() => null) as ChatPostBody | null;
+      }
       if (routeSessionRef.current !== submittedSessionId) return;
       const returnedSessionId = body?.sessionId || body?.error?.details?.sessionId;
       if (!currentSessionId && returnedSessionId) {
         const now = new Date().toISOString();
         setCurrentSessionId(returnedSessionId);
         window.history.replaceState(null, "", `/c/${encodeURIComponent(returnedSessionId)}`);
-        setSessions((current) => [{ id: returnedSessionId, title: text.replace(/\s+/g, " ").slice(0, 80), createdAt: now, updatedAt: now, messageCount: response.ok ? 2 : 1 }, ...current]);
+        setSessions((current) => [{ id: returnedSessionId, title: text.replace(/\s+/g, " ").slice(0, 80), createdAt: now, updatedAt: now, messageCount: responseOk ? 2 : 1 }, ...current]);
       } else if (currentSessionId) {
         const now = new Date().toISOString();
         setSessions((current) => current.map((session) => session.id === currentSessionId
-          ? { ...session, updatedAt: now, messageCount: session.messageCount + (response.ok ? 2 : 1) }
+          ? { ...session, updatedAt: now, messageCount: session.messageCount + (responseOk ? 2 : 1) }
           : session).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
       }
-      setMessages((current) => response.ok && body?.messages ? body.messages : [
+      setMessages((current) => responseOk && body?.messages ? body.messages : [
         ...current.map((message) => message.teaching || message.teachingBatch ? { ...message, teaching: undefined, teachingBatch: undefined } : message),
         {
           id: userId + 1,
           role: "assistant",
-          content: response.ok && body?.answer ? body.answer : body?.error?.message || `답변을 받지 못했습니다 (${response.status}).`,
+          content: responseOk && body?.answer ? body.answer : body?.error?.message || `답변을 받지 못했습니다 (${responseStatus}).`,
           sources: body?.sources,
           teaching: body?.teaching,
           teachingBatch: body?.teachingBatch,
           edit: body?.edit,
           grounded: body?.grounded,
-          failed: !response.ok,
+          failed: !responseOk,
         },
       ]);
       setDraftError(null);
@@ -539,7 +590,7 @@ export function ChatPanel({ enabled, initialSessionId, initialQuestion }: { enab
                 </article>
               </li>
             ))}
-            {sending && <li className="flex justify-start"><p className="rounded-2xl rounded-bl-md border border-line bg-panel px-3.5 py-2.5 text-sm text-ink-3">요청을 해석하고 용어와 변경 내용을 확인하는 중…</p></li>}
+            {sending && <li className="flex justify-start"><p role="status" aria-live="polite" aria-atomic="true" className="flex items-center gap-2 rounded-2xl rounded-bl-md border border-line bg-panel px-3.5 py-2.5 text-sm text-ink-3"><span>{processingText}</span><span aria-hidden="true" className="size-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent motion-reduce:animate-none" /></p></li>}
           </ol>
         )}
         <div ref={endRef} aria-hidden="true" />

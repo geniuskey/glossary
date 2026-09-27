@@ -166,57 +166,95 @@ export const POST = withApiErrors(async (request: Request) => {
     previousMessages = appended;
   }
 
-  try {
-    const history = auth.kind === "user"
-      ? previousMessages.slice(0, -1).slice(-8).map(({ role, content }) => ({ role, content: content.slice(-4_000) }))
-      : parsed.data.history;
-    const previousEdit = [...previousMessages].reverse().find((message) => message.edit?.status === "pending")?.edit ?? null;
-    const result = await answerGlossaryQuestion(
-      parsed.data.question,
-      history,
-      parsed.data.teachingDraft ?? null,
-      previousEdit,
-      parsed.data.domain ?? undefined,
-      {
-        traceId: randomUUID(),
-        conversationId,
-        ...(auth.kind === "user" ? { actorId: auth.user.id } : { metadata: { apiKeyId: auth.keyId } }),
-      },
-    );
-    if (auth.kind === "user" && conversationId) {
-      const assistantMessage: StoredChatMessage = {
-        id: nextMessageId(previousMessages),
-        role: "assistant",
-        content: result.answer,
-        sources: result.sources,
-        teaching: result.teaching,
-        teachingBatch: result.teachingBatch,
-        edit: result.edit,
-        grounded: result.grounded,
-        meeting: result.meeting,
-        searchDomain: parsed.data.domain ?? null,
+  const respond = async (onProgress?: (message: string) => void) => {
+    try {
+      const history = auth.kind === "user"
+        ? previousMessages.slice(0, -1).slice(-8).map(({ role, content }) => ({ role, content: content.slice(-4_000) }))
+        : parsed.data.history;
+      const previousEdit = [...previousMessages].reverse().find((message) => message.edit?.status === "pending")?.edit ?? null;
+      const result = await answerGlossaryQuestion(
+        parsed.data.question,
+        history,
+        parsed.data.teachingDraft ?? null,
+        previousEdit,
+        parsed.data.domain ?? undefined,
+        {
+          traceId: randomUUID(),
+          conversationId,
+          ...(auth.kind === "user" ? { actorId: auth.user.id } : { metadata: { apiKeyId: auth.keyId } }),
+        },
+        onProgress,
+      );
+      if (auth.kind === "user" && conversationId) {
+        const assistantMessage: StoredChatMessage = {
+          id: nextMessageId(previousMessages),
+          role: "assistant",
+          content: result.answer,
+          sources: result.sources,
+          teaching: result.teaching,
+          teachingBatch: result.teachingBatch,
+          edit: result.edit,
+          grounded: result.grounded,
+          meeting: result.meeting,
+          searchDomain: parsed.data.domain ?? null,
+        };
+        const appended = await appendChatMessage(conversationId, auth.user.id, assistantMessage);
+        if (!appended) return apiError("not_found", "대화가 삭제되어 응답을 저장하지 않았습니다.", 404);
+        return Response.json({ ...result, sessionId: conversationId, messages: appended });
+      }
+      return Response.json({ ...result, ...(conversationId ? { sessionId: conversationId } : {}) });
+    } catch (error) {
+      if (error instanceof Error && error.message === "AI_NOT_ENABLED") {
+        return apiError("ai_not_enabled", "관리자가 용어 챗봇 연결을 활성화하지 않았습니다.", 503, conversationId ? { sessionId: conversationId } : undefined);
+      }
+      if (error instanceof AiProviderError) {
+        const message = error.status === 404
+          ? "설정된 AI 모델을 사용할 수 없습니다. 관리자에게 다른 모델을 선택해 달라고 요청하세요."
+          : error.status === 401 || error.status === 403
+            ? "AI API 인증에 실패했습니다. 관리자에게 API Key와 접근 권한을 확인해 달라고 요청하세요."
+            : error.status === 429
+              ? "AI API의 요청 한도 또는 할당량을 초과했습니다. 잠시 후 다시 시도하거나 관리자에게 확인해 주세요."
+              : "AI 응답을 받지 못했습니다. 관리자에게 연결 상태를 확인해 달라고 요청하세요.";
+        return apiError("ai_provider_error", message, 502, conversationId ? { sessionId: conversationId } : undefined);
+      }
+      throw error;
+    }
+  };
+
+  if (!request.headers.get("accept")?.includes("text/event-stream")) return respond();
+
+  const encoder = new TextEncoder();
+  let streamClosed = false;
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const send = (event: unknown) => {
+        if (streamClosed) return;
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        } catch {
+          streamClosed = true;
+        }
       };
-      const appended = await appendChatMessage(conversationId, auth.user.id, assistantMessage);
-      if (!appended) return apiError("not_found", "대화가 삭제되어 응답을 저장하지 않았습니다.", 404);
-      return Response.json({ ...result, sessionId: conversationId, messages: appended });
-    }
-    return Response.json({ ...result, ...(conversationId ? { sessionId: conversationId } : {}) });
-  } catch (error) {
-    if (error instanceof Error && error.message === "AI_NOT_ENABLED") {
-      return apiError("ai_not_enabled", "관리자가 용어 챗봇 연결을 활성화하지 않았습니다.", 503, conversationId ? { sessionId: conversationId } : undefined);
-    }
-    if (error instanceof AiProviderError) {
-      const message = error.status === 404
-        ? "설정된 AI 모델을 사용할 수 없습니다. 관리자에게 다른 모델을 선택해 달라고 요청하세요."
-        : error.status === 401 || error.status === 403
-          ? "AI API 인증에 실패했습니다. 관리자에게 API Key와 접근 권한을 확인해 달라고 요청하세요."
-          : error.status === 429
-            ? "AI API의 요청 한도 또는 할당량을 초과했습니다. 잠시 후 다시 시도하거나 관리자에게 확인해 주세요."
-            : "AI 응답을 받지 못했습니다. 관리자에게 연결 상태를 확인해 달라고 요청하세요.";
-      return apiError("ai_provider_error", message, 502, conversationId ? { sessionId: conversationId } : undefined);
-    }
-    throw error;
-  }
+      void (async () => {
+        try {
+          const response = await respond((message) => send({ type: "progress", message }));
+          const body = await response.json().catch(() => null);
+          send({ type: "complete", ok: response.ok, status: response.status, body });
+        } catch {
+          send({ type: "complete", ok: false, status: 500, body: { error: { code: "internal_error", message: "서버 오류가 발생했습니다." } } });
+        } finally {
+          if (!streamClosed) {
+            streamClosed = true;
+            controller.close();
+          }
+        }
+      })();
+    },
+    cancel() {
+      streamClosed = true;
+    },
+  });
+  return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache, no-transform", "x-accel-buffering": "no" } });
 });
 
 export const PATCH = withApiErrors(async (request: Request) => {
