@@ -101,8 +101,8 @@ export async function listRelations(filters: { termId?: string; status?: Relatio
       relation: termRelations,
       version: relationVersion,
       reviewerName: users.name,
-      source: { id: source.id, slug: source.slug, name: sql<string>`coalesce(${source.nameKo}, ${source.nameEn}, ${source.slug})`, definition: source.definitionMd, domain: source.domain, revision: sourceRevision },
-      target: { id: target.id, slug: target.slug, name: sql<string>`coalesce(${target.nameKo}, ${target.nameEn}, ${target.slug})`, definition: target.definitionMd, domain: target.domain, revision: targetRevision },
+      source: { id: source.id, slug: source.slug, name: sql<string>`coalesce(${source.nameEn}, ${source.nameKo}, ${source.slug})`, definition: source.definitionMd, domain: source.domain, revision: sourceRevision },
+      target: { id: target.id, slug: target.slug, name: sql<string>`coalesce(${target.nameEn}, ${target.nameKo}, ${target.slug})`, definition: target.definitionMd, domain: target.domain, revision: targetRevision },
     }).from(termRelations).innerJoin(source, eq(source.id, termRelations.sourceTermId)).innerJoin(target, eq(target.id, termRelations.targetTermId))
       .leftJoin(users, eq(users.id, termRelations.reviewedBy)).where(where).orderBy(desc(termRelations.createdAt), termRelations.id).limit(20).offset((page - 1) * 20),
     getDb().select({ total: sql<number>`count(*)::int` }).from(termRelations).where(where),
