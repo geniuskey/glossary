@@ -25,56 +25,46 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
 
   return (
     <AppShell user={user} title={page.title} current="wiki" roomy>
-      <nav className="mb-5 text-xs text-ink-3">
-        <Link href="/w" className="link">위키</Link>
-        <span className="mx-1.5">/</span>
-        <span className="font-mono">{page.slug}</span>
-      </nav>
-
       <article className="animate-fade-up">
         <header className="border-b border-line pb-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">Wiki knowledge</p>
-              <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-ink">{page.title}</h1>
-              <p className="mt-2 text-xs text-ink-3">/w/{page.slug} · 리비전 {page.revision} · 최근 수정 {relativeTime(page.updatedAt)}</p>
-            </div>
+            <h1 className="min-w-0 break-words text-3xl font-semibold tracking-tight text-ink">{page.title}</h1>
             <div className="flex shrink-0 gap-2">
               <Link href={`/w/${page.slug}/edit`} className="btn-primary btn-sm">편집</Link>
               <Link href="/w/new" className="btn-ghost btn-sm">새 문서</Link>
             </div>
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-3">
             <span className={`rounded-full px-2.5 py-1 font-medium ${page.status === "published" ? "bg-ok-soft text-ok" : page.status === "archived" ? "bg-panel-2 text-ink-3" : "bg-warn-soft text-warn"}`}>
               {STATUS_LABEL[page.status]}
             </span>
             {page.domain.map((domain) => <span key={domain} className="rounded-full bg-brand-soft px-2.5 py-1 text-brand">{domain}</span>)}
+            <span>리비전 {page.revision} · 최근 수정 {relativeTime(page.updatedAt)}</span>
+            {page.sourceUrl && <a href={page.sourceUrl} target="_blank" rel="noreferrer" className="link">원문 열기</a>}
           </div>
-          {page.sourceUrl && <p className="mt-4 text-xs text-ink-3">원문 출처: <a href={page.sourceUrl} target="_blank" rel="noreferrer" className="link break-all">Confluence 원문 열기</a></p>}
         </header>
 
-        {page.terms.length > 0 && <section className="mt-5" aria-labelledby="wiki-terms-heading">
+        {page.summary && <section className="card mt-6 p-4 sm:p-6" aria-labelledby="wiki-summary-heading">
+          <h2 id="wiki-summary-heading" className="label mb-1.5">요약</h2>
+          <p className="text-sm leading-6 text-ink">{page.summary}</p>
+        </section>}
+
+        <section className="mt-4" aria-labelledby="wiki-content-heading">
+          <h2 id="wiki-content-heading" className="sr-only">본문</h2>
+          <div className="card p-4 sm:p-6"><MarkdownContent>{page.content}</MarkdownContent></div>
+        </section>
+
+        {page.terms.length > 0 && <section className="mt-6" aria-labelledby="wiki-terms-heading">
           <h2 id="wiki-terms-heading" className="label mb-2">연결된 용어</h2>
-          <div className="flex flex-wrap gap-2">
-            {page.terms.map((term) => <Link key={term.id} href={`/g/${term.slug}`} className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-2 hover:border-brand/45 hover:text-brand">
+          <div className="flex flex-wrap gap-1.5">
+            {page.terms.map((term) => <Link key={term.id} href={`/g/${term.slug}`} className="chip hover:border-brand/45 hover:text-brand">
               {term.title}
             </Link>)}
           </div>
         </section>}
 
-        {page.summary && <section className="mt-6 rounded-xl border border-brand/20 bg-brand-soft/35 p-4" aria-labelledby="wiki-summary-heading">
-          <h2 id="wiki-summary-heading" className="label mb-1">요약</h2>
-          <p className="text-sm leading-6 text-ink-2">{page.summary}</p>
-        </section>}
-
-        <section className="mt-6" aria-labelledby="wiki-content-heading">
-          <h2 id="wiki-content-heading" className="sr-only">본문</h2>
-          <div className="card p-4 sm:p-6"><MarkdownContent>{page.content}</MarkdownContent></div>
-        </section>
-
-        <footer className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4 text-xs text-ink-3">
-          <span>위키 문서는 검토·승인된 조직 맥락으로 AI 검색에 사용됩니다. 현재 리비전 {page.revision}</span>
-          <Link href={`/w/${page.slug}/edit`} className="link">문서 편집</Link>
+        <footer className="mt-6 border-t border-line pt-4 text-xs text-ink-3">
+          위키 문서는 검토·승인된 조직 맥락으로 AI 검색에 사용됩니다.
         </footer>
       </article>
     </AppShell>
