@@ -73,7 +73,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ [
             <h1 className="mt-2 text-3xl font-bold tracking-[-0.03em] text-ink sm:text-4xl">
               <span className="text-brand">“{q}”</span>를 찾아봤어요
             </h1>
-            <p className="mt-3 text-sm text-ink-2">약어와 별칭, 비슷한 표기까지 함께 확인합니다.</p>
+            <p className="mt-3 text-sm text-ink-2">약어와 별칭, 부분 표기와 오타를 찾고, 설정된 경우 의미가 가까운 용어도 보여줍니다.</p>
             <div className="mt-6">
               <SearchBox key={q} defaultValue={q} />
             </div>
@@ -228,7 +228,7 @@ function Results({ q, hits }: { q: string; hits: SearchHit[] }) {
     <section className="card mt-8 p-3 pb-5 sm:p-5">
       <p className="mb-2 px-3 text-xs text-ink-3">결과 <span className="font-medium text-ink-2">{hits.length}</span>개{hits.length === RESULT_LIMIT && " 이상"}<span className="mx-1.5">·</span><Link href={`/sheet?q=${encodeURIComponent(q)}`} className="link">시트에서 보기</Link></p>
       <p className="mb-3 px-3 text-xs leading-6 text-ink-2">금지·비권장 표기로 찾았다면 용어 상세에서 대표 표기와 사용 지침을 확인하세요.</p>
-      <ol>{hits.map((hit) => <li key={hit.id}><Link href={termHref(hit)} className="flex gap-3 rounded-lg px-3 py-3 transition hover:bg-panel-2"><span aria-hidden className="mt-1 h-8 w-1 shrink-0 rounded-full bg-brand/60" /><span className="min-w-0 flex-1"><span className="flex flex-wrap items-baseline gap-x-2 gap-y-1"><span className="text-[15px] font-medium text-ink">{displayName(hit)}</span>{hit.nameEn && hit.nameKo && <span className="text-sm text-ink-2">{hit.nameKo}</span>}{hit.matchedKind !== "canonical" && <span className="chip chip-on px-2 py-0.5 text-[11px]">{hit.matchedText}<span className="opacity-70">{SURFACE_KIND_LABEL[hit.matchedKind]}</span></span>}{!hit.exact && <span className="text-[11px] text-ink-3">비슷한 표기</span>}</span>{hit.definitionMd && <span className="mt-0.5 line-clamp-2 block text-sm text-ink-2">{hit.definitionMd}</span>}<span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-3"><DomainBadges domain={hit.domain} />{hit.status !== "active" && <StatusBadge status={hit.status} />}</span></span></Link></li>)}</ol>
+      <ol>{hits.map((hit) => <li key={hit.id}><Link href={termHref(hit)} className="flex gap-3 rounded-lg px-3 py-3 transition hover:bg-panel-2"><span aria-hidden className="mt-1 h-8 w-1 shrink-0 rounded-full bg-brand/60" /><span className="min-w-0 flex-1"><span className="flex flex-wrap items-baseline gap-x-2 gap-y-1"><span className="text-[15px] font-medium text-ink">{displayName(hit)}</span>{hit.nameEn && hit.nameKo && <span className="text-sm text-ink-2">{hit.nameKo}</span>}{hit.matchedKind !== "canonical" && <span className="chip chip-on px-2 py-0.5 text-[11px]">{hit.matchedText}<span className="opacity-70">{SURFACE_KIND_LABEL[hit.matchedKind]}</span></span>}{(hit.semantic || hit.prefix || !hit.exact) && <span className="text-[11px] text-ink-3">{hit.semantic ? "의미 검색" : hit.prefix ? "앞부분 일치" : "비슷한 표기"}</span>}</span>{hit.definitionMd && <span className="mt-0.5 line-clamp-2 block text-sm text-ink-2">{hit.definitionMd}</span>}<span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-3"><DomainBadges domain={hit.domain} />{hit.status !== "active" && <StatusBadge status={hit.status} />}</span></span></Link></li>)}</ol>
     </section>
   );
 }

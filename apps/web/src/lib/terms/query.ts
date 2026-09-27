@@ -124,6 +124,12 @@ const detailColumns = {
   updatedAt: terms.updatedAt,
 };
 
+/** Fetch the public summary fields for terms discovered by another retrieval method. */
+export async function getTermSummariesByIds(ids: readonly string[]): Promise<TermSummary[]> {
+  if (ids.length === 0) return [];
+  return getDb().select(summaryColumns).from(terms).where(inArray(terms.id, [...ids]));
+}
+
 function decodeTermIdentifier(value: string): string {
   // Next의 페이지 동적 세그먼트는 한글 URL을 percent-encoded 문자열로
   // 전달하는 경우가 있다. API 라우트처럼 이미 decode된 값도 들어오므로

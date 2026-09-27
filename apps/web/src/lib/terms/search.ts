@@ -1,8 +1,9 @@
 import { sql } from "drizzle-orm";
 import { businessCategories, surfaceKeys, terms, termSurfaces } from "@glossary/db";
 import { getDb } from "@/lib/db";
+import { RagNotReadyError, searchRag, type RagSearchHit } from "@/lib/rag/search";
 import { SUGGEST_LIMIT, type Suggestion } from "./search-ui";
-import type { SurfaceKind, TermSummary } from "./query";
+import { getTermSummariesByIds, type SurfaceKind, type TermSummary } from "./query";
 
 export interface SearchHit extends TermSummary {
   definitionMd: string | null;
@@ -14,8 +15,12 @@ export interface SearchHit extends TermSummary {
    */
   matchedText: string;
   matchedKind: SurfaceKind;
-  /** 정규화 키가 정확히 같았는가. 유사도(오타 교정) 매치와 구분해 위로 올린다. */
+  /** 정규화 키가 정확히 같았는가. 부분·유사도·의미 검색 매치와 구분한다. */
   exact: boolean;
+  /** 입력한 표기가 후보 표기의 앞부분인가. */
+  prefix: boolean;
+  /** 의미 벡터 검색에서만 찾은 결과인가. */
+  semantic?: boolean;
 }
 
 // drizzle의 execute<T>는 T가 Record<string, unknown>을 만족해야 한다. interface는
@@ -42,6 +47,7 @@ export async function searchTerms(query: string, limit = 20): Promise<SearchHit[
   // 정규화 결과가 빈 문자열인 입력("---" 같은 것)은 매치의 대상이 될 수 없다.
   // 걸러내지 않으면 similarity('', ...)가 모든 행을 훑는다.
   if (!normLoose) return [];
+  const prefixPattern = `${escapeLike(normLoose)}%`;
 
   const rows = await getDb().execute<SearchRow>(sql`
     WITH scored AS (
@@ -49,16 +55,18 @@ export async function searchTerms(query: string, limit = 20): Promise<SearchHit[
              ts.text AS text,
              ts.kind AS kind,
              (ts.norm_loose = ${normLoose} OR ts.norm_space = ${normSpace}) AS exact,
+             (ts.norm_loose LIKE ${prefixPattern}) AS prefix,
              similarity(ts.norm_loose, ${normLoose}) AS score
       FROM ${termSurfaces} ts
       WHERE ts.norm_loose = ${normLoose}
          OR ts.norm_space = ${normSpace}
+         OR ts.norm_loose LIKE ${prefixPattern}
          OR ts.norm_loose % ${normLoose}
     ),
     best AS (
-      SELECT DISTINCT ON (term_id) term_id, text, kind, exact, score
+      SELECT DISTINCT ON (term_id) term_id, text, kind, exact, prefix, score
       FROM scored
-      ORDER BY term_id, exact DESC, score DESC, text ASC
+      ORDER BY term_id, exact DESC, prefix DESC, score DESC, text ASC
     )
     SELECT t.id AS "id", t.slug AS "slug",
            t.name_en AS "nameEn", t.name_ko AS "nameKo", t.domain AS "domain",
@@ -75,14 +83,72 @@ export async function searchTerms(query: string, limit = 20): Promise<SearchHit[
             END FROM users owner_user WHERE owner_user.id = t.owner_id) AS "ownerName",
            t.status AS "status", t.definition_md AS "definitionMd",
            b.text AS "matchedText", b.kind AS "matchedKind", b.exact AS "exact",
-           b.score AS "score"
+           b.prefix AS "prefix", b.score AS "score"
     FROM best b
     JOIN ${terms} t ON t.id = b.term_id
-    ORDER BY b.exact DESC, b.score DESC, t.name_en ASC NULLS LAST, t.id
+    ORDER BY b.exact DESC, b.prefix DESC, b.score DESC, t.name_en ASC NULLS LAST, t.id
     LIMIT ${limit}
   `);
 
-  return [...rows].map(({ score: _score, ...hit }) => hit);
+  const lexicalHits = [...rows].map(({ score: _score, ...hit }) => hit);
+  // Preserve exact and prefix matches at the top. Semantic matches then broaden
+  // the results before typo-only trigram matches, with each term shown once.
+  const direct = lexicalHits.filter((hit) => hit.exact || hit.prefix);
+  const fuzzy = lexicalHits.filter((hit) => !hit.exact && !hit.prefix);
+  const semanticHits = await semanticTermHits(query, lexicalHits, Math.max(0, limit - direct.length));
+  return [...direct, ...semanticHits, ...fuzzy].slice(0, limit);
+}
+
+/**
+ * Reuse the configured RAG index for semantic search. It is opt-in in the admin
+ * settings; when it is disabled, unindexed, slow, or unavailable, lexical search
+ * remains the complete fallback.
+ */
+async function semanticTermHits(query: string, lexicalHits: SearchHit[], limit: number): Promise<SearchHit[]> {
+  if (limit <= 0) return [];
+
+  const lexicalIds = new Set(lexicalHits.map((hit) => hit.id));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const results = await Promise.race([
+      searchRag(query, { topK: Math.min(50, Math.max(10, limit * 2)), rerank: false }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Semantic search timed out")), 5_000);
+      }),
+    ]);
+    const uniqueResults = new Map<string, RagSearchHit>();
+    for (const result of results) {
+      if (!lexicalIds.has(result.termId) && !uniqueResults.has(result.termId)) {
+        uniqueResults.set(result.termId, result);
+      }
+    }
+    if (uniqueResults.size === 0) return [];
+
+    const summaries = await getTermSummariesByIds([...uniqueResults.keys()]);
+    const summaryById = new Map(summaries.map((summary) => [summary.id, summary]));
+    const hits: SearchHit[] = [];
+    for (const result of uniqueResults.values()) {
+      const summary = summaryById.get(result.termId);
+      if (!summary) continue;
+      hits.push({
+        ...summary,
+        definitionMd: null,
+        matchedText: summary.nameEn ?? summary.nameKo ?? result.title,
+        matchedKind: "canonical",
+        exact: false,
+        prefix: false,
+        semantic: true,
+      });
+    }
+    return hits;
+  } catch (error) {
+    if (!(error instanceof RagNotReadyError)) {
+      console.warn("Semantic glossary search failed; returning lexical results.");
+    }
+    return [];
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 // LIKE 패턴에서 `%`와 `_`는 와일드카드다. normalizeSurface는 `_`를 구분자로
