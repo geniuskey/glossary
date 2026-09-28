@@ -68,7 +68,7 @@ test("용어 등록부터 별칭 검색, 문서 점검과 이력 되돌리기까
 
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "최근 다듬은 용어" })).toBeVisible();
-  await expect(page.getByRole("link", { name: new RegExp(`${nameEn}.*뜻 살펴보기`) })).toBeVisible();
+  await expect(page.getByRole("link", { name: new RegExp(`${nameEn}.*뜻 보기`) })).toBeVisible();
   await page.screenshot({ path: "test-results/design-home-desktop.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

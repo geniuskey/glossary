@@ -210,7 +210,7 @@ Docker Hub에는 웹 앱, 마이그레이터, RAG 워커를 같은 저장소의 
 
 ```bash
 IMAGE=euiyun/glossary
-VERSION=0.3.1
+VERSION=0.3.2
 
 docker build --build-arg APP_VERSION="$VERSION" --target app -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
 docker build --build-arg APP_VERSION="$VERSION" --target migrator -t "$IMAGE:$VERSION-migrator" -t "$IMAGE:latest-migrator" .
@@ -228,9 +228,9 @@ docker push "$IMAGE:latest-worker"
 `latest`보다 앱·마이그레이터·RAG 워커를 모두 같은 버전으로 고정하는 편이 안전하다.
 
 ```bash
-docker pull euiyun/glossary:0.3.1
-docker pull euiyun/glossary:0.3.1-migrator
-docker pull euiyun/glossary:0.3.1-worker
+docker pull euiyun/glossary:0.3.2
+docker pull euiyun/glossary:0.3.2-migrator
+docker pull euiyun/glossary:0.3.2-worker
 ```
 
 ```bash
