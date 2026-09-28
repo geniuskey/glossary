@@ -36,7 +36,13 @@ interface ChatPostBody {
   error?: { message?: string; details?: { sessionId?: string } };
 }
 
-const EXAMPLES = ["IT와 SW는 무엇을 뜻해?", "회의록을 붙여넣고 결정사항과 액션 아이템을 정리해줘", "T/O라는 새 용어를 등록하고 싶어", "AE의 정의를 수정하고 싶어", "AE에 자동노출이라는 별칭을 추가해줘"];
+const EXAMPLES = [
+  "[용어]의 뜻과 관련 용어를 찾아줘",
+  "[용어 A]와 [용어 B]의 차이를 설명해줘",
+  "새 용어 [이름]을 등록하고 싶어",
+  "[용어]의 정의를 다음 내용으로 수정하고 싶어: …",
+  "회의 메모에서 결정 사항과 후속 할 일을 정리해줘",
+];
 
 function isLargePastedMessage(content: string): boolean {
   return content.length > 500 || content.split(/\r?\n/).length > 5;
@@ -496,8 +502,8 @@ export function ChatPanel({ enabled, initialSessionId, initialQuestion }: { enab
         ) : messages.length === 0 ? (
           <div className="grid min-h-64 place-items-center text-center">
             <div className="max-w-lg">
-              <p className="text-sm font-medium text-ink">도메인 지식을 찾고, 용어를 함께 정리하세요.</p>
-              <p className="mt-2 text-xs text-ink-3">용어 질문 · 새 용어 등록 · 정의와 별칭 수정 · 도메인과 업무 분류 정리</p>
+              <p className="text-sm font-medium text-ink">용어의 뜻을 찾고, 필요한 내용까지 정리해요.</p>
+              <p className="mt-2 text-xs text-ink-3">용어집·공개 위키를 근거로 답하고, 새 용어 등록과 정의·표기 수정안을 도와드려요.</p>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 {EXAMPLES.map((example) => <button key={example} type="button" className="chip hover:border-brand/40 hover:text-brand" onClick={() => setQuestion(example)}>{example}</button>)}
               </div>
