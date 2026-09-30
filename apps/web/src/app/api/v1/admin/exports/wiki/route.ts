@@ -1,0 +1,24 @@
+import { methodStubs, withApiErrors } from "@/lib/api-error";
+import { isResponse, requireAdminUser } from "@/lib/auth/require";
+import { buildWikiSnapshot } from "@/lib/admin/wiki-snapshot";
+
+const ALLOWED_METHODS = ["GET"];
+const { POST, PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
+export { POST, PUT, PATCH, DELETE, OPTIONS };
+
+export const GET = withApiErrors(async (request: Request = new Request("http://internal")) => {
+  const admin = await requireAdminUser(request);
+  if (isResponse(admin)) return admin;
+
+  const snapshot = await buildWikiSnapshot();
+  const date = snapshot.exportedAt.slice(0, 10);
+  return new Response(JSON.stringify(snapshot, null, 2), {
+    status: 200,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "content-disposition": `attachment; filename="wiki-snapshot-${date}.json"`,
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+    },
+  });
+});

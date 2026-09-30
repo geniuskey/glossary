@@ -82,6 +82,7 @@ export const ssoConfig = pgTable(
     protocol: ssoProtocolEnum("protocol").notNull().default("oidc"),
     mode: ssoModeEnum("mode"),
     passwordLoginEnabled: boolean("password_login_enabled"),
+    passwordSignupEnabled: boolean("password_signup_enabled").notNull().default(true),
 
     issuer: text("issuer").notNull().default(""),
     jwksUri: text("jwks_uri").notNull().default(""),
