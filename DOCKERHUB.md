@@ -1,13 +1,13 @@
 # Glossary on Docker Hub
 
-> **Release — `0.3.2`**
+> **Release — `0.3.3`**
 >
-> Use the matching `0.3.2`, `0.3.2-migrator`, and `0.3.2-worker` tags, and keep a tested
+> Use the matching `0.3.3`, `0.3.3-migrator`, and `0.3.3-worker` tags, and keep a tested
 > database backup before upgrading.
 >
-> **릴리스 — `0.3.2`**
+> **릴리스 — `0.3.3`**
 >
-> 앱은 `0.3.2`, 마이그레이터는 `0.3.2-migrator`, RAG 워커는 `0.3.2-worker`로
+> 앱은 `0.3.3`, 마이그레이터는 `0.3.3-migrator`, RAG 워커는 `0.3.3-worker`로
 > 고정하고 업그레이드 전 백업을 보관하세요.
 
 ## Short description
@@ -69,9 +69,9 @@ The web application, migrator, and durable RAG worker are published separately i
 
 | Tag | Purpose |
 |---|---|
-| `0.3.2` | Version-pinned web application (recommended) |
-| `0.3.2-migrator` | Matching database migrations (recommended) |
-| `0.3.2-worker` | Matching durable RAG and cleanup worker (recommended) |
+| `0.3.3` | Version-pinned web application (recommended) |
+| `0.3.3-migrator` | Matching database migrations (recommended) |
+| `0.3.3-worker` | Matching durable RAG and cleanup worker (recommended) |
 | `latest` | Most recently published web application |
 | `latest-migrator` | Migrations matching `latest` |
 | `latest-worker` | Worker matching `latest` |
@@ -81,14 +81,14 @@ For production, pin all three images to the same version instead of using `lates
 사내 서버에서 명시적으로 받으려면 세 태그를 함께 pull합니다.
 
 ```bash
-docker pull euiyun/glossary:0.3.2
-docker pull euiyun/glossary:0.3.2-migrator
-docker pull euiyun/glossary:0.3.2-worker
+docker pull euiyun/glossary:0.3.3
+docker pull euiyun/glossary:0.3.3-migrator
+docker pull euiyun/glossary:0.3.3-worker
 ```
 
 ## Quick start with Docker Compose
 
-Requires Docker Engine with the Compose plugin. The published `0.3.2` images are
+Requires Docker Engine with the Compose plugin. The published `0.3.3` images are
 `linux/amd64`; native ARM64 support is not advertised for this tag. Node.js and pnpm
 are not needed on the host. Commands below use Bash (Git Bash or WSL on Windows).
 
@@ -96,14 +96,14 @@ Download the pull-based Compose file and its environment template:
 
 ```bash
 mkdir glossary && cd glossary
-curl -LO https://raw.githubusercontent.com/geniuskey/glossary/v0.3.2/docker-compose.hub.yml
-curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.2/.env.dockerhub.example -o .env
+curl -LO https://raw.githubusercontent.com/geniuskey/glossary/v0.3.3/docker-compose.hub.yml
+curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.3/.env.dockerhub.example -o .env
 ```
 
-Edit `.env` before starting: use the `0.3.2` / `0.3.2-migrator` / `0.3.2-worker` set, replace
+Edit `.env` before starting: use the `0.3.3` / `0.3.3-migrator` / `0.3.3-worker` set, replace
 `POSTGRES_PASSWORD` with a long URL-safe value, and replace `GLOSSARY_ENCRYPTION_KEY`
 with a separate fixed random secret of at least 32 characters if using AI or RAG.
-The examples download templates from `v0.3.2` so they match the documented release.
+The examples download templates from `v0.3.3` so they match the documented release.
 For example, generate a password with `openssl rand -hex 32` and an encryption key with
 `openssl rand -base64 48`, then copy the respective outputs into `.env`.
 
@@ -139,9 +139,9 @@ docker compose --env-file .env -f docker-compose.hub.yml ps
 
 | Variable | Description |
 |---|---|
-| `GLOSSARY_IMAGE` | Web image, for example `euiyun/glossary:0.3.2` |
-| `GLOSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/glossary:0.3.2-migrator` |
-| `GLOSSARY_WORKER_IMAGE` | Matching durable RAG and cleanup worker, for example `euiyun/glossary:0.3.2-worker` |
+| `GLOSSARY_IMAGE` | Web image, for example `euiyun/glossary:0.3.3` |
+| `GLOSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/glossary:0.3.3-migrator` |
+| `GLOSSARY_WORKER_IMAGE` | Matching durable RAG and cleanup worker, for example `euiyun/glossary:0.3.3-worker` |
 | `GLOSSARY_PORT` | Host port; defaults to `3000` |
 | `POSTGRES_PASSWORD` | Internal PostgreSQL password; use URL-safe characters |
 | `GLOSSARY_ENCRYPTION_KEY` | Fixed secret of at least 32 characters for AI/RAG API keys and custom headers; back up separately |
@@ -204,7 +204,7 @@ Windows에서는 Docker Desktop과 Git Bash 또는 WSL을 사용하세요.
 
    ```bash
    mkdir -p scripts backups
-   curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.2/scripts/backup.sh -o scripts/backup.sh
+   curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.3/scripts/backup.sh -o scripts/backup.sh
    COMPOSE_FILE=docker-compose.hub.yml BACKUP_DIR=./backups bash scripts/backup.sh
    ```
 
@@ -228,7 +228,7 @@ Prepare the restore script from the installation directory in Bash:
 
 ```bash
 mkdir -p scripts
-curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.2/scripts/restore.sh -o scripts/restore.sh
+curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.3/scripts/restore.sh -o scripts/restore.sh
 export COMPOSE_FILE=docker-compose.hub.yml
 # Replace the filename with the backup produced above.
 bash scripts/restore.sh --rehearse ./backups/glossary-YYYYMMDD-HHMMSS.dump
