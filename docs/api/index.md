@@ -23,6 +23,7 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | POST | [`/auth/register`](/api/auth#계정-만들기) | — | 계정 만들기 (누구나, 역할은 viewer 고정) |
 | POST | [`/auth/login`](/api/auth#로그인) | — | 세션 쿠키 발급 |
 | PATCH | [`/account`](/api/auth#내-표시-이름-변경) | 세션 | 내 표시 이름 변경 |
+| DELETE | [`/account`](/api/auth#계정-탈퇴) | 세션 | 내 계정 탈퇴 |
 | POST | [`/account/sso-refresh`](/api/auth#sso-정보-다시-가져오기) | 세션 | 내 SSO 이름·이메일·그룹 다시 가져오기 |
 | POST | [`/auth/logout`](/api/auth#로그아웃) | 세션 | 세션 폐기 |
 | GET | [`/keys`](/api/auth#키-목록) | 세션 | API 키 목록 |
@@ -32,6 +33,8 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | PUT | [`/sso`](/api/auth#sso-설정) | 세션(admin) | SSO 설정 저장 |
 | POST | [`/sso/discover`](/api/auth#sso-설정) | 세션(admin) | issuer의 발견 문서로 엔드포인트 채우기 |
 | GET | [`/sso/proxy-check`](/api/auth#oauth2-proxy-헤더-확인) | 세션(admin) | 현재 요청에 실제 도착한 프록시 헤더 진단 |
+| GET | [`/admin/users`](/api/auth#에이전트-계정-만들기) | 세션(admin) | 사용자·에이전트 계정 목록 |
+| POST | [`/admin/users`](/api/auth#에이전트-계정-만들기) | 세션(admin) | API 전용 에이전트 계정과 키 생성 |
 | GET | [`/admin/ai-config`](/api/ai#ai-연결-설정) | 세션(admin) | 마스킹된 AI 연결 설정 조회 |
 | PATCH | [`/admin/ai-config`](/api/ai#ai-연결-설정) | 세션(admin) | AI 연결 설정 저장 |
 | POST | [`/admin/ai-config/models`](/api/ai#모델-목록) | 세션(admin) | 공급자가 제공하는 모델 목록 조회 |

@@ -34,6 +34,9 @@ export const PATCH = withApiErrors(
     if (!result.ok && result.reason === "last_admin") {
       return apiError("operation_conflict", "마지막 관리자는 다른 역할로 변경할 수 없습니다.", 409);
     }
+    if (!result.ok && result.reason === "agent_admin") {
+      return apiError("operation_conflict", "API 전용 에이전트는 관리자로 지정할 수 없습니다.", 409);
+    }
     if (!result.ok) {
       return apiError("operation_conflict", "현재 로그인한 관리자의 역할은 변경할 수 없습니다.", 409);
     }

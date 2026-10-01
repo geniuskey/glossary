@@ -95,8 +95,8 @@ test("용어 등록부터 별칭 검색, 문서 점검과 이력 되돌리기까
   await page.goto("/check");
   await page.getByLabel("문서 본문").fill(`${nameKo}에서 ${candidate}를 사용합니다.`);
   await page.getByRole("button", { name: "문서 점검", exact: true }).click();
-  await expect(page.getByText("미등록 1")).toBeVisible();
-  await expect(page.getByRole("heading", { name: candidate })).toBeVisible();
+  await expect(page.getByText("미등록 후보 1", { exact: true })).toBeVisible();
+  await expect(page.locator('[aria-label="점검 결과 목록"]').getByRole("button", { name: new RegExp(candidate) })).toBeVisible();
 
   await page.goto(`/edit/${slug}`);
   await page.getByRole("textbox", { name: "한줄 정의", exact: true }).fill(updatedDefinition);

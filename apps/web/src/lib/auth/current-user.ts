@@ -70,6 +70,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
         identity: inspection.identity,
         isAdmin: access.isAdmin || bootstrapAdmin,
         autoCreate: cfg.autoCreate || bootstrapAdmin,
+        automatic: true,
       });
       if (!result.ok) {
         logSsoFailure("proxy_header_account", { ssoMode: mode, reason: result.reason });

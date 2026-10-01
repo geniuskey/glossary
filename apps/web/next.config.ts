@@ -66,6 +66,14 @@ export const securityHeaders = [
 const config: NextConfig = {
   ...developmentOriginConfig,
   output: "standalone",
+  // Social-image metadata can be loaded while rendering any page. Keep the
+  // font files at their runtime paths in the standalone Docker/E2E bundle.
+  outputFileTracingIncludes: {
+    "/*": [
+      "./node_modules/pretendard/dist/public/static/alternative/Pretendard-Regular.ttf",
+      "./node_modules/pretendard/dist/public/static/alternative/Pretendard-Bold.ttf",
+    ],
+  },
   // 개발 origin 제한은 위 호스트들로만 완화한다. localhost는 기본 허용이지만 명시해 둔다.
   allowedDevOrigins: developmentOriginHosts,
   redirects: async () => [...legacyRedirects],

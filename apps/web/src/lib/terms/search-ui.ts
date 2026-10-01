@@ -34,6 +34,8 @@ export interface Suggestion {
   exact: boolean;
   /** 입력한 것이 이 표기의 앞부분인가 — 자동완성과 "유사한 표기"를 가른다. */
   prefix: boolean;
+  /** 앞부분은 아니지만 표기 안에 검색어가 들어 있는가. 기존 응답과의 호환을 위해 선택 사항이다. */
+  contains?: boolean;
 }
 
 /**
@@ -54,17 +56,18 @@ export function termHref(hit: {
 }
 
 /**
- * 드롭다운은 두 묶음이다 — 앞부분이 맞은 것(자동완성)과 비슷하기만 한 것
- * (오타 교정). 섞어서 보여주면 "왜 이게 나왔지"라는 목록이 되고, 사용자는
- * 자기가 오타를 냈다는 사실을 끝까지 모른다.
+ * 드롭다운은 세 묶음이다 — 앞부분 일치, 표기 안쪽 부분 일치, 비슷한 표기
+ * (오타 교정). 섞어서 보여주면 "왜 이게 나왔지"라는 목록이 된다.
  */
 export function groupSuggestions(items: readonly Suggestion[]): {
   completions: Suggestion[];
+  partial: Suggestion[];
   similar: Suggestion[];
 } {
   return {
     completions: items.filter((s) => s.prefix),
-    similar: items.filter((s) => !s.prefix),
+    partial: items.filter((s) => !s.prefix && s.contains === true),
+    similar: items.filter((s) => !s.prefix && !s.contains),
   };
 }
 
@@ -91,4 +94,12 @@ export function matchedPrefixLength(matchedText: string, typed: string): number 
   const head = typed.trim();
   if (!head) return 0;
   return matchedText.toLowerCase().startsWith(head.toLowerCase()) ? head.length : 0;
+}
+
+/** 실제 표기 안에 검색어가 연속으로 보일 때 굵게 표시할 구간. */
+export function matchedTextRange(matchedText: string, typed: string): { start: number; end: number } | null {
+  const needle = typed.trim().toLocaleLowerCase();
+  if (!needle) return null;
+  const start = matchedText.toLocaleLowerCase().indexOf(needle);
+  return start < 0 ? null : { start, end: start + needle.length };
 }

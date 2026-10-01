@@ -76,6 +76,46 @@ Content-Type: application/json
 Google OAuth 앱의 Internal audience 설정으로 제한한다.
 :::
 
+## 에이전트 계정 만들기
+
+관리자는 사용자 관리 화면에서 Hermes, OpenCode, Codex 같은 도구용 API 전용 계정을 만들 수 있다.
+이메일과 비밀번호 로그인은 사용하지 않으며, 계정 이름이 용어 변경 이력에 표시된다.
+
+```http
+POST /api/v1/admin/users
+Content-Type: application/json
+
+{ "name": "Codex" }
+```
+
+관리자 세션으로 인증한다. 성공하면 계정과 API 키를 함께 만들고 `201`로 반환한다.
+키의 평문은 생성 응답에서만 확인할 수 있으므로, 화면의 **API 키 복사** 버튼으로
+에이전트 설정에 옮겨 둔다.
+
+```json
+{
+  "user": { "id": "…", "name": "Codex", "role": "editor", "authType": "agent" },
+  "key": { "name": "Codex 에이전트 키", "scopes": ["read", "write", "validate"], "token": "glk_…" }
+}
+```
+
+에이전트 계정은 `editor` 역할로 생성되며 용어 읽기·편집·검증에 필요한 `read`, `write`,
+`validate` 권한을 받는다. API 요청에는 일반 키와 같이
+`Authorization: Bearer glk_<prefix>_<secret>` 헤더를 사용한다.
+
+에이전트는 관리자로 승격할 수 없다. 관리자 화면의 **키 폐기**는 해당 에이전트의
+모든 키를 폐기하고, **키 교체**는 기존 키를 모두 폐기한 뒤 새 키를 한 번만 표시한다.
+뷰어 에이전트의 새 키에는 `read`, `validate`만 부여한다.
+
+```http
+DELETE /api/v1/admin/users/{id}/keys
+POST /api/v1/admin/users/{id}/keys
+```
+
+두 API 모두 관리자 세션과 출처 검증을 요구한다. 폐기는 `200 { revoked, key: null }`,
+교체는 `201 { revoked, key: { id, name, prefix, scopes, token } }`을 반환한다.
+일반 사용자 계정의 개인 키에는 사용할 수 없다.
+
 ## 로그인
 
 ```http
@@ -107,6 +147,36 @@ Content-Type: application/json
 200  로그인 성공
 400  validation_failed
 401  unauthorized
+```
+
+## 계정 탈퇴
+
+로그인한 사용자는 계정 설정에서 본인 계정을 탈퇴할 수 있다. 이메일을 확인용으로 입력하고,
+비밀번호 계정은 현재 비밀번호도 다시 입력한다. SSO 계정은 로그인 세션과 이메일 확인으로 진행한다.
+
+```http
+DELETE /api/v1/account
+Content-Type: application/json
+
+{ "confirmEmail": "kim@example.com", "password": "현재 비밀번호" }
+```
+
+탈퇴가 완료되면 모든 세션과 계정에서 발급한 API 키, 개인 대화 기록 및 계정이 삭제된다.
+용어와 수정 이력은 사전 기록으로 남지만 작성자 연결은 제거된다. 이메일 주소는 다시 가입할 때
+사용할 수 있으며, 새 계정은 기본 `viewer` 권한으로 시작한다. 마지막 관리자 계정은 탈퇴할 수 없다.
+
+SSO 탈퇴 후에는 식별자의 SHA-256 해시를 보관해 oauth2-proxy 헤더만으로 계정이
+자동 생성되지 않도록 한다. 로그인 화면에서 **회사 계정으로 새 계정 만들기**를
+선택하거나 직접 OIDC/OAuth2 로그인에 성공하면 이 차단 기록을 제거한다.
+SSO 관리자 그룹·최초 관리자 정책은 재가입에도 적용된다. 프록시/IdP 자체의 세션은
+앱 탈퇴로 종료되지 않으며, 프록시 인증이 남아 있어도 앱 계정은 자동 재생성되지 않는다.
+
+```
+200  탈퇴 완료 (현재 세션 쿠키 삭제)
+400  validation_failed
+401  unauthorized
+403  forbidden — 확인 정보가 틀렸거나 마지막 관리자 계정
+404  not_found
 ```
 
 ::: warning 계정 존재 여부는 새지 않는다

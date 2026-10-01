@@ -7,6 +7,7 @@ import { SURFACE_KIND_LABEL } from "@/lib/terms/enums";
 import {
   groupSuggestions,
   matchedPrefixLength,
+  matchedTextRange,
   moveActive,
   termHref,
   type Suggestion,
@@ -106,10 +107,10 @@ export function SearchBox({
     };
   }, [value]);
 
-  const { completions, similar } = groupSuggestions(items);
+  const { completions, partial, similar } = groupSuggestions(items);
   // 키보드 이동과 화면 순서를 같은 배열 하나로 맞춘다. 두 묶음을 각각 그리면서
   // 인덱스만 따로 세면 어긋나기 쉽다.
-  const ordered = [...completions, ...similar];
+  const ordered = [...completions, ...partial, ...similar];
   const open = focused && !dismissed && ordered.length > 0;
 
   useEffect(() => {
@@ -220,8 +221,8 @@ export function SearchBox({
                 onPick={() => setDismissed(true)}
               />
             ))}
-            {similar.length > 0 && <GroupLabel>비슷한 표기</GroupLabel>}
-            {similar.map((item, i) => (
+            {partial.length > 0 && <GroupLabel>부분 일치</GroupLabel>}
+            {partial.map((item, i) => (
               <Option
                 key={item.id}
                 id={`${listId}-${completions.length + i}`}
@@ -229,6 +230,18 @@ export function SearchBox({
                 typed={value}
                 selected={active === completions.length + i}
                 onHover={() => setActive(completions.length + i)}
+                onPick={() => setDismissed(true)}
+              />
+            ))}
+            {similar.length > 0 && <GroupLabel>비슷한 표기</GroupLabel>}
+            {similar.map((item, i) => (
+              <Option
+                key={item.id}
+                id={`${listId}-${completions.length + partial.length + i}`}
+                item={item}
+                typed={value}
+                selected={active === completions.length + partial.length + i}
+                onHover={() => setActive(completions.length + partial.length + i)}
                 onPick={() => setDismissed(true)}
               />
             ))}
@@ -275,7 +288,8 @@ function Option({
   onHover: () => void;
   onPick: () => void;
 }) {
-  const cut = matchedPrefixLength(item.matchedText, typed);
+  const range = matchedTextRange(item.matchedText, typed);
+  const prefixLength = range?.start === 0 ? range.end : matchedPrefixLength(item.matchedText, typed);
   const concept = displayName(item);
 
   return (
@@ -299,8 +313,14 @@ function Option({
         )}
       >
         <span className="min-w-0 truncate text-ink" title={item.matchedText}>
-          <span className="font-semibold">{item.matchedText.slice(0, cut)}</span>
-          {item.matchedText.slice(cut)}
+          {range ? <>
+            {item.matchedText.slice(0, range.start)}
+            <span className="font-semibold">{item.matchedText.slice(range.start, range.end)}</span>
+            {item.matchedText.slice(range.end)}
+          </> : <>
+            <span className="font-semibold">{item.matchedText.slice(0, prefixLength)}</span>
+            {item.matchedText.slice(prefixLength)}
+          </>}
         </span>
         {/* canonical은 표준명 자체라 배지가 동어반복이 된다. */}
         {item.matchedKind !== "canonical" && (

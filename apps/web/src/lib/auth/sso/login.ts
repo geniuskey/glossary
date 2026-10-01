@@ -1,5 +1,6 @@
 import { and, eq, ne, sql } from "drizzle-orm";
-import { users } from "@glossary/db";
+import { ssoWithdrawals, users } from "@glossary/db";
+import { ssoSubjectHash } from "@/lib/auth/account-policy";
 import { getDb } from "@/lib/db";
 import type { CurrentUser } from "@/lib/auth/current-user";
 import type { SsoIdentity } from "./claims";
@@ -25,18 +26,28 @@ export async function applySsoLogin(input: {
   refreshProfile?: boolean;
   /** 재동기화 도중 다른 회사 계정을 선택해 현재 세션과 다른 계정을 덮어쓰는 일을 막는다. */
   expectedUserId?: string;
+  /** Proxy headers authenticate every request; they do not express consent to rejoin. */
+  automatic?: boolean;
 }): Promise<SsoLoginResult> {
-  const { identity, isAdmin, autoCreate, refreshProfile = false, expectedUserId } = input;
+  const { identity, isAdmin, autoCreate, refreshProfile = false, expectedUserId, automatic = false } = input;
   const db = getDb();
 
   return db.transaction(async (tx) => {
+    // Serialize creation, withdrawal, and role changes, including non-admin proxy requests.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('glossary_admin_roles'))`);
+    const subjectHash = ssoSubjectHash(identity.subject);
+    const [withdrawn] = await tx.select().from(ssoWithdrawals).where(eq(ssoWithdrawals.subjectHash, subjectHash)).limit(1);
+    if (automatic && withdrawn) return { ok: false as const, reason: "no_account" as const };
+
     const [bySubject] = await tx.select().from(users).where(eq(users.externalId, identity.subject)).limit(1);
     if (bySubject) {
       if (expectedUserId && bySubject.id !== expectedUserId) {
         return { ok: false as const, reason: "identity_mismatch" as const };
       }
       const patch = await syncPatch(tx, bySubject, identity, isAdmin, refreshProfile);
-      return { ok: true as const, user: await applyPatch(tx, bySubject, patch), created: false };
+      const user = await applyPatch(tx, bySubject, patch);
+      await tx.delete(ssoWithdrawals).where(eq(ssoWithdrawals.subjectHash, subjectHash));
+      return { ok: true as const, user, created: false };
     }
 
     const [byEmail] = await tx
@@ -54,9 +65,11 @@ export async function applySsoLogin(input: {
         return { ok: false as const, reason: "email_conflict" as const };
       }
       const patch = await syncPatch(tx, byEmail, identity, isAdmin, refreshProfile);
+      const user = await applyPatch(tx, byEmail, { ...patch, externalId: identity.subject });
+      await tx.delete(ssoWithdrawals).where(eq(ssoWithdrawals.subjectHash, subjectHash));
       return {
         ok: true as const,
-        user: await applyPatch(tx, byEmail, { ...patch, externalId: identity.subject }),
+        user,
         created: false,
       };
     }
@@ -78,6 +91,7 @@ export async function applySsoLogin(input: {
       })
       .returning({ id: users.id, email: users.email, name: users.name, role: users.role });
     if (!created) throw new Error("SSO 계정 생성에 실패했습니다.");
+    await tx.delete(ssoWithdrawals).where(eq(ssoWithdrawals.subjectHash, subjectHash));
     return { ok: true as const, user: created, created: true };
   });
 }

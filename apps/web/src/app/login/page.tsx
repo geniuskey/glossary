@@ -10,6 +10,10 @@ import { ssoErrorMessage } from "@/lib/auth/sso/errors";
 import { initialAdminEmail, isInitialAdminEmail, ssoLoginUrl } from "@/lib/auth/policy";
 import { inspectProxyHeaders } from "@/lib/auth/sso/proxy-headers";
 import { isGoogleOidc } from "@/lib/auth/sso/provider";
+import { eq } from "drizzle-orm";
+import { ssoWithdrawals } from "@glossary/db";
+import { getDb } from "@/lib/db";
+import { ssoSubjectHash } from "@/lib/auth/account-policy";
 import { LoginForm } from "./login-form";
 
 // needsSetup(DB 조회)이 빌드 시 프리렌더로 실행되지 않도록 런타임 렌더로 고정한다.
@@ -23,6 +27,7 @@ export default async function LoginPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const raw = await searchParams;
+  const accountWithdrawn = (Array.isArray(raw.withdrawn) ? raw.withdrawn[0] : raw.withdrawn) === "1";
   // R132: SSO 콜백은 실패하면 ?sso=<코드>로 여기 되돌린다(브라우저 이동이라
   // JSON 에러를 보여줄 데가 없다). 모르는 코드는 일반 문구로 뭉갠다.
   const ssoError = ssoErrorMessage(Array.isArray(raw.sso) ? raw.sso[0] : raw.sso);
@@ -34,14 +39,17 @@ export default async function LoginPage({
   const googleLogin = ssoMode === "oidc" && isGoogleOidc(sso);
   const ssoHref = ssoLoginUrl(ssoMode);
   const ssoBootstrapReady = Boolean(initialAdminEmail() && ssoHref);
-  const proxyIdentity = setupNeeded && ssoMode === "oauth2-proxy"
+  const proxyIdentity = ssoMode === "oauth2-proxy"
     ? inspectProxyHeaders(await headers()).identity
     : null;
-  const wrongBootstrapIdentity = Boolean(proxyIdentity && !isInitialAdminEmail(proxyIdentity.email));
+  const wrongBootstrapIdentity = Boolean(setupNeeded && proxyIdentity && !isInitialAdminEmail(proxyIdentity.email));
+  const [proxyWithdrawal] = proxyIdentity
+    ? await getDb().select().from(ssoWithdrawals).where(eq(ssoWithdrawals.subjectHash, ssoSubjectHash(proxyIdentity.subject))).limit(1)
+    : [];
   if (setupNeeded && passwordEnabled && !ssoBootstrapReady) redirect("/setup");
   if (setupNeeded && proxyIdentity && !wrongBootstrapIdentity) redirect("/");
   const ssoAccessDenied = configCode === "sso-access-denied";
-  if (!passwordEnabled && ssoHref && !ssoError && !wrongBootstrapIdentity && !ssoAccessDenied && (!setupNeeded || ssoBootstrapReady)) redirect(ssoHref);
+  if (!passwordEnabled && ssoHref && !ssoError && !wrongBootstrapIdentity && !ssoAccessDenied && !accountWithdrawn && !proxyWithdrawal && (!setupNeeded || ssoBootstrapReady)) redirect(ssoHref);
   const configurationError = ssoAccessDenied
     ? googleLogin
       ? "Google 계정의 접근 정책을 통과하지 못했습니다. Google 로그인 설정을 확인해 주세요."
@@ -73,6 +81,12 @@ export default async function LoginPage({
               : passwordEnabled ? "등록된 계정으로 용어집에 들어갑니다." : "회사 계정으로 용어집에 들어갑니다."}
           </p>
 
+          {(accountWithdrawn || proxyWithdrawal) && (
+            <p className="note mt-4 border-line bg-panel-2 text-[13px] leading-relaxed text-ink-2" role="status">
+              계정 탈퇴가 완료됐습니다. 다시 이용하려면 새 계정을 만들거나 SSO로 로그인하세요.
+            </p>
+          )}
+
           {ssoError && (
             <p className="note-danger mt-4" role="alert">
               {ssoError}
@@ -82,21 +96,25 @@ export default async function LoginPage({
 
           {ssoHref && !wrongBootstrapIdentity && !ssoAccessDenied && (
             <div className="mt-4">
-              {/* 링크는 /api/가 아니라 /auth/sso/start다 — 브라우저 이동 창구는
-                  JSON 에러 봉투를 쓸 수 없어 API 바깥에 둔다(PROTO A도 /api/ href를 금한다). */}
-              <a
-                href={ssoHref}
-                className={googleLogin
-                  ? "flex w-full items-center justify-center gap-3 rounded-lg border border-[#dadce0] bg-white px-4 py-2.5 text-sm font-medium text-[#3c4043] shadow-sm transition-colors hover:bg-[#f8faff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4285f4] focus-visible:ring-offset-2"
-                  : "btn-ghost w-full py-2.5"}
-              >
-                {googleLogin ? (
-                  <>
-                    <GoogleLogo />
-                    <span>Google 계정으로 로그인</span>
-                  </>
-                ) : ssoMode === "oidc" || ssoMode === "oauth2" ? sso.buttonLabel : "회사 계정으로 로그인"}
-              </a>
+              {proxyWithdrawal ? (
+                <form method="post" action="/auth/sso/proxy-rejoin">
+                  <button type="submit" className="btn-ghost w-full py-2.5">회사 계정으로 새 계정 만들기</button>
+                </form>
+              ) : (
+                <a
+                  href={ssoHref}
+                  className={googleLogin
+                    ? "flex w-full items-center justify-center gap-3 rounded-lg border border-[#dadce0] bg-white px-4 py-2.5 text-sm font-medium text-[#3c4043] shadow-sm transition-colors hover:bg-[#f8faff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4285f4] focus-visible:ring-offset-2"
+                    : "btn-ghost w-full py-2.5"}
+                >
+                  {googleLogin ? (
+                    <>
+                      <GoogleLogo />
+                      <span>Google 계정으로 로그인</span>
+                    </>
+                  ) : ssoMode === "oidc" || ssoMode === "oauth2" ? sso.buttonLabel : "회사 계정으로 로그인"}
+                </a>
+              )}
               {passwordEnabled && <p className="mt-4 flex items-center gap-3 text-[11px] text-ink-3"><span className="h-px flex-1 bg-line" />또는 이메일로<span className="h-px flex-1 bg-line" /></p>}
             </div>
           )}

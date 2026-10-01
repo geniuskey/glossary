@@ -352,6 +352,27 @@ export const openApiSpec = {
           "404": errorResponse("not_found"),
         },
       },
+      delete: {
+        summary: "현재 사용자 계정 탈퇴",
+        description: "계정과 개인 대화 기록을 삭제하고 계정에서 발급한 API 키를 제거합니다. 용어와 수정 이력은 보존되며 작성자 연결은 제거됩니다.",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: true, content: { "application/json": { schema: {
+          type: "object",
+          required: ["confirmEmail"],
+          additionalProperties: false,
+          properties: {
+            confirmEmail: { type: "string", format: "email", maxLength: 254 },
+            password: { type: "string", minLength: 1, maxLength: 1024, description: "비밀번호 로그인 계정은 필수" },
+          },
+        } } } },
+        responses: {
+          "200": json("탈퇴 완료", { type: "object", required: ["ok"], properties: { ok: { type: "boolean" } } }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden"),
+          "404": errorResponse("not_found"),
+        },
+      },
     },
     "/account/sso-refresh": {
       post: {
@@ -493,6 +514,33 @@ export const openApiSpec = {
           "403": errorResponse("forbidden — 관리자만 사용 가능"),
         },
       },
+      post: {
+        summary: "에이전트 계정 생성과 API 키 발급",
+        description:
+          "비밀번호 로그인 없이 API 키로만 쓰는 편집자 계정을 만든다. 용어를 관리할 수 있도록 read/write/validate scope를 받는다. 평문 키는 생성 응답에서만 확인할 수 있다.",
+        security: [{ sessionCookie: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["name"],
+                properties: {
+                  name: { type: "string", minLength: 1, maxLength: 100, description: "관리자 패널에서 구분할 에이전트 이름" },
+                },
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+        responses: {
+          "201": json("생성된 계정과 한 번만 표시되는 평문 API 키", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
     },
     "/admin/exports/terms": {
       get: {
@@ -514,6 +562,17 @@ export const openApiSpec = {
               data: { type: "object" },
             },
           }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능"),
+        },
+      },
+    },
+    "/admin/exports/wiki": {
+      get: {
+        summary: "전체 위키 읽기 전용 스냅샷 다운로드",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("위키·용어 링크·첨부가 포함된 읽기 전용 스냅샷", { type: "object" }),
           "401": errorResponse("unauthorized"),
           "403": errorResponse("forbidden — 관리자만 사용 가능"),
         },
@@ -1163,6 +1222,7 @@ export const openApiSpec = {
     "/admin/users/{id}": {
       patch: {
         summary: "사용자 역할 변경",
+        description: "API 전용 에이전트는 관리자로 승격할 수 없으며 마지막 사람 관리자도 보호한다.",
         security: [{ sessionCookie: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
         requestBody: {
@@ -1185,6 +1245,31 @@ export const openApiSpec = {
           "403": errorResponse("forbidden"),
           "404": errorResponse("not_found"),
           "409": errorResponse("operation_conflict — 자기 역할 변경 차단"),
+        },
+      },
+    },
+    "/admin/users/{id}/keys": {
+      post: {
+        summary: "에이전트 API 키 교체",
+        description: "기존 키를 모두 폐기하고 새 키를 한 번만 반환한다. 뷰어 에이전트는 read/validate scope만 받는다.",
+        security: [{ sessionCookie: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        responses: {
+          "201": json("{ revoked, key: { id, name, prefix, scopes, token } }", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능, 에이전트 계정만 관리 가능"),
+          "404": errorResponse("not_found"),
+        },
+      },
+      delete: {
+        summary: "에이전트의 모든 API 키 폐기",
+        security: [{ sessionCookie: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        responses: {
+          "200": json("{ revoked, key: null } — 반복 폐기도 성공", { type: "object" }),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden — 관리자만 사용 가능, 에이전트 계정만 관리 가능"),
+          "404": errorResponse("not_found"),
         },
       },
     },

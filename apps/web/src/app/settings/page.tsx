@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/auth/current-user";
 import { ssoErrorMessage } from "@/lib/auth/sso/errors";
 import { getDb } from "@/lib/db";
 import { ProfileForm } from "./profile-form";
+import { AccountDeletionForm } from "./account-deletion-form";
 
 export const metadata = { title: "설정" };
 
@@ -22,7 +23,7 @@ export default async function SettingsPage({
   if (!user) redirect("/login");
 
   const [account] = await getDb()
-    .select({ externalId: users.externalId })
+    .select({ externalId: users.externalId, passwordHash: users.passwordHash })
     .from(users)
     .where(eq(users.id, user.id))
     .limit(1);
@@ -106,6 +107,8 @@ export default async function SettingsPage({
           API 키 관리 열기 <span aria-hidden="true">→</span>
         </Link>
       </section>
+
+      <AccountDeletionForm email={user.email} requiresPassword={Boolean(account?.passwordHash)} />
     </AppShell>
   );
 }

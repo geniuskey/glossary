@@ -15,10 +15,12 @@ export interface SearchHit extends TermSummary {
    */
   matchedText: string;
   matchedKind: SurfaceKind;
-  /** 정규화 키가 정확히 같았는가. 부분·유사도·의미 검색 매치와 구분한다. */
+  /** 정규화 키가 정확히 같았는가. 접두어·부분·유사도·의미 매치와 구분한다. */
   exact: boolean;
   /** 입력한 표기가 후보 표기의 앞부분인가. */
   prefix: boolean;
+  /** 앞부분은 아니지만 후보 표기 안에 검색어가 들어 있는가. */
+  contains: boolean;
   /** 의미 벡터 검색에서만 찾은 결과인가. */
   semantic?: boolean;
 }
@@ -48,6 +50,10 @@ export async function searchTerms(query: string, limit = 20): Promise<SearchHit[
   // 걸러내지 않으면 similarity('', ...)가 모든 행을 훑는다.
   if (!normLoose) return [];
   const prefixPattern = `${escapeLike(normLoose)}%`;
+  const containsPattern = `%${escapeLike(normLoose)}%`;
+  const containsMatch = Array.from(normLoose).length >= 2
+    ? sql`ts.norm_loose LIKE ${containsPattern} AND ts.norm_loose NOT LIKE ${prefixPattern}`
+    : sql`false`;
 
   const rows = await getDb().execute<SearchRow>(sql`
     WITH scored AS (
@@ -56,17 +62,19 @@ export async function searchTerms(query: string, limit = 20): Promise<SearchHit[
              ts.kind AS kind,
              (ts.norm_loose = ${normLoose} OR ts.norm_space = ${normSpace}) AS exact,
              (ts.norm_loose LIKE ${prefixPattern}) AS prefix,
+             (${containsMatch}) AS contains,
              similarity(ts.norm_loose, ${normLoose}) AS score
       FROM ${termSurfaces} ts
       WHERE ts.norm_loose = ${normLoose}
          OR ts.norm_space = ${normSpace}
          OR ts.norm_loose LIKE ${prefixPattern}
+         OR (${containsMatch})
          OR ts.norm_loose % ${normLoose}
     ),
     best AS (
-      SELECT DISTINCT ON (term_id) term_id, text, kind, exact, prefix, score
+      SELECT DISTINCT ON (term_id) term_id, text, kind, exact, prefix, contains, score
       FROM scored
-      ORDER BY term_id, exact DESC, prefix DESC, score DESC, text ASC
+      ORDER BY term_id, exact DESC, prefix DESC, contains DESC, score DESC, text ASC
     )
     SELECT t.id AS "id", t.slug AS "slug",
            t.name_en AS "nameEn", t.name_ko AS "nameKo", t.domain AS "domain",
@@ -83,18 +91,18 @@ export async function searchTerms(query: string, limit = 20): Promise<SearchHit[
             END FROM users owner_user WHERE owner_user.id = t.owner_id) AS "ownerName",
            t.status AS "status", t.definition_md AS "definitionMd",
            b.text AS "matchedText", b.kind AS "matchedKind", b.exact AS "exact",
-           b.prefix AS "prefix", b.score AS "score"
+           b.prefix AS "prefix", b.contains AS "contains", b.score AS "score"
     FROM best b
     JOIN ${terms} t ON t.id = b.term_id
-    ORDER BY b.exact DESC, b.prefix DESC, b.score DESC, t.name_en ASC NULLS LAST, t.id
+    ORDER BY b.exact DESC, b.prefix DESC, b.contains DESC, b.score DESC, t.name_en ASC NULLS LAST, t.id
     LIMIT ${limit}
   `);
 
   const lexicalHits = [...rows].map(({ score: _score, ...hit }) => hit);
-  // Preserve exact and prefix matches at the top. Semantic matches then broaden
-  // the results before typo-only trigram matches, with each term shown once.
-  const direct = lexicalHits.filter((hit) => hit.exact || hit.prefix);
-  const fuzzy = lexicalHits.filter((hit) => !hit.exact && !hit.prefix);
+  // Preserve exact, prefix, and in-word matches at the top. Semantic matches then
+  // broaden the results before typo-only trigram matches, with each term shown once.
+  const direct = lexicalHits.filter((hit) => hit.exact || hit.prefix || hit.contains);
+  const fuzzy = lexicalHits.filter((hit) => !hit.exact && !hit.prefix && !hit.contains);
   const semanticHits = await semanticTermHits(query, lexicalHits, Math.max(0, limit - direct.length));
   return [...direct, ...semanticHits, ...fuzzy].slice(0, limit);
 }
@@ -137,6 +145,7 @@ async function semanticTermHits(query: string, lexicalHits: SearchHit[], limit: 
         matchedKind: "canonical",
         exact: false,
         prefix: false,
+        contains: false,
         semantic: true,
       });
     }
@@ -160,15 +169,17 @@ function escapeLike(value: string): string {
 }
 
 /**
- * R136: 검색창에 몇 자만 쳤을 때 뜨는 자동완성. searchTerms(전체 검색)와 두
- * 가지가 다르다.
+ * R136: 검색창에 몇 자만 쳤을 때 뜨는 자동완성. searchTerms(전체 검색)와
+ * 접두어·부분 일치·유사 표기를 구분해 보여준다.
  *
  * 1) **앞부분 매치가 있어야 한다.** trigram 유사도만으로는 "sy"에 "System on
  *    Chip"이 절대 안 걸린다(similarity가 임계값 근처도 못 간다) — 자동완성은
  *    글자 수가 적을 때 동작해야 의미가 있으므로 `norm_loose LIKE 'sy%'`를
- *    함께 건다. 유사도 매치는 그대로 두어 오타("systm")도 잡는다.
- * 2) **어느 쪽으로 걸렸는지 돌려준다**(`prefix`). 자동완성과 "유사한 표기"는
- *    화면에서 나뉘어야 한다(search-ui.ts의 groupSuggestions).
+ *    함께 건다.
+ * 2) **표기 중간도 찾는다.** `888`을 입력해 `IMX888`을 찾거나 `chip`으로
+ *    `System on Chip`을 찾을 수 있게 내부 일치 패턴을 추가한다.
+ * 3) **어느 쪽으로 걸렸는지 돌려준다**(`prefix`, `contains`). 자동완성·부분
+ *    일치·오타 유사 매치를 화면에서 나눠 보여준다(search-ui.ts의 groupSuggestions).
  *
  * 정렬은 exact → prefix → 유사도 순. 접두사 매치에서 trigram 유사도는 표기가
  * 길수록 낮아지므로("ae" 기준 AE > AEC > Aerodynamics), 유사도 하나로 두 묶음
@@ -183,6 +194,10 @@ export async function suggestTerms(query: string, limit = SUGGEST_LIMIT): Promis
   const { normLoose, normSpace } = surfaceKeys(query);
   if (!normLoose) return [];
   const pattern = `${escapeLike(normLoose)}%`;
+  const containsPattern = `%${escapeLike(normLoose)}%`;
+  const containsMatch = Array.from(normLoose).length >= 2
+    ? sql`ts.norm_loose LIKE ${containsPattern} AND ts.norm_loose NOT LIKE ${pattern}`
+    : sql`false`;
 
   const rows = await getDb().execute<SuggestionRow>(sql`
     WITH scored AS (
@@ -191,24 +206,26 @@ export async function suggestTerms(query: string, limit = SUGGEST_LIMIT): Promis
              ts.kind AS kind,
              (ts.norm_loose = ${normLoose} OR ts.norm_space = ${normSpace}) AS exact,
              (ts.norm_loose LIKE ${pattern}) AS prefix,
+             (${containsMatch}) AS contains,
              similarity(ts.norm_loose, ${normLoose}) AS score
       FROM ${termSurfaces} ts
       WHERE ts.norm_loose LIKE ${pattern}
          OR ts.norm_space = ${normSpace}
+         OR (${containsMatch})
          OR ts.norm_loose % ${normLoose}
     ),
     best AS (
-      SELECT DISTINCT ON (term_id) term_id, text, kind, exact, prefix, score
+      SELECT DISTINCT ON (term_id) term_id, text, kind, exact, prefix, contains, score
       FROM scored
-      ORDER BY term_id, exact DESC, prefix DESC, score DESC, char_length(text), text
+      ORDER BY term_id, exact DESC, prefix DESC, contains DESC, score DESC, char_length(text), text
     )
     SELECT t.id AS "id", t.slug AS "slug",
            t.name_en AS "nameEn", t.name_ko AS "nameKo", t.status AS "status",
            b.text AS "matchedText", b.kind AS "matchedKind",
-           b.exact AS "exact", b.prefix AS "prefix", b.score AS "score"
+           b.exact AS "exact", b.prefix AS "prefix", b.contains AS "contains", b.score AS "score"
     FROM best b
     JOIN ${terms} t ON t.id = b.term_id
-    ORDER BY b.exact DESC, b.prefix DESC, b.score DESC, char_length(b.text), t.id
+    ORDER BY b.exact DESC, b.prefix DESC, b.contains DESC, b.score DESC, char_length(b.text), t.id
     LIMIT ${limit}
   `);
 

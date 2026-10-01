@@ -8,6 +8,8 @@ import * as loginRoute from "../src/app/api/v1/auth/login/route.js";
 import * as logoutRoute from "../src/app/api/v1/auth/logout/route.js";
 import * as registerRoute from "../src/app/api/v1/auth/register/route.js";
 import * as accountRoute from "../src/app/api/v1/account/route.js";
+import * as agentKeysRoute from "../src/app/api/v1/admin/users/[id]/keys/route.js";
+import * as adminWikiExportRoute from "../src/app/api/v1/admin/exports/wiki/route.js";
 import * as accountSsoRefreshRoute from "../src/app/api/v1/account/sso-refresh/route.js";
 import * as healthRoute from "../src/app/api/v1/health/route.js";
 import * as keysRoute from "../src/app/api/v1/keys/route.js";
@@ -96,6 +98,8 @@ const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 // 헤더 없는 기본 405가 나오는데 vitest도 tsc도 잡지 못했다). 그래서 라우트마다
 // "허용되지 않은 모든 메서드"를 순회한다.
 const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]; allow: string }> = [
+  { name: "admin/exports/wiki", mod: adminWikiExportRoute, allowed: ["GET"], allow: "GET, HEAD" },
+  { name: "admin/users/[id]/keys", mod: agentKeysRoute, allowed: ["POST", "DELETE"], allow: "POST, DELETE" },
   { name: "chat/actions", mod: chatActionsRoute, allowed: ["POST"], allow: "POST" },
   { name: "relations", mod: relationsRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
   { name: "relations/[id]", mod: relationRoute, allowed: ["PATCH"], allow: "PATCH" },
@@ -103,7 +107,7 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "auth/login", mod: loginRoute, allowed: ["POST"], allow: "POST" },
   { name: "auth/logout", mod: logoutRoute, allowed: ["POST"], allow: "POST" },
   { name: "auth/register", mod: registerRoute, allowed: ["POST"], allow: "POST" },
-  { name: "account", mod: accountRoute, allowed: ["PATCH"], allow: "PATCH" },
+  { name: "account", mod: accountRoute, allowed: ["PATCH", "DELETE"], allow: "PATCH, DELETE" },
   { name: "account/sso-refresh", mod: accountSsoRefreshRoute, allowed: ["POST"], allow: "POST" },
   { name: "health", mod: healthRoute, allowed: ["GET"], allow: "GET, HEAD" },
   { name: "keys", mod: keysRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
@@ -193,7 +197,7 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "admin/categories/[key]", mod: adminCategoryRoute, allowed: ["PATCH", "DELETE"], allow: "PATCH, DELETE" },
   { name: "admin/domains", mod: adminDomainsRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "admin/domains/[key]", mod: adminDomainRoute, allowed: ["PATCH", "DELETE"], allow: "PATCH, DELETE" },
-  { name: "admin/users", mod: adminUsersRoute, allowed: ["GET"], allow: "GET, HEAD" },
+  { name: "admin/users", mod: adminUsersRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
   { name: "admin/users/[id]", mod: adminUserRoute, allowed: ["PATCH"], allow: "PATCH" },
   { name: "admin/users/[id]/sessions", mod: adminUserSessionsRoute, allowed: ["DELETE"], allow: "DELETE" },
   { name: "attachments", mod: attachmentsRoute, allowed: ["POST"], allow: "POST" },

@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import type { Metadata } from "next";
 import { connection } from "next/server";
+import { headers } from "next/headers";
 import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "katex/dist/katex.min.css";
 import { InlineScript } from "@/components/inline-script";
@@ -7,10 +9,54 @@ import { getWorkspaceMenuSettings } from "@/lib/workspace/menu-settings";
 import { DEFAULT_WORKSPACE_MENU_SETTINGS } from "@/lib/workspace/menu-settings-values";
 import "./globals.css";
 
-export const metadata = {
-  title: { default: "Glossary 용어집", template: "%s · Glossary" },
-  description: "우리가 쓰는 말을 우리의 기준으로. 누구나 찾고, 제안하고, 함께 다듬는 팀 용어집.",
-};
+function resolveMetadataBase(requestHeaders: Headers) {
+  const candidates = [
+    process.env.GLOSSARY_BASE_URL?.trim(),
+    process.env.GLOSSARY_ALLOWED_ORIGINS?.split(",")[0]?.trim(),
+  ];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      const url = new URL(candidate);
+      if (url.protocol === "http:" || url.protocol === "https:") return new URL(url.origin);
+    } catch {
+      // Try the next configured public URL.
+    }
+  }
+
+  const host = (requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host"))?.split(",")[0]?.trim();
+  const protocol = (requestHeaders.get("x-forwarded-proto") ?? "http").split(",")[0]?.trim();
+  if (host && (protocol === "http" || protocol === "https")) {
+    try {
+      return new URL(`${protocol}://${host}`);
+    } catch {
+      // Use the local development default for malformed request headers.
+    }
+  }
+  return new URL("http://localhost:3000");
+}
+
+const description = "우리가 쓰는 말을 우리의 기준으로. 누구나 찾고, 제안하고, 함께 다듬는 팀 용어집.";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    metadataBase: resolveMetadataBase(await headers()),
+    title: { default: "Glossary 용어집", template: "%s · Glossary" },
+    description,
+    openGraph: {
+      title: "Glossary 용어집",
+      description,
+      type: "website",
+      locale: "ko_KR",
+      siteName: "Glossary 용어집",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "Glossary 용어집",
+      description,
+    },
+  };
+}
 
 // 첫 페인트 전에 저장된 테마를 <html>에 건다. 여기서 하지 않고 컴포넌트의
 // effect로 미루면 밝은 화면이 한 프레임 번쩍인다(브라우저는 HTML을 파싱하는

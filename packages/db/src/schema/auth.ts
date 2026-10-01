@@ -48,6 +48,11 @@ export const sessions = pgTable(
   (t) => ({ userIdx: index("sessions_user_idx").on(t.userId) }),
 );
 
+/** Prevent proxy requests from silently recreating a withdrawn SSO account. */
+export const ssoWithdrawals = pgTable("sso_withdrawals", {
+  subjectHash: text("subject_hash").primaryKey(),
+});
+
 export const apiKeys = pgTable(
   "api_keys",
   {

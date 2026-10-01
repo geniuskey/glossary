@@ -300,6 +300,9 @@ function listFilters(params: ListParams) {
       // 전체 표기 테이블에 실행해 결과 0건을 얻는 비싼 경로를 피한다.
       filters.push(sql`false`);
     } else {
+      const containsMatch = Array.from(normLoose).length >= 2
+        ? sql`${termSurfaces.normLoose} LIKE ${`%${escapeSearchLike(normLoose)}%`}`
+        : sql`false`;
       const matching = db
         .select({ termId: termSurfaces.termId })
         .from(termSurfaces)
@@ -307,6 +310,7 @@ function listFilters(params: ListParams) {
           or(
             eq(termSurfaces.normLoose, normLoose),
             eq(termSurfaces.normSpace, normSpace),
+            containsMatch,
             sql`${termSurfaces.normLoose} % ${normLoose}`,
           ),
         );
@@ -315,6 +319,11 @@ function listFilters(params: ListParams) {
   }
 
   return filters.length ? and(...filters) : undefined;
+}
+
+// LIKE 패턴에 입력된 %와 _는 검색어 그대로 취급한다.
+function escapeSearchLike(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
 }
 
 const SORT_COLUMNS: Record<SortKey, AnyColumn> = {

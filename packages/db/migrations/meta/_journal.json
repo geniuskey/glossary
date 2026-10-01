@@ -421,6 +421,20 @@
       "when": 1790719106000,
       "tag": "0059_password_signup_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1790867125083,
+      "tag": "0060_account_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1790867206689,
+      "tag": "0061_term_author_references",
+      "breakpoints": true
     }
   ]
 }
