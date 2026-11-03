@@ -302,7 +302,7 @@ bash scripts/restore.sh --force /srv/glossary-backups/glossary-20260828-030000.d
 1. dump를 먼저 검증한다 (`pg_restore --list`)
 2. 사람에게 확인 문구를 받는다
 3. **현재 DB의 안전 덤프를 뜬다** — 복구가 잘못됐을 때 되돌리는 데 사용한다
-4. `app` 컨테이너를 멈추고 DB를 교체한 뒤 다시 띄운다
+4. `app`·`rag-worker` 컨테이너를 멈추고 DB를 교체한 뒤(`DROP DATABASE ... WITH (FORCE)`) 다시 띄운다
 
 > 스케치는 dump를 한 번도 보지 않고 `DROP DATABASE`부터 했다. dump가 손상됐다는
 > 사실을 DB를 이미 지운 뒤에 알게 되는 순서였다. 게다가 `app`이 연결을 붙들고

@@ -4,15 +4,15 @@
 #
 # R126: 스케치는 dump를 한 번도 검사하지 않고 `DROP DATABASE`부터 했다.
 # dump가 잘렸거나 손상됐거나 다른 버전이면 그 사실을 **DB를 이미 지운 뒤에**
-# 알게 되고, 되돌릴 방법이 없다. 게다가 app 컨테이너가 연결을 붙들고 있으면
-# DROP은 "database is being accessed by other users"로 실패한다 —
+# 알게 되고, 되돌릴 방법이 없다. 게다가 app·rag-worker 컨테이너가 연결을 붙들고
+# 있으면 DROP은 "database is being accessed by other users"로 실패한다 —
 # 성공해도 위험하고 실패해도 혼란스러운 절차였다.
 #
 # 여기서는 순서를 뒤집는다:
 #   1) dump를 먼저 검증한다 (pg_restore --list)
 #   2) 현재 DB의 안전 덤프를 뜬다 — 유일한 되돌리기 수단이다
 #   3) 사람에게 명시적으로 확인받는다 (set -euo pipefail로는 실수를 못 막는다)
-#   4) app 컨테이너를 멈춘 뒤 교체한다. 교체가 실패하면 app은 안전을 위해 멈춘 채 둔다
+#   4) app·rag-worker 컨테이너를 멈춘 뒤 교체한다. 교체가 실패하면 안전을 위해 멈춘 채 둔다
 #
 # 그리고 **리허설 경로**(--rehearse)를 제공한다. 별도 DB(glossary_rehearsal)로
 # 복구해 검증만 하고 운영 DB는 건드리지 않는다. docs/operations.md의
@@ -32,6 +32,10 @@ usage() {
   scripts/restore.sh --force   <dump파일>   # 위험: 운영 DB를 이 dump로 교체한다
 
 --force는 확인 문구를 직접 타이핑해야 진행된다.
+
+기본 대상은 docker-compose.prod.yml(소스 빌드 배포)이다.
+Docker Hub 배포는 반드시 Compose 파일을 지정한다:
+  COMPOSE_FILE=docker-compose.hub.yml scripts/restore.sh --rehearse <dump파일>
 USAGE
   exit 2
 }
@@ -53,18 +57,22 @@ container_tmp="/tmp/restore-$(date +%s).dump"
 # app을 멈춘 뒤 pg_restore가 실패하면 set -e가 여기서 스크립트를 끝낸다.
 # DB가 반쯤 복구됐을 수 있으므로, 교체가 시작된 뒤에는 app을 자동으로 다시 띄우지
 # 않는다. DB를 건드리기 전에 실패한 경우에만 복구 전 실행 상태로 되돌린다.
-app_stopped=0
-app_was_running=0
+services_stopped=0
+# 실제로 떠 있던 서비스만 다시 띄운다 — 사람이 일부러 내려 둔 서비스를 복구가 살리면 안 된다.
+was_running=""
 db_replace_started=0
 done_ok=0
 cleanup() {
   compose exec -T postgres rm -f "$container_tmp" >/dev/null 2>&1 || true
-  if [ "$app_stopped" = "1" ] && [ "$done_ok" = "0" ]; then
-    if [ "$db_replace_started" = "0" ] && [ "$app_was_running" = "1" ]; then
-      echo "DB 교체 전에 복구가 중단됐다. 원래 실행 중이던 app을 다시 띄운다." >&2
-      compose start app || true
+  if [ "$services_stopped" = "1" ] && [ "$done_ok" = "0" ]; then
+    if [ "$db_replace_started" = "0" ]; then
+      if [ -n "$was_running" ]; then
+        echo "DB 교체 전에 복구가 중단됐다. 원래 실행 중이던 서비스를 다시 띄운다:${was_running}" >&2
+        # shellcheck disable=SC2086
+        compose start $was_running || true
+      fi
     else
-      echo "복구가 정상 종료되지 않았다. DB 상태 확인 전까지 app을 중지한 채 둔다." >&2
+      echo "복구가 정상 종료되지 않았다. DB 상태 확인 전까지 app·rag-worker를 중지한 채 둔다." >&2
       if [ -n "${safety:-}" ]; then
         echo "안전 덤프: ${safety}" >&2
       fi
@@ -117,26 +125,42 @@ compose cp "postgres:${safety_tmp}" "$safety"
 compose exec -T postgres rm -f "$safety_tmp" >/dev/null 2>&1 || true
 echo "      안전 덤프 확보. 복구가 잘못되면 이 파일로 되돌린다."
 
-echo "[3/4] app 컨테이너를 멈춘다 (연결이 남아 있으면 DROP DATABASE가 실패한다)"
-running_app="$(compose ps --status running -q app 2>/dev/null || true)"
-if [ -n "$running_app" ]; then
-  app_was_running=1
+echo "[3/4] DB 클라이언트 컨테이너를 멈춘다 (연결이 남아 있으면 DROP DATABASE가 실패한다)"
+# rag-worker도 2초마다 폴링하며 idle 연결을 붙들고 있다. app만 멈추면 DROP이
+# "being accessed by other users"로 실패하는데, 그 시점은 db_replace_started=1 이후라
+# app이 내려간 채 남는다. Compose 파일마다 서비스 구성이 다를 수 있어 실제로 정의된
+# 것만 멈춘다 — 없는 서비스 이름을 stop에 넘기면 compose가 실패한다.
+defined_services="$(compose config --services)"
+stop_targets=""
+for svc in app rag-worker; do
+  if printf '%s\n' "$defined_services" | grep -qx "$svc"; then
+    stop_targets="${stop_targets} ${svc}"
+    if [ -n "$(compose ps --status running -q "$svc" 2>/dev/null || true)" ]; then
+      was_running="${was_running} ${svc}"
+    fi
+  fi
+done
+if [ -n "$stop_targets" ]; then
+  # shellcheck disable=SC2086
+  compose stop $stop_targets
 fi
-compose stop app
-app_stopped=1
+services_stopped=1
 
 echo "[4/4] DB 교체"
 db_replace_started=1
-compose exec -T postgres psql -U glossary -d postgres \
-  -c "DROP DATABASE IF EXISTS glossary;" -c "CREATE DATABASE glossary;"
+# WITH (FORCE)는 Compose 밖의 클라이언트(수동 psql 세션 등)가 남긴 연결까지 끊는다.
+# 서비스를 멈추는 것만으로는 그런 연결을 막을 수 없다.
+compose exec -T postgres psql -U glossary -d postgres -v ON_ERROR_STOP=1 \
+  -c "DROP DATABASE IF EXISTS glossary WITH (FORCE);" -c "CREATE DATABASE glossary;"
 compose exec -T postgres pg_restore -U glossary -d glossary --no-owner "$container_tmp"
 
-if [ "$app_was_running" = "1" ]; then
-  echo "복구 전 실행 중이던 app 컨테이너를 다시 띄운다"
-  compose start app
+if [ -n "$was_running" ]; then
+  echo "복구 전 실행 중이던 서비스를 다시 띄운다:${was_running}"
+  # shellcheck disable=SC2086
+  compose start $was_running
 else
-  echo "복구 전 app 컨테이너가 중지돼 있어 그대로 둔다"
+  echo "복구 전 app·rag-worker가 중지돼 있어 그대로 둔다"
 fi
 done_ok=1
 
-echo "완료. 되돌리려면: scripts/restore.sh --force '${safety}'"
+echo "완료. 되돌리려면: COMPOSE_FILE=${COMPOSE_FILE} scripts/restore.sh --force '${safety}'"

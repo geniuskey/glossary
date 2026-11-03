@@ -69,6 +69,16 @@ services:
       # 공개 인터넷에 평문 앱 포트를 노출하지 않는다. 앞단의 TLS 프록시만
       # 127.0.0.1:3000으로 연결해야 한다 — docs/operations.md 참조.
       - "127.0.0.1:3000:3000"
+    # restart: unless-stopped는 프로세스가 죽을 때만 반응한다. 프로세스는 살아 있는데
+    # 요청에 응답하지 못하거나 DB에 못 붙는 상태는 healthcheck 없이는 `Up`으로만 보인다.
+    # runner는 alpine이라 busybox wget이 있다. --spider(HEAD)가 아니라 GET으로 받는다 —
+    # health 라우트는 GET만 처리한다. 서버가 HOSTNAME=0.0.0.0에 바인드하므로 127.0.0.1로 닿는다.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_healthy

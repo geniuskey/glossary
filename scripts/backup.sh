@@ -17,6 +17,12 @@
 #   3) 호스트 임시 파일로 꺼낸 뒤 크기를 확인한다
 #   4) 전부 통과했을 때만 최종 이름으로 원자적 rename 한다
 # 실패하면 임시 파일을 지우고 0이 아닌 종료 코드로 알린다(cron이 볼 수 있게).
+#
+# 사용법:
+#   scripts/backup.sh                                        # 소스 빌드 배포(docker-compose.prod.yml)
+#   COMPOSE_FILE=docker-compose.hub.yml scripts/backup.sh    # Docker Hub 배포
+# cron은 대화형 셸의 export를 상속하지 않는다. 기본값으로 돌면 hub 스택의 postgres를
+# 찾지 못해 실패하므로 Hub 배포는 crontab 줄에 COMPOSE_FILE을 직접 적는다.
 
 set -euo pipefail
 
@@ -62,4 +68,4 @@ echo "[4/4] 최종 이름으로 이동"
 mv "$host_tmp" "$final"
 
 echo "완료: ${final} (${size} bytes)"
-echo "복구 리허설: scripts/restore.sh --rehearse '${final}'"
+echo "복구 리허설: COMPOSE_FILE=${COMPOSE_FILE} scripts/restore.sh --rehearse '${final}'"

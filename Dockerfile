@@ -12,7 +12,12 @@
 # 운영 이미지에 빌드 도구를 남기지 않으려는 것.
 
 FROM node:22-alpine AS base
-RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
+# 기본 COREPACK_HOME은 root의 ~/.cache라 비root로 도는 migrator가 pnpm을 실행하면
+# 캐시를 못 보고 다시 내려받으려 한다 — 인터넷이 막힌 사내망에서는 그대로 실패한다.
+# 모든 사용자가 읽을 수 있는 경로에 미리 받아 둔다.
+ENV COREPACK_HOME=/usr/local/share/corepack
+RUN corepack enable && corepack prepare pnpm@9.12.0 --activate \
+ && chmod -R a+rX "$COREPACK_HOME"
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -110,6 +115,10 @@ RUN pnpm install --frozen-lockfile --prod=false --filter "@glossary/db..."
 # drizzle.config.ts가 읽는 schema와 migration 파일만 런타임에 넣는다.
 COPY packages/db packages/db
 COPY packages/engine packages/engine
+# 마이그레이션은 DB 자격 증명을 들고 도는 프로세스라 root일 이유가 없다. 파일은 root
+# 소유·읽기 전용으로 남겨 둔다 — drizzle-kit migrate는 schema와 migrations를 읽기만 한다.
+# node 사용자는 node:22-alpine에 이미 있다(uid 1000).
+USER node
 CMD ["pnpm", "--filter", "@glossary/db", "db:migrate"]
 
 # Docker Hub에 `docker build -t ... .`로 올릴 기본 산출물은 반드시 웹 앱이어야

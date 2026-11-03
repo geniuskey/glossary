@@ -74,6 +74,16 @@ services:
       OAUTH2_SUBJECT_FIELD: ${OAUTH2_SUBJECT_FIELD:-}
     ports:
       - "127.0.0.1:${GLOSSARY_PORT:-3000}:3000"
+    # restart: unless-stopped는 프로세스가 죽을 때만 반응한다. 프로세스는 살아 있는데
+    # 요청에 응답하지 못하거나 DB에 못 붙는 상태는 healthcheck 없이는 `Up`으로만 보인다.
+    # runner는 alpine이라 busybox wget이 있다. --spider(HEAD)가 아니라 GET으로 받는다 —
+    # health 라우트는 GET만 처리한다. 컨테이너 안 포트는 GLOSSARY_PORT와 무관하게 3000이다.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
