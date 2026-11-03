@@ -8,6 +8,11 @@ updates:
       time: "09:00"
       timezone: Asia/Seoul
     open-pull-requests-limit: 5
+    # Tailwind v4는 설정 방식이 바뀌어(@tailwind 지시어·PostCSS 플러그인 제거) 그룹 업데이트에
+    # 섞여 들어오면 빌드가 조용히 깨진다. 메이저 이전은 따로 한다.
+    ignore:
+      - dependency-name: tailwindcss
+        update-types: ["version-update:semver-major"]
     groups:
       production-dependencies:
         dependency-type: production
