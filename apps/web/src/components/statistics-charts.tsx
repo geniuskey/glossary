@@ -25,31 +25,37 @@ function yTicks(max: number): number[] {
 }
 
 export function DailyGrowthChart({ data }: { data: readonly DailyStatisticsPoint[] }) {
-  const max = Math.max(1, ...data.flatMap((point) => [point.termsCreated, point.usersCreated]));
+  const showUsers = data.some((point) => point.usersCreated !== undefined);
+  const max = Math.max(1, ...data.flatMap((point) => [point.termsCreated, point.usersCreated ?? 0]));
   const groupWidth = PLOT_WIDTH / Math.max(1, data.length);
   const barWidth = Math.max(1, Math.min(7, groupWidth * 0.34));
 
   return (
-    <ChartFrame title="일별 신규 등록" description="날짜별 신규 용어와 신규 사용자를 비교합니다." legend={[
-      { label: "신규 용어", className: "bg-brand" },
-      { label: "신규 사용자", className: "bg-accent" },
-    ]}>
+    <ChartFrame
+      title="일별 신규 등록"
+      description={showUsers ? "날짜별 신규 용어와 신규 사용자를 비교합니다." : "날짜별 신규 공개 용어 수입니다."}
+      legend={showUsers
+        ? [{ label: "신규 용어", className: "bg-brand" }, { label: "신규 사용자", className: "bg-accent" }]
+        : [{ label: "신규 용어", className: "bg-brand" }]}
+    >
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-labelledby="daily-growth-title daily-growth-desc" className="h-auto w-full min-w-[560px]">
-        <title id="daily-growth-title">일별 신규 용어 및 사용자</title>
-        <desc id="daily-growth-desc">선택 기간 동안 날짜별로 등록된 용어와 사용자의 수를 막대로 표시합니다.</desc>
+        <title id="daily-growth-title">{showUsers ? "일별 신규 용어 및 사용자" : "일별 신규 용어"}</title>
+        <desc id="daily-growth-desc">{showUsers ? "선택 기간 동안 날짜별로 등록된 용어와 사용자의 수를 막대로 표시합니다." : "선택 기간 동안 날짜별로 등록된 공개 용어의 수를 막대로 표시합니다."}</desc>
         <Grid max={max} />
         {data.map((point, index) => {
           const center = LEFT + groupWidth * (index + 0.5);
           const termHeight = (point.termsCreated / max) * PLOT_HEIGHT;
-          const userHeight = (point.usersCreated / max) * PLOT_HEIGHT;
+          const userHeight = ((point.usersCreated ?? 0) / max) * PLOT_HEIGHT;
           return (
             <g key={point.date}>
               <rect x={center - barWidth - 1} y={TOP + PLOT_HEIGHT - termHeight} width={barWidth} height={termHeight} rx="1.5" className="fill-brand">
                 <title>{`${point.date} 신규 용어 ${point.termsCreated}개`}</title>
               </rect>
-              <rect x={center + 1} y={TOP + PLOT_HEIGHT - userHeight} width={barWidth} height={userHeight} rx="1.5" className="fill-accent">
-                <title>{`${point.date} 신규 사용자 ${point.usersCreated}명`}</title>
-              </rect>
+              {showUsers && (
+                <rect x={center + 1} y={TOP + PLOT_HEIGHT - userHeight} width={barWidth} height={userHeight} rx="1.5" className="fill-accent">
+                  <title>{`${point.date} 신규 사용자 ${point.usersCreated ?? 0}명`}</title>
+                </rect>
+              )}
             </g>
           );
         })}
@@ -98,14 +104,14 @@ export function CumulativeChart({
   title: string;
   unit: string;
 }) {
-  const values = data.map((point) => point[value]);
+  const values = data.map((point) => point[value] ?? 0);
   const rawMin = values.length > 0 ? Math.min(...values) : 0;
   const max = Math.max(...values, 1);
   const min = rawMin > 0 ? Math.max(0, rawMin - Math.max(1, (max - rawMin) * 0.1)) : 0;
   const range = Math.max(1, max - min);
   const points = data.map((point, index) => {
     const x = LEFT + (index / Math.max(1, data.length - 1)) * PLOT_WIDTH;
-    const y = TOP + PLOT_HEIGHT - ((point[value] - min) / range) * PLOT_HEIGHT;
+    const y = TOP + PLOT_HEIGHT - (((point[value] ?? 0) - min) / range) * PLOT_HEIGHT;
     return { x, y, point };
   });
   const path = points.map(({ x, y }, index) => `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
@@ -129,7 +135,7 @@ export function CumulativeChart({
         <path d={path} fill="none" className="stroke-brand" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
         {points.map(({ x, y, point }, index) => (
           <circle key={point.date} cx={x} cy={y} r={tickIndexes(points.length).includes(index) ? 3 : 1.5} className="fill-panel stroke-brand" strokeWidth="1.5">
-            <title>{`${point.date} ${point[value].toLocaleString("ko-KR")}${unit}`}</title>
+            <title>{`${point.date} ${(point[value] ?? 0).toLocaleString("ko-KR")}${unit}`}</title>
           </circle>
         ))}
         <DateTicks data={data} />

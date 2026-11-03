@@ -26,10 +26,12 @@ export function GroupStatisticsTable({
   kind,
   rows,
   categoryLabels = {},
+  showDraft,
 }: {
   kind: "category" | "domain";
   rows: readonly GroupStatistics[];
   categoryLabels?: Record<string, string>;
+  showDraft: boolean;
 }) {
   const title = kind === "category" ? "업무 분류별 관리 현황" : "도메인별 관리 현황";
   const help = [
@@ -51,7 +53,7 @@ export function GroupStatisticsTable({
               <th scope="col" className="px-4 py-3 font-medium">{kind === "category" ? "업무 분류" : "도메인"}</th>
               <th scope="col" className="px-3 py-3 text-right font-medium">전체</th>
               <th scope="col" className="px-3 py-3 text-right font-medium">공개</th>
-              <th scope="col" className="px-3 py-3 text-right font-medium">초안</th>
+              {showDraft && <th scope="col" className="px-3 py-3 text-right font-medium">초안</th>}
               <th scope="col" className="px-3 py-3 font-medium">담당 지정</th>
               <th scope="col" className="px-3 py-3 font-medium">30일 내 갱신</th>
               <th scope="col" className="px-3 py-3 text-right font-medium">90일 미갱신</th>
@@ -77,7 +79,7 @@ export function GroupStatisticsTable({
                   </th>
                   <td className="px-3 py-3 text-right font-mono tabular-nums">{row.total.toLocaleString("ko-KR")}</td>
                   <td className="px-3 py-3 text-right font-mono tabular-nums text-ok">{row.active.toLocaleString("ko-KR")}</td>
-                  <td className="px-3 py-3 text-right font-mono tabular-nums text-warn">{row.draft.toLocaleString("ko-KR")}</td>
+                  {showDraft && <td className="px-3 py-3 text-right font-mono tabular-nums text-warn">{(row.draft ?? 0).toLocaleString("ko-KR")}</td>}
                   <td className="px-3 py-3"><Rate value={ownerRate} detail={`${row.withOwner}/${row.total}`} /></td>
                   <td className="px-3 py-3"><Rate value={updatedRate} detail={`${row.updated30d}/${row.total}`} /></td>
                   <td className={cx("px-3 py-3 text-right font-mono tabular-nums", row.stale90d > 0 ? "text-danger" : "text-ink-3")}>{row.stale90d.toLocaleString("ko-KR")}</td>

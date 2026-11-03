@@ -1,34 +1,33 @@
 import "server-only";
 
-import { sql } from "drizzle-orm";
+import { and, sql } from "drizzle-orm";
 import { termRevisions, terms, users } from "@glossary/db";
 import { getDb } from "@/lib/db";
-import { buildDailyStatistics, type DailyCount, type DailyStatisticsPoint } from "./statistics-series";
+import {
+  buildDailyStatistics,
+  normalizeGroups,
+  type DailyCount,
+  type DailyStatisticsPoint,
+  type GroupStatistics,
+  type StatisticsAudience,
+} from "./statistics-series";
 
 const REPORT_TIME_ZONE = "Asia/Seoul";
 
-export interface GroupStatistics {
-  name: string;
-  total: number;
-  active: number;
-  draft: number;
-  withOwner: number;
-  updated30d: number;
-  stale90d: number;
-  lastUpdatedAt: string | null;
-}
+export type { GroupStatistics, StatisticsAudience };
 
 export interface PlatformStatistics {
+  audience: StatisticsAudience;
   generatedAt: string;
   timeZone: string;
   days: number;
   totals: {
     terms: number;
-    users: number;
     activeTerms: number;
     revisions30d: number;
     terms30d: number;
-    users30d: number;
+    users?: number;
+    users30d?: number;
   };
   daily: DailyStatisticsPoint[];
   categories: GroupStatistics[];
@@ -48,32 +47,18 @@ function numberOf(value: unknown): number {
   return Number(value ?? 0);
 }
 
-function normalizeGroups(rows: Array<{
-  name: string;
-  total: number;
-  active: number;
-  draft: number;
-  withOwner: number;
-  updated30d: number;
-  stale90d: number;
-  lastUpdatedAt: Date | string | null;
-}>): GroupStatistics[] {
-  return rows.map((row) => ({
-    name: row.name,
-    total: numberOf(row.total),
-    active: numberOf(row.active),
-    draft: numberOf(row.draft),
-    withOwner: numberOf(row.withOwner),
-    updated30d: numberOf(row.updated30d),
-    stale90d: numberOf(row.stale90d),
-    lastUpdatedAt: row.lastUpdatedAt == null
-      ? null
-      : new Date(row.lastUpdatedAt).toISOString(),
-  }));
-}
-
-export async function getPlatformStatistics(days: 30 | 90 | 180 = 30): Promise<PlatformStatistics> {
+export async function getPlatformStatistics({
+  days = 30,
+  audience,
+}: {
+  days?: 30 | 90 | 180;
+  audience: StatisticsAudience;
+}): Promise<PlatformStatistics> {
   const db = getDb();
+  const isPublic = audience === "public";
+  // 공개 집계는 용어 쪽 전부를 공개(active) 용어로만 센다. 그룹 표만 거르면 전체 용어 수와
+  // 공개 수의 차이, 일별 신규 막대로 초안 규모가 그대로 역산된다.
+  const visibleTerms = isPublic ? sql`${terms.status} <> 'draft'` : sql`true`;
   const dayOf = (column: unknown) => sql<string>`to_char(${column} at time zone 'Asia/Seoul', 'YYYY-MM-DD')`;
   // 양쪽을 서울 기준 date로 만든 뒤 비교한다. `date - integer at time zone ...`처럼
   // 해석될 여지를 남기면 Postgres가 timezone(unknown, integer)를 찾다가 실패한다.
@@ -91,6 +76,7 @@ export async function getPlatformStatistics(days: 30 | 90 | 180 = 30): Promise<P
       updatedAt: terms.updatedAt,
     })
     .from(terms)
+    .where(visibleTerms)
     .as("domain_terms");
 
   const categoryTerms = db
@@ -102,6 +88,7 @@ export async function getPlatformStatistics(days: 30 | 90 | 180 = 30): Promise<P
       updatedAt: terms.updatedAt,
     })
     .from(terms)
+    .where(visibleTerms)
     .as("category_terms");
 
   const groupFields = (source: typeof terms | typeof domainTerms | typeof categoryTerms) => ({
@@ -128,18 +115,22 @@ export async function getPlatformStatistics(days: 30 | 90 | 180 = 30): Promise<P
       total: sql<number>`count(*)::int`,
       active: sql<number>`count(*) filter (where ${terms.status} = 'active')::int`,
       recent: sql<number>`count(*) filter (where ${terms.createdAt} >= current_timestamp - interval '30 days')::int`,
-    }).from(terms),
-    db.select({
-      total: sql<number>`count(*)::int`,
-      recent: sql<number>`count(*) filter (where ${users.createdAt} >= current_timestamp - interval '30 days')::int`,
-    }).from(users),
+    }).from(terms).where(visibleTerms),
+    isPublic
+      ? Promise.resolve([undefined])
+      : db.select({
+        total: sql<number>`count(*)::int`,
+        recent: sql<number>`count(*) filter (where ${users.createdAt} >= current_timestamp - interval '30 days')::int`,
+      }).from(users),
     db.select({ recent: sql<number>`count(*)::int` })
       .from(termRevisions)
       .where(sql`${termRevisions.createdAt} >= current_timestamp - interval '30 days'`),
     db.select({ day: termDay, count: sql<number>`count(*)::int` })
-      .from(terms).where(inWindow(terms.createdAt)).groupBy(termDay).orderBy(termDay),
-    db.select({ day: userDay, count: sql<number>`count(*)::int` })
-      .from(users).where(inWindow(users.createdAt)).groupBy(userDay).orderBy(userDay),
+      .from(terms).where(and(inWindow(terms.createdAt), visibleTerms)).groupBy(termDay).orderBy(termDay),
+    isPublic
+      ? Promise.resolve(null)
+      : db.select({ day: userDay, count: sql<number>`count(*)::int` })
+        .from(users).where(inWindow(users.createdAt)).groupBy(userDay).orderBy(userDay),
     db.select({ day: revisionDay, count: sql<number>`count(*)::int` })
       .from(termRevisions).where(inWindow(termRevisions.createdAt)).groupBy(revisionDay).orderBy(revisionDay),
     db.select({ name: categoryTerms.name, ...groupFields(categoryTerms) })
@@ -149,31 +140,29 @@ export async function getPlatformStatistics(days: 30 | 90 | 180 = 30): Promise<P
   ]);
 
   const totalTerms = numberOf(termTotals?.total);
-  const totalUsers = numberOf(userTotals?.total);
   const daily = buildDailyStatistics({
     today: reportDay(),
     days,
     totalTerms,
-    totalUsers,
     terms: termDays as DailyCount[],
-    users: userDays as DailyCount[],
     revisions: revisionDays as DailyCount[],
+    ...(userTotals && userDays ? { totalUsers: numberOf(userTotals.total), users: userDays as DailyCount[] } : {}),
   });
 
   return {
+    audience,
     generatedAt: new Date().toISOString(),
     timeZone: REPORT_TIME_ZONE,
     days,
     totals: {
       terms: totalTerms,
-      users: totalUsers,
       activeTerms: numberOf(termTotals?.active),
       revisions30d: numberOf(revisionTotals?.recent),
       terms30d: numberOf(termTotals?.recent),
-      users30d: numberOf(userTotals?.recent),
+      ...(userTotals ? { users: numberOf(userTotals.total), users30d: numberOf(userTotals.recent) } : {}),
     },
     daily,
-    categories: normalizeGroups(categoryRows),
-    domains: normalizeGroups(domainRows),
+    categories: normalizeGroups(categoryRows, audience),
+    domains: normalizeGroups(domainRows, audience),
   };
 }

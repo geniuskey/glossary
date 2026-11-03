@@ -25,7 +25,7 @@ export default async function StatisticsPage({
   const user = await getCurrentUser();
 
   const period = periodOf((await searchParams).days);
-  const [statistics, categories] = await Promise.all([getPlatformStatistics(period), listBusinessCategories()]);
+  const [statistics, categories] = await Promise.all([getPlatformStatistics({ days: period, audience: user ? "member" : "public" }), listBusinessCategories()]);
   const categoryLabels = Object.fromEntries(categories.map((category) => [category.key, category.label]));
   const activeRate = statistics.totals.terms > 0
     ? Math.round((statistics.totals.activeTerms / statistics.totals.terms) * 100)
@@ -55,9 +55,15 @@ export default async function StatisticsPage({
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6" aria-label="플랫폼 요약">
-          <StatCard label="전체 용어" value={statistics.totals.terms} sub={`공개 ${activeRate}%`} />
-          <StatCard label="전체 사용자" value={statistics.totals.users} sub={`최근 30일 +${statistics.totals.users30d}`} />
+        <section className={statistics.totals.users !== undefined ? "grid gap-3 sm:grid-cols-2 xl:grid-cols-6" : "grid gap-3 sm:grid-cols-2 xl:grid-cols-5"} aria-label="플랫폼 요약">
+          <StatCard
+            label={statistics.audience === "member" ? "전체 용어" : "공개 용어"}
+            value={statistics.totals.terms}
+            sub={statistics.audience === "member" ? `공개 ${activeRate}%` : undefined}
+          />
+          {statistics.totals.users !== undefined && (
+            <StatCard label="전체 사용자" value={statistics.totals.users} sub={`최근 30일 +${statistics.totals.users30d ?? 0}`} />
+          )}
           <StatCard label="최근 30일 신규 용어" value={statistics.totals.terms30d} help="용어의 생성일을 기준으로 집계합니다." />
           <StatCard label="최근 30일 편집" value={statistics.totals.revisions30d} help="새로 생성된 리비전 수를 기준으로 집계합니다." />
           <StatCard label="카테고리" value={statistics.categories.length} help="미분류 항목을 포함합니다." />
@@ -68,15 +74,19 @@ export default async function StatisticsPage({
           <DailyGrowthChart data={statistics.daily} />
           <RevisionActivityChart data={statistics.daily} />
           <CumulativeChart data={statistics.daily} value="cumulativeTerms" title={`누적 용어 · ${period}일`} unit="개" />
-          <CumulativeChart data={statistics.daily} value="cumulativeUsers" title={`누적 사용자 · ${period}일`} unit="명" />
+          {statistics.audience === "member" && (
+            <CumulativeChart data={statistics.daily} value="cumulativeUsers" title={`누적 사용자 · ${period}일`} unit="명" />
+          )}
         </div>
 
-        <GroupStatisticsTable kind="category" rows={statistics.categories} categoryLabels={categoryLabels} />
-        <GroupStatisticsTable kind="domain" rows={statistics.domains} />
+        <GroupStatisticsTable kind="category" rows={statistics.categories} categoryLabels={categoryLabels} showDraft={statistics.audience === "member"} />
+        <GroupStatisticsTable kind="domain" rows={statistics.domains} showDraft={statistics.audience === "member"} />
 
         <footer className="mt-6 flex items-center gap-1.5 border-t border-line pt-4 text-xs text-ink-3">
           <span>마지막 집계 {new Date(statistics.generatedAt).toLocaleString("ko-KR", { timeZone: statistics.timeZone })}</span>
-          <HelpTip text={`날짜는 ${statistics.timeZone} 기준입니다. 성장 추이는 현재 남아 있는 용어·사용자의 생성일, 편집 활동은 리비전 생성 건수를 기준으로 집계합니다.`} />
+          <HelpTip text={statistics.audience === "member"
+            ? `날짜는 ${statistics.timeZone} 기준입니다. 성장 추이는 현재 남아 있는 용어·사용자의 생성일, 편집 활동은 리비전 생성 건수를 기준으로 집계합니다.`
+            : `날짜는 ${statistics.timeZone} 기준입니다. 로그인하지 않으면 공개된 용어만 집계하며 사용자 통계는 표시하지 않습니다.`} />
         </footer>
       </div>
     </AppShell>
