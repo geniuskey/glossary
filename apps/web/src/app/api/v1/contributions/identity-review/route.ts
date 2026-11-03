@@ -8,7 +8,8 @@ import {
 } from "@/lib/ai/identity-review";
 import { AiProviderError } from "@/lib/ai/provider";
 import { isResponse, requireAuth } from "@/lib/auth/require";
-import { currentRevisionNumber } from "@/lib/terms/update";
+import { currentRevisionNumber, type UpdateTermSuccess } from "@/lib/terms/update";
+import { recordAuditEvent } from "@/lib/audit";
 import { getTermByIdOrSlug } from "@/lib/terms/query";
 
 const ALLOWED_METHODS = ["POST", "PATCH", "DELETE"];
@@ -74,6 +75,14 @@ export const PATCH = withApiErrors(async (request: Request) => {
     if ("invalid" in result) return apiError("validation_failed", "표기 정비 제안을 적용할 수 없습니다.", 400, { issues: result.issues });
     if ("representativeConflict" in result) return apiError("operation_conflict", "대표 표기 충돌을 먼저 해결해 주세요.", 409);
     if ("slugConflict" in result) return apiError("operation_conflict", "URL 충돌을 먼저 해결해 주세요.", 409);
+    const ok: UpdateTermSuccess = result;
+    await recordAuditEvent({
+      action: "term.update",
+      targetType: "term",
+      targetId: ok.term.id,
+      actor: auth.kind === "user" ? { userId: auth.user.id } : { keyId: auth.keyId },
+      metadata: { status: ok.term.status, source: "identity-review", suggestionId: parsed.data.suggestionId },
+    });
     const current = await getTermByIdOrSlug(parsed.data.termId);
     const revision = await currentRevisionNumber(parsed.data.termId);
     const candidate = current

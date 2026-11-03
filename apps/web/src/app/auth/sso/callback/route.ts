@@ -173,10 +173,16 @@ export async function GET(request: Request): Promise<Response> {
       claims = userinfo.claims;
     }
 
-    if (isGoogleIssuer(cfg.issuer) && claims.email_verified !== true) {
+    // 일부 IdP(Cognito 등)는 userinfo에서 email_verified를 문자열로 보낸다.
+    const emailVerifiedClaim = claims.email_verified;
+    const emailVerified = emailVerifiedClaim === true || emailVerifiedClaim === "true";
+    const emailUnverified = emailVerifiedClaim === false || emailVerifiedClaim === "false";
+    // Google은 claim이 빠지는 일이 없으므로 없으면 미확인으로 본다. 다른 IdP는 claim을 아예
+    // 안 보내는 곳이 많아 없다는 이유만으로 막지는 않고, 아래에서 이메일 연결·관리자 부트스트랩만 막는다.
+    if (emailUnverified || (isGoogleIssuer(cfg.issuer) && !emailVerified)) {
       logSsoFailure("identity_mapping", {
         protocol: cfg.protocol,
-        reason: "unverified_google_email",
+        reason: isGoogleIssuer(cfg.issuer) ? "unverified_google_email" : "unverified_email",
         claimKeys: claimKeys(claims),
       });
       return back(base, "unverified_email", refresh);
@@ -214,7 +220,10 @@ export async function GET(request: Request): Promise<Response> {
       return back(base, "not_allowed", refresh);
     }
 
-    const bootstrapAdmin = isInitialAdminEmail(identity.identity.email);
+    // INITIAL_ADMIN_EMAIL 부트스트랩은 설정이 끝난 뒤에도 매 로그인마다 적용된다(문서화된 동작:
+    // /setup을 비밀번호로 끝낸 뒤 Google 로그인으로 관리자를 붙인다). 그래서 IdP가 확인하지 않은
+    // 이메일로는 절대 열리지 않아야 한다 — 사용자가 고칠 수 있는 이메일이면 누구나 관리자가 된다.
+    const bootstrapAdmin = emailVerified && isInitialAdminEmail(identity.identity.email);
     if (await needsSetup() && !bootstrapAdmin) {
       logSsoFailure("account_link", { protocol: cfg.protocol, reason: "initial_admin_required" });
       return back(base, "no_account", refresh);
@@ -225,6 +234,7 @@ export async function GET(request: Request): Promise<Response> {
       autoCreate: cfg.autoCreate || bootstrapAdmin,
       refreshProfile: refresh,
       expectedUserId: flow?.refreshUserId,
+      allowEmailLink: emailVerified,
     });
     if (!result.ok) {
       logSsoFailure("account_link", { protocol: cfg.protocol, reason: result.reason });

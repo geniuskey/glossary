@@ -1,6 +1,7 @@
 import { eq, type InferSelectModel } from "drizzle-orm";
 import { ragConfig } from "@glossary/db";
 import { getDb } from "@/lib/db";
+import { canReuseStoredSecrets } from "@/lib/ai/config";
 import { aiEncryptionReady, decryptAiSecret, encryptAiSecret } from "@/lib/ai/crypto";
 import type {
   PublicRagConfig,
@@ -205,13 +206,7 @@ export function runtimeRagEndpointFromDraft(
   input: RagEndpointConnectionDraft,
   model = "",
 ): RagEndpointRuntime {
-  const existing = currentSecrets(row, kind);
-  const apiKey = input.apiKey === null ? "" : input.apiKey?.trim() || existing.apiKey;
-  const existingByName = new Map(existing.headers.map((header) => [header.name.toLowerCase(), header.value]));
-  const customHeaders = input.customHeaders.map((header) => ({
-    name: header.name.trim(),
-    value: header.value || existingByName.get(header.name.trim().toLowerCase()) || "",
-  }));
+  const { apiKey, headers: customHeaders } = mergeSecret(row, kind, input.baseUrl, input.apiKey, input.customHeaders);
   return {
     provider: input.provider,
     baseUrl: input.baseUrl.trim().replace(/\/+$/, ""),
@@ -221,20 +216,27 @@ export function runtimeRagEndpointFromDraft(
   };
 }
 
+// 저장된 비밀값은 저장 당시의 origin으로만 보낸다 — canReuseStoredSecrets 참고.
 function mergeSecret(
   row: RagConfigRow,
   kind: "embedding" | "reranker",
+  baseUrl: string,
   suppliedApiKey: string | null | undefined,
   suppliedHeaders: RagHeaderInput[],
-): { apiKey: string; headers: StoredRagHeader[] } {
-  const existing = currentSecrets(row, kind);
-  const apiKey = suppliedApiKey === null ? "" : suppliedApiKey?.trim() || existing.apiKey;
+): { apiKey: string; headers: StoredRagHeader[]; droppedStoredKey: boolean } {
+  const savedBaseUrl = kind === "embedding" ? row.embeddingBaseUrl : row.rerankerBaseUrl;
+  const reuse = canReuseStoredSecrets(savedBaseUrl, baseUrl);
+  const stored = currentSecrets(row, kind);
+  const existing = reuse ? stored : { apiKey: "", headers: [] };
+  const trimmed = suppliedApiKey?.trim() ?? "";
+  const apiKey = suppliedApiKey === null ? "" : trimmed || existing.apiKey;
+  const droppedStoredKey = !reuse && suppliedApiKey !== null && !trimmed && Boolean(stored.apiKey);
   const existingByName = new Map(existing.headers.map((header) => [header.name.toLowerCase(), header.value]));
   const headers = suppliedHeaders.map((header) => ({
     name: header.name.trim(),
     value: header.value || existingByName.get(header.name.trim().toLowerCase()) || "",
   }));
-  return { apiKey, headers };
+  return { apiKey, headers, droppedStoredKey };
 }
 
 export async function saveRagConfig(
@@ -250,11 +252,11 @@ export async function saveRagConfig(
     return { ok: false, problems: ["서버에 GLOSSARY_ENCRYPTION_KEY를 32자 이상으로 설정한 뒤 다시 시도해 주세요."] };
   }
 
-  let embedding: { apiKey: string; headers: StoredRagHeader[] };
-  let reranker: { apiKey: string; headers: StoredRagHeader[] };
+  let embedding: ReturnType<typeof mergeSecret>;
+  let reranker: ReturnType<typeof mergeSecret>;
   try {
-    embedding = mergeSecret(current, "embedding", input.embeddingApiKey, input.embeddingCustomHeaders);
-    reranker = mergeSecret(current, "reranker", input.rerankerApiKey, input.rerankerCustomHeaders);
+    embedding = mergeSecret(current, "embedding", input.embeddingBaseUrl, input.embeddingApiKey, input.embeddingCustomHeaders);
+    reranker = mergeSecret(current, "reranker", input.rerankerBaseUrl, input.rerankerApiKey, input.rerankerCustomHeaders);
   } catch {
     return { ok: false, problems: ["저장된 RAG 비밀값을 읽을 수 없습니다. 서버의 암호화 키를 확인해 주세요."] };
   }
@@ -263,6 +265,8 @@ export async function saveRagConfig(
   for (const header of [...embedding.headers, ...reranker.headers]) {
     if (!header.value) problems.push(`${header.name} header 값을 입력해 주세요.`);
   }
+  if (embedding.droppedStoredKey) problems.push("Embedding API 주소의 호스트가 바뀌어 저장된 API 키를 그대로 쓸 수 없습니다. API 키를 다시 입력하거나 삭제해 주세요.");
+  if (reranker.droppedStoredKey) problems.push("Reranker API 주소의 호스트가 바뀌어 저장된 API 키를 그대로 쓸 수 없습니다. API 키를 다시 입력하거나 삭제해 주세요.");
   if (input.enabled && input.embeddingProvider === "gemini" && !embedding.apiKey) {
     problems.push("Gemini Embedding을 활성화하려면 API 키를 입력해 주세요.");
   }

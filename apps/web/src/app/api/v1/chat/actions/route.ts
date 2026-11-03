@@ -4,7 +4,8 @@ import { chatConversations } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { requireAuth, isResponse } from "@/lib/auth/require";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
-import { updateTerm } from "@/lib/terms/update";
+import { updateTerm, type UpdateTermSuccess } from "@/lib/terms/update";
+import { recordAuditEvent } from "@/lib/audit";
 import { resolveDomains } from "@/lib/terms/domains";
 import { getTermByIdOrSlug } from "@/lib/terms/query";
 import { businessCategoriesExist } from "@/lib/terms/categories";
@@ -69,9 +70,17 @@ export const POST = withApiErrors(async (request: Request) => {
     if ("notFound" in result) return apiError("term_not_found", "용어가 삭제되었습니다.", 404);
     if ("invalid" in result) return apiError("validation_failed", result.issues.join(" "), 400);
     if ("representativeConflict" in result || "slugConflict" in result) return apiError("validation_failed", "기존 용어와 표기가 충돌합니다. 수정안을 다시 요청해 주세요.", 400);
-    scheduleAfterResponse(() => prepareAutoReview(result.term.id));
+    const ok: UpdateTermSuccess = result;
+    await recordAuditEvent({
+      action: "term.update",
+      targetType: "term",
+      targetId: ok.term.id,
+      actor: { userId: auth.user.id },
+      metadata: { status: ok.term.status, source: "chat", actionId },
+    });
+    scheduleAfterResponse(() => prepareAutoReview(ok.term.id));
     scheduleRagIndexing(1);
-    return Response.json({ edit: finish("applied", proposal.expectedRevision + 1), warnings: result.warnings });
+    return Response.json({ edit: finish("applied", proposal.expectedRevision + 1), warnings: ok.warnings });
   } catch (error) {
     if (!(error instanceof ActionChanged)) throw error;
     const current = await readProposal();

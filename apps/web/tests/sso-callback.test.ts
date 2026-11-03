@@ -373,13 +373,53 @@ test("환경변수로 지정한 최초 관리자 이메일은 자동 생성 설�
   const email = `initial-admin-${Date.now()}@example.com`;
   process.env.INITIAL_ADMIN_EMAIL = email.toUpperCase();
   await db.update(ssoConfig).set({ autoCreate: false }).where(eq(ssoConfig.id, SSO_CONFIG_ID));
-  stubIdp({ sub: "initial-admin-sub", email, name: "최초 관리자", nonce: FLOW.nonce });
+  stubIdp({ sub: "initial-admin-sub", email, email_verified: true, name: "최초 관리자", nonce: FLOW.nonce });
 
   const res = await callbackGet(callbackRequest({ code: "c", state: FLOW.state }));
 
   expect(location(res)).toBe(`${BASE}/`);
   const row = await userByEmail(email);
   expect(row?.role).toBe("admin");
+});
+
+// 사용자가 IdP에서 자기 이메일을 고칠 수 있으면(Keycloak 등) 관리자 이메일로 바꾸는 것만으로
+// 그 계정을 넘겨받거나 INITIAL_ADMIN_EMAIL 관리자가 될 수 있다. 이메일 인증 여부가 그 경계다.
+test("IdP가 이메일을 미인증이라고 알려 오면 Google이 아니어도 로그인시키지 않는다", async () => {
+  const email = `unverified-${Date.now()}@example.com`;
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  stubIdp({ sub: `unverified-sub-${Date.now()}`, email, email_verified: false, nonce: FLOW.nonce });
+
+  const res = await callbackGet(callbackRequest({ code: "c", state: FLOW.state }));
+
+  expect(location(res)).toBe(`${BASE}/login?sso=unverified_email`);
+  expect(await userByEmail(email)).toBeUndefined();
+});
+
+test("이메일 인증 claim이 없으면 같은 이메일의 기존 계정에 붙이지 않는다", async () => {
+  const email = `link-victim-${Date.now()}@example.com`;
+  const [victim] = await db.insert(users).values({ email, name: "기존 관리자", role: "admin" }).returning();
+  createdUserIds.push(victim!.id);
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  stubIdp({ sub: `attacker-sub-${Date.now()}`, email, nonce: FLOW.nonce });
+
+  const res = await callbackGet(callbackRequest({ code: "c", state: FLOW.state }));
+
+  expect(location(res)).toBe(`${BASE}/login?sso=unverified_email`);
+  expect(res.headers.getSetCookie().some((c) => c.startsWith(`${SESSION_COOKIE}=`))).toBe(false);
+  const [saved] = await db.select({ externalId: users.externalId }).from(users).where(eq(users.id, victim!.id));
+  expect(saved?.externalId).toBeNull();
+});
+
+test("이메일 인증 claim이 없으면 최초 관리자 이메일이어도 관리자로 만들지 않는다", async () => {
+  const email = `initial-admin-unverified-${Date.now()}@example.com`;
+  process.env.INITIAL_ADMIN_EMAIL = email;
+  stubIdp({ sub: `initial-admin-unverified-sub-${Date.now()}`, email, nonce: FLOW.nonce });
+
+  const res = await callbackGet(callbackRequest({ code: "c", state: FLOW.state }));
+
+  expect(location(res)).toBe(`${BASE}/`);
+  const row = await userByEmail(email);
+  expect(row?.role).toBe("viewer");
 });
 
 test("토큰 교환이 실패하면 사유는 로그로만 남기고 token 오류로 되돌린다", async () => {

@@ -91,40 +91,68 @@ function allowedPrivateHosts(): Set<string> {
     .filter(Boolean));
 }
 
-// 메타데이터·link-local은 allowlist로도 열지 않는다. 사내 호스트 이름 하나가 DNS
-// rebinding으로 169.254.169.254를 가리키면 클라우드 자격 증명이 그대로 새 나간다.
-function alwaysUnsafe(normalized: string): boolean {
-  if (normalized === "::" || normalized === "0.0.0.0" || normalized === "100.100.100.200") return true;
-  if (isIP(normalized) === 4) {
-    const parts = normalized.split(".").map(Number);
-    return parts[0] === 0 || (parts[0] === 169 && parts[1] === 254);
-  }
-  if (isIP(normalized) === 6) {
-    return normalized.startsWith("fe8") || normalized.startsWith("fe9") || normalized.startsWith("fea") || normalized.startsWith("feb")
-      || normalized.startsWith("::ffff:169.254.");
-  }
-  return false;
+function ipv6Hextets(address: string): number[] | null {
+  const text = address.replace(/(\d+)\.(\d+)\.(\d+)\.(\d+)$/, (_match, a: string, b: string, c: string, d: string) =>
+    `${((Number(a) << 8) | Number(b)).toString(16)}:${((Number(c) << 8) | Number(d)).toString(16)}`);
+  const parse = (part: string) => (part ? part.split(":").map((group) => Number.parseInt(group, 16)) : []);
+  const halves = text.split("::");
+  if (halves.length > 2) return null;
+  const left = parse(halves[0] ?? "");
+  const right = halves.length === 2 ? parse(halves[1] ?? "") : [];
+  const fill = halves.length === 2 ? 8 - left.length - right.length : 0;
+  if (fill < 0) return null;
+  const hextets = [...left, ...Array<number>(fill).fill(0), ...right];
+  return hextets.length === 8 && hextets.every((value) => Number.isInteger(value) && value >= 0 && value <= 0xffff) ? hextets : null;
 }
 
-function privateAddress(normalized: string): boolean {
-  if (isIP(normalized) === 4) {
-    const parts = normalized.split(".").map(Number);
-    const first = parts[0] ?? -1;
-    const second = parts[1] ?? -1;
-    // Loopback은 로컬 모델 서버를 위해 의도적으로 허용한다.
-    return first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168);
-  }
-  if (isIP(normalized) === 6) {
-    return normalized.startsWith("fc") || normalized.startsWith("fd")
-      || normalized.startsWith("::ffff:10.") || normalized.startsWith("::ffff:172.") || normalized.startsWith("::ffff:192.168.");
-  }
-  return false;
+/**
+ * WHATWG URL은 `[::ffff:169.254.169.254]`를 `[::ffff:a9fe:a9fe]`로 바꿔 놓는다. 점 표기
+ * 접두사만 보면 이 16진 표기와 NAT64(64:ff9b::/96) 주소가 메타데이터·사설망 검사를 그대로
+ * 통과했다 — 안에 담긴 IPv4를 꺼내 IPv4 규칙으로 다시 본다.
+ */
+function embeddedIpv4(hextets: number[]): string | null {
+  const [h0, h1, h2, h3, h4, h5, h6, h7] = hextets as [number, number, number, number, number, number, number, number];
+  const zeroPrefix = h0 === 0 && h1 === 0 && h2 === 0 && h3 === 0;
+  const mapped = zeroPrefix && h4 === 0 && h5 === 0xffff;
+  const translated = zeroPrefix && h4 === 0xffff && h5 === 0;
+  // ::1(loopback)과 ::는 IPv4 호환 주소로 해석하지 않는다 — 0.0.0.1로 읽으면 로컬 모델 서버가 막힌다.
+  const compatible = zeroPrefix && h4 === 0 && h5 === 0 && h6 !== 0;
+  const nat64 = h0 === 0x64 && h1 === 0xff9b && h2 === 0 && h3 === 0 && h4 === 0 && h5 === 0;
+  if (!mapped && !translated && !compatible && !nat64) return null;
+  return [h6 >> 8, h6 & 0xff, h7 >> 8, h7 & 0xff].join(".");
+}
+
+type AddressClass = "always_unsafe" | "private" | "public";
+
+function classifyIpv4(address: string): AddressClass {
+  const [first = -1, second = -1] = address.split(".").map(Number);
+  // 메타데이터·link-local은 allowlist로도 열지 않는다. 사내 호스트 이름 하나가 DNS
+  // rebinding으로 169.254.169.254를 가리키면 클라우드 자격 증명이 그대로 새 나간다.
+  if (first === 0 || (first === 169 && second === 254) || address === "100.100.100.200") return "always_unsafe";
+  // Loopback은 로컬 모델 서버를 위해 의도적으로 허용한다.
+  if (first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168)) return "private";
+  return "public";
+}
+
+function classifyAddress(address: string): AddressClass {
+  const normalized = address.toLowerCase().replace(/^\[|\]$/g, "").replace(/%.*$/, "");
+  const family = isIP(normalized);
+  if (family === 4) return classifyIpv4(normalized);
+  if (family !== 6) return "public";
+  const hextets = ipv6Hextets(normalized);
+  if (!hextets) return "always_unsafe";
+  const ipv4 = embeddedIpv4(hextets);
+  if (ipv4) return classifyIpv4(ipv4);
+  const first = hextets[0]!;
+  if (hextets.every((value) => value === 0) || (first & 0xffc0) === 0xfe80) return "always_unsafe";
+  if ((first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfec0) return "private";
+  return "public";
 }
 
 function unsafeAddress(address: string, allowPrivate: boolean): boolean {
-  const normalized = address.toLowerCase().replace(/^\[|\]$/g, "");
-  if (alwaysUnsafe(normalized)) return true;
-  return allowPrivate ? false : privateAddress(normalized);
+  const kind = classifyAddress(address);
+  if (kind === "always_unsafe") return true;
+  return kind === "private" && !allowPrivate;
 }
 
 export async function assertSafeAiEndpoint(raw: string): Promise<URL> {

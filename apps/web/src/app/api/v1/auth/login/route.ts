@@ -4,11 +4,12 @@ import { users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { recordAuditEvent } from "@/lib/audit";
+import { isAllowedCsrfOrigin } from "@/lib/auth/csrf";
 import { DUMMY_PASSWORD_HASH, verifyPassword } from "@/lib/auth/password";
 import { normalizeEmail } from "@/lib/auth/register";
 import { loadPasswordLoginEnabled } from "@/lib/auth/sso/config";
 import { createSession, isSecureRequest, purgeExpiredSessions, sessionCookie } from "@/lib/auth/session";
-import { clientAddress, consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { consumeAddressRateLimit, consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const bodySchema = z.object({
   email: z.string().trim().email().max(254),
@@ -19,7 +20,21 @@ const ALLOWED_METHODS = ["POST"];
 const { GET, PUT, PATCH, DELETE, OPTIONS } = methodStubs(ALLOWED_METHODS);
 export { GET, PUT, PATCH, DELETE, OPTIONS };
 
+/**
+ * 로그인 CSRF(공격자 계정으로 피해자 브라우저를 로그인시키는 것)를 막는다. enforceCsrf는
+ * Origin·Referer가 없는 요청도 거절해서 문서화된 curl·스크립트 로그인 호출을 깨므로 쓰지 않는다.
+ * 브라우저는 교차 출처 POST에 Origin을 항상 붙이므로, Origin이 있을 때만 검사해도 충분하다.
+ */
+function crossOriginBrowserRequest(request: Request): boolean {
+  if (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") return false;
+  const origin = request.headers.get("origin");
+  return origin !== null && !isAllowedCsrfOrigin(request, origin);
+}
+
 export const POST = withApiErrors(async (request: Request) => {
+  if (crossOriginBrowserRequest(request)) {
+    return apiError("csrf_failed", "요청 출처를 확인할 수 없습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.", 403);
+  }
   if (!(await loadPasswordLoginEnabled())) {
     return apiError("password_login_disabled", "비밀번호 로그인이 비활성화되어 있습니다. 회사 계정으로 로그인하세요.", 403);
   }
@@ -31,7 +46,7 @@ export const POST = withApiErrors(async (request: Request) => {
   const email = normalizeEmail(parsed.data.email);
   const [emailLimit, addressLimit] = await Promise.all([
     consumeRateLimit(`auth:login:email:${email}`, 10, 15 * 60_000),
-    consumeRateLimit(`auth:login:address:${clientAddress(request)}`, 50, 15 * 60_000),
+    consumeAddressRateLimit(request, "auth:login", 50, 15 * 60_000),
   ]);
   const limited = rateLimitResponse(
     emailLimit.allowed ? addressLimit : emailLimit,

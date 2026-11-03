@@ -122,13 +122,27 @@ function currentSecrets(row: AiConfigRow): { apiKey: string; headers: StoredAiHe
   };
 }
 
+/**
+ * 저장된 API 키·헤더는 저장 당시의 origin으로만 보낸다. 입력에서 키를 비워 두면 기존 키를
+ * 재사용하는 규칙 때문에, 관리자 세션 하나로 baseUrl만 attacker.example로 바꿔 모델 목록을
+ * 요청하면 저장된 키가 그대로 외부로 전송됐다.
+ */
+export function canReuseStoredSecrets(savedBaseUrl: string, draftBaseUrl: string): boolean {
+  try {
+    return new URL(savedBaseUrl.trim()).origin === new URL(draftBaseUrl.trim()).origin;
+  } catch {
+    return false;
+  }
+}
+
 /** 저장하지 않은 관리자 입력과 기존 암호문을 합쳐 연결 시험·모델 조회에 사용한다. */
 export function runtimeAiConfigFromDraft(row: AiConfigRow, input: AiConnectionDraft, model = ""): ReturnType<typeof runtimeAiConfig> {
+  const reuse = canReuseStoredSecrets(row.baseUrl, input.baseUrl);
   const suppliedApiKey = input.apiKey?.trim() ?? "";
   const apiKey = input.apiKey === null
     ? ""
-    : suppliedApiKey || (row.apiKeyEncrypted ? decryptAiSecret(row.apiKeyEncrypted) : "");
-  const needsSavedHeaders = input.customHeaders.some((header) => !header.value);
+    : suppliedApiKey || (reuse && row.apiKeyEncrypted ? decryptAiSecret(row.apiKeyEncrypted) : "");
+  const needsSavedHeaders = reuse && input.customHeaders.some((header) => !header.value);
   const savedHeaders = needsSavedHeaders ? decodeHeaders(row.customHeadersEncrypted) : [];
   const savedByName = new Map(savedHeaders.map((header) => [header.name.toLowerCase(), header.value]));
   const customHeaders = input.customHeaders.map((header) => ({
@@ -159,13 +173,18 @@ export async function saveAiConfig(input: AiConfigPatch, updatedBy: string): Pro
     return { ok: false, problems: ["저장된 AI 비밀값을 읽을 수 없습니다. 서버의 암호화 키를 확인해 주세요."] };
   }
 
-  const apiKey = input.apiKey === null ? "" : input.apiKey?.trim() || existing.apiKey;
-  const existingByName = new Map(existing.headers.map((header) => [header.name.toLowerCase(), header.value]));
+  const reuse = canReuseStoredSecrets(current.baseUrl, input.baseUrl);
+  const suppliedApiKey = input.apiKey?.trim() ?? "";
+  const apiKey = input.apiKey === null ? "" : suppliedApiKey || (reuse ? existing.apiKey : "");
+  const existingByName = new Map((reuse ? existing.headers : []).map((header) => [header.name.toLowerCase(), header.value]));
   const headers = input.customHeaders.map((header) => ({
     name: header.name.trim(),
     value: header.value || existingByName.get(header.name.trim().toLowerCase()) || "",
   }));
   const problems = validateAiConfigInput(input, Boolean(apiKey));
+  if (!reuse && input.apiKey !== null && !suppliedApiKey && existing.apiKey) {
+    problems.push("API 주소의 호스트가 바뀌어 저장된 API 키를 그대로 쓸 수 없습니다. API 키를 다시 입력하거나 삭제해 주세요.");
+  }
   for (const header of headers) {
     if (!header.value) problems.push(`${header.name} 헤더 값을 입력해 주세요.`);
   }

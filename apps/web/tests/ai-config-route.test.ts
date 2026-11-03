@@ -127,3 +127,28 @@ test("모델 목록 조회는 새 키 또는 저장된 마스킹 값을 사용�
   expect(headers.get("authorization")).toBe("Bearer plain-api-secret");
   expect(headers.get("x-organization")).toBe("secret-organization");
 });
+
+test("저장된 API 키와 header는 다른 origin으로 보내지 않는다", async () => {
+  await loginAs("admin");
+  const localConfig = { ...validConfig, baseUrl: "http://127.0.0.1:9999/v1" };
+  expect((await PATCH(request(localConfig))).status).toBe(200);
+  const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => Response.json({ data: [{ id: "chat-model-a" }] }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  const otherOrigin = "http://localhost:9998/v1";
+  const listed = await LIST_MODELS(modelsRequest({ provider: "openai_compatible", baseUrl: otherOrigin, customHeaders: [] }));
+  expect(listed.status).toBe(200);
+  expect(new Headers(fetchMock.mock.calls[0]![1]?.headers).get("authorization")).toBeNull();
+
+  const withSavedHeader = await LIST_MODELS(modelsRequest({
+    provider: "openai_compatible",
+    baseUrl: otherOrigin,
+    customHeaders: [{ name: "X-Organization", value: "", configured: true }],
+  }));
+  expect(withSavedHeader.status).toBe(400);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+
+  const moved = await PATCH(request({ ...localConfig, baseUrl: otherOrigin, apiKey: undefined, customHeaders: [] }));
+  expect(moved.status).toBe(400);
+  expect((await moved.json()).error.details.formErrors).toEqual(expect.arrayContaining([expect.stringContaining("API 키를 다시 입력")]));
+});

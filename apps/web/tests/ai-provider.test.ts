@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { completeAi, listAiModels } from "../src/lib/ai/provider.js";
+import { assertSafeAiEndpoint, completeAi, listAiModels } from "../src/lib/ai/provider.js";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -233,4 +233,39 @@ test("OpenAI-compatible 모델 목록은 /models와 기존 인증 header를 사�
   const headers = new Headers(init?.headers);
   expect(headers.get("authorization")).toBe("Bearer openai-key");
   expect(headers.get("x-tenant")).toBe("team-a");
+});
+
+test("IPv4-mapped·NAT64 IPv6 표기로 감싼 메타데이터·사설망 주소도 막는다", async () => {
+  vi.stubEnv("GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS", "");
+  for (const raw of [
+    "http://[::ffff:169.254.169.254]/v1",
+    "http://[::ffff:a9fe:a9fe]/v1",
+    "http://[0:0:0:0:0:ffff:a9fe:a9fe]/v1",
+    "http://[64:ff9b::a9fe:a9fe]/v1",
+    "http://[64:ff9b::169.254.169.254]/v1",
+    "http://[::ffff:0:a9fe:a9fe]/v1",
+    "http://[::a9fe:a9fe]/v1",
+    "http://[::ffff:0.0.0.0]/v1",
+    "http://[::]/v1",
+    "http://[fe80::1]/v1",
+    "http://[febf::1]/v1",
+  ]) {
+    await expect(assertSafeAiEndpoint(raw), raw).rejects.toThrow(/링크 로컬|메타데이터/);
+  }
+  for (const raw of ["http://[::ffff:a00:8]/v1", "http://[::ffff:c0a8:114]/v1", "http://[64:ff9b::ac10:1]/v1", "http://[fd00::1]/v1"]) {
+    await expect(assertSafeAiEndpoint(raw), raw).rejects.toThrow(/사설망/);
+  }
+});
+
+test("IPv6 loopback과 공인 IPv4-mapped 주소는 그대로 허용한다", async () => {
+  vi.stubEnv("GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS", "");
+  for (const raw of ["http://[::1]:11434/v1", "http://[::ffff:127.0.0.1]:11434/v1", "http://[::ffff:808:808]/v1", "http://[2001:4860:4860::8888]/v1"]) {
+    await expect(assertSafeAiEndpoint(raw), raw).resolves.toBeInstanceOf(URL);
+  }
+});
+
+test("allowlist로 사설망을 열어도 IPv6로 감싼 메타데이터 주소는 막는다", async () => {
+  vi.stubEnv("GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS", "*");
+  await expect(assertSafeAiEndpoint("http://[::ffff:a9fe:a9fe]/v1")).rejects.toThrow(/메타데이터/);
+  await expect(assertSafeAiEndpoint("http://[::ffff:a00:8]/v1")).resolves.toBeInstanceOf(URL);
 });

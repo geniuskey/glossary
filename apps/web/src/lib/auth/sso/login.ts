@@ -8,7 +8,7 @@ import { looksLikeMojibake } from "./encoding";
 
 export type SsoLoginResult =
   | { ok: true; user: CurrentUser; created: boolean }
-  | { ok: false; reason: "no_account" | "email_conflict" | "identity_mismatch" };
+  | { ok: false; reason: "no_account" | "email_conflict" | "identity_mismatch" | "unverified_email" };
 
 /**
  * R132: IdP가 확인해 준 사람을 이 앱의 계정에 붙인다.
@@ -28,8 +28,22 @@ export async function applySsoLogin(input: {
   expectedUserId?: string;
   /** Proxy headers authenticate every request; they do not express consent to rejoin. */
   automatic?: boolean;
+  /**
+   * 이메일만으로 기존 계정에 sub를 붙여도 되는가. 사용자가 IdP에서 자기 이메일을 고칠 수
+   * 있으면(Keycloak 기본값 등) 관리자 이메일로 바꾼 사람이 그 계정을 넘겨받는다 — IdP가
+   * 이메일을 확인해 줬을 때만 켠다. 프록시 헤더는 앞단이 이미 신뢰 경계라 기본값은 true다.
+   */
+  allowEmailLink?: boolean;
 }): Promise<SsoLoginResult> {
-  const { identity, isAdmin, autoCreate, refreshProfile = false, expectedUserId, automatic = false } = input;
+  const {
+    identity,
+    isAdmin,
+    autoCreate,
+    refreshProfile = false,
+    expectedUserId,
+    automatic = false,
+    allowEmailLink = true,
+  } = input;
   const db = getDb();
 
   return db.transaction(async (tx) => {
@@ -59,6 +73,8 @@ export async function applySsoLogin(input: {
       if (expectedUserId && byEmail.id !== expectedUserId) {
         return { ok: false as const, reason: "identity_mismatch" as const };
       }
+      // 여기서 새 계정 생성으로 넘어가면 users_email_lower_unique 위반으로 500이 된다. 거절로 끝낸다.
+      if (!allowEmailLink) return { ok: false as const, reason: "unverified_email" as const };
       // 이미 다른 sub에 묶인 계정이다. 덮어쓰면 IdP에서 계정 하나를 지웠다 다시 만든
       // 사람이 남의 이력을 이어받는 일이 생기므로, 사람이 개입하도록 막는다.
       if (byEmail.externalId && byEmail.externalId !== identity.subject) {

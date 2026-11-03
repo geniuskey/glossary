@@ -2,6 +2,7 @@ import { z } from "zod/v3";
 import { randomUUID } from "node:crypto";
 import { apiError, methodStubs, withApiErrors } from "@/lib/api-error";
 import { isResponse, requireAuth } from "@/lib/auth/require";
+import { consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { AiProviderError } from "@/lib/ai/provider";
 import { loadRagConfig } from "@/lib/rag/config";
 import { RagNotReadyError, searchRag } from "@/lib/rag/search";
@@ -20,6 +21,12 @@ const schema = z.object({
 export const POST = withApiErrors(async (request: Request) => {
   const auth = await requireAuth(request, "read");
   if (isResponse(auth)) return auth;
+  // 검색마다 유료 Embedding(및 Reranker) 호출이 나가므로 chat과 같은 방식으로 주체별 예산을 둔다.
+  const limited = rateLimitResponse(
+    await consumeRateLimit(`rag-search:${auth.kind === "user" ? `user:${auth.user.id}` : `key:${auth.keyId}`}`, 60, 60_000),
+    "검색 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+  );
+  if (limited) return limited;
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "RAG 검색 요청을 확인해 주세요.", 400, parsed.error.flatten());
   try {

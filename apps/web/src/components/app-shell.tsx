@@ -159,7 +159,7 @@ export async function AppShell({
               </div>
             )}
             <div className="ml-auto flex shrink-0 items-center gap-2 lg:col-start-3 lg:ml-0 lg:justify-self-end">
-              {user?.role !== "viewer" && <Link href="/new" className="btn-primary h-9 shrink-0 px-3" aria-label="새 용어 추가">
+              {user && user.role !== "viewer" && <Link href="/new" className="btn-primary h-9 shrink-0 px-3" aria-label="새 용어 추가">
                 <IconPlus />
                 <span className="hidden sm:inline">용어 추가</span>
               </Link>}

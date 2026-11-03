@@ -100,6 +100,17 @@ test("이메일이 같은 기존 계정에 sub를 붙인다", async () => {
   expect(row.passwordHash).not.toBeNull();
 });
 
+test("이메일 연결을 허용하지 않으면 같은 이메일의 기존 계정에 sub를 붙이지 않는다", async () => {
+  const email = `${unique("unverified-link")}@example.com`;
+  const [existing] = await db.insert(users).values({ email, name: "기존 사용자", role: "admin" }).returning();
+  createdUserIds.push(existing!.id);
+
+  const result = await login({ identity: identity({ email }), isAdmin: false, autoCreate: true, allowEmailLink: false });
+
+  expect(result).toEqual({ ok: false, reason: "unverified_email" });
+  expect((await rowOf(existing!.id)).externalId).toBeNull();
+});
+
 // IdP에서 계정을 지웠다 다시 만든 사람은 이메일이 같고 sub가 다르다. 덮어쓰면
 // 그 사람이 남의 이력을 이어받는다 — 사람이 개입하도록 막는다.
 test("이미 다른 sub에 묶인 이메일은 거절한다", async () => {

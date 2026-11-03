@@ -78,6 +78,7 @@ test("roomy 본문은 문서 여백을 유지하면서 편집 화면 폭을 넓�
   expect(html).toContain("max-w-7xl");
   expect(html).toContain("px-5 py-8 lg:px-8");
   expect(html).not.toContain("max-w-4xl");
+  expect(html).not.toContain('aria-label="새 용어 추가"');
 });
 
 test("dense 본문은 작업 화면의 바깥 여백을 줄이고 더 넓게 쓴다", async () => {

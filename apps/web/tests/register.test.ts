@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
-import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
-import { createDb, rateLimitBuckets, users } from "@glossary/db";
+import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
+import { createDb, users } from "@glossary/db";
 import { POST as registerPost } from "../src/app/api/v1/auth/register/route.js";
 import { POST as loginPost } from "../src/app/api/v1/auth/login/route.js";
 import { hashPassword } from "../src/lib/auth/password.js";
@@ -11,13 +11,13 @@ const createdUserIds: string[] = [];
 
 afterEach(() => {
   delete process.env.PASSWORD_LOGIN_ENABLED;
+  vi.unstubAllEnvs();
 });
 
 // 가입 창구는 계정이 하나도 없으면 403이다(첫 계정은 /setup이 관리자로 만든다).
 // 테스트 DB는 다른 파일이 자기 사용자를 지우고 나가므로 비어 있을 수 있어,
 // 여기서 관리자 한 명을 먼저 심어 "설정이 끝난 설치"를 만든다.
 beforeAll(async () => {
-  await db.delete(rateLimitBuckets).where(eq(rateLimitBuckets.key, "auth:register:address:direct"));
   const [row] = await db
     .insert(users)
     .values({
@@ -38,10 +38,10 @@ function uniqueEmail(prefix = "signup") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
 }
 
-function postRequest(path: string, body: unknown) {
+function postRequest(path: string, body: unknown, extraHeaders: Record<string, string> = {}) {
   return new Request(`http://x${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...extraHeaders },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 }
@@ -167,4 +167,29 @@ test("환경변수로 비밀번호 로그인을 끄면 로그인과 가입을 �
   expect(signup.status).toBe(403);
   await expect(login.json()).resolves.toMatchObject({ error: { code: "password_login_disabled" } });
   await expect(signup.json()).resolves.toMatchObject({ error: { code: "password_login_disabled" } });
+});
+
+// 로그인 CSRF: 공격자 사이트가 피해자 브라우저를 공격자 계정으로 로그인시키면, 피해자가
+// 입력한 내용이 공격자 계정에 쌓인다. 반대로 Origin 없는 curl·스크립트 호출은 막지 않는다.
+test("운영에서 다른 출처의 브라우저 요청은 로그인과 가입을 모두 403 csrf_failed로 막는다", async () => {
+  vi.stubEnv("NODE_ENV", "production");
+  vi.stubEnv("GLOSSARY_ALLOWED_ORIGINS", "https://glossary.example.com");
+  const evil = { origin: "https://evil.example.com" };
+
+  const login = await loginPost(postRequest("/api/v1/auth/login", { email: "x@example.com", password: "irrelevant" }, evil));
+  const signup = await registerPost(postRequest("/api/v1/auth/register", { email: uniqueEmail(), password: "hunter2hunter2" }, evil));
+
+  expect(login.status).toBe(403);
+  expect(signup.status).toBe(403);
+  await expect(login.json()).resolves.toMatchObject({ error: { code: "csrf_failed" } });
+  await expect(signup.json()).resolves.toMatchObject({ error: { code: "csrf_failed" } });
+});
+
+test("운영에서도 Origin이 없는 비브라우저 로그인은 출처 검사로 막지 않는다", async () => {
+  vi.stubEnv("NODE_ENV", "production");
+  vi.stubEnv("GLOSSARY_ALLOWED_ORIGINS", "https://glossary.example.com");
+
+  const res = await loginPost(postRequest("/api/v1/auth/login", { email: uniqueEmail("nobody"), password: "irrelevant" }));
+
+  expect(res.status).toBe(401);
 });
