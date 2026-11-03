@@ -1,5 +1,7 @@
 import { isIP } from "node:net";
+import { lookup as dnsLookup, type LookupAddress, type LookupOptions } from "node:dns";
 import { lookup } from "node:dns/promises";
+import { Agent } from "undici";
 import type { StoredAiHeader } from "./config";
 import type { AiProvider } from "./config-values";
 import type { AiRunContext } from "./observability-values";
@@ -155,29 +157,78 @@ function unsafeAddress(address: string, allowPrivate: boolean): boolean {
   return kind === "private" && !allowPrivate;
 }
 
+const METADATA_HOSTS = new Set(["metadata.google.internal", "metadata.google", "instance-data.ec2.internal"]);
+
+function blockedAddressMessage(hostname: string, addresses: readonly string[]): string | null {
+  if (METADATA_HOSTS.has(hostname)) return "클라우드 메타데이터 주소에는 연결할 수 없습니다.";
+  const allowed = allowedPrivateHosts();
+  const allowPrivate = allowed.has("*") || allowed.has(hostname);
+  if (!addresses.some((address) => unsafeAddress(address, allowPrivate))) return null;
+  return allowPrivate
+    ? "링크 로컬 또는 메타데이터 주소에는 연결할 수 없습니다."
+    : "링크 로컬 또는 사설망 주소에는 연결할 수 없습니다. 사내 AI 서버라면 GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS에 호스트를 추가하세요.";
+}
+
 export async function assertSafeAiEndpoint(raw: string): Promise<URL> {
   const url = new URL(raw);
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new AiProviderError("API 주소는 http 또는 https만 사용할 수 있습니다.");
   // URL.hostname은 IPv6 리터럴을 대괄호까지 담아 돌려준다. 벗기지 않으면 isIP가 0을
   // 내고 DNS lookup으로 내려가 http://[::1]/ 같은 주소가 조회 실패로 잘못 막힌다.
   const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (new Set(["metadata.google.internal", "metadata.google", "instance-data.ec2.internal"]).has(hostname)) {
-    throw new AiProviderError("클라우드 메타데이터 주소에는 연결할 수 없습니다.");
-  }
-  const allowed = allowedPrivateHosts();
-  const allowPrivate = allowed.has("*") || allowed.has(hostname);
+  if (METADATA_HOSTS.has(hostname)) throw new AiProviderError("클라우드 메타데이터 주소에는 연결할 수 없습니다.");
+  let addresses: string[];
   try {
-    const addresses = isIP(hostname) ? [{ address: hostname }] : await lookup(hostname, { all: true });
-    if (addresses.some((entry) => unsafeAddress(entry.address, allowPrivate))) {
-      throw new AiProviderError(allowPrivate
-        ? "링크 로컬 또는 메타데이터 주소에는 연결할 수 없습니다."
-        : "링크 로컬 또는 사설망 주소에는 연결할 수 없습니다. 사내 AI 서버라면 GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS에 호스트를 추가하세요.");
-    }
-  } catch (error) {
-    if (error instanceof AiProviderError) throw error;
+    addresses = isIP(hostname) ? [hostname] : (await lookup(hostname, { all: true })).map((entry) => entry.address);
+  } catch {
     throw new AiProviderError("API 서버 주소를 확인할 수 없습니다.");
   }
+  const blocked = blockedAddressMessage(hostname, addresses);
+  if (blocked) throw new AiProviderError(blocked);
   return url;
+}
+
+type LookupCallback = (error: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void;
+export type LookupAll = (
+  hostname: string,
+  options: LookupOptions & { all: true },
+  callback: (error: NodeJS.ErrnoException | null, addresses: LookupAddress[]) => void,
+) => void;
+
+/**
+ * assertSafeAiEndpoint만으로는 DNS rebinding을 막지 못한다 — 검사 때 공인 IP를 준 DNS가
+ * fetch의 두 번째 조회에서 169.254.169.254를 주면 그대로 연결됐다. 소켓이 실제로 붙을
+ * 주소를 같은 규칙으로 여기서 다시 거른다. IP 리터럴은 net이 lookup을 건너뛰지만, 바뀔
+ * 수 없는 주소라 사전 검사로 충분하다.
+ */
+export function createGuardedLookup(resolve: LookupAll = dnsLookup as LookupAll) {
+  return (hostname: string, options: LookupOptions, callback: LookupCallback): void => {
+    resolve(hostname, { ...options, all: true }, (error, addresses) => {
+      if (error) return callback(error, "");
+      const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+      const blocked = blockedAddressMessage(host, addresses.map((entry) => entry.address));
+      if (blocked) return callback(new AiProviderError(blocked), "");
+      const first = addresses[0];
+      if (!first) return callback(Object.assign(new Error("API 서버 주소를 확인할 수 없습니다."), { code: "ENOTFOUND" }), "");
+      if (options.all) callback(null, addresses);
+      else callback(null, first.address, first.family);
+    });
+  };
+}
+
+let guardedDispatcher: Agent | undefined;
+
+/** 모든 AI·RAG 공급자 요청은 이 함수로 나가야 연결 시점 주소 검사를 받는다. */
+export function providerFetch(target: string, init: RequestInit): Promise<Response> {
+  guardedDispatcher ??= new Agent({ connect: { lookup: createGuardedLookup() } });
+  // DOM lib의 RequestInit에는 dispatcher가 없다. Node 22 fetch는 undici 6 Agent를 그대로 받는다.
+  return fetch(target, { ...init, dispatcher: guardedDispatcher } as RequestInit);
+}
+
+/** undici는 lookup 오류를 TypeError("fetch failed")의 cause로 감싼다 — 차단 사유가 재시도·일반 문구에 묻히지 않게 꺼낸다. */
+export function blockedConnectionError(error: unknown): AiProviderError | null {
+  if (error instanceof AiProviderError) return error;
+  const cause = error instanceof Error ? error.cause : undefined;
+  return cause instanceof AiProviderError ? cause : null;
 }
 
 function requestHeaders(config: AiRuntimeConfig): Headers {
@@ -356,7 +407,7 @@ export async function completeAi(
       attempts = attempt + 1;
       let response: Response;
       try {
-        response = await fetch(target, {
+        response = await providerFetch(target, {
           method: "POST",
           headers: requestHeaders(config),
           body: JSON.stringify(body(config, messages, safeMaxTokens, options)),
@@ -365,7 +416,8 @@ export async function completeAi(
         });
         lastStatus = response.status;
       } catch (error) {
-        if (error instanceof AiProviderError) throw error;
+        const blocked = blockedConnectionError(error);
+        if (blocked) throw blocked;
         if (attempt === 0) {
           await waitBeforeRetry();
           continue;
@@ -431,7 +483,7 @@ export async function listAiModels(config: AiRuntimeConfig, context?: AiRunConte
       attempts = attempt + 1;
       let response: Response;
       try {
-        response = await fetch(target, {
+        response = await providerFetch(target, {
           method: "GET",
           headers: requestHeaders(config),
           signal: AbortSignal.timeout(30_000),
@@ -439,7 +491,8 @@ export async function listAiModels(config: AiRuntimeConfig, context?: AiRunConte
         });
         httpStatus = response.status;
       } catch (error) {
-        if (error instanceof AiProviderError) throw error;
+        const blocked = blockedConnectionError(error);
+        if (blocked) throw blocked;
         if (attempt === 0) {
           await waitBeforeRetry();
           continue;

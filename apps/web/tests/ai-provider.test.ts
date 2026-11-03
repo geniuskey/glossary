@@ -1,5 +1,17 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import type { LookupAddress } from "node:dns";
+import { Agent } from "undici";
 import { afterEach, expect, test, vi } from "vitest";
-import { assertSafeAiEndpoint, completeAi, listAiModels } from "../src/lib/ai/provider.js";
+import {
+  AiProviderError,
+  assertSafeAiEndpoint,
+  blockedConnectionError,
+  completeAi,
+  createGuardedLookup,
+  listAiModels,
+  type LookupAll,
+} from "../src/lib/ai/provider.js";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -23,6 +35,7 @@ test("OpenAI-compatible API는 chat/completions와 custom header를 사용한다
   const headers = new Headers(init?.headers);
   expect(headers.get("authorization")).toBe("Bearer key-value");
   expect(headers.get("x-organization")).toBe("glossary");
+  expect((init as { dispatcher?: unknown }).dispatcher, "연결 시점 주소 검사를 건너뛰면 DNS rebinding이 열린다").toBeInstanceOf(Agent);
   expect(JSON.parse(String(init?.body))).toMatchObject({ model: "local-model", stream: false });
 });
 
@@ -268,4 +281,65 @@ test("allowlist로 사설망을 열어도 IPv6로 감싼 메타데이터 주소�
   vi.stubEnv("GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS", "*");
   await expect(assertSafeAiEndpoint("http://[::ffff:a9fe:a9fe]/v1")).rejects.toThrow(/메타데이터/);
   await expect(assertSafeAiEndpoint("http://[::ffff:a00:8]/v1")).resolves.toBeInstanceOf(URL);
+});
+
+function fakeResolver(...addresses: string[]): LookupAll {
+  return (_hostname, _options, callback) => callback(null, addresses.map((address): LookupAddress => ({ address, family: address.includes(":") ? 6 : 4 })));
+}
+
+function runLookup(lookup: ReturnType<typeof createGuardedLookup>, hostname: string, all: boolean) {
+  return new Promise<{ error: Error | null; address: unknown; family?: number }>((resolve) => {
+    lookup(hostname, { all }, (error, address, family) => resolve({ error, address, family }));
+  });
+}
+
+test("연결 시점 lookup은 rebinding으로 바뀐 메타데이터·사설망 주소를 막는다", async () => {
+  vi.stubEnv("GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS", "");
+  for (const addresses of [["169.254.169.254"], ["8.8.8.8", "169.254.169.254"], ["::ffff:a9fe:a9fe"], ["10.0.0.8"], ["fd00::1"]]) {
+    const result = await runLookup(createGuardedLookup(fakeResolver(...addresses)), "ai.example.com", true);
+    expect(result.error, addresses.join(",")).toBeInstanceOf(AiProviderError);
+    expect(result.error?.message).toMatch(/링크 로컬|사설망/);
+  }
+  const metadata = await runLookup(createGuardedLookup(fakeResolver("8.8.8.8")), "Metadata.Google.Internal", false);
+  expect(metadata.error?.message).toMatch(/메타데이터/);
+});
+
+test("연결 시점 lookup은 안전한 주소를 호출자가 요청한 형식으로 돌려준다", async () => {
+  vi.stubEnv("GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS", "");
+  const lookup = createGuardedLookup(fakeResolver("127.0.0.1", "::1"));
+  await expect(runLookup(lookup, "localhost", true)).resolves.toEqual({
+    error: null,
+    address: [{ address: "127.0.0.1", family: 4 }, { address: "::1", family: 6 }],
+    family: undefined,
+  });
+  await expect(runLookup(lookup, "localhost", false)).resolves.toEqual({ error: null, address: "127.0.0.1", family: 4 });
+});
+
+test("연결 시점 lookup도 allowlist 호스트에만 사설망을 열고 메타데이터는 계속 막는다", async () => {
+  vi.stubEnv("GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS", "llm.corp.internal");
+  const allowed = await runLookup(createGuardedLookup(fakeResolver("10.0.0.8")), "LLM.corp.internal", false);
+  expect(allowed).toEqual({ error: null, address: "10.0.0.8", family: 4 });
+  const other = await runLookup(createGuardedLookup(fakeResolver("10.0.0.8")), "other.corp.internal", false);
+  expect(other.error?.message).toMatch(/사설망/);
+  const metadata = await runLookup(createGuardedLookup(fakeResolver("169.254.169.254")), "llm.corp.internal", false);
+  expect(metadata.error?.message).toMatch(/메타데이터/);
+});
+
+test("Node fetch는 guarded lookup을 단 undici Agent로 연결 직전에 차단한다", async () => {
+  vi.stubEnv("GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS", "");
+  const server = createServer((_request, response) => response.end("ok"));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  const request = (address: string) => {
+    const dispatcher = new Agent({ connect: { lookup: createGuardedLookup(fakeResolver(address)) } });
+    return fetch(`http://rebind.example.test:${port}/`, { dispatcher } as RequestInit).finally(() => dispatcher.close());
+  };
+  try {
+    const allowed = await request("127.0.0.1");
+    await expect(allowed.text()).resolves.toBe("ok");
+    const error = await request("169.254.169.254").then(() => null, (reason: unknown) => reason);
+    expect(blockedConnectionError(error)?.message).toMatch(/링크 로컬/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });

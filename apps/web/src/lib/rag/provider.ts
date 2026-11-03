@@ -1,4 +1,4 @@
-import { assertSafeAiEndpoint, AiProviderError, readResponseText } from "@/lib/ai/provider";
+import { assertSafeAiEndpoint, AiProviderError, blockedConnectionError, providerFetch, readResponseText } from "@/lib/ai/provider";
 import { beginAiRun, finishAiRun, providerErrorCode } from "@/lib/ai/telemetry";
 import type { AiRunContext } from "@/lib/ai/observability-values";
 import type { EmbeddingRuntimeConfig, RerankerRuntimeConfig, StoredRagHeader } from "./config";
@@ -69,7 +69,7 @@ async function postJson(
       attempts = attempt + 1;
       let response: Response;
       try {
-        response = await fetch(target, {
+        response = await providerFetch(target, {
           method: "POST",
           headers,
           body: JSON.stringify(body),
@@ -78,7 +78,8 @@ async function postJson(
         });
         lastStatus = response.status;
       } catch (error) {
-        if (error instanceof AiProviderError) throw error;
+        const blocked = blockedConnectionError(error);
+        if (blocked) throw blocked;
         if (attempt === 0) {
           await waitBeforeRetry();
           continue;
