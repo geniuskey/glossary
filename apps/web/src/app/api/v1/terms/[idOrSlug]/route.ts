@@ -7,7 +7,6 @@ import { termPatchSchema } from "@/lib/terms/schema";
 import { isAssignableUserId } from "@/lib/terms/owners";
 import { businessCategoriesExist } from "@/lib/terms/categories";
 import { resolveDomains, unknownDomainsResponse } from "@/lib/terms/domains";
-import { representativeDuplicateFieldErrors } from "@/lib/terms/create";
 import { deleteTerm, updateTerm, type UpdateTermSuccess } from "@/lib/terms/update";
 import { toSurfaceWire, toTermWire, toWarningWire, type TermWriteResponse } from "@/lib/terms/wire";
 import { prepareAutoReview } from "@/lib/ai/auto-review";
@@ -36,8 +35,8 @@ export const GET = withApiErrors(
   },
 );
 
-// 추가 표기의 동음이의어는 warnings로 알리지만, 대표 영문·국문 이름이 다른
-// 용어의 표기와 겹치면 생성과 마찬가지로 저장을 거부한다.
+// 같은 표기도 의미가 다르면 별개 용어다 — 대표 이름이 다른 용어의 표기와 겹쳐도
+// 생성과 마찬가지로 저장하고 warnings로만 알린다.
 export const PATCH = withApiErrors(
   async (request: Request, ctx: { params: Promise<{ idOrSlug: string }> }) => {
     const auth = await requireAuth(request, "write");
@@ -80,14 +79,6 @@ export const PATCH = withApiErrors(
     }
     if ("invalid" in result) {
       return apiError("validation_failed", "표기 구성이 올바르지 않습니다.", 400, { issues: result.issues });
-    }
-    if ("representativeConflict" in result) {
-      return apiError(
-        "validation_failed",
-        "같은 대표 표기가 이미 있어 저장할 수 없습니다.",
-        400,
-        { fieldErrors: representativeDuplicateFieldErrors(result.duplicates), formErrors: [] },
-      );
     }
     if ("slugConflict" in result) {
       return apiError("slug_conflict", "이미 사용 중인 URL 주소입니다.", 409, { field: "slug" });

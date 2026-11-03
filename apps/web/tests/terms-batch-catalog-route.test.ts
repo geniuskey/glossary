@@ -92,3 +92,33 @@ test("카탈로그는 같은 ETag에 304를 반환한다", async () => {
   expect(cached.headers.get("etag")).toBe(etag);
   expect(await cached.text()).toBe("");
 });
+
+test("대표 표기가 기존 용어나 같은 요청의 앞선 행과 겹쳐도 거부하지 않고 경고와 함께 저장한다", async () => {
+  const token = await makeKey(["write"]);
+  const name = `Batch Dup ${randomUUID()}`;
+  const first = await (await sendBatch(token, randomUUID(), [{ key: "base", operation: "create", term: { nameEn: name } }])).json();
+  expect(first.results[0].outcome).toBe("created");
+  termIds.push(first.results[0].term.id);
+
+  const rows = [
+    { key: "a", operation: "create", term: { nameEn: name } },
+    { key: "b", operation: "create", term: { nameEn: name } },
+  ];
+  const checked = await (await sendBatch(token, randomUUID(), rows, true)).json();
+  expect(checked.results[0]).toMatchObject({ outcome: "would_create" });
+  expect(checked.results[0].warnings.length).toBeGreaterThan(0);
+  expect(checked.results[1]).toMatchObject({ outcome: "would_create", conflictingRowKey: "a" });
+
+  const saved = await (await sendBatch(token, randomUUID(), rows)).json();
+  expect(saved.results.map((result: { outcome: string }) => result.outcome)).toEqual(["created", "created"]);
+  for (const result of saved.results) termIds.push(result.term.id);
+  expect(saved.results[0].warnings.some((warning: { conflictingSlug: string }) => warning.conflictingSlug === first.results[0].term.slug)).toBe(true);
+
+  const other = await (await sendBatch(token, randomUUID(), [{ key: "other", operation: "create", term: { nameEn: `Batch Other ${randomUUID()}` } }])).json();
+  termIds.push(other.results[0].term.id);
+  const renamed = await (await sendBatch(token, randomUUID(), [
+    { key: "rename", operation: "update", idOrSlug: other.results[0].term.id, expectedRevision: 1, term: { nameEn: name } },
+  ])).json();
+  expect(renamed.results[0]).toMatchObject({ outcome: "updated", term: { nameEn: name } });
+  expect(renamed.results[0].warnings.length).toBeGreaterThan(0);
+});

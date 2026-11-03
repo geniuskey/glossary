@@ -77,7 +77,7 @@ export async function approveDefinitionResponse(
   if ("conflict" in result) return apiError("revision_conflict", "다른 사람이 먼저 수정했습니다.", 409, { currentRevision: result.currentRevision });
   if ("notFound" in result) return apiError("term_not_found", "용어를 찾을 수 없습니다.", 404);
   if ("invalid" in result) return apiError("validation_failed", "용어의 표기 구성을 먼저 확인해 주세요.", 400, { issues: result.issues });
-  if ("representativeConflict" in result || "slugConflict" in result) {
+  if ("slugConflict" in result) {
     return apiError("operation_conflict", "용어의 다른 충돌을 먼저 해결해 주세요.", 409);
   }
   scheduleRagIndexing(1);

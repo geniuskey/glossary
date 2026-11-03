@@ -73,7 +73,6 @@ export const PATCH = withApiErrors(async (request: Request) => {
     if ("notFound" in result) return apiError("term_not_found", "용어를 찾을 수 없습니다.", 404);
     if ("conflict" in result) return apiError("revision_conflict", "다른 사람이 먼저 수정했습니다.", 409, { currentRevision: result.currentRevision });
     if ("invalid" in result) return apiError("validation_failed", "표기 정비 제안을 적용할 수 없습니다.", 400, { issues: result.issues });
-    if ("representativeConflict" in result) return apiError("operation_conflict", "대표 표기 충돌을 먼저 해결해 주세요.", 409);
     if ("slugConflict" in result) return apiError("operation_conflict", "URL 충돌을 먼저 해결해 주세요.", 409);
     const ok: UpdateTermSuccess = result;
     await recordAuditEvent({

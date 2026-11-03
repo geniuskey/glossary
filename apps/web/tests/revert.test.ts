@@ -32,7 +32,6 @@ function expectSaved(result: RevertResult): UpdateTermSuccess {
   if (
     "conflict" in result
     || "slugConflict" in result
-    || "representativeConflict" in result
     || "invalid" in result
     || "notFound" in result
     || "revisionNotFound" in result

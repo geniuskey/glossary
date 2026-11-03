@@ -16,7 +16,6 @@ import {
   findDuplicates,
   isSlugConflict,
   type DuplicateWarning,
-  type RepresentativeDuplicate,
 } from "./create";
 import { defaultCaseSensitive, deriveSurfaces, pickExplicitSurfaces, type CanonicalNames } from "./surfaces";
 import type { SurfaceInput, TermInput } from "./schema";
@@ -62,7 +61,6 @@ export type UpdateTermResult =
   | UpdateTermSuccess
   | { conflict: true; currentRevision: number }
   | { slugConflict: true }
-  | { representativeConflict: true; duplicates: RepresentativeDuplicate[] }
   | { invalid: true; issues: string[] }
   // R75: 존재하지 않는 termId로 호출되는 건 레이스와 무관하게 도달 가능한 정상
   // 상태다(Task 13이 오래된/잘못된 id로 부를 수 있다) — updateTerm은 export된

@@ -85,18 +85,19 @@ async function validateRow(row: BatchRow): Promise<
   if (Array.isArray(data.category) && !(await businessCategoriesExist(data.category as string[]))) {
     return { error: { key: row.key, outcome: "invalid", field: "category" } };
   }
+  // 같은 표기도 의미가 다르면 별개 용어다(POST/PATCH /terms와 같은 정책) — 대표
+  // 표기 충돌은 거부하지 않고 warnings로만 알린다.
   if (row.operation === "create") {
-    const duplicates = await findRepresentativeDuplicates(data as Parameters<typeof findRepresentativeDuplicates>[0]);
-    if (duplicates.length) return { error: { key: row.key, outcome: "duplicate", conflicts: duplicates.map((d) => ({ field: d.field, text: d.text, slugs: d.matches.map((m) => m.conflictingSlug) })) } };
     const input = data as TermInput;
     const warnings = (await findDuplicates(deriveSurfaces(input, input.surfaces))).map(toWarningWire);
     return { data, warnings };
-  } else if (data.nameEn !== undefined || data.nameKo !== undefined) {
+  }
+  if (data.nameEn !== undefined || data.nameKo !== undefined) {
     const duplicates = await findRepresentativeDuplicates({
       nameEn: typeof data.nameEn === "string" ? data.nameEn : undefined,
       nameKo: typeof data.nameKo === "string" ? data.nameKo : undefined,
     }, existingId);
-    if (duplicates.length) return { error: { key: row.key, outcome: "duplicate", conflicts: duplicates.map((d) => ({ field: d.field, text: d.text, slugs: d.matches.map((m) => m.conflictingSlug) })) } };
+    return { data, existingId, warnings: duplicates.flatMap((d) => d.matches).map(toWarningWire) };
   }
   return { data, existingId };
 }
@@ -138,15 +139,25 @@ export const POST = withApiErrors(async (request: Request) => {
       results.push(validation.error);
       continue;
     }
-    if (dryRun && row.operation === "create") {
-      const names = [validation.data.nameEn, validation.data.nameKo]
-        .filter((value): value is string => typeof value === "string")
-        .map((value) => surfaceKeys(value).normLoose);
-      const earlier = names.map((name) => seenNames.get(name)).find(Boolean);
-      if (earlier) { results.push({ key: row.key, outcome: "duplicate", conflictingRowKey: earlier }); continue; }
-      for (const name of names) seenNames.set(name, row.key);
+    if (dryRun) {
+      // 반영 경로는 같은 요청 안의 대표 표기 중복도 그대로 저장하므로, 검토 결과도
+      // 거부가 아니라 앞선 행 key를 알려 주는 데서 그친다.
+      let conflictingRowKey: string | undefined;
+      if (row.operation === "create") {
+        const names = [validation.data.nameEn, validation.data.nameKo]
+          .filter((value): value is string => typeof value === "string")
+          .map((value) => surfaceKeys(value).normLoose);
+        conflictingRowKey = names.map((name) => seenNames.get(name)).find(Boolean);
+        for (const name of names) if (!seenNames.has(name)) seenNames.set(name, row.key);
+      }
+      results.push({
+        key: row.key,
+        outcome: row.operation === "create" ? "would_create" : "would_update",
+        warnings: validation.warnings ?? [],
+        ...(conflictingRowKey ? { conflictingRowKey } : {}),
+      });
+      continue;
     }
-    if (dryRun) { results.push({ key: row.key, outcome: row.operation === "create" ? "would_create" : "would_update", warnings: validation.warnings ?? [] }); continue; }
     const saveReceipt = async (tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0], result: RowResult) => {
       await tx.insert(termBatchReceipts).values({ actor, batchKey: batchKey!, rowKey: row.key, payloadHash: hash(row), result });
     };
@@ -162,7 +173,6 @@ export const POST = withApiErrors(async (request: Request) => {
         if ("conflict" in saved) { results.push({ key: row.key, outcome: "revision_conflict", currentRevision: saved.currentRevision }); continue; }
         if ("notFound" in saved) { results.push({ key: row.key, outcome: "not_found" }); continue; }
         if ("invalid" in saved) { results.push({ key: row.key, outcome: "invalid", issues: saved.issues }); continue; }
-        if ("representativeConflict" in saved) { results.push({ key: row.key, outcome: "duplicate", conflicts: saved.duplicates }); continue; }
         if ("slugConflict" in saved) { results.push({ key: row.key, outcome: "slug_conflict" }); continue; }
         result = { key: row.key, outcome: "updated", revision: row.expectedRevision! + 1, term: toTermWire(saved.term), surfaces: saved.surfaces.map(toSurfaceWire), warnings: saved.warnings.map(toWarningWire) };
       }

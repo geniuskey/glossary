@@ -36,7 +36,6 @@ function expectSaved(result: UpdateTermResult): UpdateTermSuccess {
   if (
     "conflict" in result
     || "slugConflict" in result
-    || "representativeConflict" in result
     || "invalid" in result
     || "notFound" in result
   ) {

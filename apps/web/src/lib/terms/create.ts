@@ -131,18 +131,6 @@ export async function findRepresentativeDuplicates(
   });
 }
 
-export function representativeDuplicateFieldErrors(
-  duplicates: readonly RepresentativeDuplicate[],
-): Partial<Record<RepresentativeField, string[]>> {
-  const fieldErrors: Partial<Record<RepresentativeField, string[]>> = {};
-  for (const duplicate of duplicates) {
-    fieldErrors[duplicate.field] = duplicate.matches.map(
-      (match) => `"${duplicate.text}" 표기가 기존 용어 ${match.conflictingSlug}에 이미 등록되어 있습니다.`,
-    );
-  }
-  return fieldErrors;
-}
-
 // R48: postgres-js 에러 객체는 SQLSTATE를 `.code`로, 위반한 제약 이름을
 // `.constraint_name`으로 싣는다(v3.4.9 connection.js 필드 매핑 확인). 슬러그
 // 충돌(23505 on terms_slug_unique)만 재시도 대상이다 — term_surfaces_unique

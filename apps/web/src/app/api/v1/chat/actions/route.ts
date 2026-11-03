@@ -69,7 +69,7 @@ export const POST = withApiErrors(async (request: Request) => {
     }
     if ("notFound" in result) return apiError("term_not_found", "용어가 삭제되었습니다.", 404);
     if ("invalid" in result) return apiError("validation_failed", result.issues.join(" "), 400);
-    if ("representativeConflict" in result || "slugConflict" in result) return apiError("validation_failed", "기존 용어와 표기가 충돌합니다. 수정안을 다시 요청해 주세요.", 400);
+    if ("slugConflict" in result) return apiError("validation_failed", "기존 용어와 표기가 충돌합니다. 수정안을 다시 요청해 주세요.", 400);
     const ok: UpdateTermSuccess = result;
     await recordAuditEvent({
       action: "term.update",

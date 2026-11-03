@@ -2287,10 +2287,11 @@ export const openApiSpec = {
         responses: {
           "200": json("행별 판정·저장 결과", { type: "object", required: ["dryRun", "results"], properties: {
             dryRun: { type: "boolean" }, results: { type: "array", items: { type: "object", required: ["key", "outcome"], properties: {
-              key: { type: "string" }, outcome: { type: "string", enum: ["would_create", "would_update", "created", "updated", "invalid", "duplicate", "not_found", "revision_conflict", "slug_conflict"] },
+              key: { type: "string" }, outcome: { type: "string", enum: ["would_create", "would_update", "created", "updated", "invalid", "not_found", "revision_conflict", "slug_conflict"] },
               replayed: { type: "boolean" }, term: { $ref: "#/components/schemas/TermWire" }, surfaces: { type: "array", items: { $ref: "#/components/schemas/Surface" } },
               revision: { type: "integer", minimum: 1 }, currentRevision: { type: "integer", minimum: 0 },
-              message: { type: "string" }, field: { type: "string" }, conflictingRowKey: { type: "string" },
+              message: { type: "string" }, field: { type: "string" },
+              conflictingRowKey: { type: "string", description: "dryRun에서 같은 요청의 앞선 create 행과 대표 표기가 겹칠 때 그 행 key. 거부하지 않고 알리기만 합니다." },
               unknown: { type: "array", items: { type: "string" } },
               warnings: { $ref: "#/components/schemas/TermWrite/properties/warnings" },
             } } },
