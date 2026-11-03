@@ -45,7 +45,8 @@ export interface ImportReportWire {
 
 export interface ApplySkipWire {
   rowNumber: number;
-  reason: "conflict" | "duplicate_in_file";
+  reason: "conflict" | "duplicate_in_file" | "invalid";
+  message?: string;
 }
 
 export type ImportOutcome =

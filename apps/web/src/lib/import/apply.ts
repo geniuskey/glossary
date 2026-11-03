@@ -1,5 +1,6 @@
 import { surfaceKeys } from "@glossary/db";
 import { createTerm, findDuplicates } from "@/lib/terms/create";
+import { termInputSchema, type TermInput } from "@/lib/terms/schema";
 import type { ImportRow, RowError } from "./parse-xlsx";
 
 export interface ImportConflict {
@@ -52,6 +53,38 @@ function verdictSurfacesOf(row: ImportRow): RowSurface[] {
     ...row.discouragedNames.map((a) => ({ text: a, lang: "neutral" as const, kind: "discouraged" as const })),
     ...row.forbiddenNames.map((a) => ({ text: a, lang: "neutral" as const, kind: "forbidden" as const })),
   ];
+}
+
+// 다른 생성 경로(API·폼·후보 승격)는 전부 termInputSchema를 거친다. 임포트만
+// parse-xlsx 행을 createTerm에 바로 넘기면 superRefine(checkSurfaceConflicts)이
+// 빠져, 약어와 금지 표기가 같은 "ABC"이거나 정규화 키가 빈 별칭("---")인 행이
+// 에러 없이 저장되고 검색에서 모순되거나 영원히 보이지 않는 표기가 된다.
+export function validateImportRow(
+  row: ImportRow,
+): { ok: true; input: TermInput } | { ok: false; message: string } {
+  const parsed = termInputSchema.safeParse({
+    nameEn: row.nameEn,
+    nameKo: row.nameKo,
+    fullNameEn: row.fullNameEn,
+    fullNameKo: row.fullNameKo,
+    domain: row.domain,
+    category: row.category ? [row.category] : [],
+    topic: row.topic,
+    tags: row.tags,
+    status: row.status,
+    definitionMd: row.definitionMd,
+    bodyMd: row.bodyMd,
+    surfaces: [
+      ...row.canonicalNames.map((text) => ({ text, kind: "canonical" as const })),
+      ...row.abbreviations.map((text) => ({ text, kind: "abbreviation" as const })),
+      ...row.aliases.map((text) => ({ text, kind: "alias" as const })),
+      ...row.discouragedNames.map((text) => ({ text, kind: "discouraged" as const })),
+      ...row.forbiddenNames.map((text) => ({ text, kind: "forbidden" as const })),
+    ],
+  });
+  if (parsed.success) return { ok: true, input: parsed.data };
+  const messages = [...new Set(parsed.error.issues.map((issue) => issue.message))];
+  return { ok: false, message: `행 내용이 올바르지 않습니다: ${messages.join(" / ")}` };
 }
 
 interface Verdict {
@@ -118,7 +151,14 @@ async function computeVerdict(rows: ImportRow[]): Promise<Verdict> {
 
 export async function dryRunImport(rows: ImportRow[], errors: RowError[]): Promise<ImportReport> {
   const { conflicts, duplicatesInFile, conflictRowNumbers, duplicateRowNumbers } = await computeVerdict(rows);
-  const blocked = new Set([...conflictRowNumbers, ...duplicateRowNumbers]);
+  // R117의 ready 정의("그대로 반영 가능한 행 수")를 지키려면 applyImport가
+  // 검증 실패로 건너뛸 행을 여기서도 빼야 버튼 문구가 실제 결과와 맞는다.
+  const invalid: RowError[] = [];
+  for (const row of rows) {
+    const result = validateImportRow(row);
+    if (!result.ok) invalid.push({ rowNumber: row.rowNumber, message: result.message });
+  }
+  const blocked = new Set([...conflictRowNumbers, ...duplicateRowNumbers, ...invalid.map((e) => e.rowNumber)]);
   const ready = rows.filter((r) => !blocked.has(r.rowNumber)).length;
 
   return {
@@ -126,13 +166,14 @@ export async function dryRunImport(rows: ImportRow[], errors: RowError[]): Promi
     ready,
     conflicts,
     duplicatesInFile,
-    errors,
+    errors: [...errors, ...invalid].sort((a, b) => a.rowNumber - b.rowNumber),
   };
 }
 
 export interface ApplySkip {
   rowNumber: number;
-  reason: "conflict" | "duplicate_in_file";
+  reason: "conflict" | "duplicate_in_file" | "invalid";
+  message?: string;
 }
 
 export interface ApplyResult {
@@ -164,6 +205,13 @@ export async function applyImport(
   const skipped: ApplySkip[] = [];
 
   for (const row of rows) {
+    // 검증 실패는 동음이의어처럼 "알고도 등록"할 수 있는 경우가 아니므로
+    // forceRowNumbers로도 우회하지 못한다.
+    const validated = validateImportRow(row);
+    if (!validated.ok) {
+      skipped.push({ rowNumber: row.rowNumber, reason: "invalid", message: validated.message });
+      continue;
+    }
     if (!forceRowNumbers.has(row.rowNumber)) {
       if (conflictRowNumbers.has(row.rowNumber)) {
         skipped.push({ rowNumber: row.rowNumber, reason: "conflict" });
@@ -175,30 +223,7 @@ export async function applyImport(
       }
     }
 
-    await createTerm(
-      {
-        nameEn: row.nameEn,
-        nameKo: row.nameKo,
-        fullNameEn: row.fullNameEn,
-        fullNameKo: row.fullNameKo,
-        domain: row.domain,
-        category: row.category ? [row.category] : [],
-        topic: row.topic,
-        tags: row.tags,
-        status: row.status,
-        definitionMd: row.definitionMd,
-        bodyMd: row.bodyMd,
-        surfaces: [
-          ...row.canonicalNames.map((text) => ({ text, lang: "neutral" as const, kind: "canonical" as const })),
-          ...row.abbreviations.map((text) => ({ text, lang: "neutral" as const, kind: "abbreviation" as const })),
-          ...row.aliases.map((text) => ({ text, lang: "neutral" as const, kind: "alias" as const })),
-          ...row.discouragedNames.map((text) => ({ text, lang: "neutral" as const, kind: "discouraged" as const })),
-          ...row.forbiddenNames.map((text) => ({ text, lang: "neutral" as const, kind: "forbidden" as const })),
-        ],
-      },
-      authorId,
-      authorKeyId,
-    );
+    await createTerm(validated.input, authorId, authorKeyId);
     created += 1;
   }
 

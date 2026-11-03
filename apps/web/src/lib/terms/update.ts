@@ -113,6 +113,13 @@ export async function currentRevisionNumber(termId: string): Promise<number> {
   return latest?.n ?? 0;
 }
 
+type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+type AfterWrite = (tx: Tx, revision: number, term: typeof terms.$inferSelect, surfaces: (typeof termSurfaces.$inferSelect)[], warnings: DuplicateWarning[]) => Promise<void>;
+
+class StaleReadError extends Error {}
+
+const MAX_STALE_RETRIES = 3;
+
 export async function updateTerm(
   termId: string,
   input: TermUpdate,
@@ -122,10 +129,40 @@ export async function updateTerm(
   // R130: 되돌리기(revert.ts)가 같은 트랜잭션 규약을 그대로 쓰면서 리비전에만
   // 다른 메시지를 남길 수 있어야 한다. 이력 화면이 이 문자열을 그대로 보여준다.
   message = "updated",
-  afterWrite?: (tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0], revision: number, term: typeof terms.$inferSelect, surfaces: (typeof termSurfaces.$inferSelect)[], warnings: DuplicateWarning[]) => Promise<void>,
-  database: ReturnType<typeof getDb> | Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0] = getDb(),
+  afterWrite?: AfterWrite,
+  database: ReturnType<typeof getDb> | Tx = getDb(),
 ): Promise<UpdateTermResult> {
-  const db = database;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await updateTermAttempt(termId, input, authorId, expectedRevision, authorKeyId, message, afterWrite, database);
+    } catch (err) {
+      if (!(err instanceof StaleReadError)) throw err;
+      if (attempt >= MAX_STALE_RETRIES) return { conflict: true, currentRevision: await currentRevisionNumber(termId) };
+    }
+  }
+}
+
+async function updateTermAttempt(
+  termId: string,
+  input: TermUpdate,
+  authorId: string | null,
+  expectedRevision: number | undefined,
+  authorKeyId: string | null,
+  message: string,
+  afterWrite: AfterWrite | undefined,
+  db: ReturnType<typeof getDb> | Tx,
+): Promise<UpdateTermResult> {
+  // 표기·상태는 아래 잠그지 않은 읽기로 계산한다. expectedRevision 없이 동시
+  // PATCH가 오면 그 사이 커밋된 nameEn 변경을 모른 채 옛 이름으로 표기를 통째로
+  // 교체해, terms.name_en과 term_surfaces가 어긋난 채 저장된다(lookup이 에러 없이
+  // 새 이름을 놓친다). 읽은 시점의 리비전을 기억해 두고 잠근 뒤 달라졌으면
+  // 처음부터 다시 계산한다. 리비전을 먼저 읽어야 그 뒤 읽은 term이 최소한 그
+  // 리비전만큼 새롭다.
+  const [base] = await db
+    .select({ n: sql<number>`coalesce(max(${termRevisions.revisionNumber}), 0)::int` })
+    .from(termRevisions)
+    .where(eq(termRevisions.termId, termId));
+  const baseRevision = base?.n ?? 0;
 
   const [oldTerm] = await db.select().from(terms).where(eq(terms.id, termId)).limit(1);
   if (!oldTerm) return { notFound: true };
@@ -221,6 +258,7 @@ export async function updateTerm(
       if (expectedRevision !== undefined && expectedRevision !== currentRevision) {
         return { conflict: true, currentRevision };
       }
+      if (currentRevision !== baseRevision) throw new StaleReadError();
 
       // 옛 slug를 남겨야 바깥에 퍼진 `/g/<옛 slug>` 링크가 새 주소로 넘어온다. 다른
       // 용어가 남긴 옛 slug는 그 용어의 옛 링크라 가로채지 않는다. 자기 옛 slug로

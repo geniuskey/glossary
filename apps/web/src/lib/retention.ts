@@ -1,5 +1,16 @@
 import { and, eq, lt, notExists, sql } from "drizzle-orm";
-import { aiRuns, attachments, attachmentRefs, auditEvents, rateLimitBuckets, sessions, termRevisions } from "@glossary/db";
+import {
+  aiRuns,
+  attachments,
+  attachmentRefs,
+  auditEvents,
+  meetingDocuments,
+  rateLimitBuckets,
+  sessions,
+  termRevisions,
+  wikiPageRevisions,
+  wikiPages,
+} from "@glossary/db";
 import { getDb } from "@/lib/db";
 
 function days(name: string, fallback: number, max: number): number {
@@ -18,6 +29,10 @@ export interface RetentionResult {
 /**
  * Deletes only data with an explicit retention boundary. Attachment history is
  * preserved when a term revision still contains its content hash.
+ *
+ * 위키 편집기와 회의록은 /api/v1/attachments로 이미지를 올리지만 attachment_refs를
+ * 남기지 않는다. 본문·리비전에 sha256이 남아 있는지 직접 보지 않으면 보존 기간이
+ * 지난 뒤 살아 있는 문서의 이미지가 조용히 지워진다.
  */
 export async function runDataRetention(): Promise<RetentionResult> {
   const db = getDb();
@@ -39,6 +54,18 @@ export async function runDataRetention(): Promise<RetentionResult> {
       sql`not exists (
         select 1 from ${termRevisions}
         where ${termRevisions.snapshot}::text like '%' || ${attachments.sha256} || '%'
+      )`,
+      sql`not exists (
+        select 1 from ${wikiPages}
+        where position(${attachments.sha256} in ${wikiPages.content}) > 0
+      )`,
+      sql`not exists (
+        select 1 from ${wikiPageRevisions}
+        where position(${attachments.sha256} in ${wikiPageRevisions.snapshot}::text) > 0
+      )`,
+      sql`not exists (
+        select 1 from ${meetingDocuments}
+        where position(${attachments.sha256} in ${meetingDocuments.content}) > 0
       )`,
     )).returning({ id: attachments.id }),
     db.delete(rateLimitBuckets).where(lt(rateLimitBuckets.updatedAt, rateLimitCutoff)).returning({ key: rateLimitBuckets.key }),

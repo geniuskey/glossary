@@ -184,24 +184,40 @@ export async function dismissCandidate(id: string, actor: CandidateActor, note?:
   return updated ?? existing;
 }
 
+// 상태 확인과 createTerm 커밋 사이에 창이 있어, 같은 후보를 동시에 승격하면 두
+// 요청 모두 "open"을 보고 용어를 하나씩 만든다(중복 용어). 후보 UPDATE를
+// createTerm 트랜잭션 안(afterWrite)으로 옮기고, 조건부 UPDATE가 0행이면 이
+// 오류로 용어 생성까지 통째로 롤백한다.
+class CandidateNoLongerOpen extends Error {}
+
 export async function promoteCandidate(id: string, input: TermInput, actor: CandidateActor) {
   const candidate = await getCandidate(id);
   if (!candidate) return { kind: "not_found" as const };
   if (candidate.status === "promoted") return { kind: "already_promoted" as const, candidate };
   if (candidate.status === "dismissed") return { kind: "dismissed" as const, candidate };
 
-  const created = await createTerm(input, actor.userId ?? null, actor.keyId ?? null);
-  const [updated] = await getDb()
-    .update(unregisteredCandidates)
-    .set({
-      status: "promoted",
-      promotedTermId: created.term.id,
-      reviewedBy: actor.userId ?? null,
-      reviewedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(and(eq(unregisteredCandidates.id, id), eq(unregisteredCandidates.status, "open")))
-    .returning();
-
-  return { kind: "promoted" as const, candidate: updated ?? candidate, created };
+  let updated: typeof unregisteredCandidates.$inferSelect | undefined;
+  try {
+    const created = await createTerm(input, actor.userId ?? null, actor.keyId ?? null, async (tx, term) => {
+      [updated] = await tx
+        .update(unregisteredCandidates)
+        .set({
+          status: "promoted",
+          promotedTermId: term.id,
+          reviewedBy: actor.userId ?? null,
+          reviewedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(and(eq(unregisteredCandidates.id, id), eq(unregisteredCandidates.status, "open")))
+        .returning();
+      if (!updated) throw new CandidateNoLongerOpen();
+    });
+    return { kind: "promoted" as const, candidate: updated!, created };
+  } catch (err) {
+    if (!(err instanceof CandidateNoLongerOpen)) throw err;
+    const current = await getCandidate(id);
+    if (!current) return { kind: "not_found" as const };
+    if (current.status === "dismissed") return { kind: "dismissed" as const, candidate: current };
+    return { kind: "already_promoted" as const, candidate: current };
+  }
 }

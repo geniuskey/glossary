@@ -93,6 +93,7 @@ test("공개 위키 저장이 durable 색인·pgvector 검색과 연결된다", 
     termIds: [],
     status: "published",
   }, null);
+  if ("slugConflict" in created) throw new Error("slug conflict");
   wikiIds.push(created.id);
 
   const [queued] = await db.select().from(wikiRagIndexQueue).where(eq(wikiRagIndexQueue.wikiPageId, created.id));

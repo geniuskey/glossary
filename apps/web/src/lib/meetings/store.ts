@@ -147,7 +147,9 @@ export async function listMeetingDocuments(options: ListMeetingDocumentsOptions)
 export async function updateMeetingDocument(id: string, patch: MeetingDocumentPatch): Promise<MeetingDocument | null> {
   validatePatch(patch);
   const result = await getDb().transaction(async (tx) => {
-    const [current] = await tx.select().from(meetingDocuments).where(eq(meetingDocuments.id, id)).limit(1);
+    // 잠금 없이 읽으면 동시 PATCH 둘이 같은 revision을 보고 둘 다 +1을 써서 한쪽 변경이
+    // 에러 없이 사라진다. 행 잠금으로 두 번째 요청이 첫 커밋 결과를 읽게 한다.
+    const [current] = await tx.select().from(meetingDocuments).where(eq(meetingDocuments.id, id)).limit(1).for("update");
     if (!current) return null;
     const contentChanged = patch.content !== undefined || patch.title !== undefined || patch.source !== undefined
       || patch.team !== undefined || patch.domain !== undefined;

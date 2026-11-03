@@ -99,6 +99,7 @@ export const POST = withApiErrors(async (request: Request) => {
     termIds,
     status: parsed.data.status,
   }, auth.kind === "user" ? auth.user.id : null, auth.kind === "key" ? auth.keyId : null);
+  if ("slugConflict" in created) return apiError("slug_conflict", "이미 사용 중인 위키 주소입니다.", 409, { field: "slug" });
   await recordAuditEvent({
     action: parsed.data.status === "published" ? "wiki.publish" : "wiki.create",
     targetType: "wiki_page",

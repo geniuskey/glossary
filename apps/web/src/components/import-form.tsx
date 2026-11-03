@@ -207,7 +207,7 @@ export function ImportForm() {
         <div className="space-y-3">
           <div role="status" aria-live="polite" className="note-ok animate-fade-up space-y-1">
             <p className="font-medium">{applied.created}개 용어를 등록했습니다.</p>
-            {applied.skipped.length > 0 && <p>{applied.skipped.length}개 행은 충돌/중복으로 건너뛰었습니다.</p>}
+            {applied.skipped.length > 0 && <p>{applied.skipped.length}개 행은 충돌·중복·형식 오류로 건너뛰었습니다.</p>}
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/sheet?sort=updatedAt&dir=desc" className="btn-primary">용어 시트 확인하기</Link>

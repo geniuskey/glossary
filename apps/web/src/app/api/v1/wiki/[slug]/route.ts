@@ -74,6 +74,8 @@ export const PATCH = withApiErrors(async (request: Request, context: RouteContex
     ...(termIds !== undefined ? { termIds } : {}),
   }, auth.kind === "user" ? auth.user.id : null, auth.kind === "key" ? auth.keyId : null);
   if (!updated) return apiError("not_found", "위키 문서를 찾을 수 없습니다.", 404);
+  if ("slugConflict" in updated) return apiError("slug_conflict", "이미 사용 중인 위키 주소입니다.", 409, { field: "slug" });
+  if ("conflict" in updated) return apiError("revision_conflict", "다른 사람이 먼저 수정했습니다. 다시 불러온 뒤 저장해 주세요.", 409, { currentRevision: updated.currentRevision });
   await recordAuditEvent({
     action: updated.status === "published" ? "wiki.publish" : updated.status === "archived" ? "wiki.archive" : "wiki.update",
     targetType: "wiki_page",

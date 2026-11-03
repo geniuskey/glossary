@@ -3,6 +3,7 @@ import "server-only";
 import { and, arrayContains, asc, desc, eq, ilike, ne, or, sql, type InferSelectModel } from "drizzle-orm";
 import { terms, wikiPageRevisions, wikiPages, wikiPageTerms, wikiPageStatusEnum } from "@glossary/db";
 import { getDb } from "@/lib/db";
+import { isUniqueViolation } from "@/lib/postgres-error";
 import { queueWikiIndex, scheduleWikiRagIndexing } from "@/lib/rag/wiki-indexer";
 import { slugify } from "@/lib/terms/slug";
 import { normalizeTags } from "@/lib/terms/tags";
@@ -138,11 +139,13 @@ function normalizePatch(patch: WikiPagePatch): WikiPagePatch {
   };
 }
 
-async function slugTaken(slug: string, excludePageId?: string): Promise<boolean> {
-  const [term] = await getDb().select({ id: terms.id }).from(terms).where(eq(terms.slug, slug)).limit(1);
+type SlugReader = Pick<ReturnType<typeof getDb>, "select">;
+
+async function slugTaken(slug: string, excludePageId?: string, db: SlugReader = getDb()): Promise<boolean> {
+  const [term] = await db.select({ id: terms.id }).from(terms).where(eq(terms.slug, slug)).limit(1);
   if (term) return true;
   const conditions = [eq(wikiPages.slug, slug), ...(excludePageId ? [sql`${wikiPages.id} <> ${excludePageId}`] : [])];
-  const [page] = await getDb().select({ id: wikiPages.id }).from(wikiPages).where(and(...conditions)).limit(1);
+  const [page] = await db.select({ id: wikiPages.id }).from(wikiPages).where(and(...conditions)).limit(1);
   return Boolean(page);
 }
 
@@ -260,12 +263,17 @@ function snapshotOf(page: WikiPage, termIds: string[]) {
   };
 }
 
-export async function createWikiPage(input: WikiPageInput, authorId: string | null, authorKeyId: string | null = null): Promise<WikiPageWithTerms> {
+export type WikiSlugConflict = { slugConflict: true };
+export type WikiRevisionConflict = { conflict: true; currentRevision: number | null };
+
+export async function createWikiPage(input: WikiPageInput, authorId: string | null, authorKeyId: string | null = null): Promise<WikiPageWithTerms | WikiSlugConflict> {
   const normalizedInput = normalizeInput(input);
   const slug = normalizedInput.slug || await uniqueSlug(normalizedInput.title);
   const prepared = { ...normalizedInput, slug };
   validateInput(prepared);
-  if (await slugTaken(slug)) throw new Error("이미 사용 중인 위키 주소입니다.");
+  if (await slugTaken(slug)) return { slugConflict: true };
+  // 사전 검사와 insert 사이에 같은 주소가 먼저 들어오면 unique 인덱스가 23505를 던진다.
+  // 잡지 않으면 withApiErrors가 500으로 바꿔 클라이언트가 재시도 가능한 충돌인지 알 수 없다.
   const page = await getDb().transaction(async (tx) => {
     const [created] = await tx.insert(wikiPages).values({
       slug,
@@ -300,81 +308,96 @@ export async function createWikiPage(input: WikiPageInput, authorId: string | nu
     });
     await queueWikiIndex(tx, created.id, created.revision);
     return created;
+  }).catch((error: unknown) => {
+    if (isUniqueViolation(error, ["wiki_pages_slug_unique"])) return null;
+    throw error;
   });
+  if (!page) return { slugConflict: true };
   scheduleWikiRagIndexing(2);
   return { ...page, terms: await termsForPage(page.id) };
 }
 
-export async function updateWikiPage(id: string, patch: WikiPagePatch, authorId: string | null, authorKeyId: string | null = null): Promise<WikiPageWithTerms | null> {
+export async function updateWikiPage(id: string, patch: WikiPagePatch, authorId: string | null, authorKeyId: string | null = null): Promise<WikiPageWithTerms | WikiSlugConflict | WikiRevisionConflict | null> {
   const normalizedPatch = normalizePatch(patch);
-  const [existing] = await getDb().select({ slug: wikiPages.slug }).from(wikiPages).where(eq(wikiPages.id, id)).limit(1);
-  if (!existing) return null;
-  if (normalizedPatch.slug !== undefined && normalizedPatch.slug !== existing.slug) {
-    const [term] = await getDb().select({ id: terms.id }).from(terms).where(eq(terms.slug, normalizedPatch.slug)).limit(1);
-    const [other] = await getDb().select({ id: wikiPages.id }).from(wikiPages).where(
-      and(eq(wikiPages.slug, normalizedPatch.slug), sql`${wikiPages.id} <> ${id}`),
-    ).limit(1);
-    if (term || other) throw new Error("이미 사용 중인 위키 주소입니다.");
-  }
-  const result = await getDb().transaction(async (tx) => {
-    const [current] = await tx.select().from(wikiPages).where(eq(wikiPages.id, id)).limit(1);
-    if (!current) return null;
-    const currentTerms = await tx.select({ termId: wikiPageTerms.termId }).from(wikiPageTerms).where(eq(wikiPageTerms.wikiPageId, id)).orderBy(asc(wikiPageTerms.termId));
-    const next: WikiPageInput = {
-      slug: normalizedPatch.slug ?? current.slug,
-      title: normalizedPatch.title ?? current.title,
-      summary: normalizedPatch.summary === undefined ? current.summary : normalizedPatch.summary,
-      sourceUrl: normalizedPatch.sourceUrl === undefined ? current.sourceUrl : normalizedPatch.sourceUrl,
-      content: normalizedPatch.content ?? current.content,
-      domain: normalizedPatch.domain ?? current.domain,
-      tags: normalizedPatch.tags ?? current.tags,
-      termIds: normalizedPatch.termIds ?? currentTerms.map((row) => row.termId),
-      status: normalizedPatch.status ?? current.status,
-    };
-    validateInput(next);
-    const contentChanged = next.slug !== current.slug || next.title !== current.title || next.summary !== current.summary || next.sourceUrl !== current.sourceUrl
-      || next.content !== current.content || JSON.stringify(next.domain) !== JSON.stringify(current.domain)
-      || JSON.stringify(next.tags) !== JSON.stringify(current.tags)
-      || JSON.stringify(next.termIds) !== JSON.stringify(currentTerms.map((row) => row.termId));
-    const revision = contentChanged ? current.revision + 1 : current.revision;
-    const [updated] = await tx.update(wikiPages).set({
-      slug: next.slug,
-      title: next.title,
-      summary: next.summary,
-      sourceUrl: next.sourceUrl,
-      content: next.content,
-      contentHash: wikiContentHash(next),
-      domain: next.domain,
-      tags: next.tags ?? [],
-      revision,
-      status: next.status,
-      updatedBy: authorId,
-      updatedAt: new Date(),
-      reviewedBy: next.status === "published" ? authorId : null,
-      reviewedAt: next.status === "published" ? new Date() : null,
-    }).where(eq(wikiPages.id, id)).returning();
-    if (!updated) return null;
-    if (contentChanged) {
-      await tx.delete(wikiPageTerms).where(eq(wikiPageTerms.wikiPageId, id));
-      if (next.termIds.length > 0) {
-        await tx.insert(wikiPageTerms).values(next.termIds.map((termId) => ({
-          wikiPageId: id,
-          termId,
-        })));
+  let result: WikiPage | WikiSlugConflict | null;
+  try {
+    result = await getDb().transaction(async (tx) => {
+      // 잠금 없이 읽으면 동시 PATCH 둘이 같은 revision+1을 계산해 wiki_page_revisions_unique에서
+      // 한쪽이 23505로 500이 된다. 행을 잠가 두 번째 요청이 첫 번째 커밋 뒤의 revision을 보게 한다.
+      const [current] = await tx.select().from(wikiPages).where(eq(wikiPages.id, id)).limit(1).for("update");
+      if (!current) return null;
+      if (normalizedPatch.slug !== undefined && normalizedPatch.slug !== current.slug && await slugTaken(normalizedPatch.slug, id, tx)) {
+        return { slugConflict: true } as const;
       }
-      await tx.insert(wikiPageRevisions).values({
-        wikiPageId: id,
-        revisionNumber: revision,
-        snapshot: snapshotOf(updated, next.termIds),
-        message: next.status !== current.status ? `status:${next.status}` : "updated",
-        authorId,
-        authorKeyId,
-      });
+      const currentTerms = await tx.select({ termId: wikiPageTerms.termId }).from(wikiPageTerms).where(eq(wikiPageTerms.wikiPageId, id)).orderBy(asc(wikiPageTerms.termId));
+      const next: WikiPageInput = {
+        slug: normalizedPatch.slug ?? current.slug,
+        title: normalizedPatch.title ?? current.title,
+        summary: normalizedPatch.summary === undefined ? current.summary : normalizedPatch.summary,
+        sourceUrl: normalizedPatch.sourceUrl === undefined ? current.sourceUrl : normalizedPatch.sourceUrl,
+        content: normalizedPatch.content ?? current.content,
+        domain: normalizedPatch.domain ?? current.domain,
+        tags: normalizedPatch.tags ?? current.tags,
+        termIds: normalizedPatch.termIds ?? currentTerms.map((row) => row.termId),
+        status: normalizedPatch.status ?? current.status,
+      };
+      validateInput(next);
+      // status를 빼면 초안→공개 같은 상태만의 변경이 리비전을 남기지 않아 `status:` 메시지 분기가
+      // 죽은 코드가 되고, 누가 언제 공개했는지 이력에서 사라진다.
+      const changed = next.slug !== current.slug || next.title !== current.title || next.summary !== current.summary || next.sourceUrl !== current.sourceUrl
+        || next.content !== current.content || next.status !== current.status
+        || JSON.stringify(next.domain) !== JSON.stringify(current.domain)
+        || JSON.stringify(next.tags) !== JSON.stringify(current.tags)
+        || JSON.stringify(next.termIds) !== JSON.stringify(currentTerms.map((row) => row.termId));
+      const revision = changed ? current.revision + 1 : current.revision;
+      const [updated] = await tx.update(wikiPages).set({
+        slug: next.slug,
+        title: next.title,
+        summary: next.summary,
+        sourceUrl: next.sourceUrl,
+        content: next.content,
+        contentHash: wikiContentHash(next),
+        domain: next.domain,
+        tags: next.tags ?? [],
+        revision,
+        status: next.status,
+        updatedBy: authorId,
+        updatedAt: new Date(),
+        reviewedBy: next.status === "published" ? authorId : null,
+        reviewedAt: next.status === "published" ? new Date() : null,
+      }).where(eq(wikiPages.id, id)).returning();
+      if (!updated) return null;
+      if (changed) {
+        await tx.delete(wikiPageTerms).where(eq(wikiPageTerms.wikiPageId, id));
+        if (next.termIds.length > 0) {
+          await tx.insert(wikiPageTerms).values(next.termIds.map((termId) => ({
+            wikiPageId: id,
+            termId,
+          })));
+        }
+        await tx.insert(wikiPageRevisions).values({
+          wikiPageId: id,
+          revisionNumber: revision,
+          snapshot: snapshotOf(updated, next.termIds),
+          message: next.status !== current.status ? `status:${next.status}` : "updated",
+          authorId,
+          authorKeyId,
+        });
+      }
+      await queueWikiIndex(tx, updated.id, updated.revision);
+      return updated;
+    });
+  } catch (error) {
+    if (isUniqueViolation(error, ["wiki_pages_slug_unique"])) return { slugConflict: true };
+    // 행 잠금으로 막히지만 잠금 밖의 쓰기 경로(가져오기 등)와 겹치면 여전히 날 수 있다.
+    if (isUniqueViolation(error, ["wiki_page_revisions_unique"])) {
+      const [row] = await getDb().select({ revision: wikiPages.revision }).from(wikiPages).where(eq(wikiPages.id, id)).limit(1);
+      return { conflict: true, currentRevision: row?.revision ?? null };
     }
-    await queueWikiIndex(tx, updated.id, updated.revision);
-    return updated;
-  });
+    throw error;
+  }
   if (!result) return null;
+  if ("slugConflict" in result) return result;
   scheduleWikiRagIndexing(2);
   return { ...result, terms: await termsForPage(result.id) };
 }
