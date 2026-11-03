@@ -36,7 +36,7 @@ cp .env.example .env
 | `POSTGRES_PASSWORD` | 프로덕션 Compose에서만 쓴다 |
 | `OAUTH2_PROXY_ENABLED` | 이 배포가 oauth2-proxy의 검증된 헤더를 받을 수 있는지. 기본 `false`; 실제 방식은 설정 화면에서 선택 |
 | `PASSWORD_LOGIN_ENABLED` | 최초 부팅의 ID/비밀번호 로그인 초기값. 기본 `true`; 첫 관리자 로그인 후에는 관리자 패널 → 로그인 방식에서 관리 |
-| `INITIAL_ADMIN_EMAIL` | 최초 관리자 이메일. 지정하면 `/setup`과 Google 계정 로그인 관리자 부트스트랩은 이 주소만 허용 |
+| `INITIAL_ADMIN_EMAIL` | 최초 관리자 이메일(필수). `/setup`과 SSO 관리자 부트스트랩은 이 주소만 허용하고, 비어 있으면 `/setup`이 503으로 거절한다. SSO 부트스트랩은 IdP가 `email_verified: true`를 보낼 때만 된다 |
 | `SSO_LOGIN_URL` | oauth2-proxy 로그인 진입점 재정의. 비우면 `/oauth2/start?rd=%2F` |
 | `GLOSSARY_ENCRYPTION_KEY` | AI·RAG API Key와 custom header 암호화 키. AI 또는 RAG 연결을 쓰면 32자 이상 고정값 필요 |
 | `GLOSSARY_ALLOWED_ORIGINS` | 로컬에서는 비워 두고, 운영 프록시 뒤에서는 쿠키 변경 요청을 허용할 실제 공개 HTTPS origin을 지정. 예: `https://glossary.example.com` |
@@ -96,8 +96,8 @@ http://localhost:3000 에서 뜬다.
 
 계정을 미리 시딩할 필요 없다. 사용자가 하나도 없으면 첫 접속에서 자동으로
 **`/setup`(관리자 만들기)** 화면으로 안내된다. 이메일·이름·비밀번호(8자 이상)를
-입력하면 관리자 계정이 만들어지고 바로 로그인된다. `.env`에 `INITIAL_ADMIN_EMAIL`을
-지정했다면 해당 주소로만 이 계정을 만들 수 있다. 새 계정은 viewer로 시작하며, 관리자가
+입력하면 관리자 계정이 만들어지고 바로 로그인된다. 이 계정은 `.env`의 `INITIAL_ADMIN_EMAIL`
+주소로만 만들 수 있다(비어 있으면 `/setup`이 거절한다). 새 계정은 viewer로 시작하며, 관리자가
 사용자 관리 화면에서 editor로 승격할 수 있다. 기존 admin/editor 계정은 그대로 유지된다.
 
 ::: tip
@@ -106,13 +106,16 @@ http://localhost:3000 에서 뜬다.
 동시에 들어와도 advisory lock으로 직렬화되어 관리자는 한 번만 만들어진다.
 :::
 
-스크립트로(예: 헤드리스 프로비저닝) 만들고 싶으면 `scripts/seed-admin.ts`도 그대로
-쓸 수 있다. 비밀번호는 명령행 인자로 넘기지 말고 `ADMIN_PASSWORD` 환경변수로 준다
-(프로세스 목록·셸 히스토리에 평문으로 남는다).
+스크립트로(예: 헤드리스 프로비저닝) 만들고 싶으면 소스 체크아웃에서 `scripts/seed-admin.ts`를
+쓸 수 있다. 이 스크립트는 루트 `.env`를 읽지 않으므로 `DATABASE_URL`을 직접 넘긴다. 비밀번호는
+명령행 인자로 넘기지 말고 `ADMIN_PASSWORD` 환경변수로 준다(프로세스 목록·셸 히스토리에 평문으로
+남는다). 배포 이미지에는 `tsx`가 없어 이 스크립트가 돌지 않는다 — 운영 서버는
+[운영 안내서](/operations#최초-관리자-계정-만들기)의 방법을 쓴다.
 
 ```bash
 read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
-pnpm --filter @glossary/web exec tsx scripts/seed-admin.ts admin@example.com
+DATABASE_URL='postgres://glossary:glossary@localhost:5434/glossary' \
+  pnpm --filter @glossary/web exec tsx scripts/seed-admin.ts admin@example.com
 unset ADMIN_PASSWORD
 ```
 
@@ -121,7 +124,8 @@ unset ADMIN_PASSWORD
 관리자가 계정을 하나씩 발급하지 않아도 된다. 비밀번호 가입 또는 Google 로그인을 허용하면
 사용자가 직접 계정을 만들고 바로 읽을 수 있다. 새 계정은 `viewer`로 시작하며 관리자가
 사용자 관리 화면에서 `editor`로 승격해야 편집할 수 있다. `admin`은 최초 설정,
-`INITIAL_ADMIN_EMAIL`의 SSO 로그인, `seed-admin.ts` 경로로만 생긴다.
+`INITIAL_ADMIN_EMAIL`의 SSO 로그인(IdP가 이메일 확인을 `email_verified: true`로 보낸 경우),
+`seed-admin.ts` 경로로만 생긴다.
 
 ::: warning
 공개 가입은 비밀번호 로그인이 켜져 있는 동안 열려 있다. 사내 사용자가 자유롭게 참여하는

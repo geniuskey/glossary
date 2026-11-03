@@ -7,7 +7,8 @@
 # 스테이지는 셋이다:
 #   runner   — 실서비스가 쓰는 최소 이미지. devDependencies가 없다.
 #   migrator — drizzle-kit(devDependency)이 필요하므로 전체 의존성을 가진 별도
-#              이미지. 마이그레이션과 관리자 계정 시딩을 여기서 돌린다.
+#              이미지. 마이그레이션만 돌린다 — 웹 소스와 tsx가 없어 seed-admin.ts는
+#              여기서 돌지 않는다(첫 관리자는 /setup으로 만든다).
 # runner에 devDependencies를 넣지 않는 대신 migrator를 따로 두는 선택이다 —
 # 운영 이미지에 빌드 도구를 남기지 않으려는 것.
 
@@ -93,7 +94,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/worker-dist/sync.mjs ./sync.mjs
 USER nextjs
 CMD ["node", "rag-worker.mjs"]
 
-# ---- 마이그레이션 / 시딩 ----
+# ---- 마이그레이션 ----
 # migrator는 웹 앱을 실행하지 않으므로 builder 전체를 상속하지 않는다.
 # DB 패키지와 그 workspace 의존성만 설치해 Next.js/Turbo/웹 소스와 빌드 캐시가
 # 이미지에 들어오지 않게 한다. drizzle-kit은 @glossary/db의 devDependency지만

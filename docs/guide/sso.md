@@ -41,7 +41,7 @@ https://glossary.euiyun.com/auth/sso/callback
 4. 자동 계정 생성은 켜 두고 허용 그룹은 비운다. 새 Google 계정은 viewer로 만들어진다.
 5. 먼저 비밀번호 로그인을 유지한 채 Google 로그인으로 접속되는지 확인한다. 확인 후 같은 설정 화면에서 ID/비밀번호 로그인을 끄고 저장한다.
 
-Google OIDC 이메일이 확인된 계정만 받을 수 있다. `.env`의 `INITIAL_ADMIN_EMAIL`과 이메일이
+Google OIDC 이메일이 확인된(`email_verified: true`) 계정만 받을 수 있다. `.env`의 `INITIAL_ADMIN_EMAIL`과 이메일이
 일치하는 Google 계정은 관리자로 부트스트랩되고, 그 외 신규 계정은 viewer가 된다. 공개
 Google OAuth 앱은 Google 계정이 있는 누구나 로그인할 수 있다. Workspace 구성원으로 제한하려면
 Google Cloud Console에서 프로젝트에 **Internal** audience를 설정한다. 이 옵션은 조직 소유
@@ -291,11 +291,24 @@ OAuth 2.0은 사용자 정보 엔드포인트도 필수다. 빠진 값이 있으
 
 1. `sub`로 찾는다 — 이름·이메일이 바뀌어도 같은 계정이다.
 2. 없으면 같은 이메일의 계정에 `sub`를 붙인다(SSO를 켜기 전 비밀번호로 쓰던 계정을
-   한 번 이어 붙이는 경로). 비밀번호는 지우지 않는다.
+   한 번 이어 붙이는 경로). 비밀번호는 지우지 않는다. **IdP가 `email_verified: true`를
+   보낸 경우에만** 붙이고, 아니면 `unverified_email`로 거절한다.
 3. 그 이메일이 **이미 다른 `sub`에 묶여 있으면 거절한다**(`email_conflict`). 덮어쓰면
    IdP에서 계정을 지웠다 다시 만든 사람이 남의 이력을 이어받는다.
 4. 그래도 없으면 자동 생성 설정에 따라 새로 만든다. 이때 비밀번호는 저장하지 않으므로
    그 계정은 SSO로만 들어온다.
+
+::: warning 이메일 확인(`email_verified`)
+OIDC·OAuth 2.0 로그인은 IdP가 보낸 `email_verified` claim을 본다(문자열 `"true"`/`"false"`도 읽는다).
+
+- `false`면 어느 IdP든 로그인을 거절한다(`unverified_email`). Google은 claim이 없어도 거절한다.
+- claim을 아예 보내지 않는 IdP는 로그인은 되지만(`sub`로 새 계정), 같은 이메일의 기존 계정에
+  이어 붙지 않고 `INITIAL_ADMIN_EMAIL` 관리자 부트스트랩도 되지 않는다. IdP가 사용자가 고칠 수
+  있는 이메일을 그대로 넘기면 그 이메일로 남의 계정이나 관리자 권한을 가져갈 수 있어서다.
+  이런 IdP라면 첫 관리자는 `/setup`(또는 개발 환경의 `seed-admin.ts`)으로 만든다.
+
+oauth2-proxy 헤더 방식은 앞단이 신뢰 경계이므로 이 검사를 하지 않는다.
+:::
 
 ## 문제 해결
 
@@ -311,6 +324,7 @@ OAuth 2.0은 사용자 정보 엔드포인트도 필수다. 빠진 값이 있으
 | `not_allowed` | 허용 그룹에 없다 | 그룹 claim 후보와 허용 그룹 |
 | `no_account` | 계정이 없고 자동 생성이 꺼져 있다 | 자동 생성 |
 | `email_conflict` | 같은 이메일이 다른 `sub`에 묶여 있다 | `users` 테이블 |
+| `unverified_email` | IdP가 `email_verified: false`를 보냈거나(Google은 claim 누락 포함), 확인되지 않은 이메일로 기존 계정에 이어 붙이려 했다 | IdP의 이메일 확인 설정, `email_verified` claim |
 | `server` | 그 외 | 서버 로그 |
 
 오류 상세는 앱 컨테이너의 표준 오류 출력에 `[Glossary SSO]`로 시작하는 한 줄 JSON으로

@@ -140,19 +140,23 @@ docker compose -f docker-compose.prod.yml up -d --build
 > 올린 직후 곧바로 접속해 첫 관리자를 만들어라. 그때까지는 사내망 접근 통제에
 > 의존한다.
 
-스크립트로(자동화·헤드리스) 만들고 싶으면 아래처럼 시딩할 수도 있다. `tsx`는
-devDependency라 운영 이미지(`runner`)에 없어 `migrator` 스테이지 이미지에서 돌린다.
+스크립트로(자동화·헤드리스) 만들고 싶으면 같은 `/setup` API를 호스트에서 직접 부른다.
+`scripts/seed-admin.ts`는 `tsx`와 웹 소스가 필요해 배포 이미지(`app`·`migrator`·`rag-worker`)
+어디에서도 돌지 않는다 — 소스 체크아웃의 개발 DB용이다.
 
 ```bash
-read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
-docker compose -f docker-compose.prod.yml run --rm \
-  -e ADMIN_PASSWORD \
-  migrator pnpm --filter @glossary/web exec tsx scripts/seed-admin.ts admin@example.com
+read -rs ADMIN_PASSWORD
+printf '{"email":"admin@example.com","name":"관리자","password":"%s"}' "$ADMIN_PASSWORD" \
+  | curl -fsS -H 'Content-Type: application/json' --data-binary @- \
+      http://127.0.0.1:3000/api/v1/setup
 unset ADMIN_PASSWORD
 ```
 
+`/setup`과 같은 조건을 따른다 — 이메일은 `INITIAL_ADMIN_EMAIL`과 같아야 하고, ID/비밀번호
+로그인이 꺼져 있으면 403이다. 비밀번호에 `"`나 `\`가 있으면 JSON이 깨지므로 피한다.
+
 **비밀번호를 명령행 인자로 넘기지 마라.** 프로세스 목록과 셸 히스토리에 평문으로
-남는다. 위의 `read -rs` + 환경변수 형태를 유지해라.
+남는다. 위처럼 `read -rs`로 받아 셸 내장 `printf`로 표준 입력에 흘려라.
 
 ## 네트워크와 인증 — 알고 넘어가야 할 것
 
