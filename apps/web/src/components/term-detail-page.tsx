@@ -101,6 +101,12 @@ export async function TermDetailPage({
     const text = decodeSlugParam(slug);
     const [match] = await lookupTerms([text]);
     const candidates = match?.terms ?? [];
+    // 풀네임으로 slug를 만든 용어는 대표명 주소로 들어오면 여기까지 온다.
+    // 같은 말을 다른 용어들이 별칭으로 써도 대표명으로의 접근은 유지한다.
+    const key = surfaceKeys(text).normLoose;
+    const named = candidates.filter((candidate) => [candidate.nameEn, candidate.nameKo]
+      .some((name) => name && key && surfaceKeys(name).normLoose === key));
+    if (named.length === 1) redirect(`/g/${named[0]!.slug}?from=${encodeURIComponent(text)}`);
     if (candidates.length === 1) redirect(`/g/${candidates[0]!.slug}?from=${encodeURIComponent(text)}`);
     if (candidates.length > 1) return <SurfaceChooser user={user} text={text} terms={candidates} />;
     notFound();
