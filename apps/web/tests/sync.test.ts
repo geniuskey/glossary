@@ -302,3 +302,47 @@ test("위키 수정은 위키 리비전을 올리고 연결 용어를 교체한�
     expect.objectContaining({ termId: term.id }),
   ]);
 });
+
+// 출처의 replaced_by_id를 그대로 쓰면 순환·자기 참조·없는 대상이 들어와 상세 화면이
+// 리다이렉트를 끝없이 돌고, 그 용어는 검색에서 빠지고 편집도 거부된다.
+test("병합 사슬이 순환하거나 대상이 없으면 이번에 들어온 용어의 병합 표시를 하나씩 풀고 충돌로 알린다", async () => {
+  const { mergedDestination } = await import("../src/lib/terms/merge.js");
+  const aId = randomUUID(), bId = randomUUID();
+  const a = syncTerm({ id: aId, replacedById: bId });
+  const b = syncTerm({ id: bId, replacedById: aId });
+  const self = syncTerm();
+  self.replacedById = self.id;
+  const orphan = syncTerm({ replacedById: randomUUID() });
+  const live = syncTerm();
+  const merged = syncTerm({ replacedById: live.id });
+
+  const report = await applySyncBundle(bundleOf({ terms: [a, b, self, orphan, live, merged] }));
+  const replaced = new Map((await db.select({ id: terms.id, target: terms.replacedById }).from(terms)
+    .where(inArray(terms.id, [aId, bId, self.id, orphan.id, merged.id]))).map((row) => [row.id, row.target]));
+
+  // 순환은 한쪽만 풀어 다른 쪽이 그 용어로 넘어가게 한다 — 둘 다 풀면 중복이 되살아난다.
+  expect([replaced.get(aId), replaced.get(bId)].filter((target) => target === null)).toHaveLength(1);
+  expect(replaced.get(self.id)).toBeNull();
+  expect(replaced.get(orphan.id)).toBeNull();
+  expect(replaced.get(merged.id)).toBe(live.id);
+  expect(report.conflicts.map((c) => c.id).sort()).toEqual([replaced.get(aId) === null ? aId : bId, self.id, orphan.id].sort());
+  for (const id of [aId, bId]) {
+    const destination = await mergedDestination(id);
+    if (replaced.get(id) !== null) expect(destination).toBe(replaced.get(id) === aId ? a.slug : b.slug);
+    else expect(destination).toBeNull();
+  }
+});
+
+test("출처에서 사라진 용어로 이 서버에서 병합해 둔 용어도 함께 지운다", async () => {
+  const { mergeTerms } = await import("../src/lib/terms/merge.js");
+  const target = syncTerm();
+  await applySyncBundle(bundleOf({ terms: [target] }));
+  const local = await createTerm({ nameEn: `MergedLocal ${run}`, nameKo: "병합된 사내 용어", domain: [], category: [], surfaces: [] }, null);
+  createdTermIds.push(local.term.id);
+  const { currentRevisionNumber } = await import("../src/lib/terms/update.js");
+  await mergeTerms(local.term.id, target.id, 1, await currentRevisionNumber(target.id), null, null);
+
+  const report = await applySyncBundle(bundleOf({}));
+  expect(report.counts.terms.deleted).toBeGreaterThanOrEqual(2);
+  expect(await db.select().from(terms).where(inArray(terms.id, [target.id, local.term.id]))).toHaveLength(0);
+});

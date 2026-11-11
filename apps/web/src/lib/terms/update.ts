@@ -10,6 +10,7 @@ import { extractAttachmentHashes } from "@/lib/attachments/refs";
 import { getDb } from "@/lib/db";
 import { queueRagIndex } from "@/lib/rag/indexer";
 import { completionStatus } from "./completion";
+import { deleteTermsWithMergedSources } from "./merge-integrity";
 import { getTermQualitySettings } from "@/lib/workspace/term-quality";
 import { checkSurfaceConflicts } from "./schema";
 import {
@@ -92,9 +93,10 @@ export async function listRevisions(termId: string): Promise<RevisionRow[]> {
 
 export async function deleteTerm(termId: string): Promise<boolean> {
   // term_revisions/term_surfaces는 terms.id를 ON DELETE CASCADE로 참조하므로
-  // 이 한 번의 delete로 리비전 이력과 표기가 함께 사라진다.
-  const deleted = await getDb().delete(terms).where(eq(terms.id, termId)).returning({ id: terms.id });
-  return deleted.length > 0;
+  // 이 한 번의 delete로 리비전 이력과 표기가 함께 사라진다. 이 용어로 병합된
+  // 용어도 함께 지운다 — 남기면 없는 id를 가리키는 고아가 된다(merge-integrity.ts).
+  const deleted = await getDb().transaction((tx) => deleteTermsWithMergedSources(tx, [termId]));
+  return deleted.includes(termId);
 }
 
 // R48과 같은 판별 패턴: SQLSTATE 23505 중 term_revisions_unique 위반만 리비전

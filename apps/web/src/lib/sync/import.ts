@@ -24,6 +24,7 @@ import { getDb } from "@/lib/db";
 import { queueRagIndex } from "@/lib/rag/indexer";
 import { queueWikiIndex } from "@/lib/rag/wiki-indexer";
 import { completionStatus } from "@/lib/terms/completion";
+import { brokenMergeIds, deleteTermsWithMergedSources } from "@/lib/terms/merge-integrity";
 import { firstUnusedDomainColor } from "@/lib/terms/domain-colors";
 import { domainLabelKey } from "@/lib/terms/domain-label";
 import { normalizeTags } from "@/lib/terms/tags";
@@ -334,8 +335,8 @@ export async function applySyncBundle(bundle: SyncBundle, options: SyncImportOpt
           if (modified && localEdits === "keep") {
             issue("kept", { type: "term", id, label: termLabel(local), reason: "출처에서 삭제되었지만 이 서버에서 고친 용어라 남겼습니다. 이제 이 서버의 용어로 취급합니다." });
           } else {
-            await tx.delete(terms).where(eq(terms.id, id));
-            report.counts.terms.deleted += 1;
+            // 이 용어로 병합된 용어도 함께 지운다(deleteTerm과 같은 규칙, merge-integrity.ts).
+            report.counts.terms.deleted += (await deleteTermsWithMergedSources(tx, [id])).length;
           }
         }
         untrack("term", id);
@@ -510,6 +511,20 @@ export async function applySyncBundle(bundle: SyncBundle, options: SyncImportOpt
         await queueRagIndex(tx, incoming.id, 1);
         report.counts.terms.created += 1;
         track("term", incoming.id, hash, 1);
+      }
+
+      // 출처의 replaced_by_id를 그대로 썼으므로 병합 사슬을 검사한다. 두 서버에서 같은
+      // 중복을 반대 방향으로 병합하면 A→B, B→A가 되고, 대상이 slug 충돌로 건너뛰어졌으면
+      // 없는 id를 가리킨다. 그대로 두면 그 용어는 검색·목록에서 빠지고 편집도 거부되는데
+      // 상세 화면은 리다이렉트를 끝없이 돈다. 이번에 들어온 용어의 병합 표시만 하나씩
+      // 풀어 사슬을 끊는다 — 한 번에 다 풀면 순환에 든 용어가 전부 되살아나 중복이 된다.
+      const incomingIds = new Set(incomingTermIds);
+      for (;;) {
+        const broken = (await brokenMergeIds(tx)).find((id) => incomingIds.has(id));
+        if (!broken) break;
+        const [released] = await tx.update(terms).set({ replacedById: null }).where(eq(terms.id, broken))
+          .returning({ slug: terms.slug, nameKo: terms.nameKo, nameEn: terms.nameEn });
+        issue("conflicts", { type: "term", id: broken, label: termLabel(released!), reason: "병합 대상이 이 서버에 없거나 병합이 순환해 병합 표시를 풀었습니다. 중복이면 다시 병합해 주세요." });
       }
 
       // ---- 위키

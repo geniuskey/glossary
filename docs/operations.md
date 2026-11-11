@@ -10,14 +10,14 @@
 DB 마이그레이터, RAG 워커를 한 저장소의 별도 태그로 배포한다. 서버에는 소스 코드가 필요 없고
 `docker-compose.hub.yml`과 환경 파일만 있으면 된다.
 
-> 현재 배포판은 **`0.3.4`**이다. 업그레이드 전에는 반드시 DB 백업과 복구를 검증하고,
+> 현재 배포판은 **`0.3.5`**이다. 업그레이드 전에는 반드시 DB 백업과 복구를 검증하고,
 > 앱·마이그레이터·RAG 워커를 항상 같은 버전 조합으로 고정한다.
 
 | 이미지 | 고정 태그 | 용도 |
 |---|---|---|
-| `euiyun/glossary` | `0.3.4` | Glossary 웹 애플리케이션 |
-| `euiyun/glossary` | `0.3.4-migrator` | 앱 기동 전에 실행하는 DB 마이그레이션 |
-| `euiyun/glossary` | `0.3.4-worker` | durable RAG 큐와 보존 정리 워커 |
+| `euiyun/glossary` | `0.3.5` | Glossary 웹 애플리케이션 |
+| `euiyun/glossary` | `0.3.5-migrator` | 앱 기동 전에 실행하는 DB 마이그레이션 |
+| `euiyun/glossary` | `0.3.5-worker` | durable RAG 큐와 보존 정리 워커 |
 
 `latest`, `latest-migrator`, `latest-worker`도 제공하지만, 예고 없이 다음 개발 버전을 가리킬 수 있으므로
 재현 가능한 배포에는 버전 태그를 사용한다.
@@ -34,9 +34,9 @@ docker compose --env-file .env -f docker-compose.hub.yml up -d
 운영에서는 `latest` 대신 아래처럼 앱·마이그레이터·RAG 워커를 같은 버전으로 고정한다.
 
 ```dotenv
-GLOSSARY_IMAGE=euiyun/glossary:0.3.4
-GLOSSARY_MIGRATOR_IMAGE=euiyun/glossary:0.3.4-migrator
-GLOSSARY_WORKER_IMAGE=euiyun/glossary:0.3.4-worker
+GLOSSARY_IMAGE=euiyun/glossary:0.3.5
+GLOSSARY_MIGRATOR_IMAGE=euiyun/glossary:0.3.5-migrator
+GLOSSARY_WORKER_IMAGE=euiyun/glossary:0.3.5-worker
 ```
 
 `database-init`이 `pg_trgm`·`vector` 확장을 준비하고, `migrator`가 성공한 뒤에만 `app`이
@@ -350,6 +350,30 @@ docker compose -f docker-compose.hub.yml run --rm -v "$PWD/sync-in:/sync" rag-wo
   빠뜨려 manifest와 어긋나면 "누락"으로 보고하고 CLI는 종료 코드 2를 낸다. 이때 보내는 쪽에서
   전체 번들을 한 번 보내면 다시 맞춰진다.
 - 가져오기 전체가 한 트랜잭션이다. 도중에 실패하면 아무것도 반영되지 않는다.
+- 병합 기록이 순환하거나(양쪽 서버에서 같은 중복을 반대 방향으로 병합한 경우) 받는 쪽에 없는
+  용어를 가리키면, 이번에 들어온 용어의 병합 표시를 풀고 "충돌"로 보고한다. 중복이면 다시 병합한다.
+- 출처에서 삭제된 용어로 받는 쪽에서 병합해 둔 용어는 함께 지운다(화면에서 삭제할 때와 같다).
+
+### 병합 기록 점검 (0.3.4 이전에서 올라온 경우)
+
+0.3.4까지는 병합 대상 용어를 삭제해도 거기 병합된 용어가 남았다. 남은 용어는 없는 용어를 가리켜
+검색·목록에 보이지 않고 편집도 안 된다. 아래 쿼리로 사슬이 살아 있는 용어에 닿지 못하는 용어를 찾는다.
+
+```sql
+with recursive walk(start_id, id, path) as (
+  select id, replaced_by_id, array[id] from terms where replaced_by_id is not null
+  union all
+  select w.start_id, t.replaced_by_id, w.path || t.id
+  from walk w join terms t on t.id = w.id
+  where t.replaced_by_id is not null and not w.id = any(w.path)
+)
+select distinct s.id, s.slug, s.name_ko, s.name_en
+from walk w join terms s on s.id = w.start_id left join terms t on t.id = w.id
+where t.id is null or w.id = any(w.path);
+```
+
+대상이 삭제된 용어는 새 버전의 규칙대로 지우면 된다(`delete from terms where id in (...)`).
+순환한 용어는 한쪽의 `replaced_by_id`를 `null`로 풀면 다른 쪽이 그 용어로 넘어간다. 지우기 전에 백업한다.
 
 ## OpenAPI 스펙
 

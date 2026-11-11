@@ -79,9 +79,24 @@ test("merged destination follows chains and stops on cycles instead of redirecti
   await point(c.id, c.id);
   expect(await mergedDestination(c.id)).toBeNull();
 
+  // 사슬 중간의 대상이 지워졌으면 B도 병합된 용어라 목적지가 될 수 없다.
   await point(c.id, null); await point(b.id, gone.id);
   await getDb().delete(terms).where(eq(terms.id, gone.id));
-  expect(await mergedDestination(a.id)).toBe(b.slug);
+  expect(await mergedDestination(a.id)).toBeNull();
+  expect(await mergedDestination(c.id)).toBeNull();
+});
+
+// replaced_by_id에는 FK가 없어 대표 용어만 지우면 원래 용어가 없는 id를 가리킨 채 남는다.
+// 병합된 용어라 검색·목록에서 빠지고 편집도 거부돼, 어느 화면에서도 고칠 수 없게 된다.
+test("deleting a merge target also deletes the terms merged into it, chains included", async () => {
+  const { deleteTerm } = await import("../src/lib/terms/update");
+  const target = await term("DeleteTarget"), source = await term("DeleteSource"), older = await term("DeleteOlder"), bystander = await term("DeleteBystander");
+  await mergeTerms(source.id, target.id, 1, 1, null, null);
+  await getDb().update(terms).set({ replacedById: source.id }).where(eq(terms.id, older.id));
+  expect(await deleteTerm(target.id)).toBe(true);
+  expect(await getDb().select({ id: terms.id }).from(terms).where(inArray(terms.id, [target.id, source.id, older.id]))).toEqual([]);
+  expect(await getDb().select({ id: terms.id }).from(terms).where(eq(terms.id, bystander.id))).toHaveLength(1);
+  expect(await deleteTerm(target.id)).toBe(false);
 });
 
 test("search and autocomplete do not list merged terms", async () => {

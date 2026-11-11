@@ -7,30 +7,29 @@ import { mergeContent, type MergeContent } from "./merge-values";
 import { updateTerm } from "./update";
 
 /**
- * 병합 사슬을 끝까지 따라가 지금 살아 있는 대표 용어의 slug를 돌려준다.
+ * 병합 사슬을 끝까지 따라가 지금 살아 있는 대표 용어의 slug를 돌려준다. 닿지 못하면 null.
  *
  * 한 단계만 보면 replaced_by_id가 자기 자신이거나 A→B→A로 돌 때 상세 화면이
  * `/g/a` → `/g/b` → `/g/a`를 끝없이 307로 주고받아 브라우저가
- * ERR_TOO_MANY_REDIRECTS를 낸다(0.3.4 이미지에서 실측). mergeTerms는 이런 상태를
- * 만들지 않지만 동기화 가져오기(sync/import)는 출처의 replaced_by_id를 그대로 쓰므로,
- * 두 서버에서 같은 중복을 반대 방향으로 병합하면 생긴다. 사슬이 돌면 null을 돌려
- * 리다이렉트하지 않는다 — 데이터가 깨져도 화면은 열려야 고칠 수 있다.
+ * ERR_TOO_MANY_REDIRECTS를 낸다(0.3.4 이미지에서 실측). 쓰는 쪽(삭제, 동기화 가져오기)이
+ * 이제 그런 상태를 막지만(merge-integrity.ts), 그 전에 쌓인 데이터가 남아 있을 수 있다.
+ * 사슬 중간의 대상이 지워졌으면 그 앞의 용어도 병합된 용어라 목적지가 될 수 없다.
  */
 export async function mergedDestination(id: string): Promise<string | null> {
   const db = getDb();
   const visited = new Set([id]);
   let current = id;
-  let slug: string | null = null;
   for (;;) {
-    const [row] = await db.select({ target: terms.replacedById }).from(terms).where(eq(terms.id, current));
-    if (!row?.target) return slug;
-    if (visited.has(row.target)) return null;
-    const [target] = await db.select({ slug: terms.slug }).from(terms).where(eq(terms.id, row.target));
-    // 대상이 지워졌으면 replaced_by_id에 FK가 없어 그대로 남는다. 마지막으로 살아 있던 곳에서 멈춘다.
-    if (!target) return slug;
-    visited.add(row.target);
-    current = row.target;
-    slug = target.slug;
+    const [next] = await db
+      .select({ id: terms.id, slug: terms.slug, target: terms.replacedById })
+      .from(terms)
+      .where(sql`${terms.id} = (select ${terms.replacedById} from ${terms} where ${terms.id} = ${current})`);
+    // 병합되지 않은 용어이거나, 가리키는 대상이 지워진 경우.
+    if (!next) return null;
+    if (visited.has(next.id)) return null;
+    if (!next.target) return next.slug;
+    visited.add(next.id);
+    current = next.id;
   }
 }
 

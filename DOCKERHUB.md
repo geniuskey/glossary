@@ -1,13 +1,13 @@
 # Glossary on Docker Hub
 
-> **Release — `0.3.4`**
+> **Release — `0.3.5`**
 >
-> Use the matching `0.3.4`, `0.3.4-migrator`, and `0.3.4-worker` tags, and keep a tested
+> Use the matching `0.3.5`, `0.3.5-migrator`, and `0.3.5-worker` tags, and keep a tested
 > database backup before upgrading.
 >
-> **릴리스 — `0.3.4`**
+> **릴리스 — `0.3.5`**
 >
-> 앱은 `0.3.4`, 마이그레이터는 `0.3.4-migrator`, RAG 워커는 `0.3.4-worker`로
+> 앱은 `0.3.5`, 마이그레이터는 `0.3.5-migrator`, RAG 워커는 `0.3.5-worker`로
 > 고정하고 업그레이드 전 백업을 보관하세요.
 
 ## Short description
@@ -69,9 +69,9 @@ The web application, migrator, and durable RAG worker are published separately i
 
 | Tag | Purpose |
 |---|---|
-| `0.3.4` | Version-pinned web application (recommended) |
-| `0.3.4-migrator` | Matching database migrations (recommended) |
-| `0.3.4-worker` | Matching durable RAG and cleanup worker (recommended) |
+| `0.3.5` | Version-pinned web application (recommended) |
+| `0.3.5-migrator` | Matching database migrations (recommended) |
+| `0.3.5-worker` | Matching durable RAG and cleanup worker (recommended) |
 | `latest` | Most recently published web application |
 | `latest-migrator` | Migrations matching `latest` |
 | `latest-worker` | Worker matching `latest` |
@@ -81,14 +81,14 @@ For production, pin all three images to the same version instead of using `lates
 사내 서버에서 명시적으로 받으려면 세 태그를 함께 pull합니다.
 
 ```bash
-docker pull euiyun/glossary:0.3.4
-docker pull euiyun/glossary:0.3.4-migrator
-docker pull euiyun/glossary:0.3.4-worker
+docker pull euiyun/glossary:0.3.5
+docker pull euiyun/glossary:0.3.5-migrator
+docker pull euiyun/glossary:0.3.5-worker
 ```
 
 ## Quick start with Docker Compose
 
-Requires Docker Engine with the Compose plugin. The published `0.3.4` images are
+Requires Docker Engine with the Compose plugin. The published `0.3.5` images are
 available for `linux/amd64` and `linux/arm64`. Node.js and pnpm
 are not needed on the host. Commands below use Bash (Git Bash or WSL on Windows).
 
@@ -100,10 +100,10 @@ curl -LO https://raw.githubusercontent.com/geniuskey/glossary/v0.3.3/docker-comp
 curl -L https://raw.githubusercontent.com/geniuskey/glossary/v0.3.3/.env.dockerhub.example -o .env
 ```
 
-Edit `.env` before starting: use the `0.3.4` / `0.3.4-migrator` / `0.3.4-worker` set, replace
+Edit `.env` before starting: use the `0.3.5` / `0.3.5-migrator` / `0.3.5-worker` set, replace
 `POSTGRES_PASSWORD` with a long URL-safe value, and replace `GLOSSARY_ENCRYPTION_KEY`
 with a separate fixed random secret of at least 32 characters if using AI or RAG.
-The examples reuse the compatible `v0.3.3` templates; update all three image tags to `0.3.4` as shown above.
+The examples reuse the compatible `v0.3.3` templates; update all three image tags to `0.3.5` as shown above.
 For example, generate a password with `openssl rand -hex 32` and an encryption key with
 `openssl rand -base64 48`, then copy the respective outputs into `.env`.
 
@@ -139,9 +139,9 @@ docker compose --env-file .env -f docker-compose.hub.yml ps
 
 | Variable | Description |
 |---|---|
-| `GLOSSARY_IMAGE` | Web image, for example `euiyun/glossary:0.3.4` |
-| `GLOSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/glossary:0.3.4-migrator` |
-| `GLOSSARY_WORKER_IMAGE` | Matching durable RAG and cleanup worker, for example `euiyun/glossary:0.3.4-worker` |
+| `GLOSSARY_IMAGE` | Web image, for example `euiyun/glossary:0.3.5` |
+| `GLOSSARY_MIGRATOR_IMAGE` | Matching migration image, for example `euiyun/glossary:0.3.5-migrator` |
+| `GLOSSARY_WORKER_IMAGE` | Matching durable RAG and cleanup worker, for example `euiyun/glossary:0.3.5-worker` |
 | `GLOSSARY_PORT` | Host port; defaults to `3000` |
 | `POSTGRES_PASSWORD` | Internal PostgreSQL password; use URL-safe characters |
 | `GLOSSARY_ENCRYPTION_KEY` | Fixed secret of at least 32 characters for AI/RAG API keys and custom headers; back up separately |
