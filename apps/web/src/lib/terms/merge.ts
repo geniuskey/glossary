@@ -6,11 +6,32 @@ import { termInputSchema } from "./schema";
 import { mergeContent, type MergeContent } from "./merge-values";
 import { updateTerm } from "./update";
 
+/**
+ * 병합 사슬을 끝까지 따라가 지금 살아 있는 대표 용어의 slug를 돌려준다.
+ *
+ * 한 단계만 보면 replaced_by_id가 자기 자신이거나 A→B→A로 돌 때 상세 화면이
+ * `/g/a` → `/g/b` → `/g/a`를 끝없이 307로 주고받아 브라우저가
+ * ERR_TOO_MANY_REDIRECTS를 낸다(0.3.4 이미지에서 실측). mergeTerms는 이런 상태를
+ * 만들지 않지만 동기화 가져오기(sync/import)는 출처의 replaced_by_id를 그대로 쓰므로,
+ * 두 서버에서 같은 중복을 반대 방향으로 병합하면 생긴다. 사슬이 돌면 null을 돌려
+ * 리다이렉트하지 않는다 — 데이터가 깨져도 화면은 열려야 고칠 수 있다.
+ */
 export async function mergedDestination(id: string): Promise<string | null> {
-  const [row] = await getDb().select({ target: terms.replacedById }).from(terms).where(eq(terms.id, id));
-  if (!row?.target) return null;
-  const [target] = await getDb().select({ slug: terms.slug }).from(terms).where(eq(terms.id, row.target));
-  return target?.slug ?? null;
+  const db = getDb();
+  const visited = new Set([id]);
+  let current = id;
+  let slug: string | null = null;
+  for (;;) {
+    const [row] = await db.select({ target: terms.replacedById }).from(terms).where(eq(terms.id, current));
+    if (!row?.target) return slug;
+    if (visited.has(row.target)) return null;
+    const [target] = await db.select({ slug: terms.slug }).from(terms).where(eq(terms.id, row.target));
+    // 대상이 지워졌으면 replaced_by_id에 FK가 없어 그대로 남는다. 마지막으로 살아 있던 곳에서 멈춘다.
+    if (!target) return slug;
+    visited.add(row.target);
+    current = row.target;
+    slug = target.slug;
+  }
 }
 
 export async function mergeTerms(sourceId: string, targetId: string, sourceRevision: number, targetRevision: number, authorId: string | null, authorKeyId: string | null) {

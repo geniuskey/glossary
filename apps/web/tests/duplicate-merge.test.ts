@@ -62,3 +62,34 @@ test("same-name domain-qualified slugs are included in duplicate candidates", as
   expect(second.slug).toBe(`${first.slug}-qa`);
   expect((await duplicateCandidates({ id: second.id, slug: second.slug, nameEn: second.nameEn })).map((c) => c.id)).toContain(first.id);
 });
+
+// 동기화 가져오기는 replaced_by_id를 그대로 쓰므로 mergeTerms가 막는 상태도 DB에 생길 수 있다.
+// 한 단계만 따라가면 상세 화면이 307을 끝없이 주고받는다(ERR_TOO_MANY_REDIRECTS).
+test("merged destination follows chains and stops on cycles instead of redirecting forever", async () => {
+  const a = await term("CycleA"), b = await term("CycleB"), c = await term("CycleC"), gone = await term("CycleGone");
+  const point = (id: string, target: string | null) => getDb().update(terms).set({ replacedById: target }).where(eq(terms.id, id));
+
+  await point(a.id, b.id); await point(b.id, c.id);
+  expect(await mergedDestination(a.id)).toBe(c.slug);
+
+  await point(c.id, a.id);
+  expect(await mergedDestination(a.id)).toBeNull();
+  expect(await mergedDestination(b.id)).toBeNull();
+
+  await point(c.id, c.id);
+  expect(await mergedDestination(c.id)).toBeNull();
+
+  await point(c.id, null); await point(b.id, gone.id);
+  await getDb().delete(terms).where(eq(terms.id, gone.id));
+  expect(await mergedDestination(a.id)).toBe(b.slug);
+});
+
+test("search and autocomplete do not list merged terms", async () => {
+  const source = await term("SearchMergedSource"), target = await term("SearchMergedTarget");
+  await mergeTerms(source.id, target.id, 1, 1, null, null);
+  const { searchTerms, suggestTerms } = await import("../src/lib/terms/search");
+  for (const hits of [await searchTerms(source.nameEn!), await suggestTerms(source.nameEn!)]) {
+    expect(hits.map((hit) => hit.id)).toContain(target.id);
+    expect(hits.map((hit) => hit.id)).not.toContain(source.id);
+  }
+});

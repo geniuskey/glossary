@@ -93,7 +93,9 @@ export async function searchTerms(query: string, limit = 20): Promise<SearchHit[
            b.text AS "matchedText", b.kind AS "matchedKind", b.exact AS "exact",
            b.prefix AS "prefix", b.contains AS "contains", b.score AS "score"
     FROM best b
-    JOIN ${terms} t ON t.id = b.term_id
+    -- 병합된 용어는 표기가 대표 용어로 옮겨져 있어 대표 용어가 이미 같은 줄로 잡힌다.
+    -- 남겨 두면 같은 개념이 두 줄로 나오고, 병합된 쪽 링크는 리다이렉트를 한 번 더 탄다.
+    JOIN ${terms} t ON t.id = b.term_id AND t.replaced_by_id IS NULL
     ORDER BY b.exact DESC, b.prefix DESC, b.contains DESC, b.score DESC, t.name_en ASC NULLS LAST, t.id
     LIMIT ${limit}
   `);
@@ -224,7 +226,7 @@ export async function suggestTerms(query: string, limit = SUGGEST_LIMIT): Promis
            b.text AS "matchedText", b.kind AS "matchedKind",
            b.exact AS "exact", b.prefix AS "prefix", b.contains AS "contains", b.score AS "score"
     FROM best b
-    JOIN ${terms} t ON t.id = b.term_id
+    JOIN ${terms} t ON t.id = b.term_id AND t.replaced_by_id IS NULL
     ORDER BY b.exact DESC, b.prefix DESC, b.contains DESC, b.score DESC, char_length(b.text), t.id
     LIMIT ${limit}
   `);
