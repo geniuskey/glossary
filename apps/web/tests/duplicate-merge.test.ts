@@ -108,3 +108,15 @@ test("search and autocomplete do not list merged terms", async () => {
     expect(hits.map((hit) => hit.id)).not.toContain(source.id);
   }
 });
+
+test("withFullNames attaches each candidate's full names without dropping or reordering candidates", async () => {
+  const { withFullNames } = await import("../src/lib/terms/lookup");
+  const named = await term("FullNameHolder"), plain = await term("FullNamePlain");
+  await getDb().update(terms).set({ fullNameEn: `Full Name Holder ${suffix}`, fullNameKo: "풀네임 보유" }).where(eq(terms.id, named.id));
+  const rows = await withFullNames([{ id: plain.id, slug: plain.slug }, { id: named.id, slug: named.slug }]);
+  expect(rows).toEqual([
+    { id: plain.id, slug: plain.slug, fullNameEn: null, fullNameKo: null },
+    { id: named.id, slug: named.slug, fullNameEn: `Full Name Holder ${suffix}`, fullNameKo: "풀네임 보유" },
+  ]);
+  expect(await withFullNames([])).toEqual([]);
+});

@@ -6,7 +6,7 @@ vi.mock("@/lib/terms/query", () => ({ listRelatedTerms: vi.fn(async () => []) })
 vi.mock("@/lib/workspace/term-quality", () => ({ getTermQualitySettings: vi.fn() }));
 vi.mock("@/lib/auth/current-user", () => ({ getCurrentUser: vi.fn(async () => ({ id: "viewer" })) }));
 vi.mock("@/lib/terms/page-metadata", () => ({ loadTermForPage: vi.fn(async () => null) }));
-vi.mock("@/lib/terms/lookup", () => ({ lookupTerms: vi.fn() }));
+vi.mock("@/lib/terms/lookup", () => ({ lookupTerms: vi.fn(), withFullNames: vi.fn(async (terms: unknown[]) => terms) }));
 vi.mock("@/lib/terms/merge", () => ({ mergedDestination: vi.fn(async () => null) }));
 vi.mock("@/lib/wiki/store", () => ({ listWikiPagesForTerm: vi.fn(async () => []) }));
 vi.mock("next/navigation", () => ({
@@ -17,8 +17,8 @@ vi.mock("next/navigation", () => ({
 const { lookupTerms } = await import("../src/lib/terms/lookup");
 const { TermDetailPage } = await import("../src/components/term-detail-page");
 
-function candidate(id: string, nameEn: string, nameKo: string | null = null): TermSummary {
-  return { id, slug: `concept-${id}`, nameEn, nameKo } as TermSummary;
+function candidate(id: string, nameEn: string, nameKo: string | null = null, fullNameEn: string | null = null): TermSummary {
+  return { id, slug: `concept-${id}`, nameEn, nameKo, fullNameEn } as unknown as TermSummary;
 }
 function open(slug: string) {
   return TermDetailPage({ params: Promise.resolve({ slug }), searchParams: Promise.resolve({}) });
@@ -48,4 +48,29 @@ test("대표명도 여러 용어가 공유하면 선택 화면을 유지한다",
   matches([candidate("a", "PM"), candidate("b", "PM")]);
   const page = await open("pm");
   expect(page.props.terms).toHaveLength(2);
+});
+
+test("대표명으로 갈리지 않으면 풀네임이 유일하게 일치하는 용어를 연다", async () => {
+  matches([candidate("a", "PMO", null, "Project Management Office"), candidate("b", "PgMO")]);
+  await expect(open("project-management-office")).rejects.toThrow("redirect:/g/concept-a?from=project-management-office");
+});
+
+test("대표명 일치가 풀네임 일치보다 우선한다", async () => {
+  matches([candidate("a", "PM"), candidate("b", "Product", null, "PM")]);
+  await expect(open("pm")).rejects.toThrow("redirect:/g/concept-a?from=pm");
+});
+
+test("풀네임도 여러 용어가 공유하면 선택 화면을 유지한다", async () => {
+  matches([candidate("a", "PMO", null, "Project Management Office"), candidate("b", "PgMO", null, "Project Management Office")]);
+  const page = await open("project-management-office");
+  expect(page.props.terms).toHaveLength(2);
+});
+
+test("후보가 없으면 404, 하나면 풀네임 조회 없이 바로 연다", async () => {
+  const { withFullNames } = await import("../src/lib/terms/lookup");
+  matches([]);
+  await expect(open("nothing")).rejects.toThrow("not-found");
+  matches([candidate("a", "Project Manager")]);
+  await expect(open("pm")).rejects.toThrow("redirect:/g/concept-a?from=pm");
+  expect(withFullNames).not.toHaveBeenCalled();
 });

@@ -188,3 +188,19 @@ export async function lookupTerms(texts: string[]): Promise<LookupResult[]> {
     };
   });
 }
+
+/**
+ * 동음이의 후보에 풀네임을 붙인다. lookupTerms의 응답(TermSummary)은 공개 API 모양이라
+ * 화면 판단 하나 때문에 필드를 늘리지 않고, 후보가 여럿일 때만 따로 읽는다.
+ */
+export async function withFullNames<T extends { id: string }>(candidates: readonly T[]): Promise<(T & { fullNameEn: string | null; fullNameKo: string | null })[]> {
+  if (candidates.length === 0) return [];
+  const rows = await getDb().select({ id: terms.id, fullNameEn: terms.fullNameEn, fullNameKo: terms.fullNameKo })
+    .from(terms).where(inArray(terms.id, candidates.map((candidate) => candidate.id)));
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return candidates.map((candidate) => ({
+    ...candidate,
+    fullNameEn: byId.get(candidate.id)?.fullNameEn ?? null,
+    fullNameKo: byId.get(candidate.id)?.fullNameKo ?? null,
+  }));
+}

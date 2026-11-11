@@ -11,7 +11,8 @@ import { isUuid } from "@/lib/api-error";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { businessCategoryLabel } from "@/lib/terms/enums";
 import { termCompletion } from "@/lib/terms/completion";
-import { lookupTerms } from "@/lib/terms/lookup";
+import { lookupTerms, withFullNames } from "@/lib/terms/lookup";
+import { namedCandidate } from "@/lib/terms/named-candidate";
 import { listRelatedTerms, type SurfaceKind, type TermSummary } from "@/lib/terms/query";
 import { loadTermForPage } from "@/lib/terms/page-metadata";
 import { displayName, relativeTime } from "@/lib/ui/format";
@@ -101,15 +102,10 @@ export async function TermDetailPage({
     const text = decodeSlugParam(slug);
     const [match] = await lookupTerms([text]);
     const candidates = match?.terms ?? [];
-    // 풀네임으로 slug를 만든 용어는 대표명 주소로 들어오면 여기까지 온다.
-    // 같은 말을 다른 용어들이 별칭으로 써도 대표명으로의 접근은 유지한다.
-    const key = surfaceKeys(text).normLoose;
-    const named = candidates.filter((candidate) => [candidate.nameEn, candidate.nameKo]
-      .some((name) => name && key && surfaceKeys(name).normLoose === key));
-    if (named.length === 1) redirect(`/g/${named[0]!.slug}?from=${encodeURIComponent(text)}`);
-    if (candidates.length === 1) redirect(`/g/${candidates[0]!.slug}?from=${encodeURIComponent(text)}`);
-    if (candidates.length > 1) return <SurfaceChooser user={user} text={text} terms={candidates} />;
-    notFound();
+    if (candidates.length === 0) notFound();
+    const chosen = candidates.length === 1 ? candidates[0]! : namedCandidate(text, await withFullNames(candidates));
+    if (chosen) redirect(`/g/${chosen.slug}?from=${encodeURIComponent(text)}`);
+    return <SurfaceChooser user={user} text={text} terms={candidates} />;
   }
   const destination = await mergedDestination(term.id);
   if (destination) redirect(`/g/${destination}`);
