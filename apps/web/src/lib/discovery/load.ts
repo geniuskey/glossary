@@ -27,7 +27,7 @@ export interface LoadedDiscoveryGraph extends DiscoveryGraph {
  * 없는 고립된 용어끼리의 의미적 근접은 임베딩으로만 잡힌다. RAG가 꺼져 있거나 pgvector 색인이
  * 비어 있으면 빈 배열이고, 신호는 구조만으로 계속 동작한다.
  */
-async function loadSimilarities(seedIds: string[]): Promise<DiscoveryGraph["similarities"]> {
+export async function loadSimilarities(seedIds: string[]): Promise<DiscoveryGraph["similarities"]> {
   if (!seedIds.length) return [];
   const seeds = sql.join(seedIds.map((id) => sql`${id}::uuid`), sql`, `);
   try {

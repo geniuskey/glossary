@@ -169,6 +169,16 @@ RAG 색인이 켜져 있으면 각 용어의 가장 가까운 이웃과 별도�
 발굴은 그래프를 두껍게 하는 데도 쓴다. `POST /api/v1/discovery/relations`는 함의된 관계와 근거가
 강한 숨은 연결을 관계 제안(`proposed`)으로 만든다. 사람이 승인할 때마다 다음 발굴이 더 많은 구조를 본다.
 
+관계가 거의 없는 초기 용어집은 관계 정리 에이전트로 먼저 두껍게 한다. 개념 용어마다 의미가 가까운 후보의
+정의를 비교해 성립하는 관계만 근거 문장과 함께 제안한다(RAG 색인 필요).
+
+```bash
+pnpm --filter @glossary/web exec tsx --conditions=react-server scripts/curate-relations.ts \
+  --as admin@example.com --limit 100          # 미리보기
+pnpm --filter @glossary/web exec tsx --conditions=react-server scripts/curate-relations.ts \
+  --as admin@example.com --limit 100 --apply  # proposed로 저장
+```
+
 외부 에이전트는 `GET /api/v1/discovery`로 신호만 받아 더 강한 모델로 직접 추론할 수 있다.
 절차는 에이전트 스킬의 `references/discovery.md`에 있다.
 
