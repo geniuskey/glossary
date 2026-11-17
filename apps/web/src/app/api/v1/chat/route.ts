@@ -198,6 +198,7 @@ export const POST = withApiErrors(async (request: Request) => {
           edit: result.edit,
           grounded: result.grounded,
           meeting: result.meeting,
+          discovery: result.discovery,
           trace: result.trace,
           searchDomain: parsed.data.domain ?? null,
         };
@@ -251,6 +252,16 @@ export const POST = withApiErrors(async (request: Request) => {
       };
       // 새 대화는 이미 만들어졌다. 완료 전에 중단해도 클라이언트가 같은 대화에 이어 쓰도록 먼저 알린다.
       if (conversationId) send({ type: "session", sessionId: conversationId });
+      // 발굴 생성은 단계 이벤트 없이 수 분 걸린다(로컬 27B 모델 실측 약 150초). 프록시는 보통 60초 동안
+      // 바이트가 없으면 스트림을 끊으므로 SSE 주석을 흘려 보낸다. 클라이언트는 data 없는 프레임을 무시한다.
+      const heartbeat = setInterval(() => {
+        if (streamClosed) return;
+        try {
+          controller.enqueue(encoder.encode(": keep-alive\n\n"));
+        } catch {
+          streamClosed = true;
+        }
+      }, 15_000);
       void (async () => {
         try {
           const response = await respond({ signal: abort.signal, onStep: (step) => send({ type: "step", step }) });
@@ -259,6 +270,7 @@ export const POST = withApiErrors(async (request: Request) => {
         } catch {
           send({ type: "complete", ok: false, status: 500, body: { error: { code: "internal_error", message: "서버 오류가 발생했습니다." } } });
         } finally {
+          clearInterval(heartbeat);
           if (!streamClosed) {
             streamClosed = true;
             controller.close();
@@ -292,8 +304,8 @@ export const PATCH = withApiErrors(async (request: Request) => {
     // Proposals and cited answer snapshots are server-owned, including their text and sources.
     const messages = incoming.map((message) => {
       const stored = existing.find((item) => item.id === message.id);
-      return { ...message, edit: stored?.edit, grounded: stored?.grounded, meeting: stored?.meeting, trace: stored?.trace, searchDomain: stored?.searchDomain,
-        ...(stored?.grounded || stored?.meeting ? { role: stored.role, content: stored.content, sources: stored.sources } : {}) };
+      return { ...message, edit: stored?.edit, grounded: stored?.grounded, meeting: stored?.meeting, discovery: stored?.discovery, trace: stored?.trace, searchDomain: stored?.searchDomain,
+        ...(stored?.grounded || stored?.meeting || stored?.discovery ? { role: stored.role, content: stored.content, sources: stored.sources } : {}) };
     });
     await tx.update(chatConversations).set({ messages, updatedAt: new Date() }).where(owned);
     return Response.json({ ok: true });

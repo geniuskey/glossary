@@ -15,6 +15,8 @@ import type { MeetingAnalysis } from "./meeting-values";
 import { ChatAbortedError, createChatTracer, type ChatRunHooks, type ChatTracer } from "./chat-trace";
 import type { ChatTraceStep } from "./chat-trace-values";
 import { researchGlossary } from "./research";
+import { discoverChallenges } from "./discovery";
+import { looksLikeDiscoveryRequest, type DiscoveryReport } from "@/lib/discovery/ideas";
 
 export interface ChatHistoryMessage {
   role: "user" | "assistant";
@@ -29,6 +31,7 @@ export interface GlossaryChatResult {
   edit?: ChatEditProposal;
   grounded?: GroundedChatAnswer;
   meeting?: MeetingAnalysis;
+  discovery?: DiscoveryReport;
   trace?: ChatTraceStep[];
 }
 
@@ -82,6 +85,11 @@ async function runChat(
   if (!classified.success) return { answer: "요청을 해석하지 못했습니다. 질문 또는 수정할 용어와 내용을 다시 알려주세요.", sources: [] };
   const intent = classified.data.intent === "ask" && looksLikeMeetingRequest(question) ? "meeting" : classified.data.intent;
   if (intent === "unsupported") return { answer: "현재 챗에서는 용어 생성과 정의·표기·분류 수정을 지원합니다. 관계 제안은 [정리 대기의 AI 검토](/contribute?tab=agent)에서 확인할 수 있습니다. 관계 변경·삭제·병합 실행은 현재 챗에서 지원하지 않습니다.", sources: [] };
+
+  if (intent === "ask" && looksLikeDiscoveryRequest(question)) {
+    const { answer, ...discovery } = await discoverChallenges(config, { focus: question, domain }, tracer, telemetry);
+    return { answer, sources: [], discovery };
+  }
 
   if (intent === "meeting") {
     step("회의 내용의 결정사항·실행 항목 분석");

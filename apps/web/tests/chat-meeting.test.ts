@@ -9,6 +9,8 @@ vi.mock("../src/lib/ai/provider", async (importOriginal) => ({ ...await importOr
 vi.mock("../src/lib/ai/config", () => ({ loadAiConfig: async () => ({ enabled: true }), runtimeAiConfig: () => ({}) }));
 const identity = vi.hoisted(() => ({ user: null as { id: string; role: string } | null }));
 vi.mock("../src/lib/auth/current-user", () => ({ getCurrentUser: async () => identity.user }));
+const discover = vi.hoisted(() => vi.fn());
+vi.mock("../src/lib/ai/discovery", () => ({ discoverChallenges: discover }));
 const { answerGlossaryQuestion } = await import("../src/lib/ai/chat.js");
 const { looksLikeMeetingRequest, splitMeetingEvidence, validateMeetingAnalysis } = await import("../src/lib/ai/meeting.js");
 const { PATCH, GET } = await import("../src/app/api/v1/chat/route.js");
@@ -18,6 +20,7 @@ const userIds: string[] = [];
 
 afterEach(async () => {
   complete.mockReset();
+  discover.mockReset();
   identity.user = null;
   for (const id of ids.splice(0)) await db.delete(terms).where(eq(terms.id, id));
   for (const id of userIds.splice(0)) await db.delete(users).where(eq(users.id, id));
@@ -146,4 +149,51 @@ test("저장된 회의 분석의 원문과 구조화 근거는 클라이언트�
   expect(response.status).toBe(200);
   const restored = await (await GET(new Request(`https://glossary.example.com/api/v1/chat?session=${conversation!.id}`))).json();
   expect(restored.conversation.messages[1]).toMatchObject({ content: "서버 답변", meeting: originalMeeting });
+});
+
+test("저장된 발굴 결과(가설·근거)도 클라이언트가 덮어쓰거나 지울 수 없다", async () => {
+  const [user] = await db.insert(users).values({ email: `${randomUUID()}@discovery.test`, name: "발굴 사용자", role: "editor" }).returning();
+  identity.user = { id: user!.id, role: user!.role };
+  userIds.push(user!.id);
+  const originalDiscovery = {
+    focus: null, domain: null, dropped: 0, signals: [], terms: [],
+    ideas: [{ title: "서버가 만든 가설", hypothesis: "h", reasoning: [], whyNovel: "", signalRefs: [], termRefs: ["T1", "T2"], firstExperiment: "", successMetric: "", risks: [], openQuestions: [], alreadyConnected: false, score: 2 }],
+    stats: { terms: 2, relations: 1, wikiPages: 0, similarities: 0, domains: 2, truncated: false },
+  };
+  const [conversation] = await db.insert(chatConversations).values({
+    userId: user!.id,
+    title: "발굴",
+    messages: [
+      { id: 1, role: "user", content: "새로운 도전을 찾아줘" },
+      { id: 2, role: "assistant", content: "서버 발굴 답변", discovery: originalDiscovery },
+    ],
+  }).returning();
+  const forge = async (message: Record<string, unknown>) => PATCH(new Request("https://glossary.example.com/api/v1/chat", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionId: conversation!.id, messages: [{ id: 1, role: "user", content: "새로운 도전을 찾아줘" }, { id: 2, role: "assistant", ...message }] }),
+  }));
+  expect((await forge({ content: "위조", discovery: { ...originalDiscovery, ideas: [] } })).status).toBe(200);
+  expect((await forge({ content: "삭제 시도" })).status).toBe(200);
+  const restored = await (await GET(new Request(`https://glossary.example.com/api/v1/chat?session=${conversation!.id}`))).json();
+  expect(restored.conversation.messages[1]).toMatchObject({ content: "서버 발굴 답변", discovery: originalDiscovery });
+});
+
+test("새 도전 발굴 질문은 발굴 에이전트로 보내고 결과를 discovery로 돌려준다", async () => {
+  complete.mockResolvedValueOnce(JSON.stringify({ intent: "ask", query: "새로운 도전" }));
+  discover.mockImplementationOnce(async (_config, request: { focus: string; domain?: string }, tracer: { task: (label: string) => void }) => {
+    tracer.task("발굴 중");
+    return { answer: "가설 1개", focus: request.focus, domain: request.domain ?? null, ideas: [], dropped: 0, signals: [], terms: [], stats: { terms: 0, relations: 0, wikiPages: 0, similarities: 0, domains: 0, truncated: false } };
+  });
+  const result = await answerGlossaryQuestion("용어집을 바탕으로 아직 아무도 시도하지 않은 새로운 도전 과제를 찾아줘", [], null, null, "이미지 센서");
+  expect(discover).toHaveBeenCalledWith(expect.anything(), { focus: "용어집을 바탕으로 아직 아무도 시도하지 않은 새로운 도전 과제를 찾아줘", domain: "이미지 센서" }, expect.anything(), undefined);
+  expect(result.answer).toBe("가설 1개");
+  expect(result.discovery?.focus).toContain("새로운 도전");
+  expect(result.trace?.some((step) => step.label === "발굴 중")).toBe(true);
+});
+
+test("수정 요청은 발굴 표현이 있어도 발굴로 보내지 않는다", async () => {
+  complete.mockResolvedValueOnce(JSON.stringify({ intent: "unsupported", query: "" }));
+  await answerGlossaryQuestion("새로운 도전 용어를 삭제해줘");
+  expect(discover).not.toHaveBeenCalled();
 });

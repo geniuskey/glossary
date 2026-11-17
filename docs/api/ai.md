@@ -488,4 +488,42 @@ RAG 설정에서 **챗봇의 하이브리드 검색 보조**를 켜면 이 답�
 | 502 | `ai_provider_error` | 모델·인증·할당량·공급자 연결 문제 |
 | 503 | `ai_not_enabled` | 관리자가 챗봇을 활성화하지 않음 |
 
+## 새 도전 발굴
+
+### `GET /discovery`
+
+read scope. AI를 쓰지 않고 용어 그래프의 빈틈 신호를 계산한다. 쿼리: `domain`(key 또는 label),
+`kind`(`latent_link`·`bridge`·`silo`·`implied`·`knowledge_debt`), `limit`(kind별 1~100, 기본 20),
+`similarity`(`false`면 임베딩 이웃 제외). 각 신호는 `termIds`, `viaTermIds`, `score`(같은 kind 안에서만
+비교), `novelty`(0~1), `metrics`, 한국어 `summary`, 용어 요약 `terms`·`via`를 갖는다.
+
+### `POST /discovery`
+
+read scope, 10분에 6회. 본문 `{ focus?, domain?, maxIdeas? }`(maxIdeas 1~8, 기본 5). 응답:
+
+- `ideas[]`: `title`, `hypothesis`, `reasoning[{text, evidenceRefs}]`, `whyNovel`, `signalRefs`,
+  `termRefs`, `firstExperiment`, `successMetric`, `risks`, `openQuestions`, `critique`(점수·판정·코멘트),
+  `verification`(상위 3개: 약한 고리 `query`, `verdict` supported·contradicted·insufficient, `note`, 인용 `citations`),
+  `alreadyConnected`, `score`
+- `terms[]`: 인용된 용어(`ref`=T1…, `termId`, `slug`, `revision`, `definition`)
+- `signals[]`: 인용된 신호(`ref`=S1…, `kind`, `summary`)
+- `dropped`: 비평에서 탈락한 가설 수, `stats`: 분석한 그래프 규모, `answer`: 마크다운 요약
+
+챗봇(`POST /chat`)에서 발굴 의도로 물으면 같은 결과가 `discovery` 필드로 온다.
+
+### `POST /discovery/relations`
+
+로그인 세션 전용. 추이 관계가 함의하는 A→C(`implied`)와 근거가 강한 숨은 연결(공통 이웃 3개 이상,
+공개 위키 동시 언급 3건 이상, 의미 유사도 0.8 이상 중 하나 → `related_to`)을 관계 제안으로 바꾼다.
+본문 `{ domain?, kinds?, limit?, dryRun? }`. 기본은 `dryRun: true` 미리보기이고, `false`면 `proposed`
+상태로 저장해 항목별 `outcome`(`proposed`·`stale`·`duplicate`·`not_found`)을 돌려준다. 이미 관계 행이
+있는 쌍(거절 포함)은 다시 제안하지 않는다. 승인할 때마다 다음 발굴이 더 많은 구조를 본다.
+
+| HTTP | code | 의미 |
+|---|---|---|
+| 400 | `validation_failed` | 본문 형식 오류 또는 없는 도메인 |
+| 429 | `rate_limited` | 실행 횟수 제한 초과 |
+| 502 | `ai_provider_error` | 공급자 연결 문제 |
+| 503 | `ai_not_enabled` | AI 미설정. `GET /discovery`는 계속 쓸 수 있다 |
+
 전체 기계 판독 스키마는 `GET /api/v1/openapi`에서 확인할 수 있다.

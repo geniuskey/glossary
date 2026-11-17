@@ -1,7 +1,7 @@
 import { isIP } from "node:net";
 import { lookup as dnsLookup, type LookupAddress, type LookupOptions } from "node:dns";
 import { lookup } from "node:dns/promises";
-import { Agent } from "undici";
+import { Agent, fetch as undiciFetch } from "undici";
 import type { StoredAiHeader } from "./config";
 import type { AiProvider } from "./config-values";
 import type { AiRunContext } from "./observability-values";
@@ -30,6 +30,9 @@ export class AiProviderError extends Error {
     super(message);
   }
 }
+
+/** 토큰 상한에서 잘린 응답. 호출자가 더 작은 요청으로 다시 시도할 수 있게 메시지가 아닌 타입으로 구분한다. */
+export class AiTruncatedError extends AiProviderError {}
 
 /** Reads a bounded provider response so a malformed endpoint cannot exhaust memory. */
 export async function readResponseText(response: Response, maxBytes: number): Promise<string> {
@@ -220,8 +223,10 @@ let guardedDispatcher: Agent | undefined;
 /** 모든 AI·RAG 공급자 요청은 이 함수로 나가야 연결 시점 주소 검사를 받는다. */
 export function providerFetch(target: string, init: RequestInit): Promise<Response> {
   guardedDispatcher ??= new Agent({ connect: { lookup: createGuardedLookup() } });
-  // DOM lib의 RequestInit에는 dispatcher가 없다. Node 22 fetch는 undici 6 Agent를 그대로 받는다.
-  return fetch(target, { ...init, dispatcher: guardedDispatcher } as RequestInit);
+  // 전역 fetch가 아니라 Agent와 같은 undici 패키지의 fetch를 쓴다. Node 24+의 내장 fetch는
+  // undici 7·8이라 패키지의 undici 6 Agent를 받으면 "invalid onError method"로 모든 AI·RAG
+  // 호출이 연결 오류("fetch failed")가 됐다(Node 26 실측). engines는 >=22라 소스 실행에서 그대로 터진다.
+  return undiciFetch(target, { ...init, dispatcher: guardedDispatcher } as Parameters<typeof undiciFetch>[1]) as unknown as Promise<Response>;
 }
 
 /** undici는 lookup 오류를 TypeError("fetch failed")의 cause로 감싼다 — 차단 사유가 재시도·일반 문구에 묻히지 않게 꺼낸다. */
@@ -269,7 +274,14 @@ export interface AiCompletionOptions {
   jsonOutput?: boolean;
   thinkingLevel?: "minimal" | "low";
   context?: AiRunContext;
+  /**
+   * 요청 하나의 제한 시간. 기본 45초는 짧은 분류·답변 기준이다. 수천 토큰을 쓰는 생성(발굴)은
+   * 사내·로컬 모델에서 45초를 넘겨, 같은 프롬프트로 재시도까지 하며 90초를 쓰고 "연결 실패"로 끝났다(실측).
+   */
+  timeoutMs?: number;
 }
+
+const DEFAULT_COMPLETION_TIMEOUT_MS = 45_000;
 
 function body(config: AiRuntimeConfig, messages: AiMessage[], maxTokens: number, options: AiCompletionOptions): unknown {
   if (config.provider === "gemini") {
@@ -392,6 +404,7 @@ export async function completeAi(
   const safeMaxTokens = Number.isFinite(maxTokens) ? Math.max(1, Math.min(32_000, Math.floor(maxTokens))) : 800;
   const startedAt = performance.now();
   const cancel = options.context?.signal;
+  const timeoutMs = Math.max(5_000, Math.min(600_000, Math.floor(options.timeoutMs ?? DEFAULT_COMPLETION_TIMEOUT_MS)));
   const run = await beginAiRun({
     ...options.context,
     operation: options.context?.operation ?? "llm.completion",
@@ -413,13 +426,18 @@ export async function completeAi(
           method: "POST",
           headers: requestHeaders(config),
           body: JSON.stringify(body(config, messages, safeMaxTokens, options)),
-          signal: cancel ? AbortSignal.any([AbortSignal.timeout(45_000), cancel]) : AbortSignal.timeout(45_000),
+          signal: cancel ? AbortSignal.any([AbortSignal.timeout(timeoutMs), cancel]) : AbortSignal.timeout(timeoutMs),
           redirect: "error",
         });
         lastStatus = response.status;
       } catch (error) {
         const blocked = blockedConnectionError(error);
         if (blocked) throw blocked;
+        // 시간 초과는 연결 실패가 아니다. 같은 프롬프트로 재시도하면 대기만 두 배가 되고, "연결하지 못했습니다"는
+        // 관리자를 네트워크 점검으로 잘못 보낸다.
+        if (!cancel?.aborted && error instanceof Error && error.name === "TimeoutError") {
+          throw new AiProviderError(`AI 응답이 ${Math.round(timeoutMs / 1000)}초 안에 오지 않았습니다. 모델 응답 속도를 확인하거나 요청 범위를 줄여 주세요.`);
+        }
         if (attempt === 0) {
           await waitBeforeRetry();
           continue;
@@ -440,7 +458,7 @@ export async function completeAi(
       });
       let parsed: unknown;
       try { parsed = JSON.parse(raw); } catch { parsed = null; }
-      if (responseTruncated(config, parsed)) throw new AiProviderError("AI 응답이 토큰 상한에서 잘렸습니다.");
+      if (responseTruncated(config, parsed)) throw new AiTruncatedError("AI 응답이 토큰 상한에서 잘렸습니다.");
       const text = readText(config, parsed);
       if (!text) throw new AiProviderError("AI 서버가 텍스트 응답을 반환하지 않았습니다.");
       const usage = providerUsage(config, parsed);

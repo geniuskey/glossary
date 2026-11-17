@@ -1956,6 +1956,61 @@ export const openApiSpec = {
         },
       },
     },
+    "/discovery": {
+      get: {
+        summary: "용어 그래프의 빈틈 신호 (AI 미사용)",
+        description: "승인된 관계·공개 위키 연결·임베딩 이웃으로 계산한 결정적 신호를 반환합니다. latent_link는 공통 이웃·위키 동시 언급·의미 유사도가 있는데 관계가 없는 용어 쌍, bridge는 여러 도메인을 잇는 용어, silo는 관계가 거의 없는 도메인 쌍, implied는 추이 관계(is_a, part_of 등)가 함의하지만 기록되지 않은 관계, knowledge_debt는 많이 기대지만 정의가 얕은 용어입니다. score는 같은 kind 안에서만 비교하고, novelty(0~1)는 사람이 이미 함께 다룬 흔적이 적을수록 높습니다. 외부 에이전트가 직접 추론할 재료로 씁니다.",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        parameters: [
+          { name: "domain", in: "query", schema: { type: "string", maxLength: 100 }, description: "도메인 key 또는 label. 생략하면 전체" },
+          { name: "kind", in: "query", schema: { type: "string", enum: ["latent_link", "bridge", "silo", "implied", "knowledge_debt"] } },
+          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 20 }, description: "kind별 최대 신호 수" },
+          { name: "similarity", in: "query", schema: { type: "string", enum: ["true", "false"], default: "true" }, description: "임베딩 이웃을 포함할지. RAG 색인이 없으면 무시됩니다." },
+        ],
+        responses: {
+          "200": json("구조 신호와 그래프 통계. 각 signal에 terms·via 용어 요약이 붙습니다.", { type: "object" }),
+          "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "403": errorResponse("forbidden"),
+        },
+      },
+      post: {
+        summary: "용어집 기반 새 도전 가설 발굴",
+        description: "구조 신호를 근거로 AI가 서로 다른 개념을 결합한 도전 가설을 만들고, 별도 비평 단계에서 근거성·새로움·실현성·영향을 채점합니다. 근거 id(T=용어, S=신호)가 없는 가설과 용어를 둘 미만 인용한 가설은 버리고, 인용 용어끼리 이미 관계·위키로 이어져 있으면 alreadyConnected로 표시해 순위를 낮춥니다. 10분에 6회로 제한됩니다.",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: false, content: { "application/json": { schema: {
+          type: "object", additionalProperties: false,
+          properties: {
+            focus: { type: ["string", "null"], minLength: 1, maxLength: 500, description: "탐색 주제. 관련 용어 주변의 신호로 좁힙니다." },
+            domain: { type: ["string", "null"], maxLength: 100 },
+            maxIdeas: { type: "integer", minimum: 1, maximum: 8, default: 5 },
+          },
+        } } } },
+        responses: {
+          "200": json("ideas(가설·추론 단계·첫 실험·비평), 인용된 terms·signals, 그래프 stats, 마크다운 answer", { type: "object" }),
+          "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "403": errorResponse("forbidden"),
+          "429": errorResponse("rate_limited"), "502": errorResponse("ai_provider_error"), "503": errorResponse("ai_not_enabled"),
+        },
+      },
+    },
+    "/discovery/relations": {
+      post: {
+        summary: "발굴 신호에서 관계 제안 만들기",
+        description: "추이 관계가 함의하는 A→C(implied)와 근거가 강한 숨은 연결(공통 이웃 3개 이상·공개 위키 동시 언급 3건 이상·의미 유사도 0.8 이상, related_to)을 관계 제안으로 바꿉니다. 기본은 dryRun=true 미리보기입니다. dryRun=false면 proposed 상태로 저장하며 승인은 기존 관계 검토 흐름을 따릅니다. 상태와 무관하게 이미 관계 행이 있는 쌍(거절 포함)은 다시 제안하지 않습니다. 로그인 세션 전용입니다.",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: false, content: { "application/json": { schema: {
+          type: "object", additionalProperties: false,
+          properties: {
+            domain: { type: ["string", "null"], maxLength: 100 },
+            kinds: { type: "array", items: { type: "string", enum: ["implied", "latent_link"] }, minItems: 1, maxItems: 2 },
+            limit: { type: "integer", minimum: 1, maximum: 50, default: 20 },
+            dryRun: { type: "boolean", default: true },
+          },
+        } } } },
+        responses: {
+          "200": json("제안 목록. dryRun=false면 항목별 outcome(proposed·stale·duplicate·not_found)과 relationId", { type: "object" }),
+          "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "403": errorResponse("forbidden"), "429": errorResponse("rate_limited"),
+        },
+      },
+    },
     "/rag/search": {
       post: {
         summary: "용어집 벡터 검색",

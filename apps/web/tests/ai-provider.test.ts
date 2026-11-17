@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { LookupAddress } from "node:dns";
@@ -193,6 +194,23 @@ test("AI 공급자의 일시적인 503은 한 번 재시도한다", async () => 
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
+test("시간 초과는 재시도하지 않고 연결 실패가 아니라 제한 시간 초과로 알린다", async () => {
+  const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+    expect(init?.signal).toBeDefined();
+    throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(completeAi({
+    provider: "openai_compatible",
+    baseUrl: "http://127.0.0.1:9999/v1",
+    model: "local-model",
+    apiKey: "key",
+    customHeaders: [],
+  }, [{ role: "user", content: "질문" }], 800, { timeoutMs: 120_000 })).rejects.toThrow("120초 안에 오지 않았습니다");
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
 test("요청자가 중단한 호출은 재시도하지 않고 연결 실패가 아닌 AbortError로 끝난다", async () => {
   const abort = new AbortController();
   const fetchMock = vi.fn((_input: string | URL | Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
@@ -343,14 +361,15 @@ test("연결 시점 lookup도 allowlist 호스트에만 사설망을 열고 메�
   expect(metadata.error?.message).toMatch(/메타데이터/);
 });
 
-test("Node fetch는 guarded lookup을 단 undici Agent로 연결 직전에 차단한다", async () => {
+test("undici fetch는 guarded lookup을 단 같은 버전의 Agent로 연결 직전에 차단한다", async () => {
   vi.stubEnv("GLOSSARY_AI_ALLOWED_PRIVATE_HOSTS", "");
   const server = createServer((_request, response) => response.end("ok"));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
+  const { fetch: undiciFetch } = await vi.importActual<typeof import("undici")>("undici");
   const request = (address: string) => {
     const dispatcher = new Agent({ connect: { lookup: createGuardedLookup(fakeResolver(address)) } });
-    return fetch(`http://rebind.example.test:${port}/`, { dispatcher } as RequestInit).finally(() => dispatcher.close());
+    return undiciFetch(`http://rebind.example.test:${port}/`, { dispatcher }).finally(() => dispatcher.close());
   };
   try {
     const allowed = await request("127.0.0.1");
@@ -360,4 +379,12 @@ test("Node fetch는 guarded lookup을 단 undici Agent로 연결 직전에 차�
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+});
+
+test("providerFetch는 전역 fetch가 아니라 Agent와 같은 undici 패키지의 fetch로 나간다", () => {
+  // 전역 fetch는 Node 버전마다 내장 undici 버전이 달라 패키지 Agent를 거부한다(Node 26: invalid onError method).
+  const source = readFileSync(new URL("../src/lib/ai/provider.ts", import.meta.url), "utf8");
+  const body = /export function providerFetch[\s\S]*?\n}\n/.exec(source)?.[0] ?? "";
+  expect(body).toContain("undiciFetch(");
+  expect(body).not.toMatch(/(?<![A-Za-z])fetch\(/);
 });

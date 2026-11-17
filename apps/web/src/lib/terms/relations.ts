@@ -116,7 +116,7 @@ export async function listRelations(filters: { termId?: string; status?: Relatio
   return { items, total: counted?.total ?? 0, page };
 }
 
-type CreateRelation = { sourceTermId: string; targetTermId: string; relationType: RelationType; evidenceMd: string; sourceRevision: number; targetRevision: number };
+type CreateRelation = { sourceTermId: string; targetTermId: string; relationType: RelationType; evidenceMd: string; sourceRevision: number; targetRevision: number; confidence?: number };
 type EditRelation = { action: "edit"; relationType: RelationType; evidenceMd: string; sourceRevision: number; targetRevision: number };
 export type ChangeRelation = (EditRelation | { action: "approved" | "rejected" }) & { version: string };
 type Result = { ok: true; id: string } | { error: "not_found" | "conflict" | "stale" | "duplicate" | "invalid" };

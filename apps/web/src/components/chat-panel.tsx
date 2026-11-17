@@ -8,6 +8,7 @@ import { MarkdownContent } from "./markdown-content";
 import { ChatEditCard } from "./chat-edit-card";
 import { ChatGroundedAnswer } from "./chat-grounded-answer";
 import { ChatMeetingAnalysis } from "./chat-meeting-analysis";
+import { ChatDiscovery } from "./chat-discovery";
 import { ChatTrace } from "./chat-trace";
 import { upsertTraceStep, type ChatTraceStep } from "@/lib/ai/chat-trace-values";
 import type { GroundedChatAnswer } from "@/lib/ai/grounding-values";
@@ -45,6 +46,7 @@ const EXAMPLES = [
   "새 용어 [이름]을 등록하고 싶어",
   "[용어]의 정의를 다음 내용으로 수정하고 싶어: …",
   "회의 메모에서 결정 사항과 후속 할 일을 정리해줘",
+  "용어집을 바탕으로 아직 아무도 시도하지 않은 새로운 도전 과제를 찾아줘",
 ];
 
 function isLargePastedMessage(content: string): boolean {
@@ -583,7 +585,7 @@ export function ChatPanel({ enabled, initialSessionId, initialQuestion }: { enab
                 )}>
                   {message.role === "assistant" && message.trace && message.trace.length > 0 && <ChatTrace steps={message.trace} />}
                   {message.role === "assistant"
-                    ? message.grounded ? <ChatGroundedAnswer answer={message.grounded} messageId={message.id} /> : message.meeting ? <ChatMeetingAnalysis analysis={message.meeting} messageId={message.id} /> : <MarkdownContent className="break-words text-sm leading-6">{message.content}</MarkdownContent>
+                    ? message.grounded ? <ChatGroundedAnswer answer={message.grounded} messageId={message.id} /> : message.meeting ? <ChatMeetingAnalysis analysis={message.meeting} messageId={message.id} /> : message.discovery ? <ChatDiscovery report={message.discovery} answer={message.content} messageId={message.id} /> : <MarkdownContent className="break-words text-sm leading-6">{message.content}</MarkdownContent>
                     : isLargePastedMessage(message.content) ? (
                       <details>
                         <summary className="cursor-pointer text-sm font-medium">붙여넣은 내용 · {message.content.split(/\r?\n/).filter(Boolean).length}줄</summary>

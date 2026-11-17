@@ -222,6 +222,9 @@ export default async function ApiPage() {
               <Endpoint method="GET" path="/contributions/review-queue" scope="read">AI 작업의 상태와 최근 항목을 확인합니다.</Endpoint>
               <Endpoint method="POST · PATCH" path="/contributions/term-definitions" scope="write">본문을 근거로 한줄 정의를 만들고 검토 후 승인합니다.</Endpoint>
               <Endpoint method="POST" path="/rag/search" scope="read">색인된 용어집에서 의미 기반 검색을 수행합니다.</Endpoint>
+              <Endpoint method="GET" path="/discovery" scope="read">용어 그래프의 빈틈(숨은 연결·다리 용어·사일로·함의 관계·지식 부채)을 AI 없이 계산합니다.</Endpoint>
+              <Endpoint method="POST" path="/discovery" scope="read">빈틈을 근거로 새 도전 가설을 만들고 비평·채점한 결과를 받습니다.</Endpoint>
+              <Endpoint method="POST" path="/discovery/relations" scope="write">함의된 관계·강한 숨은 연결을 관계 제안으로 미리 보거나 저장합니다(저장은 로그인 세션).</Endpoint>
             </EndpointGroup>
             <EndpointGroup title="계약 확인">
               <Endpoint method="GET" path="/openapi" scope="public">실제 서버가 제공하는 OpenAPI 스펙을 JSON으로 받습니다.</Endpoint>

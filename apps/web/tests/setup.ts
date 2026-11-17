@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import path from "node:path";
 
 // Vitest does not load the repository root .env by itself. Load it here so the
@@ -14,3 +15,12 @@ if (!testUrl) {
   throw new Error("DATABASE_URL_TEST가 필요합니다. 테스트는 개발 DB에 붙지 않습니다.");
 }
 process.env.DATABASE_URL = testUrl;
+
+// providerFetch는 Agent와 버전을 맞추려고 undici 패키지의 fetch를 쓴다(src/lib/ai/provider.ts).
+// 공급자 테스트 수십 곳은 전역 fetch를 stub해 요청 모양을 검사하므로, 테스트에서는 패키지
+// fetch를 호출 시점의 전역 fetch로 보낸다. 실제 연결 경로는 ai-provider.test.ts가
+// vi.importActual로 진짜 undici fetch를 써서 따로 검증한다.
+vi.mock("undici", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("undici")>();
+  return { ...actual, fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args) };
+});

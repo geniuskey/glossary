@@ -1,6 +1,6 @@
 ---
 name: glossary
-description: Manage this project's glossary terms, their surfaces and semantic relations, and wiki knowledge pages through the Glossary UI or /api/v1. Use whenever a user asks an agent to find, explain, compare, create, edit, organize, review, curate, or publish terminology or wiki content, including requests phrased in Korean as 용어, 용어집, 표기, 관계, 위키, 업무 지식, or 정리. Also use when turning meeting notes or source documents into proposed glossary or wiki updates, or when cleaning up duplicates, missing definitions, unclassified terms, and unregistered term candidates.
+description: Manage this project's glossary terms, their surfaces and semantic relations, and wiki knowledge pages through the Glossary UI or /api/v1. Use whenever a user asks an agent to find, explain, compare, create, edit, organize, review, curate, or publish terminology or wiki content, including requests phrased in Korean as 용어, 용어집, 표기, 관계, 위키, 업무 지식, or 정리. Also use when turning meeting notes or source documents into proposed glossary or wiki updates, or when cleaning up duplicates, missing definitions, unclassified terms, and unregistered term candidates. Also use when asked to discover new challenges, opportunities, hidden connections, or research hypotheses grounded in the organization's glossary (새로운 도전, 기회, 숨은 연결, 아무도 시도하지 않은).
 ---
 
 # Glossary 관리
@@ -27,6 +27,7 @@ description: Manage this project's glossary terms, their surfaces and semantic r
 
 - `references/api-usage.md` — 호출 순서, 요청 예시, 오류 대응. API로 작업하기 전에 읽는다.
 - `references/curation.md` — 중복, 빈 정의, 미분류, 미등록 후보를 정리하는 루틴. "정리해줘" 류 요청에 읽는다.
+- `references/discovery.md` — 용어 그래프의 빈틈(`GET /discovery`)에서 새 도전 가설을 만들고 스스로 반박·검증하는 절차. "새로운 도전·기회·숨은 연결" 류 요청에 읽는다.
 - 최신 필드와 오류 코드는 항상 서버의 `GET /api/v1/openapi`가 기준이다.
 
 ## 작업 순서
