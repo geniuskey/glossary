@@ -36,7 +36,6 @@ test("태그를 여러 개 등록하고 편집·필터에 재사용한다", asyn
 
   await page.goto("/new");
   await page.getByLabel("대표 영문 용어").fill("E2E Tags Term");
-  await page.getByText("부가 정보", { exact: true }).click();
   await page.getByLabel("태그 입력").fill("브라우저, 테스트");
   await page.getByRole("button", { name: "추가", exact: true }).click();
   await expect(page.getByRole("list", { name: "태그 목록" })).toContainText("#브라우저");
