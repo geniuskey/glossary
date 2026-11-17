@@ -24,22 +24,21 @@ export default async function NewTermPage({ searchParams }: { searchParams: Prom
   const [assignees, domainOptions, categoryOptions, facets] = await Promise.all([listAssignableUsers(), listDomains(), listBusinessCategories(), termFacets()]);
 
   return (
-    <AppShell user={user} title="새 용어" current="sheet" roomy>
-      <nav className="mb-5 text-xs text-ink-3">
-        <Link href="/sheet" className="link">
-          시트
+    <AppShell user={user} title="새 용어" current="sheet" roomy dense>
+      {/* 편집 화면(edit/[slug]/page.tsx)과 같은 한 줄 헤더를 쓴다 — TermForm은 dense
+          셸에서 한 줄 헤더를 뺀 높이(100dvh-6rem)를 채우도록 맞춰져 있다. */}
+      <header className="mb-3 flex min-h-9 flex-wrap items-center gap-x-3 gap-y-2 border-b border-line pb-2">
+        <Link href="/sheet" className="shrink-0 text-xs text-ink-3 hover:text-ink">
+          ← 시트
         </Link>
-        <span className="mx-1.5">/</span>
-        <span>새 용어</span>
-      </nav>
-
-      <header className="mb-5 border-b border-line pb-4">
-        <p className="text-xl font-semibold tracking-tight lg:hidden">새 용어</p>
-        {/* 표에서도 한 줄 추가가 되므로, 이 화면이 존재하는 이유(표기·정의까지
-            한 번에 넣는 경우)를 한 줄로 알려준다. */}
-        <p className="mt-1 max-w-2xl text-xs leading-5 text-ink-3">
-          아는 정보까지만 등록해도 괜찮습니다. 새 용어는 초안으로 시작해 기본 검색과 AI 조회에는 보이지 않고, <Link href="/contribute" className="link">함께 정리</Link>에서 이어서 채운 뒤 검토해 공개할 수 있습니다. 이름만 빠르게 추가하려면 <Link href="/sheet" className="link">시트</Link>의 마지막 줄을 쓰세요.
-        </p>
+        <div className="flex min-w-0 items-baseline gap-2">
+          <h1 className="truncate text-base font-semibold tracking-tight text-ink">새 용어</h1>
+          {/* 표에서도 한 줄 추가가 되므로, 이 화면이 존재하는 이유(표기·정의까지
+              한 번에 넣는 경우)를 한 줄로 알려준다. */}
+          <p className="min-w-0 truncate text-[11px] text-ink-3">
+            아는 정보까지만 등록해도 괜찮습니다. 초안으로 시작해 <Link href="/contribute" className="link">함께 정리</Link>에서 이어서 채운 뒤 공개합니다.
+          </p>
+        </div>
       </header>
 
       <TermForm initial={newTermFormState(searchQuery)} assignees={assignees} domainOptions={domainOptions} categoryOptions={categoryOptions} tagOptions={facets.topics.map((item) => item.value)} />

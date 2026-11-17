@@ -51,20 +51,10 @@ const SURFACE_BADGE_TONE: Record<TermFormState["surfaces"][number]["kind"], stri
   forbidden: "border-danger/35 bg-danger-soft text-danger",
 };
 
+const FULL_NAME_HINT = "대표 용어가 약어일 때만 풀어 쓴 이름을 적습니다. 예: API → Application Programming Interface. 약어가 아니면 비워 두세요.";
+
 function commaSeparatedValues(value: string): string[] {
   return [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
-}
-
-function managementSummary(form: TermFormState): string {
-  const domainCount = commaSeparatedValues(form.domain).length;
-  const categoryCount = commaSeparatedValues(form.category).length;
-  const parts = [
-    domainCount > 0 ? `도메인 ${domainCount.toLocaleString("ko-KR")}개` : null,
-    categoryCount > 0 ? `업무 분류 ${categoryCount.toLocaleString("ko-KR")}개` : null,
-    form.tags.length > 0 ? `태그 ${form.tags.length}개` : null,
-    form.ownerId ? "담당자 지정" : null,
-  ].filter((part): part is string => Boolean(part));
-  return parts.length > 0 ? parts.join(" · ") : "분류·담당자 미지정";
 }
 
 // 성공 변형의 warnings 필드 타입만 뽑아낸다. FormOutcome이 이미 유니온이므로
@@ -90,7 +80,6 @@ export function TermForm({
 }) {
   const router = useRouter();
   const editSlug = initial?.slug;
-  const compact = editSlug !== undefined;
 
   const [form, setForm] = useState<TermFormState>(() => {
     const source = initial ?? newTermFormState();
@@ -125,7 +114,6 @@ export function TermForm({
   const aiReviewButtonRef = useRef<HTMLButtonElement>(null);
   const aiReviewCloseRef = useRef<HTMLButtonElement>(null);
   const aiReviewDrawerRef = useRef<HTMLElement>(null);
-  const managementDetailsRef = useRef<HTMLDetailsElement>(null);
   const initialSnapshotRef = useRef(JSON.stringify(buildTermPayload(initial ?? newTermFormState())));
 
   const locked = saving || deleting || renamingSlug || savedSlug !== null;
@@ -162,7 +150,6 @@ export function TermForm({
   const normalizedSlug = slugify(slugDraft);
   const slugChanged = editSlug !== undefined && normalizedSlug !== editSlug;
   const slugDraftIssue = slugValidationMessage(normalizedSlug);
-  const ManagementContainer = compact ? "section" : "details";
   useUnsavedChanges(dirty && savedSlug === null);
 
   useEffect(() => {
@@ -174,12 +161,6 @@ export function TermForm({
   useEffect(() => {
     if (!fieldErrors) return;
     if (fieldErrors.fullNameEn || fieldErrors.fullNameKo) setShowFullNameFields(true);
-    if (fieldErrors.surfaces) {
-      if (!compact) managementDetailsRef.current!.open = true;
-    }
-    if (["domain", "category", "tags", "topic", "ownerId"].some((field) => fieldErrors[field])) {
-      if (!compact) managementDetailsRef.current!.open = true;
-    }
     const firstField = Object.keys(fieldErrors)[0];
     const escapedField = firstField ? CSS.escape(firstField) : null;
     const control = escapedField
@@ -248,7 +229,6 @@ export function TermForm({
     setWarnings([]);
     setSaveToast(null);
     if (field === "fullNameEn" || field === "fullNameKo") setShowFullNameFields(true);
-    if (!compact && (field === "domain" || field === "category" || field === "topic")) managementDetailsRef.current!.open = true;
   }
 
   function removeSurface(index: number) {
@@ -444,7 +424,7 @@ export function TermForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className={cx("w-full", compact ? "flex min-h-[calc(100dvh-6rem)] flex-col gap-3 pb-24" : "space-y-5")}>
+    <form onSubmit={onSubmit} className="flex min-h-[calc(100dvh-6rem)] w-full flex-col gap-3 pb-24">
       {conflict && (
         <div className="note note-warn" aria-live="polite">
           <p className="font-medium">{conflict.message}</p>
@@ -495,11 +475,10 @@ export function TermForm({
         </div>
       )}
 
-      <div className={cx(compact ? "grid min-h-0 flex-1 items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,20rem)]" : "space-y-5")}>
-      <div className={cx(compact ? "flex min-w-0 flex-col gap-3" : "space-y-5")}>
+      <div className="grid min-h-0 flex-1 items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,20rem)]">
+      <div className="flex min-w-0 flex-col gap-3">
       <section className="card">
         <CompactSectionTitle
-          compact={compact}
           title="이름과 정의"
           description="대표 이름과 짧은 정의처럼 가장 자주 확인하는 정보를 관리합니다."
           action={(
@@ -514,9 +493,9 @@ export function TermForm({
             </div>
           )}
         />
-        <div className={compact ? "space-y-3 p-3" : "space-y-5 p-4 sm:p-5"}>
+        <div className="space-y-3 p-3">
             <FormFieldError id="status-error" errors={errorsFor("status")} />
-            <div className={cx("grid sm:grid-cols-2", compact ? "gap-2" : "gap-3")}>
+            <div className="grid gap-2 sm:grid-cols-2">
               <FormTextField
                 name="nameEn"
                 label="대표 영문 용어"
@@ -542,6 +521,7 @@ export function TermForm({
                   <FormTextField
                     name="fullNameEn"
                     label="영문 확장명"
+                    hint={FULL_NAME_HINT}
                     value={form.fullNameEn}
                     errors={errorsFor("fullNameEn")}
                     maxLength={TERM_NAME_MAX}
@@ -551,6 +531,7 @@ export function TermForm({
                   <FormTextField
                     name="fullNameKo"
                     label="국문 확장명"
+                    hint={FULL_NAME_HINT}
                     value={form.fullNameKo}
                     errors={errorsFor("fullNameKo")}
                     maxLength={TERM_NAME_MAX}
@@ -559,7 +540,7 @@ export function TermForm({
                   />
                 </>
               ) : (
-                <div className="sm:col-span-2">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:col-span-2">
                   <button
                     type="button"
                     disabled={locked}
@@ -568,13 +549,17 @@ export function TermForm({
                   >
                     + 확장명 추가
                   </button>
+                  {/* 확장명은 full_name 표기로 파생돼 검색·중복 검사 키가 된다(surfaces.ts).
+                      약어가 아닌 용어에 동의어를 적으면 그 표기가 "풀네임"으로 잘못 분류되므로
+                      쓰는 조건을 버튼 옆에 상시로 보인다. */}
+                  <span className="text-xs text-ink-3">대표 용어가 약어일 때만 씁니다 (예: API → Application Programming Interface)</span>
                 </div>
               )}
 
             </div>
 
-            <div className={cx("border-t border-line", compact ? "pt-3" : "pt-4")}>
-              <div className={cx("flex items-baseline gap-2", compact ? "mb-2" : "mb-3")}>
+            <div className="border-t border-line pt-3">
+              <div className="mb-2 flex items-baseline gap-2">
                 <h3 className="text-sm font-medium text-ink">한줄 정의</h3>
                 <HelpTip text="검색 결과에서 먼저 읽히는 짧은 설명입니다." />
               </div>
@@ -588,7 +573,7 @@ export function TermForm({
                 aria-label="한줄 정의"
                 aria-invalid={errorsFor("definitionMd") ? true : undefined}
                 aria-describedby={errorsFor("definitionMd") ? "definitionMd-error" : undefined}
-                rows={compact ? 2 : 3}
+                rows={2}
                 placeholder="한두 문장으로 이 용어가 무엇인지…"
                 className="field korean-editor-font"
               />
@@ -597,9 +582,8 @@ export function TermForm({
         </div>
       </section>
 
-      <section id="term-body" className={cx("card overflow-hidden", compact && "flex min-h-0 flex-1 flex-col")}>
+      <section id="term-body" className="card flex min-h-0 flex-1 flex-col overflow-hidden">
         <CompactSectionTitle
-          compact={compact}
           title="상세 설명"
           description="예시나 배경처럼 한줄 정의만으로 부족한 맥락을 남깁니다."
           action={editSlug !== undefined ? (
@@ -616,7 +600,7 @@ export function TermForm({
             </button>
           ) : undefined}
         />
-        <div className={cx(compact && "flex min-h-0 flex-1 flex-col")}>
+        <div className="flex min-h-0 flex-1 flex-col">
           <MarkdownEditor
             name="bodyMd"
             label="용어 본문"
@@ -626,9 +610,9 @@ export function TermForm({
             maxLength={TERM_MARKDOWN_MAX}
             onChange={(bodyMd) => updateField("bodyMd", bodyMd)}
             disabled={locked}
-            compact={compact}
-            resizable={compact}
-            fillAvailable={compact}
+            compact
+            resizable
+            fillAvailable
             defaultView="glossary"
             embedded
             onUploadingChange={setImageUploading}
@@ -644,21 +628,11 @@ export function TermForm({
       </div>
 
       <aside className="min-w-0" aria-label="용어 설정">
-      <ManagementContainer
-        ref={(node) => { managementDetailsRef.current = node instanceof HTMLDetailsElement ? node : null; }}
-        className="group/details card h-full"
-      >
-            {compact ? (
-              <header className="border-b border-line bg-panel-2/50 px-3 py-3">
-                <h2 className="text-sm font-semibold text-ink">용어 설정</h2>
-              </header>
-            ) : (
-              <CollapsibleSectionSummary
-                title="부가 정보"
-                summary={`${form.surfaces.length > 0 ? `추가 표기 ${form.surfaces.length}개` : "추가 표기 없음"} · ${managementSummary(form)}`}
-              />
-            )}
-            <div className={compact ? "p-3" : "p-4 sm:p-5"}>
+      <section className="card h-full">
+            <header className="border-b border-line bg-panel-2/50 px-3 py-3">
+              <h2 className="text-sm font-semibold text-ink">용어 설정</h2>
+            </header>
+            <div className="p-3">
               <section aria-labelledby="surfaces-heading" className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-2 border-b border-line pb-4">
                 <div className="col-span-2 flex items-baseline justify-between gap-2">
                   <h3 id="surfaces-heading" className="text-sm font-semibold text-ink">추가 표기</h3>
@@ -711,7 +685,7 @@ export function TermForm({
               </section>
             <div className="pt-4">
             <h3 className="mb-3 text-sm font-semibold text-ink">분류와 담당</h3>
-            <div className={cx("grid gap-3", !compact && "md:grid-cols-2 xl:grid-cols-4")}>
+            <div className="grid gap-3">
             <div>
               <ClassificationMultiSelect
                 name="domain"
@@ -858,17 +832,13 @@ export function TermForm({
             )}
           </div>
           </div>
-      </ManagementContainer>
+      </section>
       </aside>
       </div>
 
-      <div className={cx(
-        compact
-          ? "term-form-bottom-bar fixed inset-x-0 bottom-0 z-[60] border-t border-line bg-panel/95 px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_24px_rgb(0_0_0/0.08)] backdrop-blur lg:left-60 lg:px-6"
-          : "sticky bottom-3 z-10 rounded-xl border border-line bg-panel/95 px-3 py-2.5 shadow-lg backdrop-blur",
-      )}>
-        <div className={cx("flex items-center justify-between gap-3", compact && "mx-auto w-full max-w-[87rem]")}>
-          <p className={cx("min-w-0 truncate text-xs text-ink-3", compact && "hidden sm:block")} aria-live="polite">
+      <div className="term-form-bottom-bar fixed inset-x-0 bottom-0 z-[60] border-t border-line bg-panel/95 px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_24px_rgb(0_0_0/0.08)] backdrop-blur lg:left-60 lg:px-6">
+        <div className="mx-auto flex w-full max-w-[87rem] items-center justify-between gap-3">
+          <p className="hidden min-w-0 truncate text-xs text-ink-3 sm:block" aria-live="polite">
             {deleting ? "삭제 중…" : saving ? "저장 중…" : savedSlug ? "저장 완료" : editSlug === undefined ? "새 용어 작성 중" : dirty ? "저장하지 않은 변경사항이 있습니다" : "변경사항 없음"}
           </p>
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -940,7 +910,7 @@ export function TermForm({
       )}
 
       {saveToast && (
-        <div className={cx("fixed right-5 z-[80] flex max-w-sm items-center gap-3 rounded-lg border border-ok/35 bg-ok-soft px-4 py-3 text-sm text-ok shadow-pop animate-fade-up", compact ? "bottom-20" : "bottom-5")} role="status" aria-live="polite">
+        <div className="fixed bottom-20 right-5 z-[80] flex max-w-sm items-center gap-3 rounded-lg border border-ok/35 bg-ok-soft px-4 py-3 text-sm text-ok shadow-pop animate-fade-up" role="status" aria-live="polite">
           <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-ok text-xs font-bold text-panel" aria-hidden="true">✓</span>
           <span className="min-w-0 flex-1">{saveToast}</span>
           <button type="button" className="text-base leading-none opacity-60 hover:opacity-100" aria-label="알림 닫기" onClick={() => setSaveToast(null)}>×</button>
@@ -953,30 +923,18 @@ export function TermForm({
 function CompactSectionTitle({
   title,
   description,
-  compact = false,
   action,
 }: {
   title: string;
   description: string;
-  compact?: boolean;
   action?: ReactNode;
 }) {
   return (
-    <header className={cx("flex flex-wrap items-center rounded-t-xl border-b border-line bg-panel-2/50", compact ? "gap-x-2 px-3 py-2" : "gap-2 px-4 py-3 sm:px-5")}>
+    <header className="flex flex-wrap items-center gap-x-2 rounded-t-xl border-b border-line bg-panel-2/50 px-3 py-2">
       <h2 className="text-sm font-semibold text-ink">{title}</h2>
       <HelpTip text={description} />
       {action}
     </header>
-  );
-}
-
-function CollapsibleSectionSummary({ title, summary }: { title: string; summary: string }) {
-  return (
-    <summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl px-3 py-3 focus-visible:ring-2 focus-visible:ring-brand/40 sm:px-4 [&::-webkit-details-marker]:hidden">
-      <span role="heading" aria-level={2} className="text-sm font-semibold text-ink">{title}</span>
-      <span className="min-w-0 flex-1 truncate text-xs text-ink-3">{summary}</span>
-      <span className="shrink-0 text-sm text-ink-3 transition-transform group-open/details:rotate-180" aria-hidden="true">⌄</span>
-    </summary>
   );
 }
 

@@ -92,10 +92,15 @@ test("값이 없는 영문·국문 확장명에도 사용자가 접근할 수 �
   expect(code).not.toContain("약어와 풀네임은 추가 표기에서 관리합니다");
 });
 
-test("편집 화면의 저장 액션은 viewport 하단에 고정되고 본문이 가리지 않는다", () => {
-  expect(code).toContain('compact ? "flex min-h-[calc(100dvh-6rem)] flex-col gap-3 pb-24"');
+test("확장명은 대표 용어가 약어일 때만 쓰도록 안내한다", () => {
+  expect(code).toContain("대표 용어가 약어일 때만 씁니다");
+  expect(code.match(/hint=\{FULL_NAME_HINT\}/g)).toHaveLength(2);
+});
+
+test("저장 액션은 viewport 하단에 고정되고 본문이 가리지 않는다", () => {
+  expect(code).toContain('className="flex min-h-[calc(100dvh-6rem)] w-full flex-col gap-3 pb-24"');
   expect(code).toContain("term-form-bottom-bar fixed inset-x-0 bottom-0");
-  expect(code).toContain('compact ? "bottom-20" : "bottom-5"');
+  expect(code).toContain("fixed bottom-20 right-5");
   expect(globalsSource).toContain('body:has([data-sidebar-collapsed="true"]) .term-form-bottom-bar');
 });
 
@@ -104,7 +109,7 @@ test("대표 이름과 정의·본문 다음에 부가 정보를 표시한다", 
   const primaryNameIdx = code.indexOf('name="nameEn"');
   const definitionIdx = code.indexOf('name="definitionMd"');
   const surfacesIdx = code.indexOf('id="surfaces-heading"');
-  const managementIdx = code.indexOf('title="부가 정보"');
+  const managementIdx = code.indexOf('aria-label="용어 설정"');
   const bodyIdx = code.indexOf('label="용어 본문"');
 
   expect(basicInfoIdx).toBeGreaterThan(-1);
@@ -195,11 +200,20 @@ test("수정 저장은 편집 화면에 남아 기준 스냅샷과 리비전을 
   expect(code).toContain('role="status" aria-live="polite"');
 });
 
-test("편집 화면은 밀도 높은 레이아웃과 접힌 URL 변경 영역을 사용한다", () => {
-  expect(code).toContain("const compact = editSlug !== undefined");
+test("새 용어와 편집은 같은 밀도 레이아웃(본문 + 용어 설정 aside)을 쓴다", () => {
+  // 새 용어 화면만 세로 나열 + 접힌 <details>로 갈라져 있던 때, 같은 필드가 두 화면에서
+  // 다른 자리에 있어 오가며 쓰기 어려웠다. 레이아웃 분기 자체가 다시 생기지 않게 잠근다.
+  expect(code).not.toMatch(/\bcompact\s*=\s*editSlug/);
+  expect(code).not.toContain("ManagementContainer");
+  expect(code).toContain('<aside className="min-w-0" aria-label="용어 설정">');
+  expect(code).toContain("lg:grid-cols-[minmax(0,1fr)_minmax(17rem,20rem)]");
   expect(code).toContain('<details className="mt-3 rounded-lg border border-line bg-panel-2/35">');
-  expect(code).toContain("rows={compact ? 2 : 3}");
-  expect(code).toContain("compact={compact}");
+  expect(code).toContain("rows={2}");
+  for (const page of ["new/page.tsx", "edit/[slug]/page.tsx"]) {
+    const source = readFileSync(path.join(testDir, "..", "src", "app", page), "utf8");
+    expect(source, page).toMatch(/<AppShell[^>]*\broomy dense>/);
+    expect(source, page).toContain('<header className="mb-3 flex min-h-9 flex-wrap items-center gap-x-3 gap-y-2 border-b border-line pb-2">');
+  }
 });
 
 test("관리자 편집 폼은 확인 후 DELETE 요청을 보내는 삭제 버튼을 제공한다", () => {
