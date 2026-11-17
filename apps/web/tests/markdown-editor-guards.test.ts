@@ -56,6 +56,21 @@ test("Markdown 최대 길이는 입력 단계에서 제한하고 도달 상태�
   expect(editorSource).toContain('aria-live="polite"');
 });
 
+test("기울임은 한국어 조사가 바로 붙어도 적용하고, 업로드 자리표시자는 원문 대신 진행 표시로 보인다", () => {
+  const doc = "앞\n**SoC**(System on Chip)는 칩에 *CPU·GPU*를 통합한 snake_case_name\n<!-- glossary-image-upload-1-0 -->";
+  const state = EditorState.create({ doc, selection: { anchor: 0 } });
+  const marked: string[] = [];
+  const widgets: string[] = [];
+  buildLivePreviewDecorations(state).between(0, doc.length, (from, to, decoration) => {
+    if (decoration.spec.class === "cm-live-emphasis") marked.push(doc.slice(from, to));
+    if (decoration.spec.widget?.className) widgets.push(decoration.spec.widget.className);
+  });
+  expect(marked).toEqual(["CPU·GPU"]);
+  expect(widgets).toContain("cm-live-upload");
+  expect(editorSource).toContain("glossary-image-upload-${Date.now()}");
+  expect(livePreviewSource).toContain("export const UPLOAD_MARKER_LINE = /^<!-- glossary-image-upload-");
+});
+
 test("비동기 이미지 업로드는 원래 삽입 위치의 marker를 치환한다", () => {
   expect(editorSource).toContain("glossary-image-upload-");
   expect(editorSource).toContain("replaceUploadMarker(marker");
@@ -64,7 +79,12 @@ test("비동기 이미지 업로드는 원래 삽입 위치의 marker를 치환�
 });
 
 test("CodeMirror 포커스에는 눈에 보이는 대체 포커스 표시가 있다", () => {
-  expect(editorSource).toContain('"&.cm-focused": { boxShadow:');
+  // 편집 영역의 outline을 지운 대신 셸(테두리 있는 경우)이나 툴바 아래 선(embedded)으로 보인다.
+  expect(editorSource).toContain('"&.cm-focused": { boxShadow: "none", outline: "none" }');
+  const css = readFileSync(path.join(testDir, "..", "src", "app", "globals.css"), "utf8");
+  expect(css).toContain('.markdown-editor-shell[data-embedded="false"]:has(.cm-focused)');
+  expect(css).toContain('.markdown-editor-shell[data-embedded="true"]:has(.cm-focused) .markdown-editor-toolbar');
+  expect(editorSource).toContain("data-embedded={embedded}");
 });
 
 test("카드에 포함된 Markdown 편집기는 자체 카드 테두리를 제거할 수 있다", () => {
@@ -81,27 +101,37 @@ test("Markdown 툴바는 H1~H6와 주요 GFM 블록을 선택 영역에 적용�
 });
 
 test("Markdown 툴바는 수식과 Mermaid 예제를 삽입한다", () => {
-  expect(source).toContain('{ action: "inline-math", label: "인라인 수식" }');
-  expect(source).toContain('{ action: "block-math", label: "블록 수식" }');
-  expect(source).toContain('{ action: "mermaid", label: "Mermaid 다이어그램" }');
+  expect(source).toContain('{ action: "inline-math", label: "인라인 수식"');
+  expect(source).toContain('{ action: "block-math", label: "블록 수식"');
+  expect(source).toContain('{ action: "mermaid", label: "Mermaid 다이어그램"');
   expect(source).toContain('```mermaid');
   expect(source).toContain('\\\\sum_{i=1}^{n}');
 });
 
 test("자주 쓰는 인라인 서식과 제목에는 키보드 단축키가 있다", () => {
-  expect(source).toContain('key === "b"');
-  expect(source).toContain('key === "i"');
-  expect(source).toContain('key === "k"');
-  expect(source).toContain('event.altKey && /^[1-6]$/.test(key)');
+  for (const key of ["Mod-B", "Mod-I", "Mod-K", "Mod-Shift-X", "Mod-E", "Mod-Shift-7", "Mod-Shift-8", "Mod-Shift-9"]) {
+    expect(source).toContain(`shortcut: "${key}"`);
+  }
+  expect(source).toContain("key: `Mod-Alt-${level}`, action: `heading-${level}`");
+  expect(source).toContain('{ key: "Mod-Alt-0", action: "paragraph" }');
+  // Mod-I는 defaultKeymap의 selectParentSyntax와 겹친다. 서식 단축키가 이겨야 한다.
+  expect(source).toContain("Prec.highest(keymap.of([");
+  // 목록 밖의 Tab은 포커스 이동으로 남겨야 키보드 사용자가 편집기를 빠져나갈 수 있다.
+  expect(source).toContain("indentListMarkdown(");
+  expect(source).not.toContain("indentWithTab");
 });
 
 test("서식 편집은 한 화면 인라인 라이브 프리뷰를 사용한다", () => {
-  expect(editorSource).toContain('mode === "glossary" ? livePreviewExtension : []');
+  expect(editorSource).toContain('mode === "glossary"\n    ? [livePreviewExtension');
   expect(editorSource).toContain('서식 편집');
-  expect(editorSource).toContain('텍스트 편집');
   expect(editorSource).toContain('미리보기');
   expect(editorSource).not.toContain("grid-rows-[minmax(12rem,1fr)_minmax(12rem,1fr)]");
   expect(editorSource).not.toContain("커서가 있는 줄에서 Markdown 원문을 편집합니다");
+  // 서식 편집은 문서처럼 보여야 하므로 줄 번호·현재 줄 강조는 텍스트 모드에만 둔다.
+  expect(editorSource).toContain(': [lineNumbers(), highlightActiveLine(), highlightActiveLineGutter()');
+  expect(editorSource).not.toMatch(/import \{[^}]*basicSetup/);
+  // defaultHighlightStyle은 제목에 밑줄을 긋는다.
+  expect(editorSource).toContain("syntaxHighlighting(markdownHighlight)");
   expect(livePreviewSource).toContain("function activeLineNumbers");
   expect(livePreviewSource).toContain("function selectedLineNumbers");
   expect(livePreviewSource).toContain("if (active.has(number)) {");
@@ -117,33 +147,41 @@ test("서식 편집은 한 화면 인라인 라이브 프리뷰를 사용한다"
   expect(livePreviewSource).toContain("if (root) setTimeout(() => root.unmount(), 0);");
 });
 
+test("툴바 명령은 서식 편집 중에 텍스트 모드로 튕겨 내지 않는다", () => {
+  expect(editorSource).not.toContain('setMode("text");');
+  expect(editorSource).toContain("pendingCommandRef.current = command;");
+  expect(editorSource).toContain("setMode(lastEditModeRef.current);");
+});
+
+test("메뉴는 resize-y 셸에 잘리지 않도록 body로 portal한다", () => {
+  const menuSource = readFileSync(path.join(testDir, "..", "src", "components", "markdown-editor-menu.tsx"), "utf8");
+  expect(menuSource).toContain("createPortal(menu, document.body)");
+  expect(menuSource).toContain('role="menu"');
+  expect(menuSource).toContain('"menuitemradio" : "menuitem"');
+  expect(editorSource).toContain("tooltips({ parent: document.body })");
+});
+
 test("Markdown 제목과 서식은 메뉴바에 표시하고 보기 방식은 세그먼트로 전환한다", () => {
-  expect(editorSource).toContain('role="toolbar" aria-label="Markdown 서식 도구"');
-  expect(editorSource).toContain('className="markdown-editor-toolbar flex min-w-0 items-center gap-1 border-b border-line bg-panel-2 px-2 py-1.5"');
-  expect(editorSource).toContain('[1, 2, 3, 4, 5, 6].map((level) => (');
-  expect(editorSource).toContain('aria-label={`제목 ${level}`}');
-  expect(editorSource).toContain('onClick={() => run((text, from, to) => toggleHeadingMarkdown(text, from, to, level))}');
-  expect(editorSource).not.toContain('toggleToolbarMenu');
-  expect(editorSource).toContain('className="markdown-toolbar-format-buttons flex shrink-0 items-center rounded-lg border border-line bg-panel p-0.5"');
-  expect(editorSource).toContain('aria-label="서식"');
-  expect(editorSource).toContain('aria-label="삽입 도구"');
+  expect(editorSource).toContain('role="toolbar"\n        aria-label="Markdown 서식 도구"');
+  expect(editorSource).toContain('label="블록 종류"');
+  expect(editorSource).toContain('...[1, 2, 3, 4, 5, 6].map((level) => ({');
+  expect(editorSource).toContain('label: `제목 ${level}`');
+  expect(editorSource).toContain('checked: format.heading === level');
+  expect(editorSource).toContain('aria-label="글자 서식"');
+  expect(editorSource).toContain('aria-label="문단 서식"');
+  expect(editorSource).toContain('label="삽입"');
+  expect(editorSource).toContain('label="서식 더보기"');
   expect(editorSource).toContain('aria-label="본문 보기 방식"');
-  expect(editorSource).toContain('className="markdown-toolbar-view-segments ml-auto flex shrink-0 items-center rounded-lg border border-line bg-panel p-0.5"');
   expect(editorSource).toContain('aria-pressed={mode === item.value}');
-  expect(editorSource).toContain('{ value: "glossary", label: "서식 편집" }');
-  expect(editorSource).toContain('{ value: "text", label: "텍스트" }');
-  expect(editorSource).toContain('{ value: "preview", label: "미리보기" }');
-  expect(editorSource.match(/<select\b/g)).toHaveLength(3);
-  expect(editorSource).not.toContain('<optgroup label="서식">');
-  expect(editorSource).not.toContain('<optgroup label="화면">');
-  expect(editorSource).toContain('<option value="">삽입</option>');
-  expect(editorSource).not.toContain('<option value="">더보기</option>');
-  expect(editorSource).not.toContain('overflow-x-auto border-b border-line bg-panel-2');
+  expect(editorSource).toContain('{ value: "glossary", label: "서식 편집"');
+  expect(editorSource).toContain('{ value: "text", label: "텍스트"');
+  expect(editorSource).toContain('{ value: "preview", label: "미리보기"');
+  // 네이티브 select는 메뉴 항목에 아이콘·단축키·현재 상태를 보여 줄 수 없었다.
+  expect(editorSource).not.toMatch(/<select\b/);
+  // 커서 위치의 서식을 툴바가 눌린 상태로 보여 준다.
+  expect(editorSource).toContain("aria-pressed={item.state ? active : undefined}");
+  expect(editorSource).toContain("formatStateOf(update.state)");
   expect(editorSource).toContain('ref={fullscreenButtonRef}');
-  expect(editorSource).toContain('value={mode}');
-  expect(editorSource).toContain('>•</ToolbarButton>');
-  expect(editorSource).toContain('>1.</ToolbarButton>');
-  expect(editorSource).toContain('>☑</ToolbarButton>');
 });
 
 test("커서가 있는 줄만 Markdown 원문을 유지한다", () => {

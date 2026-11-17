@@ -681,71 +681,32 @@
     @apply rounded-xl border border-line bg-panel;
   }
 
-  .markdown-editor-shell {
-    container-type: inline-size;
+  /* 편집 영역 안쪽 링 대신 셸 전체로 포커스를 보인다. 카드 안에 묻힌(embedded) 편집기는
+     자체 테두리가 없으므로 툴바 아래 강조선으로 대신한다. */
+  .markdown-editor-shell[data-embedded="false"] {
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+  .markdown-editor-shell[data-embedded="false"]:has(.cm-focused) {
+    border-color: rgb(var(--brand) / 0.7);
+    box-shadow: 0 0 0 3px rgb(var(--brand) / 0.14);
+  }
+  .markdown-editor-shell[data-embedded="false"][data-invalid="true"] {
+    border-color: rgb(var(--danger) / 0.6);
+  }
+  .markdown-editor-shell[data-embedded="true"]:has(.cm-focused) .markdown-editor-toolbar {
+    box-shadow: inset 0 -2px 0 0 rgb(var(--brand) / 0.55);
+  }
+  .markdown-editor-shell[data-markdown-fullscreen="true"] {
+    border: 0;
+    box-shadow: none;
   }
 
-  .markdown-editor-toolbar .markdown-toolbar-format-select {
-    display: none;
-  }
-
-  .markdown-editor-toolbar .markdown-toolbar-view-select {
-    display: none;
-  }
-
-  @container (max-width: 64rem) {
-    .markdown-editor-toolbar .markdown-toolbar-format-buttons {
-      display: none;
-    }
-
-    .markdown-editor-toolbar .markdown-toolbar-format-select {
-      display: block;
-    }
-  }
-
-  @container (max-width: 40rem) {
-    .markdown-editor-toolbar .markdown-toolbar-heading button {
-      width: 1.5rem;
-    }
-
-    .markdown-editor-toolbar .markdown-toolbar-format-select,
-    .markdown-editor-toolbar .markdown-toolbar-insert {
-      width: 4rem !important;
-    }
-  }
-
-  @container (max-width: 36rem) {
-    .markdown-editor-toolbar .markdown-toolbar-view-segments {
-      display: none;
-    }
-
-    .markdown-editor-toolbar .markdown-toolbar-view-select {
-      display: block;
-    }
-  }
-
-  @container (max-width: 30rem) {
-    .markdown-editor-toolbar .markdown-toolbar-view-select {
-      width: 4rem !important;
-    }
-  }
-
-  @container (max-width: 26rem) {
-    .markdown-editor-toolbar .markdown-toolbar-fullscreen {
-      display: none;
-    }
-  }
-
-  @container (max-width: 22rem) {
-    .markdown-editor-toolbar .markdown-toolbar-heading button {
-      width: 1.25rem;
-    }
-
-    .markdown-editor-toolbar .markdown-toolbar-format-select,
-    .markdown-editor-toolbar .markdown-toolbar-insert,
-    .markdown-editor-toolbar .markdown-toolbar-view-select {
-      width: 3.25rem !important;
-    }
+  /* 전체 화면에서는 줄 길이가 화면 폭만큼 늘어나 읽기 어려웠다. 본문 폭을 문서 폭으로 묶는다. */
+  [data-markdown-fullscreen="true"] .cm-content,
+  [data-markdown-fullscreen="true"] .markdown-editor-preview {
+    margin-inline: auto;
+    max-width: 52rem;
+    width: 100%;
   }
 
   .field {

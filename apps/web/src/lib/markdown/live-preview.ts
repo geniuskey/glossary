@@ -10,6 +10,8 @@ type DecoratedRange = Range<Decoration>;
 interface ReplacementSpan { from: number; to: number }
 
 const HIDDEN_MARKUP = Decoration.replace({});
+/** markdown-editor의 업로드 자리표시자와 같은 형식이어야 한다. */
+export const UPLOAD_MARKER_LINE = /^<!-- glossary-image-upload-[\w-]+ -->$/;
 const replacementSpans = new WeakMap<DecoratedRange[], ReplacementSpan[]>();
 
 class LivePreviewTextWidget extends WidgetType {
@@ -229,6 +231,12 @@ const LIVE_PREVIEW_DECORATIONS = {
   link: Decoration.mark({ class: "cm-live-link" }),
   image: Decoration.mark({ class: "cm-live-image" }),
   math: Decoration.mark({ class: "cm-live-math" }),
+  // 인라인 mark만 쓰면 배경이 글자 길이만큼만 칠해져 코드 블록·인용이 들쭉날쭉한
+  // 띠로 보인다. 줄 장식을 함께 달아 렌더링 결과(pre, blockquote)처럼 한 덩어리로 보이게 한다.
+  codeLine: Decoration.line({ class: "cm-live-code-line" }),
+  codeStartLine: Decoration.line({ class: "cm-live-code-line cm-live-code-start" }),
+  codeEndLine: Decoration.line({ class: "cm-live-code-line cm-live-code-end" }),
+  quoteLine: Decoration.line({ class: "cm-live-quote-line" }),
 };
 
 function activeLineNumbers(state: EditorState): Set<number> {
@@ -411,14 +419,22 @@ function decorateInlineMarkdown(lineText: string, lineFrom: number, ranges: Deco
     hide(ranges, lineFrom + start + match[0].length - 2, lineFrom + start + match[0].length);
   }
 
-  const emphasis = /([*_])([^*_\n]+?)\1/g;
+  // 앞뒤 구분자를 소비하지 않도록 lookaround로 판정한다. `**SoC**(...) 칩에 *CPU*`에서 예전 식은
+  // `**` 뒤의 `*`부터 다음 `*`까지를 한 번 매칭해 버려, 진짜 여는 `*`를 건너뛰었다.
+  const emphasis = /(?<![*_\\])([*_])(?![\s*_])([^*_\n]+?)(?<!\s)\1(?![*_])/g;
   for (const match of lineText.matchAll(emphasis)) {
     const start = match.index ?? 0;
     const end = start + match[0].length;
     const delimiter = match[1] ?? "";
+    const content = match[2] ?? "";
     if (lineText[start - 1] === delimiter || lineText[end] === delimiter) continue;
-    if (start > 0 && !/[\s([{]/.test(lineText[start - 1] ?? "")) continue;
-    if (end < lineText.length && !/[\s)\]}!?.,:;]/.test(lineText[end] ?? "")) continue;
+    if (/^\s|\s$/.test(content)) continue;
+    // `_`는 CommonMark에서 단어 안쪽 강조가 안 되지만 `*`는 된다. 예전에는 둘 다 막아서
+    // `*컨트롤러*를`처럼 조사가 바로 붙는 한국어 문장의 기울임이 원문 그대로 보였다.
+    if (delimiter === "_") {
+      if (start > 0 && !/[\s([{]/.test(lineText[start - 1] ?? "")) continue;
+      if (end < lineText.length && !/[\s)\]}!?.,:;]/.test(lineText[end] ?? "")) continue;
+    }
     mark(ranges, lineFrom + start + 1, lineFrom + end - 1, LIVE_PREVIEW_DECORATIONS.emphasis);
     hide(ranges, lineFrom + start, lineFrom + start + 1);
     hide(ranges, lineFrom + end - 1, lineFrom + end);
@@ -454,16 +470,23 @@ export function buildLivePreviewDecorations(state: EditorState): DecorationSet {
           continue;
         }
       }
+      ranges.push((inCodeBlock ? LIVE_PREVIEW_DECORATIONS.codeEndLine : LIVE_PREVIEW_DECORATIONS.codeStartLine).range(line.from));
       if (!active.has(number) && !selected.has(number)) {
         const language = (fence[2] ?? "").trim();
-        replace(ranges, line.from, line.to, inCodeBlock ? "코드 블록" : `코드${language ? ` · ${language}` : ""}`, "cm-live-code-fence");
+        replace(ranges, line.from, line.to, inCodeBlock ? "" : `코드${language ? ` · ${language}` : ""}`, "cm-live-code-fence");
         mark(ranges, line.from, line.to, LIVE_PREVIEW_DECORATIONS.codeBlock);
       }
       inCodeBlock = !inCodeBlock;
       continue;
     }
 
+    if (UPLOAD_MARKER_LINE.test(text)) {
+      replace(ranges, line.from, line.to, "이미지 업로드 중…", "cm-live-upload");
+      continue;
+    }
+
     if (inCodeBlock) {
+      ranges.push(LIVE_PREVIEW_DECORATIONS.codeLine.range(line.from));
       if (!active.has(number) && !selected.has(number)) mark(ranges, line.from, line.to, LIVE_PREVIEW_DECORATIONS.codeBlock);
       continue;
     }
@@ -478,6 +501,8 @@ export function buildLivePreviewDecorations(state: EditorState): DecorationSet {
     if (active.has(number)) {
       const heading = /^( {0,3})(#{1,6})(?:\s+|$)/.exec(text);
       if (heading) mark(ranges, line.from, line.to, LIVE_PREVIEW_DECORATIONS.heading[(heading[2] ?? "").length - 1]!);
+      // 커서가 들어간 인용 줄도 배경을 유지해야 줄을 오갈 때 블록이 깜빡이지 않는다.
+      if (/^ {0,3}>/.test(text)) ranges.push(LIVE_PREVIEW_DECORATIONS.quoteLine.range(line.from));
       continue;
     }
 
@@ -506,6 +531,7 @@ export function buildLivePreviewDecorations(state: EditorState): DecorationSet {
     const list = /^(\s*)([-+*]|\d+[.)])\s+/.exec(text);
     let contentStart = 0;
     if (quote) {
+      ranges.push(LIVE_PREVIEW_DECORATIONS.quoteLine.range(line.from));
       mark(ranges, line.from, line.to, LIVE_PREVIEW_DECORATIONS.quote);
       contentStart = quote[0].length;
       hide(ranges, line.from, line.from + contentStart);
