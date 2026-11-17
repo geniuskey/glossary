@@ -20,6 +20,8 @@ export type ApiErrorCode =
   | "rag_not_ready"
   | "rag_provider_error"
   | "method_not_allowed"
+  // 챗 스트림을 사용자가 끊은 경우. 실패로 보이면 다시 시도할 문제처럼 읽힌다.
+  | "request_cancelled"
   | "internal_error";
 
 export function apiError(

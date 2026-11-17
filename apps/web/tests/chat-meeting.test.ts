@@ -93,6 +93,7 @@ test("일반 용어 질문도 근거 기반 인사이트와 토론 질문을 반
   }, null);
   ids.push(term.id);
   complete.mockResolvedValueOnce(JSON.stringify({ intent: "ask", query: term.nameEn }))
+    .mockResolvedValueOnce(JSON.stringify({ done: true, thought: "정의 근거를 찾았습니다.", searches: [] }))
     .mockImplementationOnce(async (_config: unknown, messages: Array<{ role: string; content: string }>) => {
       const evidence = JSON.parse(messages[0]!.content.split("EVIDENCE=")[1]!) as Array<{ id: string; field: string }>;
       const definition = evidence.find((item) => item.field === "definition")!;

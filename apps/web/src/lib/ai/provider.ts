@@ -391,6 +391,7 @@ export async function completeAi(
   const inputChars = messages.reduce((sum, message) => sum + message.content.length, 0);
   const safeMaxTokens = Number.isFinite(maxTokens) ? Math.max(1, Math.min(32_000, Math.floor(maxTokens))) : 800;
   const startedAt = performance.now();
+  const cancel = options.context?.signal;
   const run = await beginAiRun({
     ...options.context,
     operation: options.context?.operation ?? "llm.completion",
@@ -404,6 +405,7 @@ export async function completeAi(
     await assertSafeAiEndpoint(target);
     if (inputChars > 240_000) throw new AiProviderError("AI 요청 본문이 허용된 크기보다 큽니다.");
     for (let attempt = 0; attempt < 2; attempt += 1) {
+      cancel?.throwIfAborted();
       attempts = attempt + 1;
       let response: Response;
       try {
@@ -411,7 +413,7 @@ export async function completeAi(
           method: "POST",
           headers: requestHeaders(config),
           body: JSON.stringify(body(config, messages, safeMaxTokens, options)),
-          signal: AbortSignal.timeout(45_000),
+          signal: cancel ? AbortSignal.any([AbortSignal.timeout(45_000), cancel]) : AbortSignal.timeout(45_000),
           redirect: "error",
         });
         lastStatus = response.status;
@@ -453,6 +455,11 @@ export async function completeAi(
     }
     throw new AiProviderError("AI 서버에 연결하지 못했습니다.");
   } catch (error) {
+    // 사용자가 끊은 호출을 연결 실패로 바꾸면 재시도하거나 502로 답해, 중단이 장애로 집계된다.
+    if (cancel?.aborted) {
+      await finishAiRun(run?.id ?? null, startedAt, { status: "cancelled", attempts, httpStatus: lastStatus, errorCode: "cancelled", errorMessage: "요청자가 중단했습니다." });
+      throw cancel.reason instanceof Error ? cancel.reason : new DOMException("Aborted", "AbortError");
+    }
     await finishAiRun(run?.id ?? null, startedAt, {
       status: "failed",
       attempts,

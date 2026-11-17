@@ -8,6 +8,8 @@ import { MarkdownContent } from "./markdown-content";
 import { ChatEditCard } from "./chat-edit-card";
 import { ChatGroundedAnswer } from "./chat-grounded-answer";
 import { ChatMeetingAnalysis } from "./chat-meeting-analysis";
+import { ChatTrace } from "./chat-trace";
+import { upsertTraceStep, type ChatTraceStep } from "@/lib/ai/chat-trace-values";
 import type { GroundedChatAnswer } from "@/lib/ai/grounding-values";
 import type { MeetingAnalysis } from "@/lib/ai/meeting-values";
 import type { ChatEditProposal } from "@/lib/ai/chat-edit-values";
@@ -33,6 +35,7 @@ interface ChatPostBody {
   sources?: Source[];
   teaching?: Teaching;
   teachingBatch?: TermTeachingBatch;
+  trace?: ChatTraceStep[];
   error?: { message?: string; details?: { sessionId?: string } };
 }
 
@@ -60,7 +63,11 @@ export function ChatPanel({ enabled, initialSessionId, initialQuestion }: { enab
   const [domains, setDomains] = useState<string[]>([]);
   const [searchDomain, setSearchDomain] = useState("");
   const [sending, setSending] = useState(false);
-  const [processingText, setProcessingText] = useState("요청 유형과 대화 맥락을 파악하는 중…");
+  const [liveTrace, setLiveTrace] = useState<ChatTraceStep[]>([]);
+  const [sendStartedAt, setSendStartedAt] = useState<number | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const sendAbortRef = useRef<AbortController | null>(null);
+  const liveTraceRef = useRef<ChatTraceStep[]>([]);
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [historyRetry, setHistoryRetry] = useState(0);
@@ -80,7 +87,25 @@ export function ChatPanel({ enabled, initialSessionId, initialQuestion }: { enab
   useEffect(() => {
     messagesRef.current = messages;
     endRef.current?.scrollIntoView({ block: "nearest" });
-  }, [messages, sending]);
+  }, [messages, sending, liveTrace.length]);
+
+  useEffect(() => {
+    if (sendStartedAt === null) return;
+    const timer = window.setInterval(() => setElapsedMs(Date.now() - sendStartedAt), 250);
+    return () => window.clearInterval(timer);
+  }, [sendStartedAt]);
+
+  useEffect(() => {
+    if (!sending) return;
+    // 입력창 밖에 포커스가 있어도 멈출 수 있어야 한다. 단계가 길어질 때 버튼을 찾아 누르기보다 빠르다.
+    function stopOnEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
+      event.preventDefault();
+      sendAbortRef.current?.abort();
+    }
+    window.addEventListener("keydown", stopOnEscape);
+    return () => window.removeEventListener("keydown", stopOnEscape);
+  }, [sending]);
 
   useEffect(() => {
     // 새 답변의 URL 반영과 빈 새 대화는 이미 화면에 반영되어 있다.
@@ -180,9 +205,19 @@ export function ChatPanel({ enabled, initialSessionId, initialQuestion }: { enab
     return null;
   }
 
+  function lastUserQuestion(): string | null {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index]?.role === "user") return messages[index]!.content;
+    }
+    return null;
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const text = question.trim();
+    await send(question.trim());
+  }
+
+  async function send(text: string) {
     if (!text || busy || historyLoading || historyError || !enabled) return;
     const submittedSessionId = routeSessionId;
     const history = messages.slice(-8).map(({ role, content }) => ({ role, content: content.slice(-4_000) }));
@@ -190,11 +225,31 @@ export function ChatPanel({ enabled, initialSessionId, initialQuestion }: { enab
     const userId = nextId++;
     setMessages((current) => [...current, { id: userId, role: "user", content: text, searchDomain: searchDomain || null }]);
     setQuestion("");
-    setProcessingText("요청 유형과 대화 맥락을 파악하는 중…");
+    liveTraceRef.current = [];
+    setLiveTrace([]);
+    const startedAt = Date.now();
+    setSendStartedAt(startedAt);
+    setElapsedMs(0);
     setSending(true);
+    const abort = new AbortController();
+    sendAbortRef.current = abort;
+    let sessionId = currentSessionId;
+    // 세션은 스트림 첫 이벤트로 먼저 온다. 완료를 기다려 반영하면 도중에 중단한 새 대화가 목록에서 사라진다.
+    const adoptSession = (id: string | undefined) => {
+      if (!id || sessionId || routeSessionRef.current !== submittedSessionId) return;
+      sessionId = id;
+      const now = new Date().toISOString();
+      setCurrentSessionId(id);
+      routeSessionRef.current = id;
+      window.history.replaceState(null, "", `/c/${encodeURIComponent(id)}`);
+      setSessions((current) => current.some((session) => session.id === id) ? current : [{ id, title: text.replace(/\s+/g, " ").slice(0, 80), createdAt: now, updatedAt: now, messageCount: 1 }, ...current]);
+    };
+    const startedInSession = currentSessionId;
+    const watchedSession = () => routeSessionRef.current === (sessionId ?? submittedSessionId);
     try {
       const response = await fetch("/api/v1/chat", {
         method: "POST",
+        signal: abort.signal,
         headers: { "content-type": "application/json", accept: "text/event-stream" },
         body: JSON.stringify({ question: text, history, domain: searchDomain || null, teachingDraft, ...(currentSessionId ? { sessionId: currentSessionId } : {}) }),
       });
@@ -210,8 +265,12 @@ export function ChatPanel({ enabled, initialSessionId, initialQuestion }: { enab
         const readEvent = (frame: string) => {
           const data = frame.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart()).join("\n");
           if (!data) return;
-          const event = JSON.parse(data) as { type?: string; message?: string; ok?: boolean; status?: number; body?: ChatPostBody | null };
-          if (event.type === "progress" && event.message) setProcessingText(event.message);
+          const event = JSON.parse(data) as { type?: string; sessionId?: string; step?: ChatTraceStep; ok?: boolean; status?: number; body?: ChatPostBody | null };
+          if (event.type === "session") adoptSession(event.sessionId);
+          if (event.type === "step" && event.step) {
+            liveTraceRef.current = upsertTraceStep(liveTraceRef.current, event.step);
+            setLiveTrace(liveTraceRef.current);
+          }
           if (event.type === "complete") {
             completed = true;
             responseOk = Boolean(event.ok);
@@ -235,17 +294,13 @@ export function ChatPanel({ enabled, initialSessionId, initialQuestion }: { enab
       } else {
         body = await response.json().catch(() => null) as ChatPostBody | null;
       }
-      if (routeSessionRef.current !== submittedSessionId) return;
-      const returnedSessionId = body?.sessionId || body?.error?.details?.sessionId;
-      if (!currentSessionId && returnedSessionId) {
+      adoptSession(body?.sessionId || body?.error?.details?.sessionId);
+      if (!watchedSession()) return;
+      if (sessionId) {
         const now = new Date().toISOString();
-        setCurrentSessionId(returnedSessionId);
-        window.history.replaceState(null, "", `/c/${encodeURIComponent(returnedSessionId)}`);
-        setSessions((current) => [{ id: returnedSessionId, title: text.replace(/\s+/g, " ").slice(0, 80), createdAt: now, updatedAt: now, messageCount: responseOk ? 2 : 1 }, ...current]);
-      } else if (currentSessionId) {
-        const now = new Date().toISOString();
-        setSessions((current) => current.map((session) => session.id === currentSessionId
-          ? { ...session, updatedAt: now, messageCount: session.messageCount + (responseOk ? 2 : 1) }
+        const added = startedInSession ? (responseOk ? 2 : 1) : (responseOk ? 1 : 0);
+        setSessions((current) => current.map((session) => session.id === sessionId
+          ? { ...session, updatedAt: now, messageCount: session.messageCount + added }
           : session).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
       }
       setMessages((current) => responseOk && body?.messages ? body.messages : [
@@ -259,15 +314,24 @@ export function ChatPanel({ enabled, initialSessionId, initialQuestion }: { enab
           teachingBatch: body?.teachingBatch,
           edit: body?.edit,
           grounded: body?.grounded,
+          trace: body?.trace ?? (liveTraceRef.current.length ? liveTraceRef.current : undefined),
           failed: !responseOk,
         },
       ]);
       setDraftError(null);
-    } catch {
-      if (routeSessionRef.current === submittedSessionId) {
-        setMessages((current) => [...current, { id: userId + 1, role: "assistant", content: "네트워크 오류로 답변을 받지 못했습니다.", failed: true }]);
+    } catch (error) {
+      if (watchedSession()) {
+        const aborted = error instanceof DOMException && error.name === "AbortError";
+        const trace = liveTraceRef.current.map((step) => step.status === "running" ? { ...step, status: "failed" as const } : step);
+        setMessages((current) => [...current, {
+          id: userId + 1, role: "assistant", failed: true,
+          content: aborted ? "답변을 중단했습니다." : "네트워크 오류로 답변을 받지 못했습니다.",
+          ...(trace.length ? { trace } : {}),
+        }]);
       }
     } finally {
+      sendAbortRef.current = null;
+      setSendStartedAt(null);
       setSending(false);
     }
   }
@@ -517,6 +581,7 @@ export function ChatPanel({ enabled, initialSessionId, initialQuestion }: { enab
                   "max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm leading-6 shadow-sm",
                   message.role === "user" ? "rounded-br-md bg-brand text-brand-on" : message.failed ? "rounded-bl-md border border-danger/30 bg-danger-soft text-danger" : "rounded-bl-md border border-line bg-panel text-ink",
                 )}>
+                  {message.role === "assistant" && message.trace && message.trace.length > 0 && <ChatTrace steps={message.trace} />}
                   {message.role === "assistant"
                     ? message.grounded ? <ChatGroundedAnswer answer={message.grounded} messageId={message.id} /> : message.meeting ? <ChatMeetingAnalysis analysis={message.meeting} messageId={message.id} /> : <MarkdownContent className="break-words text-sm leading-6">{message.content}</MarkdownContent>
                     : isLargePastedMessage(message.content) ? (
@@ -592,11 +657,21 @@ export function ChatPanel({ enabled, initialSessionId, initialQuestion }: { enab
                       ))}
                     </div>
                   )}
+                  {message.failed && message.id === messages.at(-1)?.id && lastUserQuestion() && (
+                    <div className="mt-2 flex justify-end">
+                      <button type="button" className="btn-quiet btn-sm" onClick={() => void send(lastUserQuestion()!)} disabled={busy || historyLoading || !enabled}>다시 시도</button>
+                    </div>
+                  )}
                   {message.edit && <ChatEditCard edit={message.edit} busy={busy || historyLoading} processing={editingId === message.edit.id} error={editError?.id === message.edit.id ? editError.text : undefined} onAction={(action) => void runEdit(message.edit!, action)} />}
                 </article>
               </li>
             ))}
-            {sending && <li className="flex justify-start"><p role="status" aria-live="polite" aria-atomic="true" className="flex items-center gap-2 rounded-2xl rounded-bl-md border border-line bg-panel px-3.5 py-2.5 text-sm text-ink-3"><span>{processingText}</span><span aria-hidden="true" className="size-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent motion-reduce:animate-none" /></p></li>}
+            {sending && <li className="flex justify-start">
+              <div className="w-full max-w-[88%] rounded-2xl rounded-bl-md border border-line bg-panel px-3.5 py-2.5 shadow-sm">
+                <ChatTrace steps={liveTrace} live elapsedMs={elapsedMs} />
+                <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{liveTrace.at(-1)?.label ?? "요청을 보내는 중"}</p>
+              </div>
+            </li>}
           </ol>
         )}
         <div ref={endRef} aria-hidden="true" />
@@ -604,13 +679,24 @@ export function ChatPanel({ enabled, initialSessionId, initialQuestion }: { enab
 
       <form ref={composerRef} onSubmit={(event) => void submit(event)} className="mt-3 flex items-end gap-2 rounded-xl border border-line bg-panel p-2 shadow-sm focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15">
         <label htmlFor="chat-question" className="sr-only">용어 질문 또는 생성·수정 요청</label>
-        <textarea id="chat-question" name="question" autoComplete="off" rows={2} maxLength={20_000} value={question} onChange={(event) => setQuestion(event.target.value)} disabled={!enabled || busy || historyLoading || Boolean(historyError)} placeholder={activeTeachingDraft() ? "빠진 정보나 수정할 내용을 알려주세요…" : "용어를 질문하거나 기존 용어집 내용을 붙여넣으세요…"} className="min-h-11 min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 text-base sm:text-sm leading-5 text-ink outline-none placeholder:text-ink-3" onKeyDown={(event) => {
+        <textarea id="chat-question" name="question" autoComplete="off" rows={2} maxLength={20_000} value={question} onChange={(event) => setQuestion(event.target.value)} disabled={!enabled || (busy && !sending) || historyLoading || Boolean(historyError)} placeholder={activeTeachingDraft() ? "빠진 정보나 수정할 내용을 알려주세요…" : "용어를 질문하거나 기존 용어집 내용을 붙여넣으세요…"} className="min-h-11 min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 text-base sm:text-sm leading-5 text-ink outline-none placeholder:text-ink-3" onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
-            event.currentTarget.form?.requestSubmit();
+            if (!sending) event.currentTarget.form?.requestSubmit();
+            return;
+          }
+          // 빈 입력창에서 ↑는 직전 질문을 불러온다. 조금만 고쳐 다시 묻는 일이 가장 잦다.
+          if (event.key === "ArrowUp" && !event.currentTarget.value && !event.nativeEvent.isComposing) {
+            const previous = lastUserQuestion();
+            if (previous && !isLargePastedMessage(previous)) {
+              event.preventDefault();
+              setQuestion(previous);
+            }
           }
         }} />
-        <button type="submit" className="btn-primary h-10 shrink-0" disabled={!enabled || busy || historyLoading || Boolean(historyError) || !question.trim()}>{sending ? "처리 중…" : "보내기"}</button>
+        {sending
+          ? <button type="button" className="btn-ghost h-10 shrink-0" onClick={() => sendAbortRef.current?.abort()} aria-keyshortcuts="Escape">중단</button>
+          : <button type="submit" className="btn-primary h-10 shrink-0" disabled={!enabled || busy || historyLoading || Boolean(historyError) || !question.trim()}>보내기</button>}
       </form>
     </section>
     </div>

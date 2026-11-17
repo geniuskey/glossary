@@ -193,6 +193,24 @@ test("AI 공급자의 일시적인 503은 한 번 재시도한다", async () => 
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
+test("요청자가 중단한 호출은 재시도하지 않고 연결 실패가 아닌 AbortError로 끝난다", async () => {
+  const abort = new AbortController();
+  const fetchMock = vi.fn((_input: string | URL | Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+    init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+    abort.abort();
+  }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(completeAi({
+    provider: "openai_compatible",
+    baseUrl: "http://127.0.0.1:9999/v1",
+    model: "local-model",
+    apiKey: "key",
+    customHeaders: [],
+  }, [{ role: "user", content: "질문" }], 800, { context: { signal: abort.signal } })).rejects.toMatchObject({ name: "AbortError" });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
 test("토큰 상한으로 잘린 구조화 응답은 성공으로 취급하지 않는다", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => Response.json({
     choices: [{ message: { content: "{\"claims\":[" }, finish_reason: "length" }],

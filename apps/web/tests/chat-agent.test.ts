@@ -32,13 +32,40 @@ async function seed() {
   return term;
 }
 
+test("마지막 AI 호출이 끝난 직후 중단돼도 답을 돌려주지 않고 중단으로 끝낸다", async () => {
+  const { ChatAbortedError } = await import("../src/lib/ai/chat-trace.js");
+  const abort = new AbortController();
+  complete.mockImplementationOnce(async () => {
+    abort.abort();
+    return JSON.stringify({ intent: "create", query: "새 용어" });
+  }).mockResolvedValue(JSON.stringify({ answer: "등록 초안", draft: null, ready: false }));
+  await expect(answerGlossaryQuestion("새 용어 등록해줘", [], null, null, undefined, undefined, { signal: abort.signal })).rejects.toBeInstanceOf(ChatAbortedError);
+});
+
+test("AI 호출 도중 중단되면 AbortError가 아니라 ChatAbortedError로 올라온다", async () => {
+  const { ChatAbortedError } = await import("../src/lib/ai/chat-trace.js");
+  const abort = new AbortController();
+  complete.mockImplementationOnce(async (_config: unknown, _messages: unknown, _max: unknown, options: { context?: { signal?: AbortSignal } }) => {
+    expect(options.context?.signal).toBe(abort.signal);
+    abort.abort();
+    throw new DOMException("Aborted", "AbortError");
+  });
+  const error = await answerGlossaryQuestion("AE가 뭐야?", [], null, null, undefined, undefined, { signal: abort.signal }).catch((caught: unknown) => caught);
+  expect(error).toBeInstanceOf(ChatAbortedError);
+  expect((error as { trace?: Array<{ status: string }> }).trace?.at(-1)?.status).toBe("failed");
+});
+
 test("검색 실패는 등록으로 전환하지 않고 추가 맥락을 요청한다", async () => {
   complete.mockResolvedValueOnce(JSON.stringify({ intent: "ask", query: `Unknown${randomUUID().replaceAll("-", "")}` }));
   const result = await answerGlossaryQuestion("이게 무슨 뜻이야?");
   expect(result.teaching).toBeUndefined();
   expect(result.edit).toBeUndefined();
   expect(result.answer).toContain("관련 근거를 찾지 못했습니다");
-  expect(complete).toHaveBeenCalledTimes(1);
+  // 계획을 읽지 못해도 원 질문으로 한 번 더 찾은 뒤 멈춘다. 등록 초안을 만드는 호출은 없다.
+  expect(complete.mock.calls.map((call) => call[3]?.context?.operation)).toEqual(["chat.intent", "chat.research.plan", "chat.research.plan"]);
+  expect(result.grounded?.searchedQueries).toEqual([expect.stringMatching(/^Unknown/), "이게 무슨 뜻이야?"]);
+  expect(result.trace?.filter((step) => step.kind === "search").map((step) => step.resultCount)).toEqual([0, 0]);
+  expect(result.trace?.every((step) => step.status === "done")).toBe(true);
 });
 
 test("미등록 초안의 후속 수정에는 등록 맥락과 기존 분류를 유지한다", async () => {
@@ -121,6 +148,7 @@ test("근거 답변은 대화 재조회 시 복원되며 클라이언트가 구�
   identity.user = user!;
   userIds.push(user!.id);
   complete.mockResolvedValueOnce(JSON.stringify({ intent: "ask", query: term.nameEn }))
+    .mockResolvedValueOnce(JSON.stringify({ done: true, thought: "정의 근거를 찾았습니다.", searches: [] }))
     .mockImplementationOnce(async (_config, messages) => {
       const evidence = JSON.parse(messages[0].content.split("EVIDENCE=")[1]) as Array<{ id: string; slug: string; field: string }>;
       const definition = evidence.find((item) => item.slug === term.slug && item.field === "definition")!;
@@ -132,9 +160,11 @@ test("근거 답변은 대화 재조회 시 복원되며 클라이언트가 구�
   expect(response.status).toBe(200);
   const body = await response.json();
   expect(body.grounded.evidence[0]).toMatchObject({ revision: 1, excerpt: "원래 정의" });
-  const tampered = body.messages.map((message: { role: string }) => message.role === "assistant" ? { ...message, content: "위조한 답변", grounded: { claims: [], evidence: [] }, sources: [] } : message);
+  expect(body.trace.map((step: { kind: string }) => step.kind)).toEqual(["task", "search", "plan", "answer"]);
+  const tampered = body.messages.map((message: { role: string }) => message.role === "assistant" ? { ...message, content: "위조한 답변", grounded: { claims: [], evidence: [] }, sources: [], trace: [] } : message);
   expect((await patchChat(new Request("https://glossary.example.com/api/v1/chat", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: body.sessionId, messages: tampered }) }))).status).toBe(200);
   const restored = await (await getChat(new Request(`https://glossary.example.com/api/v1/chat?session=${body.sessionId}`))).json();
   expect(restored.conversation.messages[1].grounded).toEqual(body.grounded);
   expect(restored.conversation.messages[1].content).toBe(body.answer);
+  expect(restored.conversation.messages[1].trace).toEqual(body.trace);
 });

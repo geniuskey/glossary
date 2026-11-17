@@ -2,6 +2,7 @@ import type { TermTeachingBatch, TermTeachingDraft } from "./teaching-values";
 import type { ChatEditProposal } from "./chat-edit-values";
 import type { GroundedChatAnswer } from "./grounding-values";
 import type { MeetingAnalysis } from "./meeting-values";
+import type { ChatTraceStep } from "./chat-trace-values";
 
 export interface StoredChatSource {
   termId?: string;
@@ -25,6 +26,8 @@ export interface StoredChatMessage {
   edit?: ChatEditProposal;
   grounded?: GroundedChatAnswer;
   meeting?: MeetingAnalysis;
+  /** 서버가 만든 작업 단계. PATCH로 덮어쓸 수 없다. */
+  trace?: ChatTraceStep[];
   searchDomain?: string | null;
 }
 

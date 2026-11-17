@@ -1766,7 +1766,7 @@ export const openApiSpec = {
       },
       post: {
         summary: "용어집 근거 질문과 용어 생성·수정안 작성",
-        description: "질문·등록·수정·회의록 분석 의도를 구분합니다. 근거 답변에는 주장별 인용과 구절·리비전 스냅샷인 grounded를 반환하며, 회의록 분석에는 사용자 원문 M·용어집 G·위키 W 근거를 연결한 meeting을 반환합니다. 같은 도메인 안에서 최대 2회 검색합니다. 등록은 초안, 수정은 적용 전 edit 제안을 반환합니다. 로그인 세션 응답에는 저장된 messages도 포함되며, API Key(read) 호출은 대화 내용을 저장하지 않습니다.",
+        description: "질문·등록·수정·회의록 분석 의도를 구분합니다. 근거 답변에는 주장별 인용과 구절·리비전 스냅샷인 grounded를 반환하며, 회의록 분석에는 사용자 원문 M·용어집 G·위키 W 근거를 연결한 meeting을 반환합니다. 질문에는 찾은 근거를 검토해 부족한 부분을 다시 찾는 조사 단계를 거치며, 같은 도메인 안에서 최대 8회 검색합니다. `Accept: text/event-stream`이면 진행 중인 단계를 `step` 이벤트로, 최종 응답을 `complete` 이벤트로 보냅니다. 스트림을 끊으면 남은 단계를 건너뛰고 499 `request_cancelled`로 끝납니다. 등록은 초안, 수정은 적용 전 edit 제안을 반환합니다. 로그인 세션 응답에는 저장된 messages도 포함되며, API Key(read) 호출은 대화 내용을 저장하지 않습니다.",
         security: [{ sessionCookie: [] }, { apiKey: [] }],
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",
@@ -1802,6 +1802,10 @@ export const openApiSpec = {
           "200": json("근거 답변 또는 teaching/teachingBatch/edit/meeting 결과. edit는 로그인 세션에서만 적용 가능", {
             type: "object", properties: {
               answer: { type: "string" },
+              trace: { type: "array", description: "답을 만들며 거친 단계(요청 파악·검색·근거 검토·답변 작성). 서버가 기록하며 대화에 저장된다.", items: { type: "object", required: ["id", "kind", "label", "status"], properties: {
+                id: { type: "integer", minimum: 1 }, kind: { type: "string", enum: ["task", "plan", "search", "answer"] }, label: { type: "string" }, detail: { type: "string" },
+                status: { type: "string", enum: ["running", "done", "failed"] }, resultCount: { type: "integer", minimum: 0 }, offsetMs: { type: "integer", minimum: 0 }, durationMs: { type: "integer", minimum: 0 },
+              } } },
               meeting: { type: "object", description: "회의 요약·결정·액션·리스크·인사이트와 M/G 근거. 서버가 근거 ID를 검증한다." },
               grounded: { type: "object", required: ["claims", "insights", "uncertainties", "evidence", "searchedQueries", "domain"], properties: {
                 claims: { type: "array", items: { type: "object", required: ["text", "evidenceIds"], properties: {
@@ -1812,7 +1816,7 @@ export const openApiSpec = {
                   confidence: { type: "string", enum: ["high", "medium", "low"] }, discussionQuestion: { type: ["string", "null"] },
                 } } },
                 uncertainties: { type: "array", items: { type: "string" } },
-                searchedQueries: { type: "array", maxItems: 2, items: { type: "string" } },
+                searchedQueries: { type: "array", maxItems: 8, items: { type: "string" } },
                 domain: { type: ["string", "null"] },
                 ontology: { type: "array", description: "승인 관계와 공개 위키 연결로 검색된 직접·간접 경로", items: { type: "object", required: ["id", "source", "predicateKey", "target", "depth", "confidence"], properties: {
                   id: { type: "string" },
@@ -1835,13 +1839,14 @@ export const openApiSpec = {
           "400": errorResponse("validation_failed"),
           "401": errorResponse("unauthorized"),
           "429": errorResponse("rate_limited"),
+          "499": errorResponse("request_cancelled"),
           "502": errorResponse("ai_provider_error"),
           "503": errorResponse("ai_not_enabled"),
         },
       },
       patch: {
         summary: "용어 초안 작업이 반영된 대화 메시지 저장",
-        description: "서버에 저장된 edit 수정안·실행 상태와 grounded/meeting 답변·구절·출처는 변경할 수 없습니다. 기존 메시지가 누락되면 409를 반환합니다.",
+        description: "서버에 저장된 edit 수정안·실행 상태, grounded/meeting 답변·구절·출처와 trace 작업 단계는 변경할 수 없습니다. 기존 메시지가 누락되면 409를 반환합니다.",
         security: [{ sessionCookie: [] }],
         requestBody: { required: true, content: { "application/json": { schema: {
           type: "object",

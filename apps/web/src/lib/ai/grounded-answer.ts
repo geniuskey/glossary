@@ -30,7 +30,19 @@ export function validateGroundedAnswer(raw: unknown, evidence: ChatEvidence[]) {
   return parsed.data;
 }
 
-function mergeGrounding(first: ChatGrounding, second: ChatGrounding): ChatGrounding {
+const EVIDENCE_CHAR_BUDGET = 40_000;
+
+/** 답변 프롬프트에 실제로 들어가는 근거. 앞에서부터 채우므로 순서가 곧 우선순위다. */
+export function fitEvidenceBudget<T extends { excerpt: string }>(evidence: readonly T[], budget = EVIDENCE_CHAR_BUDGET): T[] {
+  let remaining = budget;
+  return evidence.filter((item) => {
+    if (item.excerpt.length > remaining) return false;
+    remaining -= item.excerpt.length;
+    return true;
+  });
+}
+
+export function mergeGrounding(first: ChatGrounding, second: ChatGrounding): ChatGrounding {
   const sources = new Map<string, ChatSource>();
   for (const source of [...first.sources, ...second.sources]) {
     const key = source.termId ?? source.slug;
@@ -51,16 +63,11 @@ function mergeGrounding(first: ChatGrounding, second: ChatGrounding): ChatGround
   return { context: "", sources: [...sources.values()], evidence: [...evidence.values()], ontology: [...ontology.values()] };
 }
 
-export async function answerWithEvidence(config: AiRuntimeConfig, question: string, history: ChatHistoryMessage[], initial: ChatGrounding, initialQueries: string[], options: RetrievalOptions = {}, context?: AiRunContext) {
+export async function answerWithEvidence(config: AiRuntimeConfig, question: string, history: ChatHistoryMessage[], initial: ChatGrounding, initialQueries: string[], options: RetrievalOptions & { followUp?: boolean } = {}, context?: AiRunContext) {
   let grounding = initial;
   const queries = [...initialQueries];
   const generate = async (allowSearch: boolean) => {
-    let remaining = 40_000;
-    grounding = { ...grounding, evidence: (grounding.evidence ?? []).filter((item) => {
-      if (item.excerpt.length > remaining) return false;
-      remaining -= item.excerpt.length;
-      return true;
-    }) };
+    grounding = { ...grounding, evidence: fitEvidenceBudget(grounding.evidence ?? []) };
     const evidence = grounding.evidence ?? [];
     const system = [
     "조직 용어집·공개 위키·저장된 회의록의 근거 구절만 사용해 질문에 답하세요. JSON {claims:[{text,evidenceIds}], insights:[{title,text,evidenceIds,confidence,discussionQuestion}], uncertainties:string[], followUpQuery:string|null}만 반환하세요.",
@@ -98,10 +105,13 @@ export async function answerWithEvidence(config: AiRuntimeConfig, question: stri
     ], 3000, { jsonOutput: true, context: { ...context, operation: "chat.grounded-answer.repair" } });
     return validateGroundedAnswer(parseAiJson(typeof repaired === "string" ? repaired : ""), evidence);
   };
-  let result = await generate(queries.length < 2);
-  if (queries.length < 2 && result?.followUpQuery && !queries.some((query) => query.toLowerCase().trim() === result!.followUpQuery!.toLowerCase().trim())) {
+  // 조사 루프를 거친 질문은 거기서 검색을 끝냈다. 여기서 또 찾으면 화면의 단계 기록에 없는 검색이 생긴다.
+  const allowFollowUp = options.followUp !== false && queries.length < 2;
+  let result = await generate(allowFollowUp);
+  if (allowFollowUp && result?.followUpQuery && !queries.some((query) => query.toLowerCase().trim() === result!.followUpQuery!.toLowerCase().trim())) {
     const query = result.followUpQuery;
-    const more = await retrieveGlossaryContext(query, 8, { ...options, passageQuery: `${question}\n${query}` });
+    const { followUp: _followUp, ...retrieval } = options;
+    const more = await retrieveGlossaryContext(query, 8, { ...retrieval, passageQuery: `${question}\n${query}` });
     queries.push(query);
     grounding = mergeGrounding(grounding, more);
     result = await generate(false);

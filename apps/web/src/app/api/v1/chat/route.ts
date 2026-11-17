@@ -7,6 +7,8 @@ import { isResponse, requireAuth, requireSessionUser } from "@/lib/auth/require"
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { answerGlossaryQuestion } from "@/lib/ai/chat";
 import { AiProviderError } from "@/lib/ai/provider";
+import { ChatAbortedError, type ChatRunHooks } from "@/lib/ai/chat-trace";
+import type { ChatTraceStep } from "@/lib/ai/chat-trace-values";
 import type { ChatHistoryResponse, StoredChatMessage } from "@/lib/ai/chat-history-values";
 import type { TermTeachingDraft } from "@/lib/ai/teaching-values";
 import { getDb } from "@/lib/db";
@@ -166,7 +168,7 @@ export const POST = withApiErrors(async (request: Request) => {
     previousMessages = appended;
   }
 
-  const respond = async (onProgress?: (message: string) => void) => {
+  const respond = async (hooks: ChatRunHooks = {}) => {
     try {
       const history = auth.kind === "user"
         ? previousMessages.slice(0, -1).slice(-8).map(({ role, content }) => ({ role, content: content.slice(-4_000) }))
@@ -183,7 +185,7 @@ export const POST = withApiErrors(async (request: Request) => {
           conversationId,
           ...(auth.kind === "user" ? { actorId: auth.user.id } : { metadata: { apiKeyId: auth.keyId } }),
         },
-        onProgress,
+        hooks,
       );
       if (auth.kind === "user" && conversationId) {
         const assistantMessage: StoredChatMessage = {
@@ -196,6 +198,7 @@ export const POST = withApiErrors(async (request: Request) => {
           edit: result.edit,
           grounded: result.grounded,
           meeting: result.meeting,
+          trace: result.trace,
           searchDomain: parsed.data.domain ?? null,
         };
         const appended = await appendChatMessage(conversationId, auth.user.id, assistantMessage);
@@ -204,6 +207,14 @@ export const POST = withApiErrors(async (request: Request) => {
       }
       return Response.json({ ...result, ...(conversationId ? { sessionId: conversationId } : {}) });
     } catch (error) {
+      if (error instanceof ChatAbortedError) {
+        // 사용자 메시지는 이미 저장됐다. 답 없이 두면 다시 열었을 때 질문만 덩그러니 남아 응답이 유실된 것처럼 보인다.
+        const trace = (error as ChatAbortedError & { trace?: ChatTraceStep[] }).trace;
+        if (auth.kind === "user" && conversationId) {
+          await appendChatMessage(conversationId, auth.user.id, { role: "assistant", content: "답변을 중단했습니다.", failed: true, trace, searchDomain: parsed.data.domain ?? null });
+        }
+        return apiError("request_cancelled", "답변을 중단했습니다.", 499, conversationId ? { sessionId: conversationId } : undefined);
+      }
       if (error instanceof Error && error.message === "AI_NOT_ENABLED") {
         return apiError("ai_not_enabled", "관리자가 용어 챗봇 연결을 활성화하지 않았습니다.", 503, conversationId ? { sessionId: conversationId } : undefined);
       }
@@ -225,6 +236,9 @@ export const POST = withApiErrors(async (request: Request) => {
 
   const encoder = new TextEncoder();
   let streamClosed = false;
+  // 클라이언트가 중단하면 남은 검색·생성 단계를 건너뛴다. 연결만 끊고 서버가 계속 돌면 중단해도 AI 사용량은 그대로 나간다.
+  const abort = new AbortController();
+  request.signal?.addEventListener("abort", () => abort.abort(), { once: true });
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       const send = (event: unknown) => {
@@ -235,9 +249,11 @@ export const POST = withApiErrors(async (request: Request) => {
           streamClosed = true;
         }
       };
+      // 새 대화는 이미 만들어졌다. 완료 전에 중단해도 클라이언트가 같은 대화에 이어 쓰도록 먼저 알린다.
+      if (conversationId) send({ type: "session", sessionId: conversationId });
       void (async () => {
         try {
-          const response = await respond((message) => send({ type: "progress", message }));
+          const response = await respond({ signal: abort.signal, onStep: (step) => send({ type: "step", step }) });
           const body = await response.json().catch(() => null);
           send({ type: "complete", ok: response.ok, status: response.status, body });
         } catch {
@@ -252,6 +268,7 @@ export const POST = withApiErrors(async (request: Request) => {
     },
     cancel() {
       streamClosed = true;
+      abort.abort();
     },
   });
   return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache, no-transform", "x-accel-buffering": "no" } });
@@ -275,7 +292,7 @@ export const PATCH = withApiErrors(async (request: Request) => {
     // Proposals and cited answer snapshots are server-owned, including their text and sources.
     const messages = incoming.map((message) => {
       const stored = existing.find((item) => item.id === message.id);
-      return { ...message, edit: stored?.edit, grounded: stored?.grounded, meeting: stored?.meeting, searchDomain: stored?.searchDomain,
+      return { ...message, edit: stored?.edit, grounded: stored?.grounded, meeting: stored?.meeting, trace: stored?.trace, searchDomain: stored?.searchDomain,
         ...(stored?.grounded || stored?.meeting ? { role: stored.role, content: stored.content, sources: stored.sources } : {}) };
     });
     await tx.update(chatConversations).set({ messages, updatedAt: new Date() }).where(owned);
