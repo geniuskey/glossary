@@ -134,14 +134,18 @@ function isDuplicate(error: unknown): boolean {
   return (candidate?.code === "23505" && candidate.constraint_name === "term_relations_unique") || !!(candidate?.cause && isDuplicate(candidate.cause));
 }
 
-export async function createRelation(input: CreateRelation, userId: string): Promise<Result> {
+/** 사람(userId) 또는 에이전트(API 키)가 제안한다. 둘 중 하나는 있어야 누가 올린 제안인지 검토자가 안다. */
+export type RelationProposer = { userId: string; keyId?: null } | { userId?: null; keyId: string };
+
+export async function createRelation(input: CreateRelation, proposer: string | RelationProposer): Promise<Result> {
+  const actor = typeof proposer === "string" ? { userId: proposer, keyId: null } : { userId: proposer.userId ?? null, keyId: proposer.keyId ?? null };
   if (input.sourceTermId === input.targetTermId) return { error: "invalid" };
   try {
     return await getDb().transaction(async (tx): Promise<Result> => {
       const revisions = await lockTerms(tx, [input.sourceTermId, input.targetTermId]);
       if (!revisions) return { error: "not_found" };
       if (revisions.get(input.sourceTermId) !== input.sourceRevision || revisions.get(input.targetTermId) !== input.targetRevision) return { error: "stale" };
-      const [row] = await tx.insert(termRelations).values({ ...input, status: "proposed", createdBy: userId }).returning({ id: termRelations.id });
+      const [row] = await tx.insert(termRelations).values({ ...input, status: "proposed", createdBy: actor.userId, createdByKeyId: actor.keyId }).returning({ id: termRelations.id });
       return { ok: true, id: row!.id };
     });
   } catch (error) { if (isDuplicate(error)) return { error: "duplicate" }; throw error; }

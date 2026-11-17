@@ -52,7 +52,7 @@ console.log(`${apply ? "저장" : "미리보기"}: 개념 용어 ${targets.lengt
 let proposed = 0;
 for (const [index, term] of targets.entries()) {
   try {
-    const outcome = await curateTermRelations(config, term.id, { dryRun: !apply, userId: user.id });
+    const outcome = await curateTermRelations(config, term.id, { dryRun: !apply, proposer: { userId: user.id } });
     console.log(`[${index + 1}/${targets.length}] ${term.name}: 후보 ${outcome?.candidates ?? 0}, 판정 ${outcome?.judgments.length ?? 0}`);
     for (const judgment of outcome?.judgments ?? []) {
       if (judgment.outcome === "proposed") proposed += 1;

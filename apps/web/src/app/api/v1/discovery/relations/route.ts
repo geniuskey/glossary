@@ -27,9 +27,9 @@ const requestSchema = z.object({
 export const POST = withApiErrors(async (request: Request) => {
   const auth = await requireAuth(request, "write");
   if (isResponse(auth)) return auth;
-  // 수동 관계 제안(POST /relations)과 같은 규칙: 관계는 로그인한 사람이 책임지고 올린다.
-  if (auth.kind !== "user") return apiError("forbidden", "관계 제안은 로그인한 사용자가 수행해야 합니다. API 키로는 미리보기 결과를 사용자에게 넘기세요.", 403);
-  const limited = rateLimitResponse(await consumeRateLimit(`discovery-relations:${auth.user.id}`, 10, 10 * 60_000), "잠시 후 다시 시도해 주세요.");
+  // POST /relations와 같은 규칙: 제안은 사람과 에이전트(API 키) 모두 할 수 있고, 승인은 사람만 한다.
+  const proposer = auth.kind === "user" ? { userId: auth.user.id } : { keyId: auth.keyId };
+  const limited = rateLimitResponse(await consumeRateLimit(`discovery-relations:${auth.kind === "user" ? auth.user.id : auth.keyId}`, 10, 10 * 60_000), "잠시 후 다시 시도해 주세요.");
   if (limited) return limited;
 
   const parsed = requestSchema.safeParse(await request.json().catch(() => ({})));
@@ -75,7 +75,7 @@ export const POST = withApiErrors(async (request: Request) => {
       confidence: item.confidence,
       sourceRevision: revisionOf.get(item.sourceTermId) ?? 0,
       targetRevision: revisionOf.get(item.targetTermId) ?? 0,
-    }, auth.user.id);
+    }, proposer);
     results.push({ ...item, outcome: "ok" in outcome ? "proposed" : outcome.error, ...("ok" in outcome ? { relationId: outcome.id } : {}) });
   }
   return Response.json({ dryRun: false, items: results });

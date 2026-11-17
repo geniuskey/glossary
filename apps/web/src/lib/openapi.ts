@@ -1994,8 +1994,8 @@ export const openApiSpec = {
     "/discovery/relations": {
       post: {
         summary: "발굴 신호에서 관계 제안 만들기",
-        description: "추이 관계가 함의하는 A→C(implied)와 근거가 강한 숨은 연결(공통 이웃 3개 이상·공개 위키 동시 언급 3건 이상·의미 유사도 0.8 이상, related_to)을 관계 제안으로 바꿉니다. 기본은 dryRun=true 미리보기입니다. dryRun=false면 proposed 상태로 저장하며 승인은 기존 관계 검토 흐름을 따릅니다. 상태와 무관하게 이미 관계 행이 있는 쌍(거절 포함)은 다시 제안하지 않습니다. 로그인 세션 전용입니다.",
-        security: [{ sessionCookie: [] }],
+        description: "추이 관계가 함의하는 A→C(implied)와 근거가 강한 숨은 연결(공통 이웃 3개 이상·공개 위키 동시 언급 3건 이상·의미 유사도 0.8 이상, related_to)을 관계 제안으로 바꿉니다. 기본은 dryRun=true 미리보기입니다. dryRun=false면 proposed 상태로 저장하며 승인은 기존 관계 검토 흐름을 따릅니다. 상태와 무관하게 이미 관계 행이 있는 쌍(거절 포함)은 다시 제안하지 않습니다. 로그인 세션 또는 write API 키로 호출합니다.",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
         requestBody: { required: false, content: { "application/json": { schema: {
           type: "object", additionalProperties: false,
           properties: {
@@ -2008,6 +2008,29 @@ export const openApiSpec = {
         responses: {
           "200": json("제안 목록. dryRun=false면 항목별 outcome(proposed·stale·duplicate·not_found)과 relationId", { type: "object" }),
           "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "403": errorResponse("forbidden"), "429": errorResponse("rate_limited"),
+        },
+      },
+    },
+    "/discovery/relations/curate": {
+      post: {
+        summary: "개념 용어의 관계를 AI로 정리",
+        description: "정의가 있는 개념 용어(제품 모델명 제외)마다 임베딩 이웃의 정의를 비교해, 정의가 뒷받침하는 관계(is_a·part_of·used_in·prerequisite_of·replaces·related_to)만 근거 문장과 함께 제안합니다. termSlugs를 주면 그 용어만, 없으면 개념 용어를 결정적 순서로 offset부터 limit개 처리하고 nextOffset을 돌려줍니다. 요청당 최대 10개(용어마다 모델 호출 1회). 기본은 dryRun=true 미리보기이며 저장해도 proposed입니다. RAG 임베딩 색인이 필요합니다. 한 시간에 30회.",
+        security: [{ sessionCookie: [] }, { apiKey: [] }],
+        requestBody: { required: false, content: { "application/json": { schema: {
+          type: "object", additionalProperties: false,
+          properties: {
+            termSlugs: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 10 },
+            domain: { type: ["string", "null"], maxLength: 100 },
+            offset: { type: "integer", minimum: 0, default: 0 },
+            limit: { type: "integer", minimum: 1, maximum: 10, default: 5 },
+            maxPerTerm: { type: "integer", minimum: 1, maximum: 5, default: 3 },
+            dryRun: { type: "boolean", default: true },
+          },
+        } } } },
+        responses: {
+          "200": json("용어별 relations(source·target·relationType·confidence·evidence·outcome), total, nextOffset", { type: "object" }),
+          "400": errorResponse("validation_failed"), "401": errorResponse("unauthorized"), "403": errorResponse("forbidden"),
+          "429": errorResponse("rate_limited"), "503": errorResponse("ai_not_enabled"),
         },
       },
     },

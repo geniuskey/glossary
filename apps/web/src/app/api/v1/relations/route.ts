@@ -19,8 +19,10 @@ export const GET = withApiErrors(async (request: Request) => {
 export const POST = withApiErrors(async (request: Request) => {
   const auth = await requireAuth(request, "write");
   if (isResponse(auth)) return auth;
-  if (auth.kind !== "user") return apiError("forbidden", "관계 관리는 로그인한 사용자가 수행해야 합니다.", 403);
+  // 제안은 에이전트(API 키)도 할 수 있다. 제안은 proposed로만 저장되고 검색 그래프에는 들어가지 않으며,
+  // 승인·거절·수정(PATCH /relations/{id})은 여전히 로그인한 사람만 한다. 사내 에이전트가 관계 정리를
+  // 끝까지 하려면 제안을 저장할 수 있어야 했다.
   const parsed = relationCreateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("validation_failed", "용어와 관계 종류, 근거를 확인해 주세요.", 400, parsed.error.flatten());
-  return relationResponse(await createRelation(parsed.data, auth.user.id), 201);
+  return relationResponse(await createRelation(parsed.data, auth.kind === "user" ? { userId: auth.user.id } : { keyId: auth.keyId }), 201);
 });

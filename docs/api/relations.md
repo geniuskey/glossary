@@ -9,7 +9,8 @@
 `GET /api/v1/relations/terms?q=검색어`는 관계 편집용 용어 후보 최대 20개와 총계를 반환한다.
 선택한 후보의 `id`, `revision`을 등록에 사용한다.
 
-`POST /api/v1/relations`는 로그인한 사용자가 관계를 **제안**한다.
+`POST /api/v1/relations`는 관계를 **제안**한다. 로그인 세션 또는 write API 키로 호출하며, 키로 만든 제안은
+`createdByKeyId`로 추적된다. 저장은 `proposed`로만 되고 승인·거절·수정(`PATCH`)은 로그인한 사용자만 한다.
 
 ```json
 {

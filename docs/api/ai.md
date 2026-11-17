@@ -513,11 +513,23 @@ read scope, 10분에 6회. 본문 `{ focus?, domain?, maxIdeas? }`(maxIdeas 1~8,
 
 ### `POST /discovery/relations`
 
-로그인 세션 전용. 추이 관계가 함의하는 A→C(`implied`)와 근거가 강한 숨은 연결(공통 이웃 3개 이상,
+로그인 세션 또는 write API 키. 추이 관계가 함의하는 A→C(`implied`)와 근거가 강한 숨은 연결(공통 이웃 3개 이상,
 공개 위키 동시 언급 3건 이상, 의미 유사도 0.8 이상 중 하나 → `related_to`)을 관계 제안으로 바꾼다.
 본문 `{ domain?, kinds?, limit?, dryRun? }`. 기본은 `dryRun: true` 미리보기이고, `false`면 `proposed`
 상태로 저장해 항목별 `outcome`(`proposed`·`stale`·`duplicate`·`not_found`)을 돌려준다. 이미 관계 행이
 있는 쌍(거절 포함)은 다시 제안하지 않는다. 승인할 때마다 다음 발굴이 더 많은 구조를 본다.
+
+### `POST /discovery/relations/curate`
+
+로그인 세션 또는 write API 키, 한 시간에 30회. 정의가 있는 개념 용어(제품 모델명 제외)마다 임베딩 이웃의
+정의를 비교해, 정의가 뒷받침하는 관계(is_a·part_of·used_in·prerequisite_of·replaces·related_to)만 근거
+문장과 함께 제안한다. 본문 `{ termSlugs?, domain?, offset?, limit?, maxPerTerm?, dryRun? }`.
+
+- `termSlugs`(최대 10개)를 주면 그 용어만, 없으면 개념 용어를 결정적 순서로 `offset`부터 `limit`개(최대 10)
+  처리하고 `nextOffset`을 돌려준다(`null`이면 끝). 용어마다 모델 호출 1회라 요청당 10개로 제한한다.
+- 기본은 `dryRun: true` 미리보기. 저장해도 `proposed`이며, 이미 관계 행이 있는 쌍은 후보에서 빠진다.
+- RAG 임베딩 색인이 필요하다. 색인이 없으면 모든 용어의 `candidates`가 0이다.
+- 서버 셸에서는 같은 규칙의 `apps/web/scripts/curate-relations.ts`를 쓸 수 있다.
 
 | HTTP | code | 의미 |
 |---|---|---|

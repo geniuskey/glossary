@@ -50,13 +50,27 @@ test("인증 없는 관계 읽기·쓰기 요청은 차단된다", async () => {
   expect((await PATCH(request("PATCH", {}), { params: Promise.resolve({ id: randomUUID() }) })).status).toBe(401);
 });
 
-test("API 키는 조회만 가능하며 관계 등록·승인은 로그인한 사용자만 수행한다", async () => {
+test("API 키는 관계를 제안할 수 있지만 승인·거절·수정은 로그인한 사용자만 한다", async () => {
+  const f = await fixture();
   const { token, prefix, hash } = generateApiKey();
-  const [key] = await db.insert(apiKeys).values({ name: "관계 조회 테스트", prefix, keyHash: hash, scopes: ["read", "write"] }).returning();
+  const [key] = await db.insert(apiKeys).values({ name: "관계 제안 에이전트", prefix, keyHash: hash, scopes: ["read", "write"] }).returning();
   keyIds.push(key!.id);
   expect((await GET(request("GET", undefined, token))).status).toBe(200);
+  const created = await POST(request("POST", f.input, token));
+  expect(created.status).toBe(201);
+  const { id } = await created.json() as { id: string };
+  const [row] = await db.select().from(termRelations).where(eq(termRelations.id, id));
+  // 사람이 아닌 제안자도 추적한다. 제안은 proposed로만 들어가 검색 그래프에는 쓰이지 않는다.
+  expect(row).toMatchObject({ status: "proposed", createdBy: null, createdByKeyId: key!.id });
+  expect(await approvedRelations(db, [f.source.id])).toEqual([]);
+  expect((await PATCH(request("PATCH", { action: "approved", version: await version(id) }, token), { params: Promise.resolve({ id }) })).status).toBe(403);
+});
+
+test("read 전용 API 키는 관계를 제안할 수 없다", async () => {
+  const { token, prefix, hash } = generateApiKey();
+  const [key] = await db.insert(apiKeys).values({ name: "관계 조회 전용", prefix, keyHash: hash, scopes: ["read"] }).returning();
+  keyIds.push(key!.id);
   expect((await POST(request("POST", {}, token))).status).toBe(403);
-  expect((await PATCH(request("PATCH", {}, token), { params: Promise.resolve({ id: randomUUID() }) })).status).toBe(403);
 });
 
 test("직접 등록 → 승인 → 그래프와 챗봇 반영 → 철회가 같은 관계를 사용한다", async () => {

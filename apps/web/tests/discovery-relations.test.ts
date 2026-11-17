@@ -46,12 +46,18 @@ async function user() {
 
 type Item = { sourceTermId: string; targetTermId: string; relationType: string; confidence: number; outcome?: string };
 
-test("관계 제안은 로그인 사용자만 만들 수 있다", async () => {
+test("인증 없이는 제안할 수 없고, write API 키는 미리보기와 저장 모두 할 수 있다", async () => {
   expect((await POST(request({}))).status).toBe(401);
+  const { a, c } = await chain("KeyImplied");
   const { token, prefix, hash } = generateApiKey();
-  const [key] = await db.insert(apiKeys).values({ name: "발굴 제안 테스트", prefix, keyHash: hash, scopes: ["read", "write"] }).returning();
+  const [key] = await db.insert(apiKeys).values({ name: "발굴 제안 에이전트", prefix, keyHash: hash, scopes: ["read", "write"] }).returning();
   keyIds.push(key!.id);
-  expect((await POST(request({}, token))).status).toBe(403);
+  const preview = await (await POST(request({ kinds: ["implied"], limit: 50 }, token))).json() as { items: Item[] };
+  expect(preview.items.some((item) => item.sourceTermId === a && item.targetTermId === c)).toBe(true);
+  const saved = await (await POST(request({ kinds: ["implied"], limit: 50, dryRun: false }, token))).json() as { items: Item[] };
+  expect(saved.items.find((item) => item.sourceTermId === a && item.targetTermId === c)?.outcome).toBe("proposed");
+  const [row] = await db.select().from(termRelations).where(and(eq(termRelations.sourceTermId, a), eq(termRelations.targetTermId, c)));
+  expect(row).toMatchObject({ status: "proposed", createdBy: null, createdByKeyId: key!.id });
 });
 
 test("함의된 관계를 미리보기로 보여 주고, 저장하면 proposed로만 남기며 다시 제안하지 않는다", async () => {

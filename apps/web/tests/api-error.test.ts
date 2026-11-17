@@ -56,6 +56,7 @@ import * as adminRagConfigTestRoute from "../src/app/api/v1/admin/rag-config/tes
 import * as chatRoute from "../src/app/api/v1/chat/route.js";
 import * as discoveryRoute from "../src/app/api/v1/discovery/route.js";
 import * as discoveryRelationsRoute from "../src/app/api/v1/discovery/relations/route.js";
+import * as discoveryCurateRoute from "../src/app/api/v1/discovery/relations/curate/route.js";
 import * as ragSearchRoute from "../src/app/api/v1/rag/search/route.js";
 import * as ragMeetingSearchRoute from "../src/app/api/v1/rag/meetings/search/route.js";
 import * as ragWikiSearchRoute from "../src/app/api/v1/rag/wiki/search/route.js";
@@ -191,6 +192,7 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "chat", mod: chatRoute, allowed: ["GET", "POST", "PATCH", "DELETE"], allow: "GET, HEAD, POST, PATCH, DELETE" },
   { name: "discovery", mod: discoveryRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
   { name: "discovery/relations", mod: discoveryRelationsRoute, allowed: ["POST"], allow: "POST" },
+  { name: "discovery/relations/curate", mod: discoveryCurateRoute, allowed: ["POST"], allow: "POST" },
   { name: "rag/search", mod: ragSearchRoute, allowed: ["POST"], allow: "POST" },
   { name: "rag/meetings/search", mod: ragMeetingSearchRoute, allowed: ["POST"], allow: "POST" },
   { name: "rag/wiki/search", mod: ragWikiSearchRoute, allowed: ["POST"], allow: "POST" },

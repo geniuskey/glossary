@@ -63,5 +63,6 @@
 발굴 → 관계 제안 → 사람 승인 → 다음 발굴이 더 많은 구조를 본다. 이 순환이 용어집을 "사전"에서 "추론할 수 있는 지식"으로 바꾼다.
 
 - `POST /discovery/relations` 본문 `{"dryRun":true}`로 함의된 관계(A→B→C의 A→C)와 근거가 강한 숨은 연결을 관계 제안 후보로 미리 본다. 이미 관계 행이 있는 쌍은 거절된 것까지 제외된다.
-- 저장(`dryRun:false`)은 **로그인 세션 전용**이다. API 키로는 미리보기 결과를 사용자에게 넘기고, 사용자가 화면에서 실행·승인하게 한다. 저장해도 `proposed` 상태일 뿐이며 승인은 기존 관계 검토에서 한다.
+- 저장(`dryRun:false`)은 로그인 세션 또는 write API 키로 한다. 저장해도 `proposed` 상태일 뿐이며 승인은 사람이 관계 검토에서 한다. 저장 전에 미리보기 목록을 사용자에게 보여 준다.
+- 개념 용어 전체의 관계는 `POST /discovery/relations/curate`로 페이지 단위로 정리한다. 절차와 완료 기준은 `references/organize.md` 4절.
 - `knowledge_debt` 신호의 용어는 정의 보강 후보로 `references/curation.md` 루틴에 넘긴다.

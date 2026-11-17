@@ -1,6 +1,6 @@
 ---
 name: glossary
-description: Manage this project's glossary terms, their surfaces and semantic relations, and wiki knowledge pages through the Glossary UI or /api/v1. Use whenever a user asks an agent to find, explain, compare, create, edit, organize, review, curate, or publish terminology or wiki content, including requests phrased in Korean as 용어, 용어집, 표기, 관계, 위키, 업무 지식, or 정리. Also use when turning meeting notes or source documents into proposed glossary or wiki updates, or when cleaning up duplicates, missing definitions, unclassified terms, and unregistered term candidates. Also use when asked to discover new challenges, opportunities, hidden connections, or research hypotheses grounded in the organization's glossary (새로운 도전, 기회, 숨은 연결, 아무도 시도하지 않은).
+description: Manage this project's glossary terms, their surfaces and semantic relations, and wiki knowledge pages through the Glossary UI or /api/v1. Use whenever a user asks an agent to find, explain, compare, create, edit, organize, review, curate, or publish terminology or wiki content, including requests phrased in Korean as 용어, 용어집, 표기, 관계, 위키, 업무 지식, or 정리. Also use when turning meeting notes or source documents into proposed glossary or wiki updates, or when cleaning up duplicates, missing definitions, unclassified terms, and unregistered term candidates. Also use when asked to organize an entire organization's knowledge into the glossary, or to discover new challenges, opportunities, hidden connections, or research hypotheses grounded in the organization's glossary (새로운 도전, 기회, 숨은 연결, 아무도 시도하지 않은).
 ---
 
 # Glossary 관리
@@ -18,7 +18,7 @@ description: Manage this project's glossary terms, their surfaces and semantic r
 
 아래는 사람의 세션이 필요하다. API 키로 시도하지 말고 **근거를 갖춘 변경안**을 만들어 사용자에게 넘긴다.
 
-- 관계 제안·승인·거절 (`POST /relations`, `PATCH /relations/{id}`) — 로그인 사용자 세션
+- 관계 승인·거절·수정 (`PATCH /relations/{id}`) — 로그인 사용자 세션. **제안**(`POST /relations`, `POST /discovery/relations`, `POST /discovery/relations/curate`)은 write API 키로 할 수 있으며 `proposed`로만 저장된다
 - 위키 `published`·`archived` 전환, 공개 문서 유지 상태에서의 수정 — 관리자 세션
 - 용어 삭제 — 관리자 세션
 - AI 제안의 "저장"(`/contributions/suggestion-dispositions`) — 로그인 사용자 세션
@@ -27,6 +27,7 @@ description: Manage this project's glossary terms, their surfaces and semantic r
 
 - `references/api-usage.md` — 호출 순서, 요청 예시, 오류 대응. API로 작업하기 전에 읽는다.
 - `references/curation.md` — 중복, 빈 정의, 미분류, 미등록 후보를 정리하는 루틴. "정리해줘" 류 요청에 읽는다.
+- `references/organize.md` — 용어집 **전체**를 정리하는 순서(현황 진단 → 중복 → 정의 → 관계 → 발굴 → 기록)와 단계별 완료 기준. "용어집 전체를 정리해줘", "추론할 수 있게 만들어줘" 류 요청에 가장 먼저 읽는다.
 - `references/discovery.md` — 용어 그래프의 빈틈(`GET /discovery`)에서 새 도전 가설을 만들고 스스로 반박·검증하는 절차. "새로운 도전·기회·숨은 연결" 류 요청에 읽는다.
 - 최신 필드와 오류 코드는 항상 서버의 `GET /api/v1/openapi`가 기준이다.
 
@@ -46,7 +47,7 @@ description: Manage this project's glossary terms, their surfaces and semantic r
 - `domain`으로 동음이의어를 구별한다. `domain`과 `category`에는 관리된 key만 쓴다. 목록은 `GET /admin/domains`, `GET /admin/categories`(read scope)로 얻는다. 새 분류를 임의로 만들지 않는다.
 - 등록 응답의 `warnings`는 표기 충돌 신호이므로 각 후보를 다시 검토한다. 대표명이 다른 용어와 겹치면 400으로 거부된다.
 - 여러 용어는 `POST /terms/batch`의 기본 `dryRun: true`로 먼저 검토한다. 반영 시 `Idempotency-Key`와 수정 행의 `expectedRevision`을 넣고 행별 `outcome`을 확인한다. 실패한 행만 고쳐 다시 검토한다.
-- 의미 관계는 `GET /relations`와 양쪽 용어의 현재 리비전을 확인한다. 오래된 관계를 현재 사실처럼 인용하지 않는다. 관계 생성·승인은 위의 세션 제약을 따른다.
+- 의미 관계는 `GET /relations`와 양쪽 용어의 현재 리비전을 확인한다. 오래된 관계를 현재 사실처럼 인용하지 않는다. 관계 제안은 write 키로 할 수 있고, 승인은 위의 세션 제약을 따른다.
 
 ## 위키
 

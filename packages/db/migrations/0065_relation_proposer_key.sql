@@ -1,0 +1,2 @@
+ALTER TABLE "term_relations" ADD COLUMN "created_by_key_id" uuid;--> statement-breakpoint
+ALTER TABLE "term_relations" ADD CONSTRAINT "term_relations_created_by_key_id_api_keys_id_fk" FOREIGN KEY ("created_by_key_id") REFERENCES "public"."api_keys"("id") ON DELETE set null ON UPDATE no action;

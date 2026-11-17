@@ -198,6 +198,7 @@ export default async function ApiPage() {
               <Endpoint method="GET" path="/terms/{idOrSlug}/revisions" scope="read">수정 이력을 조회합니다. 첫 항목의 revisionNumber가 최신 리비전입니다.</Endpoint>
               <Endpoint method="GET" path="/terms/catalog" scope="read">전체 용어·표기·리비전을 한 번에 내려받습니다.</Endpoint>
               <Endpoint method="GET" path="/relations" scope="read">용어 사이의 의미 관계를 조회합니다.</Endpoint>
+              <Endpoint method="POST" path="/relations" scope="write">의미 관계를 제안합니다. proposed로만 저장되고 승인은 로그인한 사용자가 합니다.</Endpoint>
             </EndpointGroup>
             <EndpointGroup title="등록하고 편집하기">
               <Endpoint method="POST" path="/terms" scope="write">새 용어와 추가 표기를 등록합니다.</Endpoint>
@@ -224,7 +225,8 @@ export default async function ApiPage() {
               <Endpoint method="POST" path="/rag/search" scope="read">색인된 용어집에서 의미 기반 검색을 수행합니다.</Endpoint>
               <Endpoint method="GET" path="/discovery" scope="read">용어 그래프의 빈틈(숨은 연결·다리 용어·사일로·함의 관계·지식 부채)을 AI 없이 계산합니다.</Endpoint>
               <Endpoint method="POST" path="/discovery" scope="read">빈틈을 근거로 새 도전 가설을 만들고 비평·채점한 결과를 받습니다.</Endpoint>
-              <Endpoint method="POST" path="/discovery/relations" scope="write">함의된 관계·강한 숨은 연결을 관계 제안으로 미리 보거나 저장합니다(저장은 로그인 세션).</Endpoint>
+              <Endpoint method="POST" path="/discovery/relations" scope="write">함의된 관계·강한 숨은 연결을 관계 제안으로 미리 보거나 저장합니다.</Endpoint>
+              <Endpoint method="POST" path="/discovery/relations/curate" scope="write">개념 용어마다 의미가 가까운 용어의 정의를 비교해 관계를 제안합니다(요청당 10개, nextOffset으로 이어 부르기).</Endpoint>
             </EndpointGroup>
             <EndpointGroup title="계약 확인">
               <Endpoint method="GET" path="/openapi" scope="public">실제 서버가 제공하는 OpenAPI 스펙을 JSON으로 받습니다.</Endpoint>

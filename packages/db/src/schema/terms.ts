@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean, check, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid,
 } from "drizzle-orm/pg-core";
-import { users } from "./auth";
+import { apiKeys, users } from "./auth";
 
 export const termQualityProfileEnum = pgEnum("term_quality_profile", [
   "auto", "mapping", "context", "guidance",
@@ -153,6 +153,8 @@ export const termRelations = pgTable(
     sourceRevision: integer("source_revision"),
     targetRevision: integer("target_revision"),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    // 에이전트가 API 키로 제안한 관계. 리비전·위키의 authorKeyId와 같은 이유로, 사람이 아닌 제안자도 추적한다.
+    createdByKeyId: uuid("created_by_key_id").references(() => apiKeys.id, { onDelete: "set null" }),
     reviewedBy: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),

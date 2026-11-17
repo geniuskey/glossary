@@ -4,7 +4,7 @@ import { inArray, or, sql } from "drizzle-orm";
 import { termRelations, termRevisions, terms } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { displayName } from "@/lib/ui/format";
-import { createRelation } from "@/lib/terms/relations";
+import { createRelation, type RelationProposer } from "@/lib/terms/relations";
 import { loadSimilarities } from "@/lib/discovery/load";
 import { relationPairKey } from "@/lib/discovery/proposals";
 import { NEAR_DUPLICATE_SIMILARITY } from "@/lib/discovery/signals";
@@ -43,7 +43,7 @@ export interface CurationOutcome {
 export async function curateTermRelations(
   config: AiRuntimeConfig,
   termId: string,
-  options: { dryRun: boolean; userId: string; maxPerTerm?: number; telemetry?: AiRunContext },
+  options: { dryRun: boolean; proposer: RelationProposer; maxPerTerm?: number; telemetry?: AiRunContext },
 ): Promise<CurationOutcome | null> {
   const db = getDb();
   const neighbors = (await loadSimilarities([termId])) ?? [];
@@ -92,7 +92,7 @@ export async function curateTermRelations(
       confidence: judgment.confidence,
       sourceRevision: revisionOf.get(source) ?? 0,
       targetRevision: revisionOf.get(target) ?? 0,
-    }, options.userId);
+    }, options.proposer);
     outcome.judgments.push({ ...judgment, outcome: "ok" in result ? "proposed" : result.error });
   }
   return outcome;

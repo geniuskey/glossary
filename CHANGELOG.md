@@ -23,6 +23,10 @@
 - 관계 정리 에이전트(`apps/web/scripts/curate-relations.ts`): 정의가 있는 개념 용어(제품 모델명 제외)마다
   임베딩 이웃을 후보로 두고, 두 정의를 비교해 is_a·part_of·used_in·prerequisite_of·replaces·related_to 중
   성립하는 관계만 근거 문장과 함께 `proposed`로 쌓는다. 기본은 미리보기, `--apply`로 저장. 승인은 관계 검토에서
+- `POST /api/v1/discovery/relations/curate`: 관계 정리 에이전트를 API로 노출. 요청당 개념 용어 10개,
+  `nextOffset`으로 전체 용어집을 이어 처리한다. 기본은 미리보기
+- 에이전트 스킬에 `references/organize.md`: 용어집 전체를 정리하는 순서(현황 진단 → 중복 → 정의 → 관계 →
+  발굴 → 기록)와 단계별 완료 기준
 - `POST /api/v1/discovery/relations`: 함의된 관계(A→B→C의 A→C)와 근거가 강한 숨은 연결을 관계
   제안으로 만든다. 기본은 미리보기이며, 저장해도 `proposed` 상태로 기존 승인 흐름을 탄다. 거절된 쌍은
   다시 제안하지 않는다
@@ -36,6 +40,14 @@
   "N초 안에 오지 않았습니다"로 알린다
 - 챗봇 스트림이 긴 작업 중 바이트 없이 멈춰 있어 프록시의 유휴 시간 제한에 끊길 수 있던 문제.
   15초마다 keep-alive를 보낸다
+
+### Changed
+
+- **write API 키로 관계를 제안할 수 있다**(`POST /relations`, `POST /discovery/relations`,
+  `POST /discovery/relations/curate`). 제안은 `proposed`로만 저장되어 검색 그래프에 들어가지 않고,
+  승인·거절·수정은 여전히 로그인한 사용자만 한다. 키로 만든 제안은 새 컬럼 `created_by_key_id`로
+  어느 키가 올렸는지 남는다(마이그레이션 `0065_relation_proposer_key`). 사내 에이전트가 관계 정리를
+  끝까지 할 수 있게 하려는 변경이다
 
 ## 0.3.7 — 2026-11-17
 

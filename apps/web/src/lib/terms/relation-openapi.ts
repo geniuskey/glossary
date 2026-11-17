@@ -32,7 +32,7 @@ export const relationPaths = {
       ], responses: { "200": { description: "관계 목록", content: json({ type: "object", required: ["items", "total", "page"], properties: { items: { type: "array", items: relation }, total: { type: "integer" }, page: { type: "integer" } } }) }, ...errors },
     },
     post: {
-      summary: "의미 관계 제안", description: "로그인한 사용자 전용. proposed로 저장됩니다. 양쪽 용어의 조회 당시 리비전이 필요하며 동일 출발·도착·종류 중복은 409입니다.", security: [{ sessionCookie: [] }],
+      summary: "의미 관계 제안", description: "로그인 세션 또는 write API 키. proposed로만 저장되며 승인·거절·수정(PATCH)은 로그인한 사용자만 합니다. API 키로 만든 제안은 createdByKeyId로 추적됩니다. 양쪽 용어의 조회 당시 리비전이 필요하며 동일 출발·도착·종류 중복은 409입니다.", security: [{ sessionCookie: [] }, { apiKey: [] }],
       requestBody: { required: true, content: json({ type: "object", additionalProperties: false, required: ["sourceTermId", "targetTermId", ...Object.keys(fields)], properties: { sourceTermId: uuid, targetTermId: uuid, ...fields } }) },
       responses: { "201": { description: "제안 생성", content: json(idResponse) }, ...errors },
     },
