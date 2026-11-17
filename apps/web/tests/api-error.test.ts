@@ -23,6 +23,8 @@ import * as termPasteCheckRoute from "../src/app/api/v1/terms/paste-check/route.
 import * as termIdOrSlugRoute from "../src/app/api/v1/terms/[idOrSlug]/route.js";
 import * as termAiReviewRoute from "../src/app/api/v1/terms/[idOrSlug]/ai-review/route.js";
 import * as termRevisionsRoute from "../src/app/api/v1/terms/[idOrSlug]/revisions/route.js";
+import * as termCommentsRoute from "../src/app/api/v1/terms/[idOrSlug]/comments/route.js";
+import * as termCommentRoute from "../src/app/api/v1/terms/[idOrSlug]/comments/[commentId]/route.js";
 import * as openapiRoute from "../src/app/api/v1/openapi/route.js";
 import * as importRoute from "../src/app/api/v1/import/route.js";
 import * as importReviewRoute from "../src/app/api/v1/import/review/route.js";
@@ -136,6 +138,8 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   // Task 10: 리비전 이력 라우트는 GET만 처리한다. 이 행이 없으면 POST/PUT/
   // PATCH/DELETE 스텁이 통째로 빠져도 아무 테스트도 못 잡는다.
   { name: "terms/[idOrSlug]/revisions", mod: termRevisionsRoute, allowed: ["GET"], allow: "GET, HEAD" },
+  { name: "terms/[idOrSlug]/comments", mod: termCommentsRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
+  { name: "terms/[idOrSlug]/comments/[commentId]", mod: termCommentRoute, allowed: ["PATCH", "DELETE"], allow: "PATCH, DELETE" },
   // Task 15: 스펙 라우트. GET만 처리한다.
   { name: "openapi", mod: openapiRoute, allowed: ["GET"], allow: "GET, HEAD" },
   // Task 14(R118): import 라우트는 POST만 처리한다. 이 행이 없으면 이

@@ -16,3 +16,4 @@ export * from "./security";
 export * from "./candidates";
 export * from "./ontology";
 export * from "./sync";
+export * from "./comments";

@@ -1,6 +1,6 @@
 import "server-only";
 import { asc, eq, inArray, sql } from "drizzle-orm";
-import { terms, termSurfaces, termRevisions } from "@glossary/db";
+import { termComments, terms, termSurfaces, termRevisions } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import { termInputSchema } from "./schema";
 import { mergeContent, type MergeContent } from "./merge-values";
@@ -54,6 +54,8 @@ export async function mergeTerms(sourceId: string, targetId: string, sourceRevis
       const [archived] = await writeTx.update(terms).set({ replacedById: targetId, updatedAt: new Date(), ...(authorId ? { updatedBy: authorId } : {}) })
         .where(eq(terms.id, sourceId)).returning();
       await writeTx.update(terms).set({ replacedById: targetId }).where(eq(terms.replacedById, sourceId));
+      // 병합된 쪽 화면은 대상으로 리다이렉트되므로, 댓글을 옮기지 않으면 그 토론은 어디서도 보이지 않는다.
+      await writeTx.update(termComments).set({ termId: targetId }).where(eq(termComments.termId, sourceId));
       await writeTx.insert(termRevisions).values({ termId: sourceId, revisionNumber: sourceRevision + 1,
         snapshot: { term: archived!, surfaces: surfaces.filter((s) => s.termId === sourceId) },
         message: `merged into /${target.slug}`, authorId, authorKeyId });

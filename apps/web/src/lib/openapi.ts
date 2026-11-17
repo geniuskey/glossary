@@ -184,6 +184,22 @@ export const openApiSpec = {
           } } },
         },
       },
+      TermComment: {
+        type: "object",
+        required: ["id", "parentId", "authorId", "authorName", "body", "mentionedUserIds", "createdAt", "updatedAt", "edited", "deleted"],
+        properties: {
+          id: { type: "string", format: "uuid" },
+          parentId: { type: ["string", "null"], format: "uuid" },
+          authorId: { type: ["string", "null"], format: "uuid" },
+          authorName: { type: ["string", "null"] },
+          body: { type: "string", description: "멘션은 `@[이름](user:<uuid>)`" },
+          mentionedUserIds: { type: "array", items: { type: "string", format: "uuid" } },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+          edited: { type: "boolean" },
+          deleted: { type: "boolean" },
+        },
+      },
       TermDetail: {
         allOf: [
           { $ref: "#/components/schemas/TermSummary" },
@@ -2379,6 +2395,77 @@ export const openApiSpec = {
         parameters: [{ name: "idOrSlug", in: "path", required: true, schema: { type: "string" } }],
         responses: {
           "200": json("리비전 목록", { type: "array", items: { type: "object" } }),
+          "404": errorResponse("not_found"),
+        },
+      },
+    },
+    "/terms/{idOrSlug}/comments": {
+      get: {
+        summary: "용어 댓글 목록 (작성순, 평평한 목록)",
+        description:
+          "답글은 parentId로 부모를 가리킨다. 삭제된 댓글은 deleted=true, body=\"\"로 자리만 남는다. " +
+          "본문의 멘션은 `@[이름](user:<uuid>)` 형식이다.",
+        parameters: [{ name: "idOrSlug", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": json("{ comments }", { type: "object", required: ["comments"], properties: { comments: { type: "array", items: { $ref: "#/components/schemas/TermComment" } } } }),
+          "404": errorResponse("term_not_found"),
+        },
+      },
+      post: {
+        summary: "댓글 또는 답글 작성 (로그인한 사용자만, API 키 불가)",
+        parameters: [{ name: "idOrSlug", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["body"],
+                additionalProperties: false,
+                properties: {
+                  body: { type: "string", minLength: 1, maxLength: 4000 },
+                  parentId: { type: ["string", "null"], format: "uuid", description: "답글을 달 댓글 id" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": json("{ comment }", { type: "object", properties: { comment: { $ref: "#/components/schemas/TermComment" } } }),
+          "400": errorResponse("validation_failed"),
+          "403": errorResponse("forbidden"),
+          "404": errorResponse("not_found"),
+          "429": errorResponse("rate_limited"),
+        },
+      },
+    },
+    "/terms/{idOrSlug}/comments/{commentId}": {
+      patch: {
+        summary: "본인 댓글 수정",
+        parameters: [
+          { name: "idOrSlug", in: "path", required: true, schema: { type: "string" } },
+          { name: "commentId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+        ],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { type: "object", required: ["body"], additionalProperties: false, properties: { body: { type: "string", minLength: 1, maxLength: 4000 } } } } },
+        },
+        responses: {
+          "200": json("{ comment }", { type: "object", properties: { comment: { $ref: "#/components/schemas/TermComment" } } }),
+          "400": errorResponse("validation_failed"),
+          "403": errorResponse("forbidden"),
+          "404": errorResponse("not_found"),
+        },
+      },
+      delete: {
+        summary: "댓글 삭제 (본인 또는 관리자). 답글 맥락을 위해 자리는 남는다.",
+        parameters: [
+          { name: "idOrSlug", in: "path", required: true, schema: { type: "string" } },
+          { name: "commentId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+        ],
+        responses: {
+          "200": json("{ comment }", { type: "object", properties: { comment: { $ref: "#/components/schemas/TermComment" } } }),
+          "403": errorResponse("forbidden"),
           "404": errorResponse("not_found"),
         },
       },

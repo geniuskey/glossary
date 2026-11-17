@@ -19,6 +19,9 @@ import { displayName, relativeTime } from "@/lib/ui/format";
 import { getTermQualitySettings } from "@/lib/workspace/term-quality";
 import { mergedDestination } from "@/lib/terms/merge";
 import { listWikiPagesForTerm } from "@/lib/wiki/store";
+import { listComments } from "@/lib/comments/store";
+import { listAssignableUsers } from "@/lib/terms/owners";
+import { TermComments } from "@/components/term-comments";
 
 // F6/P1: `Record<유니온, T>` + 폴백 없음. SurfaceKind에 값이 추가되면 tsc가 여기서 막는다.
 const KIND_LABEL: Record<SurfaceKind, string> = {
@@ -138,10 +141,12 @@ export async function TermDetailPage({
     ? term.surfaces.find((s) => s.kind !== "canonical" && surfaceKeys(s.text).normLoose === fromKey)
     : undefined;
 
-  const [qualitySettings, relatedTerms, wikiPages] = await Promise.all([
+  const [qualitySettings, relatedTerms, wikiPages, comments, mentionUsers] = await Promise.all([
     getTermQualitySettings(),
     listRelatedTerms(term, 6),
     listWikiPagesForTerm(term.id, 6),
+    listComments(term.id),
+    listAssignableUsers(),
   ]);
   const completion = termCompletion(term, qualitySettings);
   const graphHref = term.category
@@ -378,6 +383,15 @@ export async function TermDetailPage({
           </section>
         )}
       </article>
+
+      <div className="mt-4 rounded-2xl border border-line bg-panel p-5 sm:p-8">
+        <TermComments
+          termSlug={term.slug}
+          viewer={{ id: user.id, role: user.role }}
+          users={mentionUsers}
+          initialComments={comments}
+        />
+      </div>
     </AppShell>
   );
 }
