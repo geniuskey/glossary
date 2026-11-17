@@ -184,6 +184,20 @@ export const openApiSpec = {
           } } },
         },
       },
+      Notification: {
+        type: "object",
+        required: ["id", "kind", "createdAt", "read", "actorName", "excerpt", "term", "href"],
+        properties: {
+          id: { type: "string", format: "uuid" },
+          kind: { type: "string", enum: ["comment_mention", "comment_reply"] },
+          createdAt: { type: "string", format: "date-time" },
+          read: { type: "boolean" },
+          actorName: { type: ["string", "null"] },
+          excerpt: { type: "string" },
+          term: { type: "object", required: ["slug", "name"], properties: { slug: { type: "string" }, name: { type: "string" } } },
+          href: { type: "string", description: "댓글로 바로 가는 화면 경로" },
+        },
+      },
       TermComment: {
         type: "object",
         required: ["id", "parentId", "authorId", "authorName", "body", "mentionedUserIds", "createdAt", "updatedAt", "edited", "deleted"],
@@ -350,6 +364,37 @@ export const openApiSpec = {
   },
   paths: {
     ...relationPaths,
+    "/notifications": {
+      get: {
+        summary: "내 알림 (최신 20개)과 안 읽은 개수",
+        description: "댓글 멘션(comment_mention)과 내 댓글에 달린 답글(comment_reply). 한 댓글에서 한 사람에게는 하나만 가며 멘션이 우선이다. 지워진 댓글의 알림은 나오지 않는다.",
+        security: [{ sessionCookie: [] }],
+        responses: {
+          "200": json("{ items, unreadCount }", {
+            type: "object",
+            required: ["items", "unreadCount"],
+            properties: { items: { type: "array", items: { $ref: "#/components/schemas/Notification" } }, unreadCount: { type: "integer" } },
+          }),
+          "401": errorResponse("unauthorized"),
+        },
+      },
+    },
+    "/notifications/read": {
+      post: {
+        summary: "알림 읽음 처리. ids를 빼면 전부 읽음",
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: false, content: { "application/json": { schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: { ids: { type: "array", maxItems: 200, items: { type: "string", format: "uuid" } } },
+        } } } },
+        responses: {
+          "200": json("{ updated }", { type: "object", required: ["updated"], properties: { updated: { type: "integer" } } }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+        },
+      },
+    },
     "/account": {
       patch: {
         summary: "현재 사용자의 표시 이름 변경",

@@ -2,6 +2,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { termComments, users } from "@glossary/db";
 import { getDb } from "@/lib/db";
 import type { CurrentUser } from "@/lib/auth/current-user";
+import { clearCommentNotifications, syncCommentNotifications } from "@/lib/notifications/store";
 import { mentionedUserIds } from "./mentions";
 import type { TermCommentWire } from "./tree";
 
@@ -74,22 +75,29 @@ async function verifiedMentions(body: string): Promise<string[]> {
 }
 
 export async function createComment(input: { termId: string; parentId?: string | null; body: string; author: CurrentUser }): Promise<CommentWriteResult> {
+  let parentAuthorId: string | null = null;
   if (input.parentId) {
     // 다른 용어의 댓글 id를 parentId로 넣으면 트리가 용어 경계를 넘는다. FK는 그걸 막지 못한다.
     const parent = await loadComment(input.termId, input.parentId);
     if (!parent) return { ok: false, code: "not_found", message: "답글을 달 댓글을 찾을 수 없습니다." };
     if (parent.deletedAt) return { ok: false, code: "validation_failed", message: "삭제된 댓글에는 답글을 달 수 없습니다." };
+    parentAuthorId = parent.authorId;
   }
-  const [row] = await getDb()
-    .insert(termComments)
-    .values({
-      termId: input.termId,
-      parentId: input.parentId ?? null,
-      authorId: input.author.id,
-      body: input.body,
-      mentionedUserIds: await verifiedMentions(input.body),
-    })
-    .returning();
+  const mentions = await verifiedMentions(input.body);
+  const row = await getDb().transaction(async (tx) => {
+    const [inserted] = await tx
+      .insert(termComments)
+      .values({
+        termId: input.termId,
+        parentId: input.parentId ?? null,
+        authorId: input.author.id,
+        body: input.body,
+        mentionedUserIds: mentions,
+      })
+      .returning();
+    await syncCommentNotifications(tx, { commentId: inserted!.id, termId: input.termId, actorId: input.author.id, mentionedUserIds: mentions, parentAuthorId });
+    return inserted;
+  });
   return { ok: true, comment: toWire({ ...row!, authorName: input.author.name }) };
 }
 
@@ -98,11 +106,19 @@ export async function updateComment(input: { termId: string; id: string; body: s
   if (!existing || existing.deletedAt) return { ok: false, code: "not_found", message: "댓글을 찾을 수 없습니다." };
   // 관리자라도 남의 글을 고치지 않는다 — 이름이 그대로 붙은 채 내용이 바뀌면 그 사람이 한 말이 된다.
   if (existing.authorId !== input.user.id) return { ok: false, code: "forbidden", message: "본인이 쓴 댓글만 수정할 수 있습니다." };
-  const [row] = await getDb()
-    .update(termComments)
-    .set({ body: input.body, mentionedUserIds: await verifiedMentions(input.body), updatedAt: new Date() })
-    .where(eq(termComments.id, input.id))
-    .returning();
+  const mentions = await verifiedMentions(input.body);
+  // 부모가 그 사이 지워졌으면 답글 알림은 더 만들지 않는다. 지운 댓글의 작성자는 화면에서 사라진 사람이다.
+  const parent = existing.parentId ? await loadComment(input.termId, existing.parentId) : null;
+  const parentAuthorId = parent && !parent.deletedAt ? parent.authorId : null;
+  const row = await getDb().transaction(async (tx) => {
+    const [updated] = await tx
+      .update(termComments)
+      .set({ body: input.body, mentionedUserIds: mentions, updatedAt: new Date() })
+      .where(eq(termComments.id, input.id))
+      .returning();
+    await syncCommentNotifications(tx, { commentId: input.id, termId: input.termId, actorId: input.user.id, mentionedUserIds: mentions, parentAuthorId });
+    return updated;
+  });
   return { ok: true, comment: toWire({ ...row!, authorName: existing.authorName }) };
 }
 
@@ -113,10 +129,15 @@ export async function deleteComment(input: { termId: string; id: string; user: C
     return { ok: false, code: "forbidden", message: "본인이 쓴 댓글만 삭제할 수 있습니다." };
   }
   // 행을 지우면 FK cascade로 답글까지 사라진다. 본문만 비우고 자리를 남긴다.
-  const [row] = await getDb()
-    .update(termComments)
-    .set({ body: "", mentionedUserIds: [], deletedAt: new Date() })
-    .where(eq(termComments.id, input.id))
-    .returning();
+  // 행이 남으므로 FK cascade가 알림을 지워 주지 않는다. 지운 댓글로 가는 알림이 남지 않게 함께 지운다.
+  const row = await getDb().transaction(async (tx) => {
+    const [deleted] = await tx
+      .update(termComments)
+      .set({ body: "", mentionedUserIds: [], deletedAt: new Date() })
+      .where(eq(termComments.id, input.id))
+      .returning();
+    await clearCommentNotifications(tx, input.id);
+    return deleted;
+  });
   return { ok: true, comment: toWire({ ...row!, authorName: null }) };
 }

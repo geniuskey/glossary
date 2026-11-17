@@ -211,7 +211,8 @@ function CommentItem({
   const mentionsMe = node.mentionedUserIds.includes(ctx.viewer.id);
   return (
     <li className="min-w-0">
-      <div className={`rounded-lg px-3 py-2.5 ${mentionsMe ? "bg-warn-soft/40" : ""}`}>
+      {/* 알림 링크(#comment-<id>)가 가리키는 자리. 상단 고정 바에 가리지 않게 scroll-mt를 둔다. */}
+      <div id={`comment-${node.id}`} className={`scroll-mt-28 rounded-lg px-3 py-2.5 target:ring-2 target:ring-brand/40 ${mentionsMe ? "bg-warn-soft/40" : ""}`}>
         {node.deleted ? (
           <p className="text-sm italic text-ink-3">삭제된 댓글입니다.</p>
         ) : (
@@ -322,6 +323,21 @@ export function TermComments({
     },
   };
   const count = countVisibleComments(tree);
+
+  useEffect(() => {
+    // 같은 용어 화면에서 알림을 누르면 해시만 바뀌고 페이지는 다시 그려지지 않는다.
+    // 가리키는 댓글이 지금 목록에 없으면 다시 읽은 뒤 그 자리로 스크롤한다.
+    async function reveal() {
+      const id = window.location.hash.match(/^#comment-([0-9a-f-]{36})$/i)?.[1];
+      if (!id || document.getElementById(`comment-${id}`)) return;
+      try {
+        await refresh();
+        requestAnimationFrame(() => document.getElementById(`comment-${id}`)?.scrollIntoView({ block: "start" }));
+      } catch { /* 목록을 다시 읽지 못해도 화면은 그대로 둔다. */ }
+    }
+    window.addEventListener("hashchange", reveal);
+    return () => window.removeEventListener("hashchange", reveal);
+  });
 
   return (
     <section aria-labelledby="comments-heading">

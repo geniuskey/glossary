@@ -8,6 +8,8 @@ import * as loginRoute from "../src/app/api/v1/auth/login/route.js";
 import * as logoutRoute from "../src/app/api/v1/auth/logout/route.js";
 import * as registerRoute from "../src/app/api/v1/auth/register/route.js";
 import * as accountRoute from "../src/app/api/v1/account/route.js";
+import * as notificationsRoute from "../src/app/api/v1/notifications/route.js";
+import * as notificationsReadRoute from "../src/app/api/v1/notifications/read/route.js";
 import * as agentKeysRoute from "../src/app/api/v1/admin/users/[id]/keys/route.js";
 import * as adminWikiExportRoute from "../src/app/api/v1/admin/exports/wiki/route.js";
 import * as accountSsoRefreshRoute from "../src/app/api/v1/account/sso-refresh/route.js";
@@ -110,6 +112,8 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "auth/logout", mod: logoutRoute, allowed: ["POST"], allow: "POST" },
   { name: "auth/register", mod: registerRoute, allowed: ["POST"], allow: "POST" },
   { name: "account", mod: accountRoute, allowed: ["PATCH", "DELETE"], allow: "PATCH, DELETE" },
+  { name: "notifications", mod: notificationsRoute, allowed: ["GET"], allow: "GET, HEAD" },
+  { name: "notifications/read", mod: notificationsReadRoute, allowed: ["POST"], allow: "POST" },
   { name: "account/sso-refresh", mod: accountSsoRefreshRoute, allowed: ["POST"], allow: "POST" },
   { name: "health", mod: healthRoute, allowed: ["GET"], allow: "GET, HEAD" },
   { name: "keys", mod: keysRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },

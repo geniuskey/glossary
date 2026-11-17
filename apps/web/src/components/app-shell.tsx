@@ -6,6 +6,7 @@ import { cx } from "@/lib/ui/format";
 import { getWorkspaceMenuSettings } from "@/lib/workspace/menu-settings";
 import { isWorkspaceMenuKey, type ResolvedWorkspaceMenuSettings } from "@/lib/workspace/menu-settings-values";
 import { AccountMenu } from "./account-menu";
+import { NotificationMenu } from "./notification-menu";
 import { CollapsibleSidebar } from "./collapsible-sidebar";
 import { SearchBox } from "./search-box";
 
@@ -163,6 +164,7 @@ export async function AppShell({
                 <IconPlus />
                 <span className="hidden sm:inline">용어 추가</span>
               </Link>}
+              {user && <NotificationMenu />}
               {user && <AccountMenu user={user} current={current} placement="topbar" />}
             </div>
           </div>
