@@ -319,7 +319,7 @@ bash scripts/restore.sh --force /srv/glossary-backups/glossary-20260828-030000.d
 사람이 옮긴다. 옮기는 대상은 용어·표기·옛 주소·도메인·업무 분류·승인된 관계·위키·본문 이미지다.
 사용자 계정, 담당자, AI 설정, 검토 대기열은 옮기지 않는다.
 
-- **관리자 화면:** 관리자 > 서버 동기화. 보내는 쪽에서 "전체 번들" 또는 "변경분"을 내려받고,
+- **관리자 화면:** 관리자 > 백업 · 동기화. 보내는 쪽에서 "전체 번들" 또는 "변경분"을 내려받고,
   받는 쪽에서 미리보기 → 반영한다.
 - **CLI (소스 설치):** `pnpm --filter @glossary/web exec tsx scripts/sync.ts <export|import|status>`
 - **CLI (Docker 설치):** worker 이미지에 들어 있다.

@@ -25,7 +25,8 @@ import { SsoSettingsForm } from "@/app/settings/sso/sso-settings-form";
 import { BrandSettingsPanel } from "./brand-settings-panel";
 import { MenuSettingsPanel } from "./menu-settings-panel";
 import { AdminOverviewPanel } from "./admin-overview-panel";
-import { ADMIN_NAV_GROUPS, AdminNavigation, type AdminTab } from "./admin-navigation";
+import { ADMIN_NAV_GROUPS, ADMIN_TAB_ALIASES, AdminNavigation, adminTabHref, type AdminTab } from "./admin-navigation";
+import { AdminPanelHeader } from "./admin-ui";
 
 export const metadata = { title: "관리자" };
 
@@ -40,6 +41,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   const rawTab = (await searchParams).tab;
   const requestedTab = Array.isArray(rawTab) ? rawTab[0] : rawTab;
+  const alias = requestedTab ? ADMIN_TAB_ALIASES[requestedTab] : undefined;
+  if (alias) redirect(adminTabHref(alias));
   const tab: AdminTab = isAdminTab(requestedTab) ? requestedTab : "overview";
 
   let panel: ReactNode;
@@ -104,16 +107,26 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     const [config, stats] = await Promise.all([loadRagConfig(), getRagIndexStats()]);
     panel = <RagSettingsPanel initialConfig={publicRagConfig(config, stats)} />;
   }
-  else if (tab === "data") panel = <DataExportPanel />;
-  else if (tab === "sync") panel = <SyncPanel initialStatus={await getSyncStatus()} />;
+  else if (tab === "data") panel = (
+    <section aria-labelledby="admin-data-heading">
+      <AdminPanelHeader
+        id="admin-data-heading"
+        title="백업 · 동기화"
+        description="전체 용어집을 백업용 스냅샷으로 내려받거나, 네트워크로 연결되지 않은 서버 사이에서 번들 파일로 데이터를 옮깁니다."
+      />
+      <div className="grid gap-8">
+        <DataExportPanel />
+        <SyncPanel initialStatus={await getSyncStatus()} />
+      </div>
+    </section>
+  );
   else if (tab === "sso") panel = (
-    <div>
-      <header className="mb-6">
-        <h2 className="text-lg font-semibold tracking-tight text-ink">로그인 방식</h2>
-        <p className="mt-1.5 max-w-2xl text-sm leading-6 text-ink-2">
-          이메일·비밀번호 로그인과 Google 계정 로그인 또는 회사 SSO 연결을 설정합니다.
-        </p>
-      </header>
+    <section aria-labelledby="admin-sso-heading">
+      <AdminPanelHeader
+        id="admin-sso-heading"
+        title="로그인 방식"
+        description="이메일·비밀번호 로그인과 Google 계정 로그인 또는 회사 SSO 연결을 설정합니다."
+      />
       <SsoSettingsForm
         runtime={{
           authMode: authMode(),
@@ -121,7 +134,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           proxyHeaderNames: proxyHeaderNames(),
         }}
       />
-    </div>
+    </section>
   );
   else panel = <UsersPanel initialUsers={await listManagedUsers()} viewerId={user.id} />;
 

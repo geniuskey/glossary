@@ -198,15 +198,18 @@ test("AI 연결 화면은 자격 증명 입력 뒤 모델 목록을 불러와 se
   expect(content).toContain('입력하면 선택 가능한 모델을 자동으로 불러옵니다.');
 });
 
-test("AI 연결 화면은 테스트 성공을 녹색 Connected 상태로 표시한다", () => {
+test("AI 연결 화면은 연결 테스트 결과를 제목 옆 상태 배지로 항상 표시한다", () => {
   const content = stripComments(readFileSync(path.join(appDir, "admin", "ai-settings-panel.tsx"), "utf8"));
   expect(content).toContain("setConnected(Boolean(connectionSucceeded))");
   expect(content).toContain("void verifyConnection(false)");
   expect(content).not.toContain("setModels(body.models);\n      setConnected(true)");
   expect(content).toContain('if (key === "baseUrl") setConnected(false)');
   expect(content).not.toContain('if (key !== "enabled") setConnected(false)');
-  expect(content).toContain('border-ok/35 bg-ok-soft');
-  expect(content).toContain("Connected");
+  // 성공일 때만 배지를 띄우면 "확인 안 함"과 "실패"가 구분되지 않는다.
+  expect(content).toContain('<StatusBadge tone="ok">연결됨</StatusBadge>');
+  expect(content).toContain('<StatusBadge tone="danger">연결 실패</StatusBadge>');
+  expect(content).toContain('<StatusBadge tone="neutral">확인 전</StatusBadge>');
+  expect(content).not.toMatch(/\n\s*Connected\s*\n/);
 });
 
 test("용어 챗봇은 대화로 모은 등록안을 확인 후 용어로 추가한다", () => {

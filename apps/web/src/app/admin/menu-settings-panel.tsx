@@ -6,6 +6,7 @@ import { cx } from "@/lib/ui/format";
 import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
 import { moveWorkspaceMenu, WORKSPACE_MENU_OPTIONS } from "@/lib/workspace/menu-settings-values";
 import type { ResolvedWorkspaceMenuSettings } from "@/lib/workspace/menu-settings-values";
+import { AdminPanelHeader, AdminSaveBar } from "./admin-ui";
 
 type DropPosition = "before" | "after";
 interface DropTarget { key: WorkspaceMenuKey; position: DropPosition }
@@ -104,10 +105,11 @@ export function MenuSettingsPanel({ initialSettings }: { initialSettings: Resolv
   }
 
   return <section aria-labelledby="menu-settings-heading">
-    <header className="mb-5">
-      <h2 id="menu-settings-heading" className="text-base font-semibold text-ink">메뉴 구성</h2>
-      <p className="mt-1 max-w-2xl text-xs leading-5 text-ink-3">용어집의 기본 시트는 항상 표시됩니다. 드래그해서 사이드바 순서를 바꾸고, 나머지 부가 기능은 조직의 사용 범위에 맞춰 숨길 수 있습니다. 숨긴 메뉴는 URL로 직접 접근해도 열리지 않습니다.</p>
-    </header>
+    <AdminPanelHeader
+      id="menu-settings-heading"
+      title="메뉴 구성"
+      description="사이드바에 보일 메뉴와 순서를 정합니다. 손잡이를 드래그하거나 오른쪽 화살표로 순서를 바꿉니다. 숨긴 메뉴는 URL로 직접 접근해도 열리지 않으며, 시트는 항상 표시됩니다."
+    />
 
     <ul className="card overflow-hidden" aria-label="사이드바 메뉴 순서">
       {settings.order.map((key) => {
@@ -124,7 +126,7 @@ export function MenuSettingsPanel({ initialSettings }: { initialSettings: Resolv
           }}
           onDrop={(event) => handleDrop(event, item.key)}
           className={cx(
-            "relative flex items-center gap-3 border-b border-line p-4 last:border-b-0",
+            "relative flex items-center gap-3 border-b border-line px-3 py-3 last:border-b-0 sm:px-4",
             disabled && item.alwaysOn ? "bg-panel-2/45" : "hover:bg-panel-2/50",
             draggedKey === item.key && "select-none opacity-45",
             dropTarget?.key === item.key && dropTarget.position === "before" && "before:absolute before:inset-x-2 before:top-0 before:h-0.5 before:rounded-full before:bg-brand",
@@ -145,28 +147,6 @@ export function MenuSettingsPanel({ initialSettings }: { initialSettings: Resolv
           >
             <span aria-hidden="true">⠿</span>
           </button>
-          <span role="group" className="flex shrink-0 flex-col gap-0.5" aria-label={`${item.label} 메뉴 위치 조정`}>
-            <button
-              type="button"
-              disabled={saving || settings.order[0] === item.key}
-              aria-label={`${item.label} 메뉴 위로 이동`}
-              title="위로 이동"
-              onClick={() => moveBy(item.key, -1)}
-              className="grid h-4 w-6 touch-manipulation place-items-center rounded text-[10px] leading-none text-ink-3 hover:bg-panel hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-25"
-            >
-              <span aria-hidden="true">▲</span>
-            </button>
-            <button
-              type="button"
-              disabled={saving || settings.order.at(-1) === item.key}
-              aria-label={`${item.label} 메뉴 아래로 이동`}
-              title="아래로 이동"
-              onClick={() => moveBy(item.key, 1)}
-              className="grid h-4 w-6 touch-manipulation place-items-center rounded text-[10px] leading-none text-ink-3 hover:bg-panel hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-25"
-            >
-              <span aria-hidden="true">▼</span>
-            </button>
-          </span>
           <label htmlFor={inputId} className="min-w-0 flex-1 cursor-pointer">
             <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink">
               {item.label}
@@ -175,16 +155,41 @@ export function MenuSettingsPanel({ initialSettings }: { initialSettings: Resolv
             </span>
             <span className="mt-1 block text-xs leading-5 text-ink-3">{item.description}</span>
           </label>
+          <span role="group" className="flex shrink-0 gap-1" aria-label={`${item.label} 메뉴 위치 조정`}>
+            <button
+              type="button"
+              disabled={saving || settings.order[0] === item.key}
+              aria-label={`${item.label} 메뉴 위로 이동`}
+              title="위로 이동"
+              onClick={() => moveBy(item.key, -1)}
+              className="grid h-8 w-8 touch-manipulation place-items-center rounded-md text-xs text-ink-3 hover:bg-panel hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-25"
+            >
+              <span aria-hidden="true">↑</span>
+            </button>
+            <button
+              type="button"
+              disabled={saving || settings.order.at(-1) === item.key}
+              aria-label={`${item.label} 메뉴 아래로 이동`}
+              title="아래로 이동"
+              onClick={() => moveBy(item.key, 1)}
+              className="grid h-8 w-8 touch-manipulation place-items-center rounded-md text-xs text-ink-3 hover:bg-panel hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-25"
+            >
+              <span aria-hidden="true">↓</span>
+            </button>
+          </span>
           <input id={inputId} name={item.key} type="checkbox" checked={checked} disabled={disabled} onChange={(event) => update(item.key, event.target.checked)} className="h-5 w-5 shrink-0 accent-brand" aria-label={`${item.label} 메뉴 표시`} />
         </li>;
       })}
     </ul>
     <p className="sr-only" aria-live="polite">{reorderAnnouncement}</p>
 
-    {message && <p className={cx("mt-4", message.kind === "bad" ? "note-danger" : "note-ok")} role={message.kind === "bad" ? "alert" : "status"}>{message.text}</p>}
-    <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">
-      <span className="mr-auto text-xs text-ink-3">{dirty ? "저장하지 않은 변경사항" : "저장된 메뉴 구성과 같습니다"}</span>
-      <button type="button" className="btn-primary btn-sm" disabled={saving || !dirty} onClick={() => void save()}>{saving ? "저장 중…" : "메뉴 구성 저장"}</button>
-    </div>
+    <AdminSaveBar
+      dirty={dirty}
+      saving={saving}
+      message={message}
+      saveLabel="메뉴 구성 저장"
+      onSave={() => void save()}
+      onReset={() => { setSettings(savedSettings); setMessage(null); }}
+    />
   </section>;
 }

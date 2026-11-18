@@ -5,15 +5,17 @@ import { HelpTip } from "@/components/help-tip";
 import { AI_PROVIDERS, AI_PROVIDER_LABEL, type AiProvider, type PublicAiConfig } from "@/lib/ai/config-values";
 import { cx } from "@/lib/ui/format";
 import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
+import { headerDraftsOf, headerPayload, newHeaderDraft, type HeaderDraft } from "@/lib/admin/header-drafts";
+import { AdminPanelHeader, AdminSaveBar, StatusBadge } from "./admin-ui";
 
-interface HeaderDraft { name: string; value: string; configured?: boolean }
 interface ModelOption { id: string; label: string }
 
 export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConfig }) {
   const [config, setConfig] = useState(initialConfig);
+  const [savedConfig, setSavedConfig] = useState(initialConfig);
   const [apiKey, setApiKey] = useState("");
   const [clearApiKey, setClearApiKey] = useState(false);
-  const [headers, setHeaders] = useState<HeaderDraft[]>(() => initialConfig.customHeaders.map((header) => ({ ...header, value: "" })));
+  const [headers, setHeaders] = useState<HeaderDraft[]>(() => headerDraftsOf(initialConfig.customHeaders));
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -39,7 +41,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
     apiKey,
     clearApiKey,
     hasApiKey: config.hasApiKey,
-    headers,
+    headers: headerPayload(headers),
   });
 
   async function loadModels(signal?: AbortSignal) {
@@ -54,7 +56,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
           provider: config.provider,
           baseUrl: config.baseUrl,
           apiKey: config.provider === "ollama" ? null : clearApiKey ? null : apiKey || undefined,
-          customHeaders: config.provider === "openai_compatible" ? headers : [],
+          customHeaders: config.provider === "openai_compatible" ? headerPayload(headers) : [],
         }),
         signal,
       });
@@ -125,8 +127,22 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
     setConnected(false);
   }
 
-  function updateHeader(index: number, key: "name" | "value", value: string) {
-    setHeaders((current) => current.map((header, itemIndex) => itemIndex === index ? { ...header, [key]: value } : header));
+  function updateHeader(id: string, key: "name" | "value", value: string) {
+    editHeaders((current) => current.map((header) => header.id === id ? { ...header, [key]: value } : header));
+  }
+
+  function reset() {
+    setConfig(savedConfig);
+    setApiKey("");
+    setClearApiKey(false);
+    setHeaders(headerDraftsOf(savedConfig.customHeaders));
+    setDirty(false);
+    setMessage(null);
+    setConnectionMessage(null);
+  }
+
+  function editHeaders(next: (current: HeaderDraft[]) => HeaderDraft[]) {
+    setHeaders(next);
     setDirty(true);
     setMessage(null);
     setConnectionMessage(null);
@@ -151,7 +167,7 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
           apiKey: config.provider === "ollama"
             ? config.hasApiKey ? null : undefined
             : clearApiKey ? null : apiKey || undefined,
-          customHeaders: config.provider === "openai_compatible" ? headers : [],
+          customHeaders: config.provider === "openai_compatible" ? headerPayload(headers) : [],
         }),
       });
       const body = await response.json().catch(() => null) as { config?: PublicAiConfig; error?: { message?: string; details?: { formErrors?: string[] } } } | null;
@@ -161,9 +177,10 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
         return;
       }
       setConfig(body.config);
+      setSavedConfig(body.config);
       setApiKey("");
       setClearApiKey(false);
-      setHeaders(body.config.customHeaders.map((header) => ({ ...header, value: "" })));
+      setHeaders(headerDraftsOf(body.config.customHeaders));
       setDirty(false);
       setMessage({ kind: "ok", text: "AI 연결 설정을 저장했습니다." });
       await verifyConnection(false);
@@ -206,18 +223,26 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
     await verifyConnection(true);
   }
 
+  // 성공했을 때만 배지를 띄우면 "확인 안 함"과 "실패"가 화면에서 구분되지 않는다.
+  const connectionStatus = !savedConfig.enabled
+    ? <StatusBadge tone="neutral">꺼짐</StatusBadge>
+    : testing
+      ? <StatusBadge tone="neutral">연결 확인 중…</StatusBadge>
+      : connected
+        ? <span role="status"><StatusBadge tone="ok">연결됨</StatusBadge></span>
+        : connectionMessage
+          ? <StatusBadge tone="danger">연결 실패</StatusBadge>
+          : <StatusBadge tone="neutral">확인 전</StatusBadge>;
+
   return (
     <section aria-labelledby="ai-settings-heading">
-      <div className="mb-3 flex items-center gap-2">
-        <h2 id="ai-settings-heading" className="text-base font-semibold text-ink">AI 연결</h2>
-        <HelpTip text="챗봇은 관련 공개 용어를, 자동 검토는 정리 대기 용어의 내용을 설정한 AI 서버로 보냅니다. 연결 정보는 관리자만 변경할 수 있습니다." />
-        {connected && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-ok/35 bg-ok-soft px-2.5 py-1 text-[11px] font-semibold text-ok" role="status">
-            <span className="h-1.5 w-1.5 rounded-full bg-ok" aria-hidden="true" />
-            Connected
-          </span>
-        )}
-      </div>
+      <AdminPanelHeader
+        id="ai-settings-heading"
+        title="AI 연결"
+        description="챗봇과 정리 대기 용어 자동 검토에 쓸 생성 모델을 연결합니다."
+        help={<HelpTip text="챗봇은 관련 공개 용어를, 자동 검토는 정리 대기 용어의 내용을 설정한 AI 서버로 보냅니다. 연결 정보는 관리자만 변경할 수 있습니다." />}
+        status={connectionStatus}
+      />
 
       {!config.encryptionReady && needsSecretEncryption && (
         <div className="note note-warn mb-3" role="alert">
@@ -284,21 +309,21 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
         {config.provider === "openai_compatible" && (
           <div className="border-t border-line px-4 py-3">
             <div className="mb-2 flex items-center gap-2">
-              <h3 className="text-sm font-medium text-ink">Custom headers</h3>
-              <HelpTip text="Authorization, api-key, 조직 식별자처럼 공급자가 요구하는 값을 추가합니다. 위험한 전송·프록시 header는 저장할 수 없습니다." />
-              <button type="button" className="btn-ghost btn-sm ml-auto" disabled={saving || headers.length >= 20} onClick={() => { setHeaders((current) => [...current, { name: "", value: "" }]); setDirty(true); setMessage(null); setConnectionMessage(null); setConnected(false); }}>+ Header</button>
+              <h3 className="text-sm font-medium text-ink">추가 요청 헤더</h3>
+              <HelpTip text="Authorization, api-key, 조직 식별자처럼 공급자가 요구하는 값을 추가합니다. 위험한 전송·프록시 헤더는 저장할 수 없습니다." />
+              <button type="button" className="btn-ghost btn-sm ml-auto" disabled={saving || headers.length >= 20} onClick={() => editHeaders((current) => [...current, newHeaderDraft()])}>+ 헤더 추가</button>
             </div>
             {headers.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-line px-3 py-4 text-center text-xs text-ink-3">추가 header가 없습니다.</p>
+              <p className="rounded-lg border border-dashed border-line px-3 py-4 text-center text-xs text-ink-3">추가 헤더가 없습니다.</p>
             ) : (
               <div className="space-y-2">
                 {headers.map((header, index) => (
-                  <div key={`${index}:${header.name}`} className="grid grid-cols-[minmax(8rem,0.7fr)_minmax(10rem,1fr)_auto] gap-2">
-                    <label className="sr-only" htmlFor={`ai-header-name-${index}`}>Header {index + 1} 이름</label>
-                    <input id={`ai-header-name-${index}`} autoComplete="off" value={header.name} onChange={(event) => updateHeader(index, "name", event.target.value)} disabled={saving} placeholder="예: X-Organization…" className="field h-9 font-mono text-xs" />
-                    <label className="sr-only" htmlFor={`ai-header-value-${index}`}>Header {index + 1} 값</label>
-                    <input id={`ai-header-value-${index}`} type="password" autoComplete="new-password" value={header.value} onChange={(event) => updateHeader(index, "value", event.target.value)} disabled={saving} placeholder={header.configured ? "저장된 값 유지…" : "Header 값…"} className="field h-9 font-mono text-xs" />
-                    <button type="button" aria-label={`${header.name || `Header ${index + 1}`} 제거`} className="btn-quiet h-9 w-9 p-0" disabled={saving} onClick={() => { setHeaders((current) => current.filter((_, itemIndex) => itemIndex !== index)); setDirty(true); setMessage(null); setConnectionMessage(null); setConnected(false); }}>×</button>
+                  <div key={header.id} className="grid grid-cols-[minmax(8rem,0.7fr)_minmax(10rem,1fr)_auto] gap-2">
+                    <label className="sr-only" htmlFor={`ai-header-name-${header.id}`}>헤더 {index + 1} 이름</label>
+                    <input id={`ai-header-name-${header.id}`} autoComplete="off" value={header.name} onChange={(event) => updateHeader(header.id, "name", event.target.value)} disabled={saving} placeholder="예: X-Organization…" className="field h-9 font-mono text-xs" />
+                    <label className="sr-only" htmlFor={`ai-header-value-${header.id}`}>헤더 {index + 1} 값</label>
+                    <input id={`ai-header-value-${header.id}`} type="password" autoComplete="new-password" value={header.value} onChange={(event) => updateHeader(header.id, "value", event.target.value)} disabled={saving} placeholder={header.configured ? "저장된 값 유지…" : "헤더 값…"} className="field h-9 font-mono text-xs" />
+                    <button type="button" aria-label={`${header.name || `헤더 ${index + 1}`} 제거`} className="btn-quiet h-9 w-9 p-0" disabled={saving} onClick={() => editHeaders((current) => current.filter((item) => item.id !== header.id))}>×</button>
                   </div>
                 ))}
               </div>
@@ -306,17 +331,15 @@ export function AiSettingsPanel({ initialConfig }: { initialConfig: PublicAiConf
           </div>
         )}
 
-        <div className="flex min-h-12 flex-wrap items-center justify-end gap-2 border-t border-line bg-panel-2/50 px-4 py-2.5">
-          {(message || connectionMessage) && (
-            <div className="mr-auto min-w-0 space-y-1 text-xs">
-              {message && <p role={message.kind === "bad" ? "alert" : "status"} className={message.kind === "bad" ? "text-danger" : "text-ok"}>{message.text}</p>}
-              {connectionMessage && <p role="alert" className="text-danger">연결 테스트: {connectionMessage}</p>}
-            </div>
-          )}
-          <button type="button" className="btn-ghost btn-sm" onClick={() => void testConnection()} disabled={saving || testing || dirty || !config.secretsReadable}>{testing ? "연결 확인 중…" : "연결 테스트"}</button>
-          <button type="button" className="btn-primary btn-sm" onClick={() => void save()} disabled={saving || !dirty}>{saving ? "저장 중…" : "AI 연결 저장"}</button>
-        </div>
+        {connectionMessage && !dirty && (
+          <p role="alert" className="border-t border-line bg-danger-soft/40 px-4 py-2.5 text-xs text-danger">연결 테스트 실패: {connectionMessage}</p>
+        )}
       </div>
+
+      <AdminSaveBar dirty={dirty} saving={saving} message={message} saveLabel="AI 연결 저장" onSave={() => void save()} onReset={reset}>
+        {dirty && <span className="text-[11px] text-ink-3">연결 테스트는 저장한 설정으로 실행됩니다</span>}
+        <button type="button" className="btn-ghost btn-sm" onClick={() => void testConnection()} disabled={saving || testing || dirty || !config.secretsReadable} title={dirty ? "저장한 뒤 테스트할 수 있습니다" : undefined}>{testing ? "연결 확인 중…" : "연결 테스트"}</button>
+      </AdminSaveBar>
     </section>
   );
 }

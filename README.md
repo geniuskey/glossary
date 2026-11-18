@@ -257,7 +257,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 인터넷이 막힌 사내 서버는 외부 서버에 쌓인 용어·위키를 번들 파일로 계속 받아 올 수 있다.
 보내는 쪽이 전체 또는 변경분 번들을 내보내고 받는 쪽이 가져오면 추가·수정·삭제가 한 번에
-반영된다(관리자 > 서버 동기화, 또는 `scripts/sync.ts`). 절차와 규칙은
+반영된다(관리자 > 백업 · 동기화, 또는 `scripts/sync.ts`). 절차와 규칙은
 [서버 간 동기화](https://geniuskey.github.io/glossary/operations#서버-간-동기화-오프라인)에 있다.
 
 ## 진행 상황

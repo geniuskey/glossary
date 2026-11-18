@@ -32,6 +32,7 @@ test("관리자 화면에서 에이전트 키를 교체하고 재접속 후에�
   await page.getByRole("button", { name: "로그인", exact: true }).click();
   await expect(page).toHaveURL(/\/$/);
   await page.goto("/admin?tab=users");
+  await page.getByRole("button", { name: "에이전트 추가" }).click();
   await page.getByLabel("에이전트 이름").fill(agentName);
   await page.getByRole("button", { name: "편집자 계정 만들고 키 발급" }).click();
   const tokenDisplay = page.locator("section code");

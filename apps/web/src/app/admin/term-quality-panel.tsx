@@ -5,23 +5,23 @@ import {
   TERM_QUALITY_PROFILE_LABEL,
   type ResolvedTermQualityProfile,
 } from "@/lib/workspace/term-quality-values";
+import { AdminPanelHeader } from "./admin-ui";
 
 const PROFILES: ResolvedTermQualityProfile[] = ["mapping", "context", "guidance"];
 
 export function TermQualityPanel({ overview }: { overview: TermQualityOverview }) {
   return (
     <section aria-labelledby="term-quality-heading">
-      <header className="mb-4 flex flex-wrap items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <h2 id="term-quality-heading" className="text-base font-semibold text-ink">콘텐츠 완성도</h2>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-2">
-            플랫폼이 용어의 표기, 상태와 내용을 보고 필요한 정보를 자동으로 판단합니다. 용어마다 기준을 따로 선택할 필요가 없습니다.
-          </p>
-        </div>
-        <Link href="/contribute?tab=edit" className="btn-primary btn-sm shrink-0">
-          {overview.incomplete > 0 ? `${overview.incomplete.toLocaleString("ko-KR")}개 보완하기` : "정리 현황 보기"}
-        </Link>
-      </header>
+      <AdminPanelHeader
+        id="term-quality-heading"
+        title="콘텐츠 완성도"
+        description="플랫폼이 용어의 표기, 상태와 내용을 보고 필요한 정보를 자동으로 판단합니다. 용어마다 기준을 따로 선택할 필요가 없습니다."
+        actions={(
+          <Link href="/contribute?tab=edit" className="btn-primary btn-sm">
+            {overview.incomplete > 0 ? `${overview.incomplete.toLocaleString("ko-KR")}개 보완하기` : "정리 현황 보기"}
+          </Link>
+        )}
+      />
 
       <div className="card overflow-hidden">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line bg-panel-2/50 px-4 py-4">

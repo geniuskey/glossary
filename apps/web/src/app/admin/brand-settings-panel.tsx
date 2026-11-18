@@ -6,6 +6,7 @@ import type { WorkspaceBrandPreset } from "@glossary/db";
 import { DEFAULT_WORKSPACE_MENU_SETTINGS, WORKSPACE_BRAND_OPTIONS } from "@/lib/workspace/menu-settings-values";
 import { cx } from "@/lib/ui/format";
 import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
+import { AdminPanelHeader, AdminSaveBar } from "./admin-ui";
 
 function applyBrand(preset: WorkspaceBrandPreset) {
   if (preset === DEFAULT_WORKSPACE_MENU_SETTINGS.brandPreset) document.documentElement.removeAttribute("data-brand");
@@ -55,13 +56,11 @@ export function BrandSettingsPanel({ initialPreset }: { initialPreset: Workspace
 
   return (
     <section aria-labelledby="brand-settings-heading">
-      <div className="mb-3">
-        <h2 id="brand-settings-heading" className="text-base font-semibold text-ink text-balance">대표 색</h2>
-        <p className="mt-1 text-xs leading-5 text-ink-3">
-          이 용어집 전체에 적용되는 브랜드 색입니다. 고르면 이 화면에 바로 미리 적용되고, 저장하면 모든 사용자에게 같은 색이 보입니다.
-          상태를 뜻하는 색(완료·경고·오류)과 겹치지 않는 조합만 제공합니다.
-        </p>
-      </div>
+      <AdminPanelHeader
+        id="brand-settings-heading"
+        title="대표 색"
+        description="이 용어집 전체에 적용되는 브랜드 색입니다. 고르면 이 화면에 바로 미리 적용되고, 저장하면 모든 사용자에게 같은 색이 보입니다. 상태를 뜻하는 색(완료·경고·오류)과 겹치지 않는 조합만 제공합니다."
+      />
 
       <div className="card p-4 sm:p-5">
         <fieldset>
@@ -120,23 +119,17 @@ export function BrandSettingsPanel({ initialPreset }: { initialPreset: Workspace
             })}
           </div>
         </fieldset>
-
-        {message && (
-          <p role={message.kind === "bad" ? "alert" : "status"} className={cx("mt-4", message.kind === "bad" ? "note-danger" : "note-ok")}>
-            {message.text}
-          </p>
-        )}
-
-        <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">
-          <span className="mr-auto text-xs text-ink-3" role="status">{dirty ? "미리보기 중 — 저장하지 않은 변경사항" : "저장된 색과 같습니다"}</span>
-          <button type="button" disabled={saving || !dirty} onClick={() => setPreset(savedPreset)} className="btn-quiet btn-sm">
-            되돌리기
-          </button>
-          <button type="button" disabled={saving || !dirty} onClick={() => void save()} className="btn-primary btn-sm">
-            {saving ? "저장 중…" : "대표 색 저장"}
-          </button>
-        </div>
       </div>
+
+      <AdminSaveBar
+        dirty={dirty}
+        saving={saving}
+        message={message}
+        dirtyText="미리보기 중 — 저장해야 다른 사용자에게도 적용됩니다"
+        saveLabel="대표 색 저장"
+        onSave={() => void save()}
+        onReset={() => { setPreset(savedPreset); setMessage(null); }}
+      />
     </section>
   );
 }

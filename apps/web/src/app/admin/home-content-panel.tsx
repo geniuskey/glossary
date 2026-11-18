@@ -9,6 +9,7 @@ import {
 } from "@/lib/workspace/home-content-values";
 import { cx } from "@/lib/ui/format";
 import { useUnsavedChanges } from "@/lib/ui/use-unsaved-changes";
+import { AdminPanelHeader, AdminSaveBar } from "./admin-ui";
 
 export function HomeContentPanel({ initialContent, initialMode, aiAvailable }: { initialContent: HomeContent; initialMode: WorkspaceHomeMode; aiAvailable: boolean }) {
   const [content, setContent] = useState(initialContent);
@@ -78,12 +79,12 @@ export function HomeContentPanel({ initialContent, initialMode, aiAvailable }: {
 
   return (
     <section aria-labelledby="home-content-heading">
-      <div className="mb-3">
-        <h2 id="home-content-heading" className="text-base font-semibold text-ink text-balance">홈 소개 문구</h2>
-        <p className="mt-1 text-xs leading-5 text-ink-3">
-          이 용어집을 사용하는 조직과 특화 분야를 첫 화면에서 분명하게 알려 주세요.
-        </p>
-      </div>
+      <AdminPanelHeader
+        id="home-content-heading"
+        title="홈 화면"
+        description="방문자가 처음 보는 입력창과 소개 문구를 정합니다. 이 용어집을 사용하는 조직과 특화 분야를 첫 화면에서 분명하게 알려 주세요."
+        actions={<button type="button" disabled={saving} onClick={loadDefaults} className="btn-quiet btn-sm">기본 문구 불러오기</button>}
+      />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <div className="card space-y-4 p-4 sm:p-5">
@@ -122,24 +123,9 @@ export function HomeContentPanel({ initialContent, initialMode, aiAvailable }: {
             onChange={(value) => update("description", value)}
           />
 
-          {message && (
-            <p role={message.kind === "bad" ? "alert" : "status"} className={cx(message.kind === "bad" ? "note-danger" : "note-ok")}>
-              {message.text}
-            </p>
-          )}
-
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">
-            <span className="mr-auto text-xs text-ink-3" role="status">{dirty ? "저장하지 않은 변경사항" : "저장된 문구와 같습니다"}</span>
-            <button type="button" disabled={saving} onClick={loadDefaults} className="btn-quiet btn-sm">
-              기본 문구 불러오기
-            </button>
-            <button type="button" disabled={saving || !valid || !dirty} onClick={() => void save()} className="btn-primary btn-sm">
-              {saving ? "저장 중…" : "홈 문구 저장"}
-            </button>
-          </div>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-line bg-paper p-5 sm:p-8" aria-label="홈 문구 미리보기">
+        <div className="self-start overflow-hidden rounded-2xl border border-line bg-paper p-5 sm:p-8 lg:sticky lg:top-20" aria-label="홈 문구 미리보기">
           <p className="text-[10px] font-semibold text-brand">미리보기</p>
           <div className="mt-8 text-center">
             <p className="text-xs font-semibold text-brand">{content.eyebrow || "—"}</p>
@@ -155,6 +141,17 @@ export function HomeContentPanel({ initialContent, initialMode, aiAvailable }: {
           </div>
         </div>
       </div>
+
+      <AdminSaveBar
+        dirty={dirty}
+        saving={saving}
+        canSave={valid}
+        blockedReason="라벨, 대표 문구, 소개 문구를 모두 입력해야 저장할 수 있습니다"
+        message={message}
+        saveLabel="홈 화면 저장"
+        onSave={() => void save()}
+        onReset={() => { setContent(savedContent); setMode(savedMode); setMessage(null); }}
+      />
     </section>
   );
 }

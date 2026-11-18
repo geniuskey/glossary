@@ -64,8 +64,8 @@ export function SyncPanel({ initialStatus }: { initialStatus: SyncStatus }) {
       link.href = url;
       link.download = filename;
       link.click();
-      URL.revokeObjectURL(url);
-      setExportMessage({ kind: "ok", text: `${filename} (${formatBytes(blob.size)})을 내려받았습니다. 받는 서버의 관리자 > 서버 동기화에서 가져오세요.` });
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setExportMessage({ kind: "ok", text: `${filename} (${formatBytes(blob.size)})을 내려받았습니다. 받는 서버의 관리자 > 백업 · 동기화에서 가져오세요.` });
       await refresh();
     } catch {
       setExportMessage({ kind: "bad", text: "네트워크 오류로 번들을 내려받지 못했습니다." });
@@ -120,7 +120,7 @@ export function SyncPanel({ initialStatus }: { initialStatus: SyncStatus }) {
   return (
     <div className="grid gap-8">
       <header>
-        <h2 className="text-lg font-semibold tracking-tight text-ink">서버 동기화</h2>
+        <h3 className="text-base font-semibold text-ink">서버 동기화</h3>
         <p className="mt-1.5 max-w-3xl text-sm leading-6 text-ink-2">
           네트워크로 연결되지 않은 두 서버 사이에서 용어·표기·분류·승인된 관계·위키·이미지를 파일로 옮깁니다.
           보내는 서버에서 번들을 내보내고, 받는 서버에서 같은 번들을 가져오면 추가·수정·삭제가 한 번에 반영됩니다.
@@ -133,7 +133,7 @@ export function SyncPanel({ initialStatus }: { initialStatus: SyncStatus }) {
       </header>
 
       <section className="card p-5 sm:p-6" aria-labelledby="sync-export-heading">
-        <h3 id="sync-export-heading" className="text-sm font-semibold text-ink">내보내기 (보내는 서버)</h3>
+        <h4 id="sync-export-heading" className="text-sm font-semibold text-ink">내보내기 (보내는 서버)</h4>
         <p className="mt-2 text-sm leading-6 text-ink-2">
           처음에는 전체 번들을, 이후에는 변경분 번들을 보내면 됩니다. 변경분을 하나 빠뜨려도 받는 서버가 누락을 알려 주고,
           그때 전체 번들을 한 번 보내면 다시 맞춰집니다. 사용자 계정, 담당자, AI 설정은 포함하지 않습니다.
@@ -195,7 +195,7 @@ export function SyncPanel({ initialStatus }: { initialStatus: SyncStatus }) {
       </section>
 
       <section className="card p-5 sm:p-6" aria-labelledby="sync-import-heading">
-        <h3 id="sync-import-heading" className="text-sm font-semibold text-ink">가져오기 (받는 서버)</h3>
+        <h4 id="sync-import-heading" className="text-sm font-semibold text-ink">가져오기 (받는 서버)</h4>
         <p className="mt-2 text-sm leading-6 text-ink-2">
           번들은 내보낸 순서대로 가져옵니다. 이미 반영한 것보다 오래된 번들은 최신 내용을 되돌리므로 거부됩니다.
           이 서버에서 직접 만든 용어·문서는 출처 삭제에 영향을 받지 않습니다.
@@ -238,7 +238,7 @@ export function SyncPanel({ initialStatus }: { initialStatus: SyncStatus }) {
       </section>
 
       <section aria-labelledby="sync-sources-heading">
-        <h3 id="sync-sources-heading" className="mb-3 text-sm font-semibold text-ink">가져온 출처 서버</h3>
+        <h4 id="sync-sources-heading" className="mb-3 text-sm font-semibold text-ink">가져온 출처 서버</h4>
         {status.sources.length === 0 ? (
           <p className="text-sm text-ink-3">아직 가져온 번들이 없습니다.</p>
         ) : (
