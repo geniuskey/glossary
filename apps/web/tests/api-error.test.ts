@@ -211,7 +211,7 @@ const ROUTES: Array<{ name: string; mod: RouteModule; allowed: readonly string[]
   { name: "admin/categories/[key]", mod: adminCategoryRoute, allowed: ["PATCH", "DELETE"], allow: "PATCH, DELETE" },
   { name: "admin/domains", mod: adminDomainsRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "admin/domains/[key]", mod: adminDomainRoute, allowed: ["PATCH", "DELETE"], allow: "PATCH, DELETE" },
-  { name: "admin/users", mod: adminUsersRoute, allowed: ["GET", "POST"], allow: "GET, HEAD, POST" },
+  { name: "admin/users", mod: adminUsersRoute, allowed: ["GET", "POST", "PATCH"], allow: "GET, HEAD, POST, PATCH" },
   { name: "admin/users/[id]", mod: adminUserRoute, allowed: ["PATCH"], allow: "PATCH" },
   { name: "admin/users/[id]/sessions", mod: adminUserSessionsRoute, allowed: ["DELETE"], allow: "DELETE" },
   { name: "attachments", mod: attachmentsRoute, allowed: ["POST"], allow: "POST" },

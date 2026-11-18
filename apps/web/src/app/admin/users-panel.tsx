@@ -3,12 +3,13 @@
 import { useMemo, useState } from "react";
 import { copyText } from "@/lib/ui/copy-text";
 import type { ManagedUser, ManagedUserRole } from "@/lib/admin/users";
+import { planBulkRoleChange } from "@/lib/admin/bulk-roles";
 import { cx } from "@/lib/ui/format";
 
 const ROLE_LABEL: Record<ManagedUserRole, string> = { admin: "관리자", editor: "편집자", viewer: "뷰어" };
 const DATE_FORMAT = new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "short", day: "numeric" });
 
-type BusyAction = { id: string; kind: "role" | "sessions" | "keys" } | null;
+type BusyAction = { id: string; kind: "role" | "sessions" | "keys" } | { id: "bulk"; kind: "bulk-role" } | null;
 type IssuedAgentKey = { id: string; name: string; token: string; scopes: string[]; ownerUserId?: string };
 
 export function UsersPanel({ initialUsers, viewerId }: { initialUsers: ManagedUser[]; viewerId: string }) {
@@ -20,16 +21,81 @@ export function UsersPanel({ initialUsers, viewerId }: { initialUsers: ManagedUs
   const [issuedKeys, setIssuedKeys] = useState<IssuedAgentKey[]>([]);
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkRole, setBulkRole] = useState<ManagedUserRole>("editor");
 
   const normalizedQuery = query.trim().toLocaleLowerCase("ko-KR");
   const visibleUsers = useMemo(
-    () => users.filter((user) => !normalizedQuery || `${user.name} ${user.email}`.toLocaleLowerCase("ko-KR").includes(normalizedQuery)),
+    () => users.filter((user) => !normalizedQuery || `${user.name} ${user.email} ${user.organization ?? ""}`.toLocaleLowerCase("ko-KR").includes(normalizedQuery)),
     [normalizedQuery, users],
   );
   const admins = users.filter((user) => user.role === "admin").length;
   const externalUsers = users.filter((user) => user.authType === "sso").length;
   const agentUsers = users.filter((user) => user.authType === "agent").length;
   const activeSessions = users.reduce((sum, user) => sum + user.activeSessions, 0);
+  // 본인은 체크박스를 주지 않는다. 자기 역할은 바꿀 수 없어 고를 이유가 없다.
+  const selectableVisible = visibleUsers.filter((user) => user.id !== viewerId);
+  const allVisibleSelected = selectableVisible.length > 0 && selectableVisible.every((user) => selectedIds.has(user.id));
+  const someVisibleSelected = selectableVisible.some((user) => selectedIds.has(user.id));
+  const selectedUsers = users.filter((user) => selectedIds.has(user.id));
+
+  function toggleSelected(id: string, checked: boolean) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible(checked: boolean) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      for (const user of selectableVisible) {
+        if (checked) next.add(user.id);
+        else next.delete(user.id);
+      }
+      return next;
+    });
+  }
+
+  async function applyBulkRole() {
+    if (busy || creatingAgent || selectedUsers.length === 0) return;
+    const plan = planBulkRoleChange(selectedUsers, bulkRole, viewerId);
+    const notes = [
+      plan.unchanged > 0 ? `이미 ${ROLE_LABEL[bulkRole]}인 ${plan.unchanged}명` : null,
+      plan.skippedAgents > 0 ? `관리자로 지정할 수 없는 에이전트 ${plan.skippedAgents}명` : null,
+      plan.skippedSelf > 0 ? "본인" : null,
+    ].filter(Boolean);
+    if (plan.ids.length === 0) {
+      setMessage({ kind: "bad", text: `바꿀 사용자가 없습니다${notes.length ? ` (${notes.join(", ")} 제외)` : ""}.` });
+      return;
+    }
+    if (!window.confirm(`선택한 ${plan.ids.length}명의 역할을 ${ROLE_LABEL[bulkRole]}로 변경할까요?${notes.length ? `\n(${notes.join(", ")}은 제외됩니다)` : ""}`)) return;
+
+    setBusy({ id: "bulk", kind: "bulk-role" });
+    setMessage(null);
+    try {
+      const res = await fetch("/api/v1/admin/users", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids: plan.ids, role: bulkRole }),
+      });
+      const body = (await res.json().catch(() => null)) as { changed?: string[]; error?: { message?: string } } | null;
+      if (!res.ok) {
+        setMessage({ kind: "bad", text: body?.error?.message ?? `역할을 변경하지 못했습니다 (${res.status}).` });
+        return;
+      }
+      const changed = new Set(body?.changed ?? plan.ids);
+      setUsers((current) => current.map((item) => changed.has(item.id) ? { ...item, role: bulkRole } : item));
+      setSelectedIds(new Set());
+      setMessage({ kind: "ok", text: `${changed.size}명의 역할을 ${ROLE_LABEL[bulkRole]}로 변경했습니다.${notes.length ? ` (${notes.join(", ")} 제외)` : ""}` });
+    } catch {
+      setMessage({ kind: "bad", text: "네트워크 오류로 역할을 변경하지 못했습니다." });
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function changeRole(user: ManagedUser, role: ManagedUserRole) {
     if (user.role === role || busy || creatingAgent) return;
@@ -209,17 +275,56 @@ export function UsersPanel({ initialUsers, viewerId }: { initialUsers: ManagedUs
               autoComplete="off"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="이름 또는 이메일 검색…"
+              placeholder="이름·이메일·조직 검색…"
               className="field"
             />
           </div>
         </div>
 
+        {selectedIds.size > 0 && (
+          <div className="card mb-3 flex flex-col gap-2.5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between" role="region" aria-label="선택한 사용자 일괄 변경">
+            <p className="text-sm text-ink">
+              <span className="font-semibold tabular-nums">{selectedIds.size}</span>명 선택됨
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <label htmlFor="bulk-role" className="text-xs text-ink-3">역할</label>
+              <select
+                id="bulk-role"
+                value={bulkRole}
+                disabled={busy !== null || creatingAgent}
+                onChange={(event) => setBulkRole(event.target.value as ManagedUserRole)}
+                className="field min-w-28 py-1.5 text-xs"
+              >
+                <option value="viewer">뷰어</option>
+                <option value="editor">편집자</option>
+                <option value="admin">관리자</option>
+              </select>
+              <button type="button" onClick={() => void applyBulkRole()} disabled={busy !== null || creatingAgent} className="btn-primary btn-sm whitespace-nowrap">
+                {busy?.kind === "bulk-role" ? "변경 중…" : "일괄 변경"}
+              </button>
+              <button type="button" onClick={() => setSelectedIds(new Set())} disabled={busy !== null} className="btn-quiet btn-sm whitespace-nowrap">
+                선택 해제
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="card relative overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[880px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-line bg-panel-2 text-xs text-ink-3">
-                <th scope="col" className="px-4 py-3 font-medium">사용자</th>
+                <th scope="col" className="w-10 py-3 pl-4 pr-0">
+                  <input
+                    type="checkbox"
+                    aria-label="보이는 사용자 모두 선택"
+                    checked={allVisibleSelected}
+                    ref={(el) => { if (el) el.indeterminate = someVisibleSelected && !allVisibleSelected; }}
+                    disabled={selectableVisible.length === 0 || busy !== null}
+                    onChange={(event) => toggleAllVisible(event.target.checked)}
+                  />
+                </th>
+                <th scope="col" className="px-3 py-3 font-medium">사용자</th>
+                <th scope="col" className="px-3 py-3 font-medium">조직</th>
                 <th scope="col" className="px-3 py-3 font-medium">로그인 방식</th>
                 <th scope="col" className="px-3 py-3 font-medium">가입일</th>
                 <th scope="col" className="px-3 py-3 font-medium">활성 세션 / 키</th>
@@ -233,8 +338,19 @@ export function UsersPanel({ initialUsers, viewerId }: { initialUsers: ManagedUs
                 const roleBusy = busy?.id === user.id && busy.kind === "role";
                 const sessionsBusy = busy?.id === user.id && busy.kind === "sessions";
                 return (
-                  <tr key={user.id} className="hover:bg-panel-2/55">
-                    <td className="px-4 py-3">
+                  <tr key={user.id} className={cx("hover:bg-panel-2/55", selectedIds.has(user.id) && "bg-brand-soft/40")}>
+                    <td className="w-10 py-3 pl-4 pr-0">
+                      {!isSelf && (
+                        <input
+                          type="checkbox"
+                          aria-label={`${user.name || user.email} 선택`}
+                          checked={selectedIds.has(user.id)}
+                          disabled={busy !== null}
+                          onChange={(event) => toggleSelected(user.id, event.target.checked)}
+                        />
+                      )}
+                    </td>
+                    <td className="px-3 py-3">
                       <div className="flex min-w-0 items-center gap-2.5">
                         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-soft text-xs font-semibold text-brand" aria-hidden="true">
                           {(user.name || user.email).slice(0, 1).toUpperCase()}
@@ -246,6 +362,11 @@ export function UsersPanel({ initialUsers, viewerId }: { initialUsers: ManagedUs
                           <span className="block max-w-64 truncate text-xs text-ink-3">{user.authType === "agent" ? "API 전용 · 이메일 없음" : user.email}</span>
                         </span>
                       </div>
+                    </td>
+                    <td className="px-3 py-3 text-xs text-ink-2">
+                      {user.organization
+                        ? <span className="block max-w-48 truncate" title={user.organization}>{user.organization}</span>
+                        : <span className="text-ink-3">—</span>}
                     </td>
                     <td className="px-3 py-3"><span className="chip">{user.authType === "sso" ? "외부 계정" : user.authType === "agent" ? "에이전트 API" : "비밀번호"}</span></td>
                     <td className="whitespace-nowrap px-3 py-3 text-xs text-ink-2">{DATE_FORMAT.format(new Date(user.createdAt))}</td>

@@ -602,6 +602,36 @@ export const openApiSpec = {
           "403": errorResponse("forbidden — 관리자만 사용 가능"),
         },
       },
+      patch: {
+        summary: "사용자 역할 일괄 변경",
+        description:
+          "선택한 사용자들의 역할을 한 트랜잭션으로 바꾼다. 본인 강등, 에이전트의 관리자 지정, 관리자가 0명이 되는 변경이 하나라도 섞이면 아무도 바뀌지 않는다.",
+        security: [{ sessionCookie: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["ids", "role"],
+                properties: {
+                  ids: { type: "array", minItems: 1, maxItems: 500, items: { type: "string", format: "uuid" } },
+                  role: { type: "string", enum: ["admin", "editor", "viewer"] },
+                },
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+        responses: {
+          "200": json("실제로 역할이 바뀐 사용자 id 목록(changed)", { type: "object" }),
+          "400": errorResponse("validation_failed"),
+          "401": errorResponse("unauthorized"),
+          "403": errorResponse("forbidden"),
+          "404": errorResponse("not_found — 선택한 사용자 중 없는 계정이 있다"),
+          "409": errorResponse("operation_conflict — 본인 강등·에이전트 관리자 지정·마지막 관리자"),
+        },
+      },
     },
     "/admin/exports/terms": {
       get: {

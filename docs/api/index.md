@@ -35,6 +35,7 @@ curl -s http://localhost:3000/api/v1/openapi > openapi.json
 | GET | [`/sso/proxy-check`](/api/auth#oauth2-proxy-헤더-확인) | 세션(admin) | 현재 요청에 실제 도착한 프록시 헤더 진단 |
 | GET | [`/admin/users`](/api/auth#에이전트-계정-만들기) | 세션(admin) | 사용자·에이전트 계정 목록 |
 | POST | [`/admin/users`](/api/auth#에이전트-계정-만들기) | 세션(admin) | API 전용 에이전트 계정과 키 생성 |
+| PATCH | [`/admin/users`](/api/auth#역할-일괄-변경) | 세션(admin) | 여러 사용자의 역할 일괄 변경 |
 | GET | [`/admin/ai-config`](/api/ai#ai-연결-설정) | 세션(admin) | 마스킹된 AI 연결 설정 조회 |
 | PATCH | [`/admin/ai-config`](/api/ai#ai-연결-설정) | 세션(admin) | AI 연결 설정 저장 |
 | POST | [`/admin/ai-config/models`](/api/ai#모델-목록) | 세션(admin) | 공급자가 제공하는 모델 목록 조회 |

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, gt, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, ne, notInArray, sql } from "drizzle-orm";
 import { apiKeys, sessions, users } from "@glossary/db";
 import { generateApiKey } from "@/lib/auth/api-key";
 import { interactiveAccountCondition } from "@/lib/auth/account-policy";
@@ -18,6 +18,8 @@ export interface ManagedUser {
   createdAt: string;
   activeSessions: number;
   activeApiKeys?: number;
+  /** SSO 그룹의 첫 값. 계정 메뉴의 조직 표시(current-user.ts)와 같은 규칙이다. */
+  organization: string | null;
 }
 
 export async function listManagedUsers(): Promise<ManagedUser[]> {
@@ -29,19 +31,21 @@ export async function listManagedUsers(): Promise<ManagedUser[]> {
       role: users.role,
       externalId: users.externalId,
       passwordHash: users.passwordHash,
+      ssoGroups: users.ssoGroups,
       createdAt: users.createdAt,
       activeSessions: sql<number>`count(${sessions.id})::int`,
       activeApiKeys: sql<number>`(SELECT count(*)::int FROM ${apiKeys} WHERE ${apiKeys.createdBy} = ${users.id} AND ${apiKeys.revokedAt} IS NULL AND (${apiKeys.expiresAt} IS NULL OR ${apiKeys.expiresAt} > now()))`,
     })
     .from(users)
     .leftJoin(sessions, and(eq(sessions.userId, users.id), gt(sessions.expiresAt, new Date())))
-    .groupBy(users.id, users.email, users.name, users.role, users.externalId, users.passwordHash, users.createdAt)
+    .groupBy(users.id)
     .orderBy(asc(users.name), asc(users.email));
 
-  return rows.map(({ externalId, passwordHash, createdAt, ...row }) => ({
+  return rows.map(({ externalId, passwordHash, ssoGroups, createdAt, ...row }) => ({
     ...row,
     authType: externalId ? "sso" : passwordHash ? "password" : "agent",
     createdAt: createdAt.toISOString(),
+    organization: ssoGroups?.[0] ?? null,
   }));
 }
 
@@ -75,6 +79,7 @@ export async function createManagedAgentUser(input: {
         createdAt: createdUser.createdAt.toISOString(),
         activeSessions: 0,
         activeApiKeys: 1,
+        organization: null,
       },
       key: { ...createdKey, token },
     };
@@ -111,6 +116,50 @@ export async function changeManagedUserRole(
 
     await tx.update(users).set({ role }).where(eq(users.id, targetId));
     return { ok: true };
+  });
+}
+
+export type ChangeRolesResult =
+  | { ok: true; changed: string[] }
+  | { ok: false; reason: "not_found" | "self_demotion" | "last_admin" | "actor_forbidden" | "agent_admin" };
+
+/**
+ * 여러 명의 역할을 한 트랜잭션으로 바꾼다. 하나라도 걸리면 아무것도 바꾸지 않는다 —
+ * 일부만 반영하면 관리자가 화면에서 "누가 바뀌었는가"를 다시 맞춰 봐야 하고,
+ * 마지막 관리자 검사는 대상 전체를 함께 봐야 의미가 있다(한 명씩 검사하면 관리자 둘을
+ * 함께 내릴 때 각자는 "다른 관리자가 남아 있다"로 통과해 관리자가 0명이 된다).
+ */
+export async function changeManagedUserRoles(
+  actorId: string,
+  targetIds: readonly string[],
+  role: ManagedUserRole,
+): Promise<ChangeRolesResult> {
+  const ids = [...new Set(targetIds)];
+  return getDb().transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('glossary_admin_roles'))`);
+
+    const [actor] = await tx.select({ role: users.role }).from(users).where(eq(users.id, actorId)).limit(1);
+    if (actor?.role !== "admin") return { ok: false, reason: "actor_forbidden" };
+    if (role !== "admin" && ids.includes(actorId)) return { ok: false, reason: "self_demotion" };
+
+    const targets = await tx
+      .select({ id: users.id, role: users.role, passwordHash: users.passwordHash, externalId: users.externalId })
+      .from(users)
+      .where(inArray(users.id, ids));
+    if (targets.length !== ids.length) return { ok: false, reason: "not_found" };
+
+    const isInteractive = (t: (typeof targets)[number]) => Boolean(t.passwordHash || t.externalId);
+    if (role === "admin" && targets.some((t) => !isInteractive(t))) return { ok: false, reason: "agent_admin" };
+
+    if (role !== "admin" && targets.some((t) => t.role === "admin" && isInteractive(t))) {
+      const [remaining] = await tx.select({ value: sql<number>`count(*)::int` }).from(users)
+        .where(and(eq(users.role, "admin"), notInArray(users.id, ids), interactiveAccountCondition()));
+      if ((remaining?.value ?? 0) === 0) return { ok: false, reason: "last_admin" };
+    }
+
+    const changed = targets.filter((t) => t.role !== role).map((t) => t.id);
+    if (changed.length > 0) await tx.update(users).set({ role }).where(inArray(users.id, changed));
+    return { ok: true, changed };
   });
 }
 

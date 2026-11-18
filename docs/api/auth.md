@@ -117,6 +117,25 @@ POST /api/v1/admin/users/{id}/keys
 교체는 `201 { revoked, key: { id, name, prefix, scopes, token } }`을 반환한다.
 일반 사용자 계정의 개인 키에는 사용할 수 없다.
 
+## 역할 일괄 변경
+
+관리자 화면의 사용자 표에서 여러 명을 골라 역할을 한 번에 바꿀 수 있다. 표의 **조직**
+칸은 SSO 그룹의 첫 값이다(계정 메뉴의 조직 표시와 같다). 로컬·에이전트 계정은 비어 있다.
+
+```http
+PATCH /api/v1/admin/users
+Content-Type: application/json
+
+{ "ids": ["…", "…"], "role": "editor" }
+```
+
+- 한 트랜잭션이다. 본인 강등, 에이전트를 관리자로 지정, 관리자가 0명이 되는 변경이
+  **하나라도 섞이면 아무도 바뀌지 않고** `409 operation_conflict`를 돌려준다. 없는 id가
+  섞이면 `404 not_found`다. 화면은 본인·(관리자 지정 시) 에이전트·이미 그 역할인 사람을
+  미리 빼고 보낸다.
+- 응답은 `200 { ok: true, changed: [id…] }` — 실제로 역할이 바뀐 사람만 담는다.
+  감사 로그는 바뀐 사람마다 `admin.user_role_changed`(`metadata.bulk = true`)로 남는다.
+
 ## 로그인
 
 ```http
