@@ -63,6 +63,7 @@ beforeEach(async () => {
       groupClaims: ["groups"],
       allowedGroups: [],
       adminGroups: [],
+      editorGroups: [],
       autoCreate: true,
       lastClaimKeys: [],
     })
@@ -339,6 +340,40 @@ test("그룹이 userinfo에만 있어도 관리자로 올린다", async () => {
   expect(location(res)).toBe(`${BASE}/`);
   const row = await userByEmail(email);
   expect(row?.role).toBe("admin");
+});
+
+test("편집 그룹 여러 개 중 하나에 속하면 새 계정은 처음부터 editor로 만든다", async () => {
+  const email = `editor-group-${Date.now()}@example.com`;
+  await db
+    .update(ssoConfig)
+    .set({ editorGroups: ["glossary-editors", "Sensor Team"] })
+    .where(eq(ssoConfig.id, SSO_CONFIG_ID));
+  stubIdp({ sub: `sub-editor-${Date.now()}`, email, groups: ["sensor team"], nonce: FLOW.nonce });
+
+  const res = await callbackGet(callbackRequest({ code: "c", state: FLOW.state }));
+
+  expect(location(res)).toBe(`${BASE}/`);
+  expect((await userByEmail(email))?.role).toBe("editor");
+});
+
+test("편집 그룹은 기존 viewer를 editor로 올리되 admin은 내리지 않는다", async () => {
+  const stamp = Date.now();
+  await db.update(ssoConfig).set({ editorGroups: ["glossary-editors"] }).where(eq(ssoConfig.id, SSO_CONFIG_ID));
+  const viewerEmail = `editor-promote-${stamp}@example.com`;
+  const adminEmail = `editor-keep-admin-${stamp}@example.com`;
+  await db.insert(users).values([
+    { email: viewerEmail, name: "뷰어", role: "viewer", externalId: `sub-promote-${stamp}` },
+    { email: adminEmail, name: "관리자", role: "admin", externalId: `sub-keep-${stamp}` },
+  ]);
+
+  stubIdp({ sub: `sub-promote-${stamp}`, email: viewerEmail, groups: ["glossary-editors"], nonce: FLOW.nonce });
+  await callbackGet(callbackRequest({ code: "c", state: FLOW.state }));
+  vi.unstubAllGlobals();
+  stubIdp({ sub: `sub-keep-${stamp}`, email: adminEmail, groups: ["glossary-editors"], nonce: FLOW.nonce });
+  await callbackGet(callbackRequest({ code: "c", state: FLOW.state }));
+
+  expect((await userByEmail(viewerEmail))?.role).toBe("editor");
+  expect((await userByEmail(adminEmail))?.role).toBe("admin");
 });
 
 // OIDC Core 5.3.2 — sub가 다른 userinfo는 남의 것이다. 그걸 얹으면 access token만

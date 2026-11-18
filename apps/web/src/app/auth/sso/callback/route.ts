@@ -209,6 +209,7 @@ export async function GET(request: Request): Promise<Response> {
       groups: identity.identity.groups,
       allowedGroups: cfg.allowedGroups,
       adminGroups: cfg.adminGroups,
+      editorGroups: cfg.editorGroups,
     });
     if (!access.allowed) {
       logSsoFailure("access_policy", {
@@ -231,6 +232,7 @@ export async function GET(request: Request): Promise<Response> {
     const result = await applySsoLogin({
       identity: identity.identity,
       isAdmin: access.isAdmin || bootstrapAdmin,
+      isEditor: access.isEditor,
       autoCreate: cfg.autoCreate || bootstrapAdmin,
       refreshProfile: refresh,
       expectedUserId: flow?.refreshUserId,

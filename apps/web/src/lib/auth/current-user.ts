@@ -45,6 +45,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
         groups: inspection.identity.groups,
         allowedGroups: cfg.allowedGroups,
         adminGroups: cfg.adminGroups,
+        editorGroups: cfg.editorGroups,
       });
       if (!access.allowed) {
         logSsoFailure("proxy_header_access", {
@@ -69,6 +70,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       const result = await applySsoLogin({
         identity: inspection.identity,
         isAdmin: access.isAdmin || bootstrapAdmin,
+        isEditor: access.isEditor,
         autoCreate: cfg.autoCreate || bootstrapAdmin,
         automatic: true,
       });

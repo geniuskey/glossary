@@ -34,6 +34,7 @@ export const POST = withApiErrors(async (request: Request) => {
       groups: inspection.identity.groups,
       allowedGroups: cfg.allowedGroups,
       adminGroups: cfg.adminGroups,
+      editorGroups: cfg.editorGroups,
     });
     if (!access.allowed) {
       return apiError("forbidden", "이 사전에 접근이 허용된 외부 계정 그룹이 아닙니다.", 403);
@@ -43,6 +44,7 @@ export const POST = withApiErrors(async (request: Request) => {
     const result = await applySsoLogin({
       identity: inspection.identity,
       isAdmin: access.isAdmin || bootstrapAdmin,
+      isEditor: access.isEditor,
       autoCreate: false,
       refreshProfile: true,
       expectedUserId: auth.user.id,

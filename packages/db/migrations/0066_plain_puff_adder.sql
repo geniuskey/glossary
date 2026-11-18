@@ -1,0 +1,1 @@
+ALTER TABLE "sso_config" ADD COLUMN "editor_groups" text[] DEFAULT '{}' NOT NULL;

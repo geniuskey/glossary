@@ -31,6 +31,7 @@ interface SsoView {
   groupClaims: string[];
   allowedGroups: string[];
   adminGroups: string[];
+  editorGroups: string[];
   autoCreate: boolean;
   lastClaimKeys: string[];
   lastLoginAt: string | null;
@@ -58,6 +59,7 @@ interface Form {
   groupClaims: string;
   allowedGroups: string;
   adminGroups: string;
+  editorGroups: string;
 }
 
 interface ProxyHeaderCheck {
@@ -95,6 +97,7 @@ export function proxyAccessPolicyPayload(form: {
   passwordLoginEnabled: boolean;
   allowedGroups: string;
   adminGroups: string;
+  editorGroups: string;
   autoCreate: boolean;
 }) {
   return {
@@ -102,8 +105,18 @@ export function proxyAccessPolicyPayload(form: {
     passwordLoginEnabled: form.passwordLoginEnabled,
     allowedGroups: parseClaimList(form.allowedGroups),
     adminGroups: parseClaimList(form.adminGroups),
+    editorGroups: parseClaimList(form.editorGroups),
     autoCreate: form.autoCreate,
   };
+}
+
+/**
+ * 그룹 칸은 한 줄에 하나씩 보여준다. 그룹 이름에는 공백이 흔해("Sensor Team")
+ * 쉼표로 이어 한 줄에 몰아 두면 어디서 끊기는지 눈으로 확인하기 어렵다.
+ * 읽을 때는 parseClaimList가 쉼표·줄바꿈을 모두 받는다.
+ */
+export function formatGroupList(groups: readonly string[]): string {
+  return groups.join("\n");
 }
 
 function toForm(sso: SsoView): Form {
@@ -127,8 +140,9 @@ function toForm(sso: SsoView): Form {
     emailClaims: formatClaimList(sso.emailClaims),
     nameClaims: formatClaimList(sso.nameClaims),
     groupClaims: formatClaimList(sso.groupClaims),
-    allowedGroups: formatClaimList(sso.allowedGroups),
-    adminGroups: formatClaimList(sso.adminGroups),
+    allowedGroups: formatGroupList(sso.allowedGroups),
+    adminGroups: formatGroupList(sso.adminGroups),
+    editorGroups: formatGroupList(sso.editorGroups),
   };
 }
 
@@ -223,6 +237,7 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
       scopes: formatClaimList(["openid", "profile", "email"]),
       allowedGroups: "",
       adminGroups: "",
+      editorGroups: "",
     } : prev);
   }
 
@@ -317,6 +332,7 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
           groupClaims: parseClaimList(form.groupClaims),
           allowedGroups: parseClaimList(form.allowedGroups),
           adminGroups: parseClaimList(form.adminGroups),
+          editorGroups: parseClaimList(form.editorGroups),
           autoCreate: form.autoCreate,
         }),
       });
@@ -733,17 +749,24 @@ export function SsoSettingsForm({ runtime }: { runtime: SsoRuntimeView }) {
             Google 계정으로 처음 로그인하면 viewer로 가입합니다. <code className="font-mono" translate="no">INITIAL_ADMIN_EMAIL</code>과 일치하는 계정은 관리자로 시작합니다. Workspace 사용자만 허용하려면 Google Cloud에서 앱 대상을 Internal로 설정하세요.
           </p>
         )}
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <TextField
+        <p className="mt-1 text-xs leading-5 text-ink-3">
+          그룹은 한 줄에 하나씩(또는 쉼표로 구분해) 여러 개 적을 수 있습니다. 하나라도 속하면 해당됩니다.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <GroupListField
             label="허용 그룹"
-            mono
             value={form.allowedGroups}
             onChange={(v) => set("allowedGroups", v)}
             hint={googleLogin ? "Google은 그룹 claim을 보내지 않습니다. Workspace 제한은 Google 앱 대상에서 설정하세요." : "비우면 IdP로 로그인되는 사람 전원"}
           />
-          <TextField
+          <GroupListField
+            label="편집 그룹"
+            value={form.editorGroups}
+            onChange={(v) => set("editorGroups", v)}
+            hint="이 그룹이면 계정을 만들 때부터 편집 권한(editor)을 줍니다. 기존 viewer도 다음 로그인에 editor로 올립니다"
+          />
+          <GroupListField
             label="관리자 그룹"
-            mono
             value={form.adminGroups}
             onChange={(v) => set("adminGroups", v)}
             hint="이 그룹이면 관리자로 올립니다(내리지는 않습니다)"
@@ -816,6 +839,39 @@ function TextField({
         autoComplete="off"
         spellCheck={!mono}
         className={mono ? "field font-mono text-xs" : "field"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {hint && <p className="mt-1 text-[11px] text-ink-3">{hint}</p>}
+    </div>
+  );
+}
+
+function GroupListField({
+  label,
+  value,
+  onChange,
+  hint,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  hint?: string;
+}) {
+  const id = `sso-${label.replace(/[^a-zA-Z가-힣]+/g, "-")}`;
+  return (
+    <div>
+      <label className="label" htmlFor={id}>
+        {label}
+      </label>
+      <textarea
+        id={id}
+        name={id}
+        rows={4}
+        autoComplete="off"
+        spellCheck={false}
+        className="field font-mono text-xs"
+        placeholder={"group-a\ngroup-b"}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />

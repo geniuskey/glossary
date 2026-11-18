@@ -62,7 +62,8 @@ Content-Type: application/json
 ```
 
 - **역할은 언제나 `viewer`다.** 요청에 `role`을 실어도 무시한다. viewer는 읽기만 할 수 있고,
-  관리자가 사용자 관리 화면에서 editor로 승격해야 편집할 수 있다. 관리자는 최초 설정
+  관리자가 사용자 관리 화면에서 editor로 승격해야 편집할 수 있다(SSO 계정은 설정의
+  `editorGroups`에 속하면 처음부터 editor로 만들어진다). 관리자는 최초 설정
   (`/setup`)과 `scripts/seed-admin.ts`로만 생긴다.
 - **이메일은 대소문자를 구분하지 않는다.** `Kim@Example.com`으로 가입하면
   `kim@example.com`으로 저장되고, 로그인도 두 형태 모두 같은 계정을 찾는다
@@ -255,6 +256,7 @@ GET /api/v1/sso
     "nameClaims": ["name", "displayName", "preferred_username"],
     "groupClaims": ["groups", "roles"],
     "allowedGroups": [], "adminGroups": ["Glossary-Admins"],
+    "editorGroups": ["Glossary-Editors", "Sensor Team"],
     "autoCreate": true,
     "lastClaimKeys": ["email", "groups", "name", "sub"],
     "lastLoginAt": "2026-08-29T02:11:03.000Z"

@@ -29,10 +29,10 @@ export async function POST(request: Request) {
     const [withdrawn] = await getDb().select().from(ssoWithdrawals)
       .where(eq(ssoWithdrawals.subjectHash, ssoSubjectHash(identity.subject))).limit(1);
     if (!withdrawn) return new Response(null, { status: 303, headers: { location: "/" } });
-    const access = decideAccess({ groups: identity.groups, allowedGroups: cfg.allowedGroups, adminGroups: cfg.adminGroups });
+    const access = decideAccess({ groups: identity.groups, allowedGroups: cfg.allowedGroups, adminGroups: cfg.adminGroups, editorGroups: cfg.editorGroups });
     if (!access.allowed) return loginError("not_allowed");
     const bootstrapAdmin = isInitialAdminEmail(identity.email);
-    const result = await applySsoLogin({ identity, isAdmin: access.isAdmin || bootstrapAdmin, autoCreate: cfg.autoCreate || bootstrapAdmin });
+    const result = await applySsoLogin({ identity, isAdmin: access.isAdmin || bootstrapAdmin, isEditor: access.isEditor, autoCreate: cfg.autoCreate || bootstrapAdmin });
     if (!result.ok) return loginError(result.reason);
     return new Response(null, { status: 303, headers: { location: "/", "cache-control": "no-store" } });
   } catch (error) {

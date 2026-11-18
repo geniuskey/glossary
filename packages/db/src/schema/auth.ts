@@ -114,6 +114,8 @@ export const ssoConfig = pgTable(
 
     allowedGroups: text("allowed_groups").array().notNull().default([]),
     adminGroups: text("admin_groups").array().notNull().default([]),
+    // 이 그룹이면 계정을 만들 때부터 editor로 시작한다(기본은 viewer).
+    editorGroups: text("editor_groups").array().notNull().default([]),
     autoCreate: boolean("auto_create").notNull().default(true),
 
     // IdP가 실제로 무엇을 보내는지 운영자가 볼 수 있게 마지막 로그인의 claim

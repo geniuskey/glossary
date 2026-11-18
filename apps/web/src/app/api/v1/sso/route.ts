@@ -43,6 +43,7 @@ const patchSchema = z
     groupClaims: nameList,
     allowedGroups: nameList,
     adminGroups: nameList,
+    editorGroups: nameList,
     autoCreate: z.boolean(),
   })
   .partial()

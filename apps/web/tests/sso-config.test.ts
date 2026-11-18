@@ -66,6 +66,9 @@ test("그룹 claim 없이 관리자 그룹만 지정하면 막는다", () => {
   const problems = validateSsoConfig({ ...original, ...READY, groupClaims: [], adminGroups: ["ops"] });
 
   expect(problems.join(" ")).toContain("그룹 claim");
+  expect(
+    validateSsoConfig({ ...original, ...READY, groupClaims: [], editorGroups: ["editors"] }).join(" "),
+  ).toContain("편집 그룹");
 });
 
 test("바깥으로 나가는 설정에는 시크릿이 없고 있는지 여부만 있다", () => {

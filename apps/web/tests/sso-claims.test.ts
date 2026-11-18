@@ -139,16 +139,17 @@ test("OIDC/OAuth claim 안에서 이미 깨져 들어온 한글 이름과 그룹
 // 허용 목록을 비운 것은 "제한 없음"이지 "전원 차단"이 아니다. 반대로 만들면
 // SSO를 켜는 순간 운영자 자신도 못 들어온다.
 test("허용 그룹이 비어 있으면 전원 통과한다", () => {
-  expect(decideAccess({ groups: [], allowedGroups: [], adminGroups: [] })).toEqual({ allowed: true, isAdmin: false });
+  expect(decideAccess({ groups: [], allowedGroups: [], adminGroups: [] })).toEqual({ allowed: true, isAdmin: false, isEditor: false });
 });
 
 test("그룹 비교는 대소문자를 가리지 않는다", () => {
   expect(
     decideAccess({ groups: ["Glossary-Editors"], allowedGroups: ["glossary-editors"], adminGroups: [] }),
-  ).toEqual({ allowed: true, isAdmin: false });
+  ).toEqual({ allowed: true, isAdmin: false, isEditor: false });
   expect(decideAccess({ groups: ["other"], allowedGroups: ["glossary-editors"], adminGroups: [] })).toEqual({
     allowed: false,
     isAdmin: false,
+    isEditor: false,
   });
 });
 
@@ -158,9 +159,27 @@ test("접근이 막히면 관리자 판정도 따라 꺼진다", () => {
   expect(decideAccess({ groups: ["ops"], allowedGroups: ["editors"], adminGroups: ["ops"] })).toEqual({
     allowed: false,
     isAdmin: false,
+    isEditor: false,
   });
   expect(decideAccess({ groups: ["ops"], allowedGroups: ["ops"], adminGroups: ["ops"] })).toEqual({
     allowed: true,
     isAdmin: true,
+    isEditor: false,
   });
+});
+
+test("편집 그룹은 여러 개 중 하나만 속해도 editor가 되고, 관리자·미허용이면 꺼진다", () => {
+  const editorGroups = ["Glossary-Editors", "Sensor Team"];
+  expect(decideAccess({ groups: ["sensor team"], allowedGroups: [], adminGroups: [], editorGroups })).toEqual({
+    allowed: true,
+    isAdmin: false,
+    isEditor: true,
+  });
+  expect(decideAccess({ groups: ["other"], allowedGroups: [], adminGroups: [], editorGroups }).isEditor).toBe(false);
+  expect(
+    decideAccess({ groups: ["Sensor Team", "ops"], allowedGroups: [], adminGroups: ["ops"], editorGroups }),
+  ).toEqual({ allowed: true, isAdmin: true, isEditor: false });
+  expect(
+    decideAccess({ groups: ["Sensor Team"], allowedGroups: ["staff"], adminGroups: [], editorGroups }),
+  ).toEqual({ allowed: false, isAdmin: false, isEditor: false });
 });

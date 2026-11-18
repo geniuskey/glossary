@@ -1411,6 +1411,7 @@ export const openApiSpec = {
                   groupClaims: { type: "array", items: { type: "string" } },
                   allowedGroups: { type: "array", items: { type: "string" } },
                   adminGroups: { type: "array", items: { type: "string" } },
+                  editorGroups: { type: "array", items: { type: "string" } },
                   autoCreate: { type: "boolean" },
                 },
               },

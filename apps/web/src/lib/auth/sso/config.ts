@@ -121,6 +121,9 @@ export function validateSsoConfig(cfg: SsoConfig): string[] {
     // 그룹을 읽지 못하면 관리자 그룹은 영원히 아무에게도 걸리지 않는다.
     problems.push("관리자 그룹을 지정하려면 그룹 claim 후보가 필요합니다.");
   }
+  if (cfg.editorGroups.length > 0 && cfg.groupClaims.length === 0) {
+    problems.push("편집 그룹을 지정하려면 그룹 claim 후보가 필요합니다.");
+  }
   return problems;
 }
 

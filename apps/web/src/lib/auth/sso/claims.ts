@@ -214,6 +214,7 @@ function normalizeGroups(groups: readonly string[]): Set<string> {
 export interface AccessDecision {
   allowed: boolean;
   isAdmin: boolean;
+  isEditor: boolean;
 }
 
 /**
@@ -226,11 +227,17 @@ export function decideAccess(input: {
   groups: readonly string[];
   allowedGroups: readonly string[];
   adminGroups: readonly string[];
+  /** 마이그레이션 전 설정·테스트 픽스처는 이 값이 없다. 없으면 편집 그룹 없음으로 본다. */
+  editorGroups?: readonly string[];
 }): AccessDecision {
   const mine = normalizeGroups(input.groups);
   const allowed = normalizeGroups(input.allowedGroups);
   const admin = normalizeGroups(input.adminGroups);
+  const editor = normalizeGroups(input.editorGroups ?? []);
 
   const passes = allowed.size === 0 || [...mine].some((g) => allowed.has(g));
-  return { allowed: passes, isAdmin: passes && [...mine].some((g) => admin.has(g)) };
+  const isAdmin = passes && [...mine].some((g) => admin.has(g));
+  // 관리자는 이미 편집할 수 있다. 둘 다 켜 두면 호출부가 우선순위를 다시 따져야 하므로 하나만 켠다.
+  const isEditor = passes && !isAdmin && [...mine].some((g) => editor.has(g));
+  return { allowed: passes, isAdmin, isEditor };
 }

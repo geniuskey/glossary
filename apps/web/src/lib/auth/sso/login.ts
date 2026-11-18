@@ -21,6 +21,8 @@ export type SsoLoginResult =
 export async function applySsoLogin(input: {
   identity: SsoIdentity;
   isAdmin: boolean;
+  /** 편집 그룹에 속한 사람. 새 계정은 viewer 대신 editor로 시작하고, 기존 viewer는 editor로 올린다. */
+  isEditor?: boolean;
   autoCreate: boolean;
   /** 사용자가 명시적으로 요청한 재동기화에서는 로컬에서 바꾼 표시 이름도 IdP 값으로 되돌린다. */
   refreshProfile?: boolean;
@@ -38,6 +40,7 @@ export async function applySsoLogin(input: {
   const {
     identity,
     isAdmin,
+    isEditor = false,
     autoCreate,
     refreshProfile = false,
     expectedUserId,
@@ -58,7 +61,7 @@ export async function applySsoLogin(input: {
       if (expectedUserId && bySubject.id !== expectedUserId) {
         return { ok: false as const, reason: "identity_mismatch" as const };
       }
-      const patch = await syncPatch(tx, bySubject, identity, isAdmin, refreshProfile);
+      const patch = await syncPatch(tx, bySubject, identity, isAdmin, isEditor, refreshProfile);
       const user = await applyPatch(tx, bySubject, patch);
       await tx.delete(ssoWithdrawals).where(eq(ssoWithdrawals.subjectHash, subjectHash));
       return { ok: true as const, user, created: false };
@@ -80,7 +83,7 @@ export async function applySsoLogin(input: {
       if (byEmail.externalId && byEmail.externalId !== identity.subject) {
         return { ok: false as const, reason: "email_conflict" as const };
       }
-      const patch = await syncPatch(tx, byEmail, identity, isAdmin, refreshProfile);
+      const patch = await syncPatch(tx, byEmail, identity, isAdmin, isEditor, refreshProfile);
       const user = await applyPatch(tx, byEmail, { ...patch, externalId: identity.subject });
       await tx.delete(ssoWithdrawals).where(eq(ssoWithdrawals.subjectHash, subjectHash));
       return {
@@ -103,7 +106,7 @@ export async function applySsoLogin(input: {
         passwordHash: null,
         externalId: identity.subject,
         ssoGroups: identity.groups,
-        role: isAdmin ? "admin" : "viewer",
+        role: isAdmin ? "admin" : isEditor ? "editor" : "viewer",
       })
       .returning({ id: users.id, email: users.email, name: users.name, role: users.role });
     if (!created) throw new Error("SSO 계정 생성에 실패했습니다.");
@@ -125,6 +128,7 @@ async function syncPatch(
   existing: UserRow,
   identity: SsoIdentity,
   isAdmin: boolean,
+  isEditor: boolean,
   refreshProfile: boolean,
 ): Promise<Partial<UserRow>> {
   const patch: Partial<UserRow> = {};
@@ -135,6 +139,8 @@ async function syncPatch(
   ) patch.name = identity.name;
   if (!sameGroups(identity.groups, existing.ssoGroups)) patch.ssoGroups = identity.groups;
   if (isAdmin && existing.role !== "admin") patch.role = "admin";
+  // 올리기만 한다 — admin을 editor로 내리면 관리자 그룹을 빼먹은 설정 하나로 운영자가 잠긴다.
+  else if (isEditor && existing.role === "viewer") patch.role = "editor";
 
   if (existing.email.toLowerCase() !== identity.email) {
     // 이메일이 바뀐 사람을 따라가되, 그 주소를 이미 다른 계정이 쓰고 있으면 그대로 둔다
