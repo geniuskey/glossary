@@ -1,5 +1,7 @@
 ---
 layout: home
+title: Glossary — 조직 특화형 용어집 관리 플랫폼
+titleTemplate: false
 
 hero:
   name: Glossary

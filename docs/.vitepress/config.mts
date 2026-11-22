@@ -28,7 +28,15 @@ export default defineConfig({
   // 본문에 적힌 개발 서버 주소까지 데드링크로 잡히면 빌드가 막힌다.
   ignoreDeadLinks: [/^https?:\/\/localhost/],
 
-  head: [["link", { rel: "icon", href: "/glossary/favicon.svg" }]],
+  head: [
+    ["link", { rel: "icon", href: "/glossary/favicon.svg" }],
+    ["meta", { name: "author", content: "Euiyun Lab" }],
+    ["meta", { property: "og:title", content: "Glossary — 조직 특화형 용어집 관리 플랫폼" }],
+    ["meta", { property: "og:description", content: "한국어와 영어를 함께 쓰는 조직을 위한 셀프호스팅 용어집 관리 플랫폼" }],
+    ["meta", { property: "og:site_name", content: "Glossary" }],
+    ["meta", { property: "og:type", content: "website" }],
+    ["meta", { property: "og:url", content: "https://geniuskey.github.io/glossary/" }],
+  ],
 
   themeConfig: {
     nav: [
@@ -113,7 +121,7 @@ export default defineConfig({
 
     footer: {
       message: "사내망 온프레미스 배포를 전제로 만든 Apache-2.0 프로젝트입니다.",
-      copyright: "© 2026 Euiyun Kim",
+      copyright: '© 2026 Euiyun Kim · by <a href="https://euiyun.com">Euiyun Lab</a>',
     },
   },
 });
