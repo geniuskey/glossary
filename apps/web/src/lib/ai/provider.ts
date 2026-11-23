@@ -223,9 +223,10 @@ let guardedDispatcher: Agent | undefined;
 /** 모든 AI·RAG 공급자 요청은 이 함수로 나가야 연결 시점 주소 검사를 받는다. */
 export function providerFetch(target: string, init: RequestInit): Promise<Response> {
   guardedDispatcher ??= new Agent({ connect: { lookup: createGuardedLookup() } });
-  // 전역 fetch가 아니라 Agent와 같은 undici 패키지의 fetch를 쓴다. Node 24+의 내장 fetch는
-  // undici 7·8이라 패키지의 undici 6 Agent를 받으면 "invalid onError method"로 모든 AI·RAG
-  // 호출이 연결 오류("fetch failed")가 됐다(Node 26 실측). engines는 >=22라 소스 실행에서 그대로 터진다.
+  // 전역 fetch가 아니라 Agent와 같은 undici 패키지의 fetch를 쓴다. 내장 fetch의 undici 버전은
+  // Node 버전을 따라가 패키지 Agent와 어긋날 수 있고, 어긋나면 "invalid onError method"로 모든
+  // AI·RAG 호출이 연결 오류("fetch failed")가 됐다(패키지 undici 6 + Node 26 실측). 패키지를
+  // 올려 지금 맞더라도 engines(>=22.19) 범위 안 다른 Node에서는 다시 갈라진다.
   return undiciFetch(target, { ...init, dispatcher: guardedDispatcher } as Parameters<typeof undiciFetch>[1]) as unknown as Promise<Response>;
 }
 

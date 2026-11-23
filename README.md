@@ -74,7 +74,7 @@ AI 호출 품질과 비용을 점검할 수 있도록 관리자 화면에서 호
 
 ## 요구사항
 
-- Node.js 22 이상
+- Node.js 22.19 이상 (undici 8 요구사항)
 - pnpm: 루트 `package.json`의 `packageManager`에 지정된 버전
 - Docker (Postgres 16 + `pg_trgm` + `pgvector`)
 
